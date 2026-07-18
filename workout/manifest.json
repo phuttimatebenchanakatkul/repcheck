@@ -1,0 +1,2272 @@
+[
+  {
+    "index": 1,
+    "category": "Chest",
+    "exercise": "Flat Bench Press",
+    "png": "chest/001_flat_bench_press.png",
+    "svg": "chest/001_flat_bench_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 2,
+    "category": "Chest",
+    "exercise": "Incline Bench Press",
+    "png": "chest/002_incline_bench_press.png",
+    "svg": "chest/002_incline_bench_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 3,
+    "category": "Chest",
+    "exercise": "Decline Bench Press",
+    "png": "chest/003_decline_bench_press.png",
+    "svg": "chest/003_decline_bench_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 4,
+    "category": "Chest",
+    "exercise": "Dumbbell Bench Press",
+    "png": "chest/004_dumbbell_bench_press.png",
+    "svg": "chest/004_dumbbell_bench_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 5,
+    "category": "Chest",
+    "exercise": "Incline Dumbbell Press",
+    "png": "chest/005_incline_dumbbell_press.png",
+    "svg": "chest/005_incline_dumbbell_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 6,
+    "category": "Chest",
+    "exercise": "Decline Dumbbell Press",
+    "png": "chest/006_decline_dumbbell_press.png",
+    "svg": "chest/006_decline_dumbbell_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 7,
+    "category": "Chest",
+    "exercise": "Floor Press",
+    "png": "chest/007_floor_press.png",
+    "svg": "chest/007_floor_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 8,
+    "category": "Chest",
+    "exercise": "Chest Fly",
+    "png": "chest/008_chest_fly.png",
+    "svg": "chest/008_chest_fly.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 9,
+    "category": "Chest",
+    "exercise": "Cable Crossover",
+    "png": "chest/009_cable_crossover.png",
+    "svg": "chest/009_cable_crossover.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 10,
+    "category": "Chest",
+    "exercise": "Pec Deck",
+    "png": "chest/010_pec_deck.png",
+    "svg": "chest/010_pec_deck.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 11,
+    "category": "Chest",
+    "exercise": "Push-Up",
+    "png": "chest/011_push_up.png",
+    "svg": "chest/011_push_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 12,
+    "category": "Chest",
+    "exercise": "Incline Push-Up",
+    "png": "chest/012_incline_push_up.png",
+    "svg": "chest/012_incline_push_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 13,
+    "category": "Chest",
+    "exercise": "Decline Push-Up",
+    "png": "chest/013_decline_push_up.png",
+    "svg": "chest/013_decline_push_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 14,
+    "category": "Chest",
+    "exercise": "Dips",
+    "png": "chest/014_dips.png",
+    "svg": "chest/014_dips.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 15,
+    "category": "Chest",
+    "exercise": "Landmine Press",
+    "png": "chest/015_landmine_press.png",
+    "svg": "chest/015_landmine_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 16,
+    "category": "Chest",
+    "exercise": "Resistance Band Chest Press",
+    "png": "chest/016_resistance_band_chest_press.png",
+    "svg": "chest/016_resistance_band_chest_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 17,
+    "category": "Back",
+    "exercise": "Wide-Grip Lat Pulldown",
+    "png": "back/017_wide_grip_lat_pulldown.png",
+    "svg": "back/017_wide_grip_lat_pulldown.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 18,
+    "category": "Back",
+    "exercise": "Close-Grip Lat Pulldown",
+    "png": "back/018_close_grip_lat_pulldown.png",
+    "svg": "back/018_close_grip_lat_pulldown.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 19,
+    "category": "Back",
+    "exercise": "Straight-Arm Pulldown",
+    "png": "back/019_straight_arm_pulldown.png",
+    "svg": "back/019_straight_arm_pulldown.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 20,
+    "category": "Back",
+    "exercise": "Pull-Up",
+    "png": "back/020_pull_up.png",
+    "svg": "back/020_pull_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 21,
+    "category": "Back",
+    "exercise": "Chin-Up",
+    "png": "back/021_chin_up.png",
+    "svg": "back/021_chin_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 22,
+    "category": "Back",
+    "exercise": "Bent-Over Row",
+    "png": "back/022_bent_over_row.png",
+    "svg": "back/022_bent_over_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 23,
+    "category": "Back",
+    "exercise": "Seated Cable Row",
+    "png": "back/023_seated_cable_row.png",
+    "svg": "back/023_seated_cable_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 24,
+    "category": "Back",
+    "exercise": "Dumbbell Row",
+    "png": "back/024_dumbbell_row.png",
+    "svg": "back/024_dumbbell_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 25,
+    "category": "Back",
+    "exercise": "Single-Arm Dumbbell Row",
+    "png": "back/025_single_arm_dumbbell_row.png",
+    "svg": "back/025_single_arm_dumbbell_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 26,
+    "category": "Back",
+    "exercise": "T-Bar Row",
+    "png": "back/026_t_bar_row.png",
+    "svg": "back/026_t_bar_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 27,
+    "category": "Back",
+    "exercise": "Inverted Row",
+    "png": "back/027_inverted_row.png",
+    "svg": "back/027_inverted_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 28,
+    "category": "Back",
+    "exercise": "Resistance Band Row",
+    "png": "back/028_resistance_band_row.png",
+    "svg": "back/028_resistance_band_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 29,
+    "category": "Back",
+    "exercise": "Renegade Row",
+    "png": "back/029_renegade_row.png",
+    "svg": "back/029_renegade_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 30,
+    "category": "Back",
+    "exercise": "Deadlift",
+    "png": "back/030_deadlift.png",
+    "svg": "back/030_deadlift.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 31,
+    "category": "Back",
+    "exercise": "Sumo Deadlift",
+    "png": "back/031_sumo_deadlift.png",
+    "svg": "back/031_sumo_deadlift.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 32,
+    "category": "Back",
+    "exercise": "Rack Pull",
+    "png": "back/032_rack_pull.png",
+    "svg": "back/032_rack_pull.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 33,
+    "category": "Back",
+    "exercise": "Romanian Deadlift (RDL)",
+    "png": "back/033_romanian_deadlift_rdl.png",
+    "svg": "back/033_romanian_deadlift_rdl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 34,
+    "category": "Back",
+    "exercise": "Dumbbell Romanian Deadlift",
+    "png": "back/034_dumbbell_romanian_deadlift.png",
+    "svg": "back/034_dumbbell_romanian_deadlift.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 35,
+    "category": "Back",
+    "exercise": "Stiff-Leg Deadlift (SLDL)",
+    "png": "back/035_stiff_leg_deadlift_sldl.png",
+    "svg": "back/035_stiff_leg_deadlift_sldl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 36,
+    "category": "Back",
+    "exercise": "Good Morning",
+    "png": "back/036_good_morning.png",
+    "svg": "back/036_good_morning.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 37,
+    "category": "Shoulders",
+    "exercise": "Shoulder Press",
+    "png": "shoulders/037_shoulder_press.png",
+    "svg": "shoulders/037_shoulder_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 38,
+    "category": "Shoulders",
+    "exercise": "Overhead Press",
+    "png": "shoulders/038_overhead_press.png",
+    "svg": "shoulders/038_overhead_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 39,
+    "category": "Shoulders",
+    "exercise": "Arnold Press",
+    "png": "shoulders/039_arnold_press.png",
+    "svg": "shoulders/039_arnold_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 40,
+    "category": "Shoulders",
+    "exercise": "Lateral Raise",
+    "png": "shoulders/040_lateral_raise.png",
+    "svg": "shoulders/040_lateral_raise.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 41,
+    "category": "Shoulders",
+    "exercise": "Cable Lateral Raise",
+    "png": "shoulders/041_cable_lateral_raise.png",
+    "svg": "shoulders/041_cable_lateral_raise.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 42,
+    "category": "Shoulders",
+    "exercise": "Front Raise",
+    "png": "shoulders/042_front_raise.png",
+    "svg": "shoulders/042_front_raise.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 43,
+    "category": "Shoulders",
+    "exercise": "Rear Delt Fly",
+    "png": "shoulders/043_rear_delt_fly.png",
+    "svg": "shoulders/043_rear_delt_fly.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 44,
+    "category": "Shoulders",
+    "exercise": "Face Pull",
+    "png": "shoulders/044_face_pull.png",
+    "svg": "shoulders/044_face_pull.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 45,
+    "category": "Shoulders",
+    "exercise": "Resistance Band Face Pull",
+    "png": "shoulders/045_resistance_band_face_pull.png",
+    "svg": "shoulders/045_resistance_band_face_pull.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 46,
+    "category": "Shoulders",
+    "exercise": "Upright Row",
+    "png": "shoulders/046_upright_row.png",
+    "svg": "shoulders/046_upright_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 47,
+    "category": "Shoulders",
+    "exercise": "Shrug",
+    "png": "shoulders/047_shrug.png",
+    "svg": "shoulders/047_shrug.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 48,
+    "category": "Shoulders",
+    "exercise": "Pike Push-Up",
+    "png": "shoulders/048_pike_push_up.png",
+    "svg": "shoulders/048_pike_push_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 49,
+    "category": "Arms",
+    "exercise": "Bicep Curl",
+    "png": "arms/049_bicep_curl.png",
+    "svg": "arms/049_bicep_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 50,
+    "category": "Arms",
+    "exercise": "Barbell Bicep Curl",
+    "png": "arms/050_barbell_bicep_curl.png",
+    "svg": "arms/050_barbell_bicep_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 51,
+    "category": "Arms",
+    "exercise": "EZ-Bar Bicep Curl",
+    "png": "arms/051_ez_bar_bicep_curl.png",
+    "svg": "arms/051_ez_bar_bicep_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 52,
+    "category": "Arms",
+    "exercise": "Resistance Band Bicep Curl",
+    "png": "arms/052_resistance_band_bicep_curl.png",
+    "svg": "arms/052_resistance_band_bicep_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 53,
+    "category": "Arms",
+    "exercise": "Hammer Curl",
+    "png": "arms/053_hammer_curl.png",
+    "svg": "arms/053_hammer_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 54,
+    "category": "Arms",
+    "exercise": "Preacher Curl",
+    "png": "arms/054_preacher_curl.png",
+    "svg": "arms/054_preacher_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 55,
+    "category": "Arms",
+    "exercise": "Concentration Curl",
+    "png": "arms/055_concentration_curl.png",
+    "svg": "arms/055_concentration_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 56,
+    "category": "Arms",
+    "exercise": "Cable Curl",
+    "png": "arms/056_cable_curl.png",
+    "svg": "arms/056_cable_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 57,
+    "category": "Arms",
+    "exercise": "Spider Curl",
+    "png": "arms/057_spider_curl.png",
+    "svg": "arms/057_spider_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 58,
+    "category": "Arms",
+    "exercise": "Zottman Curl",
+    "png": "arms/058_zottman_curl.png",
+    "svg": "arms/058_zottman_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 59,
+    "category": "Arms",
+    "exercise": "Tricep Pushdown",
+    "png": "arms/059_tricep_pushdown.png",
+    "svg": "arms/059_tricep_pushdown.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 60,
+    "category": "Arms",
+    "exercise": "Tricep Extension",
+    "png": "arms/060_tricep_extension.png",
+    "svg": "arms/060_tricep_extension.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 61,
+    "category": "Arms",
+    "exercise": "Overhead Tricep Extension",
+    "png": "arms/061_overhead_tricep_extension.png",
+    "svg": "arms/061_overhead_tricep_extension.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 62,
+    "category": "Arms",
+    "exercise": "Barbell Skull Crusher",
+    "png": "arms/062_barbell_skull_crusher.png",
+    "svg": "arms/062_barbell_skull_crusher.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 63,
+    "category": "Arms",
+    "exercise": "Skull Crusher",
+    "png": "arms/063_skull_crusher.png",
+    "svg": "arms/063_skull_crusher.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 64,
+    "category": "Arms",
+    "exercise": "Close-Grip Bench Press",
+    "png": "arms/064_close_grip_bench_press.png",
+    "svg": "arms/064_close_grip_bench_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 65,
+    "category": "Arms",
+    "exercise": "Diamond Push-Up",
+    "png": "arms/065_diamond_push_up.png",
+    "svg": "arms/065_diamond_push_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 66,
+    "category": "Arms",
+    "exercise": "Bench Dip",
+    "png": "arms/066_bench_dip.png",
+    "svg": "arms/066_bench_dip.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 67,
+    "category": "Arms",
+    "exercise": "Cable Kickback",
+    "png": "arms/067_cable_kickback.png",
+    "svg": "arms/067_cable_kickback.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 68,
+    "category": "Legs",
+    "exercise": "Squat",
+    "png": "legs/068_squat.png",
+    "svg": "legs/068_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 69,
+    "category": "Legs",
+    "exercise": "Dumbbell Squat",
+    "png": "legs/069_dumbbell_squat.png",
+    "svg": "legs/069_dumbbell_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 70,
+    "category": "Legs",
+    "exercise": "Front Squat",
+    "png": "legs/070_front_squat.png",
+    "svg": "legs/070_front_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 71,
+    "category": "Legs",
+    "exercise": "Goblet Squat",
+    "png": "legs/071_goblet_squat.png",
+    "svg": "legs/071_goblet_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 72,
+    "category": "Legs",
+    "exercise": "Sumo Squat",
+    "png": "legs/072_sumo_squat.png",
+    "svg": "legs/072_sumo_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 73,
+    "category": "Legs",
+    "exercise": "Box Squat",
+    "png": "legs/073_box_squat.png",
+    "svg": "legs/073_box_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 74,
+    "category": "Legs",
+    "exercise": "Pistol Squat",
+    "png": "legs/074_pistol_squat.png",
+    "svg": "legs/074_pistol_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 75,
+    "category": "Legs",
+    "exercise": "Leg Press",
+    "png": "legs/075_leg_press.png",
+    "svg": "legs/075_leg_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 76,
+    "category": "Legs",
+    "exercise": "Hack Squat",
+    "png": "legs/076_hack_squat.png",
+    "svg": "legs/076_hack_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 77,
+    "category": "Legs",
+    "exercise": "Leg Extension",
+    "png": "legs/077_leg_extension.png",
+    "svg": "legs/077_leg_extension.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 78,
+    "category": "Legs",
+    "exercise": "Lying Leg Curl Machine",
+    "png": "legs/078_lying_leg_curl_machine.png",
+    "svg": "legs/078_lying_leg_curl_machine.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 79,
+    "category": "Legs",
+    "exercise": "Seated Leg Curl",
+    "png": "legs/079_seated_leg_curl.png",
+    "svg": "legs/079_seated_leg_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 80,
+    "category": "Legs",
+    "exercise": "Nordic Hamstring Curl",
+    "png": "legs/080_nordic_hamstring_curl.png",
+    "svg": "legs/080_nordic_hamstring_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 81,
+    "category": "Legs",
+    "exercise": "Walking Lunge",
+    "png": "legs/081_walking_lunge.png",
+    "svg": "legs/081_walking_lunge.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 82,
+    "category": "Legs",
+    "exercise": "Reverse Lunge",
+    "png": "legs/082_reverse_lunge.png",
+    "svg": "legs/082_reverse_lunge.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 83,
+    "category": "Legs",
+    "exercise": "Bulgarian Split Squat",
+    "png": "legs/083_bulgarian_split_squat.png",
+    "svg": "legs/083_bulgarian_split_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 84,
+    "category": "Legs",
+    "exercise": "Step-Up",
+    "png": "legs/084_step_up.png",
+    "svg": "legs/084_step_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 85,
+    "category": "Legs",
+    "exercise": "Hip Thrust",
+    "png": "legs/085_hip_thrust.png",
+    "svg": "legs/085_hip_thrust.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 86,
+    "category": "Legs",
+    "exercise": "Barbell Hip Thrust",
+    "png": "legs/086_barbell_hip_thrust.png",
+    "svg": "legs/086_barbell_hip_thrust.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 87,
+    "category": "Legs",
+    "exercise": "Glute Bridge",
+    "png": "legs/087_glute_bridge.png",
+    "svg": "legs/087_glute_bridge.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 88,
+    "category": "Legs",
+    "exercise": "Hip Abduction Machine",
+    "png": "legs/088_hip_abduction_machine.png",
+    "svg": "legs/088_hip_abduction_machine.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 89,
+    "category": "Legs",
+    "exercise": "Hip Adduction Machine",
+    "png": "legs/089_hip_adduction_machine.png",
+    "svg": "legs/089_hip_adduction_machine.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 90,
+    "category": "Legs",
+    "exercise": "Calf Raise",
+    "png": "legs/090_calf_raise.png",
+    "svg": "legs/090_calf_raise.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 91,
+    "category": "Legs",
+    "exercise": "Seated Calf Raise",
+    "png": "legs/091_seated_calf_raise.png",
+    "svg": "legs/091_seated_calf_raise.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 92,
+    "category": "Legs",
+    "exercise": "Sissy Squat",
+    "png": "legs/092_sissy_squat.png",
+    "svg": "legs/092_sissy_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 93,
+    "category": "Core",
+    "exercise": "Plank",
+    "png": "core/093_plank.png",
+    "svg": "core/093_plank.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 94,
+    "category": "Core",
+    "exercise": "Side Plank",
+    "png": "core/094_side_plank.png",
+    "svg": "core/094_side_plank.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 95,
+    "category": "Core",
+    "exercise": "Crunch",
+    "png": "core/095_crunch.png",
+    "svg": "core/095_crunch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 96,
+    "category": "Core",
+    "exercise": "Bicycle Crunch",
+    "png": "core/096_bicycle_crunch.png",
+    "svg": "core/096_bicycle_crunch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 97,
+    "category": "Core",
+    "exercise": "Cable Crunch",
+    "png": "core/097_cable_crunch.png",
+    "svg": "core/097_cable_crunch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 98,
+    "category": "Core",
+    "exercise": "Sit-Up",
+    "png": "core/098_sit_up.png",
+    "svg": "core/098_sit_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 99,
+    "category": "Core",
+    "exercise": "V-Up",
+    "png": "core/099_v_up.png",
+    "svg": "core/099_v_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 100,
+    "category": "Core",
+    "exercise": "Hanging Leg Raise",
+    "png": "core/100_hanging_leg_raise.png",
+    "svg": "core/100_hanging_leg_raise.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 101,
+    "category": "Core",
+    "exercise": "Ab Wheel Rollout",
+    "png": "core/101_ab_wheel_rollout.png",
+    "svg": "core/101_ab_wheel_rollout.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 102,
+    "category": "Core",
+    "exercise": "Cable Woodchopper",
+    "png": "core/102_cable_woodchopper.png",
+    "svg": "core/102_cable_woodchopper.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 103,
+    "category": "Core",
+    "exercise": "Russian Twist",
+    "png": "core/103_russian_twist.png",
+    "svg": "core/103_russian_twist.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 104,
+    "category": "Core",
+    "exercise": "Dead Bug",
+    "png": "core/104_dead_bug.png",
+    "svg": "core/104_dead_bug.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 105,
+    "category": "Core",
+    "exercise": "Mountain Climber",
+    "png": "core/105_mountain_climber.png",
+    "svg": "core/105_mountain_climber.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 106,
+    "category": "Full Body - Conditioning",
+    "exercise": "Kettlebell Swing",
+    "png": "full_body_conditioning/106_kettlebell_swing.png",
+    "svg": "full_body_conditioning/106_kettlebell_swing.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 107,
+    "category": "Full Body - Conditioning",
+    "exercise": "Farmer's Carry",
+    "png": "full_body_conditioning/107_farmer_s_carry.png",
+    "svg": "full_body_conditioning/107_farmer_s_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 108,
+    "category": "Full Body - Conditioning",
+    "exercise": "Thruster",
+    "png": "full_body_conditioning/108_thruster.png",
+    "svg": "full_body_conditioning/108_thruster.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 109,
+    "category": "Full Body - Conditioning",
+    "exercise": "Burpee",
+    "png": "full_body_conditioning/109_burpee.png",
+    "svg": "full_body_conditioning/109_burpee.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 110,
+    "category": "Full Body - Conditioning",
+    "exercise": "Devil Press",
+    "png": "full_body_conditioning/110_devil_press.png",
+    "svg": "full_body_conditioning/110_devil_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 111,
+    "category": "Full Body - Conditioning",
+    "exercise": "Clean and Jerk",
+    "png": "full_body_conditioning/111_clean_and_jerk.png",
+    "svg": "full_body_conditioning/111_clean_and_jerk.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 112,
+    "category": "Full Body - Conditioning",
+    "exercise": "Snatch",
+    "png": "full_body_conditioning/112_snatch.png",
+    "svg": "full_body_conditioning/112_snatch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 113,
+    "category": "Full Body - Conditioning",
+    "exercise": "Wall Ball Shot",
+    "png": "full_body_conditioning/113_wall_ball_shot.png",
+    "svg": "full_body_conditioning/113_wall_ball_shot.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 114,
+    "category": "Full Body - Conditioning",
+    "exercise": "Sled Push",
+    "png": "full_body_conditioning/114_sled_push.png",
+    "svg": "full_body_conditioning/114_sled_push.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 115,
+    "category": "Full Body - Conditioning",
+    "exercise": "Sled Pull",
+    "png": "full_body_conditioning/115_sled_pull.png",
+    "svg": "full_body_conditioning/115_sled_pull.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 116,
+    "category": "Full Body - Conditioning",
+    "exercise": "Box Jump Over",
+    "png": "full_body_conditioning/116_box_jump_over.png",
+    "svg": "full_body_conditioning/116_box_jump_over.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 117,
+    "category": "Full Body - Conditioning",
+    "exercise": "Rowing Machine Intervals",
+    "png": "full_body_conditioning/117_rowing_machine_intervals.png",
+    "svg": "full_body_conditioning/117_rowing_machine_intervals.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 118,
+    "category": "Full Body - Conditioning",
+    "exercise": "Assault Bike Intervals",
+    "png": "full_body_conditioning/118_assault_bike_intervals.png",
+    "svg": "full_body_conditioning/118_assault_bike_intervals.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 119,
+    "category": "Mobility & Flexibility",
+    "exercise": "World's Greatest Stretch",
+    "png": "mobility_and_flexibility/119_world_s_greatest_stretch.png",
+    "svg": "mobility_and_flexibility/119_world_s_greatest_stretch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 120,
+    "category": "Mobility & Flexibility",
+    "exercise": "Cat-Cow Stretch",
+    "png": "mobility_and_flexibility/120_cat_cow_stretch.png",
+    "svg": "mobility_and_flexibility/120_cat_cow_stretch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 121,
+    "category": "Mobility & Flexibility",
+    "exercise": "Thoracic Spine Rotation",
+    "png": "mobility_and_flexibility/121_thoracic_spine_rotation.png",
+    "svg": "mobility_and_flexibility/121_thoracic_spine_rotation.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 122,
+    "category": "Mobility & Flexibility",
+    "exercise": "90/90 Hip Stretch",
+    "png": "mobility_and_flexibility/122_90_90_hip_stretch.png",
+    "svg": "mobility_and_flexibility/122_90_90_hip_stretch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 123,
+    "category": "Mobility & Flexibility",
+    "exercise": "Deep Squat Hold",
+    "png": "mobility_and_flexibility/123_deep_squat_hold.png",
+    "svg": "mobility_and_flexibility/123_deep_squat_hold.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 124,
+    "category": "Mobility & Flexibility",
+    "exercise": "Cossack Squat",
+    "png": "mobility_and_flexibility/124_cossack_squat.png",
+    "svg": "mobility_and_flexibility/124_cossack_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 125,
+    "category": "Mobility & Flexibility",
+    "exercise": "Hip Flexor Stretch",
+    "png": "mobility_and_flexibility/125_hip_flexor_stretch.png",
+    "svg": "mobility_and_flexibility/125_hip_flexor_stretch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 126,
+    "category": "Mobility & Flexibility",
+    "exercise": "Pigeon Pose",
+    "png": "mobility_and_flexibility/126_pigeon_pose.png",
+    "svg": "mobility_and_flexibility/126_pigeon_pose.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 127,
+    "category": "Mobility & Flexibility",
+    "exercise": "Downward Dog",
+    "png": "mobility_and_flexibility/127_downward_dog.png",
+    "svg": "mobility_and_flexibility/127_downward_dog.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 128,
+    "category": "Mobility & Flexibility",
+    "exercise": "Shoulder Dislocates",
+    "png": "mobility_and_flexibility/128_shoulder_dislocates.png",
+    "svg": "mobility_and_flexibility/128_shoulder_dislocates.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 129,
+    "category": "Mobility & Flexibility",
+    "exercise": "Arm Circles",
+    "png": "mobility_and_flexibility/129_arm_circles.png",
+    "svg": "mobility_and_flexibility/129_arm_circles.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 130,
+    "category": "Mobility & Flexibility",
+    "exercise": "Band Pull-Apart",
+    "png": "mobility_and_flexibility/130_band_pull_apart.png",
+    "svg": "mobility_and_flexibility/130_band_pull_apart.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 131,
+    "category": "Mobility & Flexibility",
+    "exercise": "Wall Slides",
+    "png": "mobility_and_flexibility/131_wall_slides.png",
+    "svg": "mobility_and_flexibility/131_wall_slides.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 132,
+    "category": "Mobility & Flexibility",
+    "exercise": "Leg Swings",
+    "png": "mobility_and_flexibility/132_leg_swings.png",
+    "svg": "mobility_and_flexibility/132_leg_swings.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 133,
+    "category": "Mobility & Flexibility",
+    "exercise": "Walking Knee Hug",
+    "png": "mobility_and_flexibility/133_walking_knee_hug.png",
+    "svg": "mobility_and_flexibility/133_walking_knee_hug.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 134,
+    "category": "Mobility & Flexibility",
+    "exercise": "Spiderman Lunge with Reach",
+    "png": "mobility_and_flexibility/134_spiderman_lunge_with_reach.png",
+    "svg": "mobility_and_flexibility/134_spiderman_lunge_with_reach.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 135,
+    "category": "Mobility & Flexibility",
+    "exercise": "Standing Quad Stretch",
+    "png": "mobility_and_flexibility/135_standing_quad_stretch.png",
+    "svg": "mobility_and_flexibility/135_standing_quad_stretch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 136,
+    "category": "Mobility & Flexibility",
+    "exercise": "Ankle Mobility Drill",
+    "png": "mobility_and_flexibility/136_ankle_mobility_drill.png",
+    "svg": "mobility_and_flexibility/136_ankle_mobility_drill.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 137,
+    "category": "Mobility & Flexibility",
+    "exercise": "Scorpion Stretch",
+    "png": "mobility_and_flexibility/137_scorpion_stretch.png",
+    "svg": "mobility_and_flexibility/137_scorpion_stretch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 138,
+    "category": "Mobility & Flexibility",
+    "exercise": "Foam Rolling",
+    "png": "mobility_and_flexibility/138_foam_rolling.png",
+    "svg": "mobility_and_flexibility/138_foam_rolling.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 139,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Sprint Starts",
+    "png": "athletic_speed_and_agility/139_sprint_starts.png",
+    "svg": "athletic_speed_and_agility/139_sprint_starts.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 140,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Flying Sprints",
+    "png": "athletic_speed_and_agility/140_flying_sprints.png",
+    "svg": "athletic_speed_and_agility/140_flying_sprints.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 141,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Hill Sprints",
+    "png": "athletic_speed_and_agility/141_hill_sprints.png",
+    "svg": "athletic_speed_and_agility/141_hill_sprints.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 142,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Resisted Sprint (Sled Push)",
+    "png": "athletic_speed_and_agility/142_resisted_sprint_sled_push.png",
+    "svg": "athletic_speed_and_agility/142_resisted_sprint_sled_push.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 143,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Sled Drag",
+    "png": "athletic_speed_and_agility/143_sled_drag.png",
+    "svg": "athletic_speed_and_agility/143_sled_drag.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 144,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Box Jump",
+    "png": "athletic_speed_and_agility/144_box_jump.png",
+    "svg": "athletic_speed_and_agility/144_box_jump.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 145,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Depth Jump",
+    "png": "athletic_speed_and_agility/145_depth_jump.png",
+    "svg": "athletic_speed_and_agility/145_depth_jump.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 146,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Broad Jump",
+    "png": "athletic_speed_and_agility/146_broad_jump.png",
+    "svg": "athletic_speed_and_agility/146_broad_jump.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 147,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Lateral Bound",
+    "png": "athletic_speed_and_agility/147_lateral_bound.png",
+    "svg": "athletic_speed_and_agility/147_lateral_bound.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 148,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Single-Leg Bound",
+    "png": "athletic_speed_and_agility/148_single_leg_bound.png",
+    "svg": "athletic_speed_and_agility/148_single_leg_bound.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 149,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Agility Ladder Drills",
+    "png": "athletic_speed_and_agility/149_agility_ladder_drills.png",
+    "svg": "athletic_speed_and_agility/149_agility_ladder_drills.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 150,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Cone Shuttle Run",
+    "png": "athletic_speed_and_agility/150_cone_shuttle_run.png",
+    "svg": "athletic_speed_and_agility/150_cone_shuttle_run.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 151,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "5-10-5 Pro Agility Drill",
+    "png": "athletic_speed_and_agility/151_5_10_5_pro_agility_drill.png",
+    "svg": "athletic_speed_and_agility/151_5_10_5_pro_agility_drill.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 152,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "T-Drill",
+    "png": "athletic_speed_and_agility/152_t_drill.png",
+    "svg": "athletic_speed_and_agility/152_t_drill.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 153,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Reactive Ball Drop Drill",
+    "png": "athletic_speed_and_agility/153_reactive_ball_drop_drill.png",
+    "svg": "athletic_speed_and_agility/153_reactive_ball_drop_drill.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 154,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Medicine Ball Rotational Throw",
+    "png": "athletic_speed_and_agility/154_medicine_ball_rotational_throw.png",
+    "svg": "athletic_speed_and_agility/154_medicine_ball_rotational_throw.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 155,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Medicine Ball Chest Pass",
+    "png": "athletic_speed_and_agility/155_medicine_ball_chest_pass.png",
+    "svg": "athletic_speed_and_agility/155_medicine_ball_chest_pass.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 156,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Medicine Ball Slam",
+    "png": "athletic_speed_and_agility/156_medicine_ball_slam.png",
+    "svg": "athletic_speed_and_agility/156_medicine_ball_slam.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 157,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Jump Rope",
+    "png": "athletic_speed_and_agility/157_jump_rope.png",
+    "svg": "athletic_speed_and_agility/157_jump_rope.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 158,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "High Knees",
+    "png": "athletic_speed_and_agility/158_high_knees.png",
+    "svg": "athletic_speed_and_agility/158_high_knees.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 159,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Butt Kicks",
+    "png": "athletic_speed_and_agility/159_butt_kicks.png",
+    "svg": "athletic_speed_and_agility/159_butt_kicks.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 160,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "A-Skip",
+    "png": "athletic_speed_and_agility/160_a_skip.png",
+    "svg": "athletic_speed_and_agility/160_a_skip.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 161,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "B-Skip",
+    "png": "athletic_speed_and_agility/161_b_skip.png",
+    "svg": "athletic_speed_and_agility/161_b_skip.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 162,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Bounding",
+    "png": "athletic_speed_and_agility/162_bounding.png",
+    "svg": "athletic_speed_and_agility/162_bounding.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 163,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Plyo Push-Up",
+    "png": "athletic_speed_and_agility/163_plyo_push_up.png",
+    "svg": "athletic_speed_and_agility/163_plyo_push_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 164,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Squat Jump",
+    "png": "athletic_speed_and_agility/164_squat_jump.png",
+    "svg": "athletic_speed_and_agility/164_squat_jump.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 165,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Tuck Jump",
+    "png": "athletic_speed_and_agility/165_tuck_jump.png",
+    "svg": "athletic_speed_and_agility/165_tuck_jump.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 166,
+    "category": "Athletic - Speed & Agility",
+    "exercise": "Lateral Skater Jump",
+    "png": "athletic_speed_and_agility/166_lateral_skater_jump.png",
+    "svg": "athletic_speed_and_agility/166_lateral_skater_jump.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 167,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Suitcase Carry",
+    "png": "functional_real_world_strength/167_suitcase_carry.png",
+    "svg": "functional_real_world_strength/167_suitcase_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 168,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Overhead Carry",
+    "png": "functional_real_world_strength/168_overhead_carry.png",
+    "svg": "functional_real_world_strength/168_overhead_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 169,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Sandbag Carry",
+    "png": "functional_real_world_strength/169_sandbag_carry.png",
+    "svg": "functional_real_world_strength/169_sandbag_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 170,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Sandbag Clean",
+    "png": "functional_real_world_strength/170_sandbag_clean.png",
+    "svg": "functional_real_world_strength/170_sandbag_clean.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 171,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Sandbag Shouldering",
+    "png": "functional_real_world_strength/171_sandbag_shouldering.png",
+    "svg": "functional_real_world_strength/171_sandbag_shouldering.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 172,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Zercher Carry",
+    "png": "functional_real_world_strength/172_zercher_carry.png",
+    "svg": "functional_real_world_strength/172_zercher_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 173,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Yoke Walk",
+    "png": "functional_real_world_strength/173_yoke_walk.png",
+    "svg": "functional_real_world_strength/173_yoke_walk.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 174,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Turkish Get-Up",
+    "png": "functional_real_world_strength/174_turkish_get_up.png",
+    "svg": "functional_real_world_strength/174_turkish_get_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 175,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Bear Crawl",
+    "png": "functional_real_world_strength/175_bear_crawl.png",
+    "svg": "functional_real_world_strength/175_bear_crawl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 176,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Crawling Drill",
+    "png": "functional_real_world_strength/176_crawling_drill.png",
+    "svg": "functional_real_world_strength/176_crawling_drill.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 177,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Sit-to-Stand",
+    "png": "functional_real_world_strength/177_sit_to_stand.png",
+    "svg": "functional_real_world_strength/177_sit_to_stand.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 178,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Floor-to-Stand Get-Up",
+    "png": "functional_real_world_strength/178_floor_to_stand_get_up.png",
+    "svg": "functional_real_world_strength/178_floor_to_stand_get_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 179,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Loaded Stair Climb",
+    "png": "functional_real_world_strength/179_loaded_stair_climb.png",
+    "svg": "functional_real_world_strength/179_loaded_stair_climb.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 180,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Tire Flip",
+    "png": "functional_real_world_strength/180_tire_flip.png",
+    "svg": "functional_real_world_strength/180_tire_flip.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 181,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Deadlift to Shoulder (Sandbag)",
+    "png": "functional_real_world_strength/181_deadlift_to_shoulder_sandbag.png",
+    "svg": "functional_real_world_strength/181_deadlift_to_shoulder_sandbag.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 182,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Zercher Squat",
+    "png": "functional_real_world_strength/182_zercher_squat.png",
+    "svg": "functional_real_world_strength/182_zercher_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 183,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Suitcase Deadlift",
+    "png": "functional_real_world_strength/183_suitcase_deadlift.png",
+    "svg": "functional_real_world_strength/183_suitcase_deadlift.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 184,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Single-Arm Farmer's Carry",
+    "png": "functional_real_world_strength/184_single_arm_farmer_s_carry.png",
+    "svg": "functional_real_world_strength/184_single_arm_farmer_s_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 185,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Wheelbarrow Carry",
+    "png": "functional_real_world_strength/185_wheelbarrow_carry.png",
+    "svg": "functional_real_world_strength/185_wheelbarrow_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 186,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Log Press",
+    "png": "functional_real_world_strength/186_log_press.png",
+    "svg": "functional_real_world_strength/186_log_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 187,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Atlas Stone Lift",
+    "png": "functional_real_world_strength/187_atlas_stone_lift.png",
+    "svg": "functional_real_world_strength/187_atlas_stone_lift.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 188,
+    "category": "Functional - Real-World Strength",
+    "exercise": "Keg Carry",
+    "png": "functional_real_world_strength/188_keg_carry.png",
+    "svg": "functional_real_world_strength/188_keg_carry.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 189,
+    "category": "Balance & Stability",
+    "exercise": "Single-Leg Balance Hold",
+    "png": "balance_and_stability/189_single_leg_balance_hold.png",
+    "svg": "balance_and_stability/189_single_leg_balance_hold.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 190,
+    "category": "Balance & Stability",
+    "exercise": "Single-Leg Romanian Deadlift",
+    "png": "balance_and_stability/190_single_leg_romanian_deadlift.png",
+    "svg": "balance_and_stability/190_single_leg_romanian_deadlift.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 191,
+    "category": "Balance & Stability",
+    "exercise": "Bosu Ball Squat",
+    "png": "balance_and_stability/191_bosu_ball_squat.png",
+    "svg": "balance_and_stability/191_bosu_ball_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 192,
+    "category": "Balance & Stability",
+    "exercise": "Bosu Ball Balance Hold",
+    "png": "balance_and_stability/192_bosu_ball_balance_hold.png",
+    "svg": "balance_and_stability/192_bosu_ball_balance_hold.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 193,
+    "category": "Balance & Stability",
+    "exercise": "Single-Leg Box Step-Down",
+    "png": "balance_and_stability/193_single_leg_box_step_down.png",
+    "svg": "balance_and_stability/193_single_leg_box_step_down.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 194,
+    "category": "Balance & Stability",
+    "exercise": "Tandem Stance Hold",
+    "png": "balance_and_stability/194_tandem_stance_hold.png",
+    "svg": "balance_and_stability/194_tandem_stance_hold.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 195,
+    "category": "Balance & Stability",
+    "exercise": "Heel-to-Toe Walk",
+    "png": "balance_and_stability/195_heel_to_toe_walk.png",
+    "svg": "balance_and_stability/195_heel_to_toe_walk.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 196,
+    "category": "Balance & Stability",
+    "exercise": "Single-Leg Deadlift Reach",
+    "png": "balance_and_stability/196_single_leg_deadlift_reach.png",
+    "svg": "balance_and_stability/196_single_leg_deadlift_reach.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 197,
+    "category": "Balance & Stability",
+    "exercise": "Stability Ball Plank",
+    "png": "balance_and_stability/197_stability_ball_plank.png",
+    "svg": "balance_and_stability/197_stability_ball_plank.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 198,
+    "category": "Balance & Stability",
+    "exercise": "Stability Ball Hamstring Curl",
+    "png": "balance_and_stability/198_stability_ball_hamstring_curl.png",
+    "svg": "balance_and_stability/198_stability_ball_hamstring_curl.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 199,
+    "category": "Balance & Stability",
+    "exercise": "Single-Leg Glute Bridge",
+    "png": "balance_and_stability/199_single_leg_glute_bridge.png",
+    "svg": "balance_and_stability/199_single_leg_glute_bridge.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 200,
+    "category": "Balance & Stability",
+    "exercise": "Balance Beam Walk",
+    "png": "balance_and_stability/200_balance_beam_walk.png",
+    "svg": "balance_and_stability/200_balance_beam_walk.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 201,
+    "category": "Balance & Stability",
+    "exercise": "Slackline Balance",
+    "png": "balance_and_stability/201_slackline_balance.png",
+    "svg": "balance_and_stability/201_slackline_balance.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 202,
+    "category": "Balance & Stability",
+    "exercise": "Single-Leg Hop and Stick",
+    "png": "balance_and_stability/202_single_leg_hop_and_stick.png",
+    "svg": "balance_and_stability/202_single_leg_hop_and_stick.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 203,
+    "category": "Balance & Stability",
+    "exercise": "Wobble Board Balance",
+    "png": "balance_and_stability/203_wobble_board_balance.png",
+    "svg": "balance_and_stability/203_wobble_board_balance.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 204,
+    "category": "Balance & Stability",
+    "exercise": "Pallof Press",
+    "png": "balance_and_stability/204_pallof_press.png",
+    "svg": "balance_and_stability/204_pallof_press.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 205,
+    "category": "Balance & Stability",
+    "exercise": "Standing Y-Balance Reach",
+    "png": "balance_and_stability/205_standing_y_balance_reach.png",
+    "svg": "balance_and_stability/205_standing_y_balance_reach.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 206,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Prenatal Cat-Cow Stretch",
+    "png": "prenatal_low_impact/206_prenatal_cat_cow_stretch.png",
+    "svg": "prenatal_low_impact/206_prenatal_cat_cow_stretch.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 207,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Pelvic Tilt",
+    "png": "prenatal_low_impact/207_pelvic_tilt.png",
+    "svg": "prenatal_low_impact/207_pelvic_tilt.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 208,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Kegel Exercise",
+    "png": "prenatal_low_impact/208_kegel_exercise.png",
+    "svg": "prenatal_low_impact/208_kegel_exercise.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 209,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Bird Dog",
+    "png": "prenatal_low_impact/209_bird_dog.png",
+    "svg": "prenatal_low_impact/209_bird_dog.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 210,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Wall Push-Up",
+    "png": "prenatal_low_impact/210_wall_push_up.png",
+    "svg": "prenatal_low_impact/210_wall_push_up.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 211,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Seated Row (Band)",
+    "png": "prenatal_low_impact/211_seated_row_band.png",
+    "svg": "prenatal_low_impact/211_seated_row_band.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 212,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Standing Band Row",
+    "png": "prenatal_low_impact/212_standing_band_row.png",
+    "svg": "prenatal_low_impact/212_standing_band_row.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 213,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Side-Lying Leg Lift",
+    "png": "prenatal_low_impact/213_side_lying_leg_lift.png",
+    "svg": "prenatal_low_impact/213_side_lying_leg_lift.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 214,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Side-Lying Clam Shell",
+    "png": "prenatal_low_impact/214_side_lying_clam_shell.png",
+    "svg": "prenatal_low_impact/214_side_lying_clam_shell.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 215,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Prenatal Squat (Supported)",
+    "png": "prenatal_low_impact/215_prenatal_squat_supported.png",
+    "svg": "prenatal_low_impact/215_prenatal_squat_supported.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 216,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Chair Squat",
+    "png": "prenatal_low_impact/216_chair_squat.png",
+    "svg": "prenatal_low_impact/216_chair_squat.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 217,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Wall Sit (Light)",
+    "png": "prenatal_low_impact/217_wall_sit_light.png",
+    "svg": "prenatal_low_impact/217_wall_sit_light.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 218,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Standing Bicep Curl (Light Dumbbell)",
+    "png": "prenatal_low_impact/218_standing_bicep_curl_light_dumbbell.png",
+    "svg": "prenatal_low_impact/218_standing_bicep_curl_light_dumbbell.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 219,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Seated Shoulder Press (Light)",
+    "png": "prenatal_low_impact/219_seated_shoulder_press_light.png",
+    "svg": "prenatal_low_impact/219_seated_shoulder_press_light.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 220,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Prenatal Walking",
+    "png": "prenatal_low_impact/220_prenatal_walking.png",
+    "svg": "prenatal_low_impact/220_prenatal_walking.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 221,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Stationary Cycling (Light)",
+    "png": "prenatal_low_impact/221_stationary_cycling_light.png",
+    "svg": "prenatal_low_impact/221_stationary_cycling_light.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 222,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Water Aerobics",
+    "png": "prenatal_low_impact/222_water_aerobics.png",
+    "svg": "prenatal_low_impact/222_water_aerobics.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 223,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Prenatal Yoga Flow",
+    "png": "prenatal_low_impact/223_prenatal_yoga_flow.png",
+    "svg": "prenatal_low_impact/223_prenatal_yoga_flow.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 224,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Standing Pelvic Circles",
+    "png": "prenatal_low_impact/224_standing_pelvic_circles.png",
+    "svg": "prenatal_low_impact/224_standing_pelvic_circles.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 225,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Modified Side Plank (Knee Down)",
+    "png": "prenatal_low_impact/225_modified_side_plank_knee_down.png",
+    "svg": "prenatal_low_impact/225_modified_side_plank_knee_down.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 226,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Seated Leg Extension (Light)",
+    "png": "prenatal_low_impact/226_seated_leg_extension_light.png",
+    "svg": "prenatal_low_impact/226_seated_leg_extension_light.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  },
+  {
+    "index": 227,
+    "category": "Prenatal - Low-Impact",
+    "exercise": "Ankle Pumps",
+    "png": "prenatal_low_impact/227_ankle_pumps.png",
+    "svg": "prenatal_low_impact/227_ankle_pumps.svg",
+    "png_size": "1024x1024",
+    "background": "transparent",
+    "style": "redrawn flat 2D vector icon"
+  }
+]

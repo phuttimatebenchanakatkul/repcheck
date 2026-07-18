@@ -1,0 +1,1017 @@
+:root {
+  --bg: #f5f6f8;
+  --card-bg: #ffffff;
+  --text: #101114;
+  --text-secondary: #8b8d98;
+  --border: #edeff2;
+  --sidebar-active: #f1f2f5;
+  --green: #1fa971;
+  --green-bg: #e7f6ee;
+  --red: #d1453b;
+  --red-bg: #fdeceb;
+  --amber: #b9832a;
+  --amber-bg: #fbf1e2;
+  --blue: #2f66e8;
+  --blue-bg: #eaf0fd;
+  --purple: #7c4fe0;
+  --purple-bg: #f3edfd;
+  /* The near-black "hero" surface (Today's plan card, dark accents) --
+     deliberately NOT pure black so it still reads as a card, and given
+     its own tokens so the dark theme can flip it to a lighter contrast
+     surface instead of disappearing into the page background. */
+  --dark-card: #17181d;
+  --dark-card-soft: #26272e;
+  --dark-card-text: #ffffff;
+  --dark-card-text-secondary: #9a9ca6;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --shadow: 0 1px 2px rgba(16, 17, 20, 0.03), 0 8px 24px rgba(16, 17, 20, 0.05);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b0b0c;
+  --card-bg: #1c1c1e;
+  --text: #f5f5f7;
+  --text-secondary: #8e8e93;
+  --border: #2c2c2e;
+  --sidebar-active: #262628;
+  --green-bg: #12321f;
+  --red-bg: #3a1f1e;
+  --amber-bg: #3a2f14;
+  --blue-bg: #14213f;
+  --purple-bg: #2a1f45;
+  --dark-card: #232329;
+  --dark-card-soft: #333440;
+  --dark-card-text: #f5f5f7;
+  --dark-card-text-secondary: #9a9ca6;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+* { box-sizing: border-box; }
+
+/* Smooth color/theme transitions everywhere, plus tactile press feedback
+   on anything clickable, without needing per-component rules. */
+*, *::before, *::after {
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+button, a, input, select, [role="button"], .exercise-search-result-item, .day-tab {
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease,
+              box-shadow 0.18s ease, transform 0.1s ease, opacity 0.18s ease;
+}
+
+button:active, a.btn-primary:active, [role="button"]:active {
+  transform: scale(0.96);
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* When Thai is selected, prefer SF Pro TH (Apple's Thai system face) with
+   Thai-capable fallbacks so Thai glyphs render in a proper Thai typeface
+   rather than Inter's fallback. i18n.js stamps data-lang on <html>. */
+:root[data-lang="th"] body,
+:root[data-lang="th"] input,
+:root[data-lang="th"] textarea,
+:root[data-lang="th"] button,
+:root[data-lang="th"] select {
+  font-family: "SF Pro TH", "SF Thonburi", "Thonburi", "Noto Sans Thai",
+               "Sarabun", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+  gap: 20px;
+  padding: 20px;
+  align-items: flex-start;
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 20px 14px;
+  position: sticky;
+  top: 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 28px;
+}
+
+.brand-logo {
+  height: 80px;
+  width: auto;
+  display: block;
+}
+
+/* The logo file is a black wordmark with a transparent background, so
+   inverting it (black -> white, alpha untouched) is all that's needed to
+   read cleanly against the dark theme too. */
+:root[data-theme="dark"] .brand-logo {
+  filter: invert(1);
+}
+
+.nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.nav a svg { flex-shrink: 0; }
+
+.nav a.active {
+  background: var(--sidebar-active);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.account-block {
+  margin: 14px 12px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.account-popup-wrap { position: relative; min-width: 0; }
+.account-info {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  text-decoration: none; color: inherit; border-radius: 10px;
+  background: none; border: none; padding: 0; cursor: pointer; font: inherit;
+  width: 100%;
+}
+.account-info:hover .account-name { text-decoration: underline; }
+
+.account-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 190px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  z-index: 50;
+}
+.account-popup.is-open { display: flex; }
+.account-popup a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  text-decoration: none;
+}
+.account-popup a:hover { background: var(--sidebar-active); }
+.account-popup a svg { flex-shrink: 0; color: var(--text-secondary); }
+.account-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--blue-bg);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.account-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-logout-btn, .account-login-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.account-logout-btn:hover, .account-login-btn:hover { border-color: var(--text-secondary); color: var(--text); }
+.account-login-btn { width: 100%; text-align: center; }
+
+/* ---------- Main content ---------- */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  max-width: 900px;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 4px 4px 0;
+}
+
+.topbar h1 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.topbar p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.topbar p:empty { display: none; }
+
+/* Circular initial avatar shown on the right of the topbar (reference
+   design's greeting row) -- same visual as the sidebar's account avatar,
+   just bigger and page-level. */
+.topbar-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--blue-bg);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  flex-shrink: 0;
+  align-self: center;
+  text-decoration: none;
+}
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+
+.card + .card { margin-top: 20px; }
+
+.card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 18px;
+}
+
+.stat-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.stat {
+  flex: 1;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  border: 1.5px solid transparent;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.stat-label {
+  grid-row: 1;
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+.stat-value {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.stat.score-good { background: var(--green-bg); border-color: rgba(31, 169, 113, 0.25); }
+.stat.score-ok { background: var(--amber-bg); border-color: rgba(185, 131, 42, 0.25); }
+.stat.score-bad { background: var(--red-bg); border-color: rgba(209, 69, 59, 0.25); }
+.stat.stat-purple { background: var(--purple-bg); border-color: rgba(124, 79, 224, 0.25); }
+
+/* ---------- Analyze results: hero + per-stat icon chips ----------
+   Shared between templates/index.html (AJAX result view) and
+   templates/result.html (server-rendered fallback) -- same reason the
+   .ac-* chat widget CSS lives here instead of duplicated in both. */
+.an-result-hero { text-align: center; margin-bottom: 18px; }
+.an-result-hero-icon {
+  width: 48px; height: 48px; margin: 0 auto 10px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--green), #29b87e); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 20px rgba(31, 169, 113, 0.3);
+}
+.an-result-hero-icon svg { width: 22px; height: 22px; }
+.an-result-hero-title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+
+.stat-icon-chip {
+  grid-row: 1;
+  grid-column: 1;
+  width: 26px; height: 26px; margin-bottom: 0; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sidebar-active); color: var(--text-secondary);
+}
+.stat-icon-chip svg { width: 14px; height: 14px; }
+.stat.score-good .stat-icon-chip { background: linear-gradient(135deg, #29b87e, var(--green)); color: #fff; }
+.stat.score-ok .stat-icon-chip { background: linear-gradient(135deg, #d1a04a, var(--amber)); color: #fff; }
+.stat.score-bad .stat-icon-chip { background: linear-gradient(135deg, #e2685f, var(--red)); color: #fff; }
+.stat-icon-chip-purple { background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff; }
+
+/* ---------- Score cards ---------- */
+
+.score-stat .stat-value {
+  font-size: 40px;
+}
+
+.score-out-of {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+.score-stat.score-good .stat-value { color: var(--green); }
+.score-stat.score-ok .stat-value { color: var(--amber); }
+.score-stat.score-bad .stat-value { color: var(--red); }
+
+/* ---------- Form ---------- */
+
+.field { margin-top: 18px; }
+.field:first-child { margin-top: 0; }
+
+.field label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.field .hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+input[type="file"], select {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.btn-primary {
+  margin-top: 22px;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4d7ff5, var(--blue));
+  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  /* Also used on an <a> (result.html's fallback CTA), not just <button> */
+  display: block;
+  text-decoration: none;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.btn-primary:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
+
+/* ---------- Analyze: sticky "Analyze another" bottom CTA ----------
+   Fixed above the mobile tab bar (position:fixed escapes normal layout,
+   so it works the same whether it's inside #result-view's innerHTML on
+   the AJAX path or the plain page flow on the server-rendered fallback)
+   so the repeat-use action is always reachable without scrolling back
+   down through the whole results page, chat widget included. The spacer
+   reserves the same vertical space in normal flow so the bar never
+   covers the last real content (the chat widget). */
+.an-sticky-cta-spacer { height: 86px; }
+.an-sticky-cta {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, var(--bg) 55%, transparent);
+  z-index: 90;
+  pointer-events: none;
+}
+.an-sticky-cta .btn-primary {
+  pointer-events: auto;
+  margin-top: 0;
+  max-width: 320px;
+}
+@media (max-width: 720px) {
+  .an-sticky-cta { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); padding-bottom: 14px; }
+}
+.btn-primary:active { transform: translateY(0); }
+
+.error {
+  background: var(--red-bg);
+  color: var(--red);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 18px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ---------- Exercise icon (used in the selected-exercise chip) ---------- */
+
+.exercise-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* Per-exercise illustration from the icon pack (see exercise_icons.py) --
+   shared across every page that shows a per-exercise thumbnail. */
+.ex-icon-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ex-modal-result-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--bg);
+  font-size: 16px;
+  overflow: hidden;
+}
+
+/* ---------- Form breakdown ----------
+   A calm single-column accordion of soft cards instead of a grid of
+   saturated colored boxes. Each card leads with a friendly, colored
+   category label and a plain-language headline (always visible), and taps
+   open to reveal the extra detail beneath it. The only real color is in
+   the small gradient icon badge + the one-line label, so the whole list
+   stays clean and scannable rather than reading as a wall of color. */
+.fb-head { margin-bottom: 16px; }
+.fb-head-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.fb-head-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; font-weight: 500; }
+
+.fb-list { display: flex; flex-direction: column; gap: 10px; }
+
+.fb-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.fb-item.is-expandable:hover { border-color: rgba(127, 127, 127, 0.35); box-shadow: 0 6px 16px rgba(20, 20, 20, 0.06); }
+
+.fb-item-main {
+  display: flex; align-items: flex-start; gap: 13px;
+  width: 100%; padding: 15px 16px;
+  background: none; border: none; text-align: left; font-family: inherit; color: var(--text);
+}
+.fb-item.is-expandable .fb-item-main { cursor: pointer; }
+.fb-item.is-expandable .fb-item-main:active { transform: scale(0.995); }
+
+.fb-item-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+}
+.fb-item-icon svg { width: 19px; height: 19px; display: block; }
+
+.fb-item-text { flex: 1; min-width: 0; }
+.fb-item-title { font-size: 12.5px; font-weight: 700; margin-bottom: 3px; letter-spacing: -0.005em; }
+.fb-item-summary { font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--text); }
+.fb-item-summary p { margin: 0; }
+
+.fb-item-chevron { flex-shrink: 0; color: var(--text-secondary); margin-top: 8px; transition: transform 0.25s ease; }
+.fb-item.is-expanded .fb-item-chevron { transform: rotate(180deg); }
+
+/* Detail is indented to line up under the headline (past the icon). */
+.fb-item-detail { display: none; padding: 2px 16px 16px 69px; }
+.fb-item.is-expanded .fb-item-detail { display: block; animation: fb-reveal 0.24s ease; }
+.fb-item-detail ul { margin: 0; padding-left: 17px; }
+.fb-item-detail li { font-size: 13.5px; line-height: 1.6; color: var(--text); margin-bottom: 6px; }
+.fb-item-detail li:last-child { margin-bottom: 0; }
+.fb-item-detail p { margin: 0; font-size: 13.5px; line-height: 1.6; }
+@keyframes fb-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Colored gradient icon badges + matching category-label color -- the
+   accent lives here and nowhere else, keeping the cards themselves calm. */
+.fb-summary .fb-item-icon { background: linear-gradient(135deg, #a7a9b3, #8b8d98); box-shadow: 0 5px 12px rgba(139, 141, 152, 0.4); }
+.fb-positives .fb-item-icon { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 5px 12px rgba(31, 169, 113, 0.4); }
+.fb-negatives .fb-item-icon { background: linear-gradient(135deg, #e2685f, var(--red)); box-shadow: 0 5px 12px rgba(209, 69, 59, 0.4); }
+.fb-improvements .fb-item-icon { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 5px 12px rgba(47, 102, 232, 0.4); }
+.fb-injury .fb-item-icon { background: linear-gradient(135deg, #d1a04a, var(--amber)); box-shadow: 0 5px 12px rgba(185, 131, 42, 0.4); }
+.fb-progress .fb-item-icon { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 5px 12px rgba(124, 79, 224, 0.4); }
+
+.fb-summary .fb-item-title { color: var(--text-secondary); }
+.fb-positives .fb-item-title { color: var(--green); }
+.fb-negatives .fb-item-title { color: var(--red); }
+.fb-improvements .fb-item-title { color: var(--blue); }
+.fb-injury .fb-item-title { color: var(--amber); }
+.fb-progress .fb-item-title { color: var(--purple); }
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--green-bg);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.favor-note {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.favor-note strong { text-transform: capitalize; }
+
+/* ---------- Analyze results: small context-aware chatbot ----------
+   Scoped to one specific analysis (no localStorage persistence -- the
+   context is re-sent with every message, same pattern coach_chat.py's
+   `history` already uses), shown on both the AJAX result view
+   (templates/index.html) and the server-rendered fallback
+   (templates/result.html). Modeled on templates/coach.html's .cc-*
+   widget but under its own prefix and a fixed, compact height since this
+   is a small embedded widget, not a full chat page. */
+.ac-card {
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 466px;
+  overflow: hidden;
+}
+.ac-header { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.ac-header-avatar {
+  width: 40px; height: 40px; border-radius: 13px; flex-shrink: 0;
+  background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff;
+  box-shadow: 0 6px 14px rgba(124, 79, 224, 0.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.ac-header-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.ac-header-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+
+.ac-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  scroll-behavior: smooth;
+}
+
+/* Empty state: a warm intro + inviting, tappable starter questions so the
+   user immediately sees they can just tap to ask -- far friendlier than a
+   row of tiny grey pills tucked under the input. */
+.ac-empty { margin: auto 0; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 4px; }
+.ac-empty-avatar {
+  width: 48px; height: 48px; border-radius: 15px; margin-bottom: 11px;
+  background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff;
+  box-shadow: 0 10px 22px rgba(124, 79, 224, 0.35);
+  display: flex; align-items: center; justify-content: center;
+}
+.ac-empty-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+.ac-empty-body { font-size: 12.5px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; max-width: 250px; }
+.ac-prompts { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 15px; }
+.ac-prompt {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 11px 13px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-family: inherit; font-size: 13px; font-weight: 600;
+  text-align: left; cursor: pointer; line-height: 1.35;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.ac-prompt:hover { border-color: var(--purple); background: var(--purple-bg); }
+.ac-prompt:active { transform: scale(0.98); }
+.ac-prompt-text { flex: 1; min-width: 0; }
+.ac-prompt-arrow { flex-shrink: 0; color: var(--purple); }
+
+.ac-row { display: flex; gap: 8px; max-width: 88%; align-items: flex-end; }
+.ac-row-user { align-self: flex-end; flex-direction: row-reverse; }
+.ac-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px;
+}
+.ac-row-assistant .ac-avatar { background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff; }
+.ac-row-user .ac-avatar { background: var(--sidebar-active); color: var(--text); }
+
+.ac-bubble { padding: 10px 14px; border-radius: 16px; font-size: 13.5px; line-height: 1.5; word-break: break-word; }
+.ac-row-assistant .ac-bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 5px; }
+.ac-row-user .ac-bubble { background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff; border-bottom-right-radius: 5px; }
+.ac-bubble strong { font-weight: 700; }
+.ac-bubble p { margin: 0 0 6px; }
+.ac-bubble p:last-child { margin-bottom: 0; }
+.ac-bullet-list { margin: 4px 0 6px; padding-left: 16px; }
+.ac-bullet-list li { margin-bottom: 3px; }
+.ac-bullet-list li:last-child { margin-bottom: 0; }
+
+.ac-typing-row { align-self: flex-start; }
+.ac-typing-dots {
+  display: flex; align-items: center; gap: 4px; padding: 13px 15px;
+  background: var(--bg); border-radius: 16px; border-bottom-left-radius: 5px;
+}
+.ac-typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); animation: ac-bounce 1.2s ease-in-out infinite; }
+.ac-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.ac-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+/* Suggestion bar under the input is unused now (starter questions live in
+   the empty state) -- kept in markup for the widget's JS, hidden when empty. */
+.ac-suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; flex-shrink: 0; }
+.ac-suggestions:empty { display: none; }
+
+.ac-input-row { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.ac-input-row input {
+  flex: 1; min-width: 0; background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 999px; padding: 11px 16px; color: var(--text); font-size: 14px;
+  font-family: inherit; outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ac-input-row input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px var(--purple-bg); }
+.ac-send-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff;
+  box-shadow: 0 5px 12px rgba(124, 79, 224, 0.4);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.ac-send-btn:hover { opacity: 0.92; }
+.ac-send-btn:active { transform: scale(0.92); }
+.ac-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@keyframes ac-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+@media (max-width: 720px) {
+  .ac-header { padding: 12px 14px; }
+  .ac-messages { padding: 12px; }
+  .ac-input-row { padding: 10px 12px; }
+  .ac-row { max-width: 90%; }
+}
+
+/* ---------- Mobile bottom tab bar + FAB (hidden on desktop) ---------- */
+.mobile-tabbar, .mt-sheet-overlay { display: none; }
+
+@media (max-width: 720px) {
+  .app { flex-direction: column; padding: 12px; gap: 12px; padding-bottom: 12px; }
+  /* Primary nav now lives in the fixed bottom tab bar instead -- the
+     sidebar (brand logo + nav + account block) is the old mobile nav and
+     is fully replaced by it. Previously only .nav/.account-block were
+     hidden, leaving the sidebar itself (a full-width rounded card, just
+     for the brand logo) rendered as a stray near-empty bar stacked above
+     .topbar on every page at phone width. */
+  .sidebar { display: none; }
+  /* A 2x2 grid instead of one full-width column per stat -- the same
+     4 numbers in half the scroll height, still comfortably tappable/
+     legible at phone width. */
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 14px; }
+  .score-stat .stat-value { font-size: 32px; }
+  .score-out-of { font-size: 14px; }
+  .card { padding: 18px; }
+  .topbar h1 { font-size: 21px; }
+
+  /* Room for the fixed bottom bar so the last card is never hidden
+     behind it; extra bottom padding accounts for the FAB overhang and
+     the iOS home-indicator safe area. */
+  .main { padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+
+  .mobile-tabbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    z-index: 100;
+  }
+  /* Icon + text label stacked, blue when active (reference design) --
+     replaces the old unlabeled gray-box style. */
+  .mt-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-family: inherit;
+  }
+  .mt-label { font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
+  .mt-item.is-active { color: var(--blue); }
+  .mt-item:active { transform: scale(0.9); }
+
+  /* The "+" is deliberately the biggest, most saturated, most elevated
+     element in the bar — it's the fastest path to the app's core actions
+     from anywhere, so it needs to read as the primary CTA at a glance. */
+  .mt-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(47, 102, 232, 0.5);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: -26px;
+    /* A slow, subtle "breathing" glow so the "+" quietly invites a tap
+       without ever being distracting. */
+    animation: mt-fab-breathe 3.2s ease-in-out infinite;
+  }
+  .mt-fab svg { transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  /* wireSheet() flips aria-expanded on the FAB when the sheet opens/closes,
+     so the "+" spins into an "×" purely from CSS -- no extra JS. */
+  .mt-fab[aria-expanded="true"] svg { transform: rotate(135deg); }
+  .mt-fab:active { transform: scale(0.92); animation: none; }
+  @keyframes mt-fab-breathe {
+    0%, 100% { box-shadow: 0 8px 22px rgba(47, 102, 232, 0.5); }
+    50% { box-shadow: 0 10px 30px rgba(47, 102, 232, 0.72); }
+  }
+
+  .mt-sheet-overlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .mt-sheet-overlay.is-open { opacity: 1; pointer-events: auto; }
+  .mt-sheet {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    background: var(--card-bg);
+    border-radius: 20px 20px 0 0;
+    padding: 10px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    transition: transform 0.22s ease;
+  }
+  .mt-sheet-overlay.is-open .mt-sheet { transform: translateY(0); }
+  .mt-sheet-handle { width: 36px; height: 4px; border-radius: 999px; background: var(--border); margin: 4px auto 14px; }
+  .mt-sheet-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin: 0 4px 10px; }
+  .mt-sheet-action {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 4px;
+    text-decoration: none;
+    color: var(--text);
+  }
+  .mt-sheet-action-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+    font-size: 15px; font-weight: 700;
+  }
+  .mt-sheet-action-title { display: block; font-size: 14px; font-weight: 700; }
+  .mt-sheet-action-sub { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .mt-sheet-cancel {
+    width: 100%; margin-top: 8px; padding: 12px;
+    border-radius: 999px; border: 1px solid var(--border);
+    background: none; color: var(--text); font-size: 13px; font-weight: 700;
+    font-family: inherit; cursor: pointer;
+  }
+
+  /* ---------- Quick-actions sheet (the "+" FAB) redesign ----------
+     A compact 2-column grid of gradient "launcher" tiles that stagger in
+     when the sheet opens. Scoped to qa-* so the shared "More" sheet
+     (.mt-sheet-action above) is untouched. */
+  .qa-sheet { padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
+  .qa-head { margin: 2px 4px 16px; }
+  .qa-head-title { font-size: 20px; font-weight: 800; letter-spacing: -0.015em; color: var(--text); }
+  .qa-head-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; font-weight: 500; }
+
+  .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .qa-tile {
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 11px;
+    padding: 18px 10px;
+    border-radius: 18px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    text-decoration: none;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    transition: transform 0.12s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  }
+  .qa-tile:hover { border-color: transparent; box-shadow: 0 10px 24px rgba(20, 20, 20, 0.12); transform: translateY(-2px); }
+  .qa-tile:active { transform: scale(0.95); }
+  .qa-tile-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 48px; height: 48px; border-radius: 15px; color: #fff; flex-shrink: 0;
+  }
+  .qa-tile-title { font-size: 13.5px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+
+  /* The odd 5th tile fills the last row, but keeps the exact same
+     vertical/centered icon-over-title layout as the others so it reads as
+     one of the set -- just a wider one -- instead of a different shape. */
+  .qa-tile-wide { grid-column: 1 / -1; }
+
+  .qa-green .qa-tile-icon { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 6px 14px rgba(31, 169, 113, 0.42); }
+  .qa-blue .qa-tile-icon { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 6px 14px rgba(47, 102, 232, 0.42); }
+  .qa-amber .qa-tile-icon { background: linear-gradient(135deg, #e8a33f, var(--amber)); box-shadow: 0 6px 14px rgba(185, 131, 42, 0.42); }
+  .qa-red .qa-tile-icon { background: linear-gradient(135deg, #e2685f, var(--red)); box-shadow: 0 6px 14px rgba(209, 69, 59, 0.42); }
+  .qa-purple .qa-tile-icon { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 6px 14px rgba(124, 79, 224, 0.42); }
+
+  .qa-cancel {
+    width: 100%; margin-top: 12px; padding: 13px;
+    border-radius: 14px; border: none;
+    background: var(--bg); color: var(--text-secondary); font-size: 14px; font-weight: 700;
+    font-family: inherit; cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  }
+  .qa-cancel:hover { background: var(--sidebar-active); color: var(--text); }
+  .qa-cancel:active { transform: scale(0.98); }
+
+  /* Staggered pop-in every time the sheet opens (the "is-open" class is
+     added by wireSheet). backwards fill holds each tile hidden until its
+     delay, so they cascade up one after another. */
+  .mt-sheet-overlay.is-open .qa-tile { animation: qa-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  .mt-sheet-overlay.is-open .qa-tile:nth-child(1) { animation-delay: 0.05s; }
+  .mt-sheet-overlay.is-open .qa-tile:nth-child(2) { animation-delay: 0.10s; }
+  .mt-sheet-overlay.is-open .qa-tile:nth-child(3) { animation-delay: 0.15s; }
+  .mt-sheet-overlay.is-open .qa-tile:nth-child(4) { animation-delay: 0.20s; }
+  .mt-sheet-overlay.is-open .qa-tile:nth-child(5) { animation-delay: 0.25s; }
+  .mt-sheet-overlay.is-open .qa-cancel { animation: qa-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1) 0.30s backwards; }
+  @keyframes qa-pop {
+    from { opacity: 0; transform: translateY(14px) scale(0.94); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@media (max-width: 480px) {
+  .app { padding: 8px; }
+  .card { padding: 14px; border-radius: var(--radius-md); }
+  .topbar h1 { font-size: 19px; }
+  .topbar p { font-size: 13px; }
+  .mt-item { min-width: 44px; height: 48px; }
+  .mt-fab { width: 54px; height: 54px; margin-top: -24px; }
+}
+
+/* Respect users who ask for less motion: drop the FAB's idle breathing and
+   the quick-actions stagger (the sheet still opens, just without the
+   flourish). */
+@media (prefers-reduced-motion: reduce) {
+  .mt-fab { animation: none; }
+  .mt-sheet-overlay.is-open .qa-tile,
+  .mt-sheet-overlay.is-open .qa-cancel { animation: none; }
+}
+
+/* ---------- "Log weight" quick-action popup (base.html) ----------
+   Site-wide (not page-scoped like the other modal CSS blocks) since the
+   "+" FAB and home-page quick actions can open this from any page. */
+@keyframes lw-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lw-pop-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.lw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 300;
+  animation: lw-fade-in 0.15s ease;
+}
+.lw-modal {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 360px;
+  animation: lw-pop-in 0.18s ease;
+}
+.lw-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 10px;
+}
+.lw-modal-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.lw-modal-close {
+  background: none; border: none; font-size: 20px; line-height: 1;
+  color: var(--text-secondary); cursor: pointer; padding: 4px;
+}
+.lw-modal-close:hover { color: var(--text); }
+.lw-modal-body { padding: 4px 20px 20px; }
+.lw-weight-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  font-family: inherit;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+.lw-save-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 999px;
+  border: none;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.lw-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.lw-modal-msg { text-align: center; font-size: 12px; color: var(--text-secondary); margin-top: 10px; min-height: 15px; }
+.lw-modal-msg.is-error { color: var(--red); }

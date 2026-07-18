@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Settings{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block subheading %}Your account, plan, and units.{% endblock %}
+
+{% block content %}
+<style>
+  .st-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 20px 22px; margin-bottom: 16px; max-width: 720px;
+  }
+  .st-card { scroll-margin-top: 20px; }
+  .st-card-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .st-card-sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
+  .st-field { margin-bottom: 14px; }
+  .st-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+  .st-field input {
+    width: 100%; padding: 11px 13px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); border-radius: 10px;
+    font-size: 14px; font-family: inherit;
+  }
+  .st-save-btn {
+    padding: 10px 18px; border-radius: 999px; border: none; cursor: pointer;
+    background: var(--text); color: var(--bg); font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .st-save-btn:hover { opacity: 0.88; }
+  .st-status { font-size: 12px; margin-left: 10px; }
+
+  /* Plans */
+  .st-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .st-plan {
+    border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+    background: var(--bg); position: relative;
+  }
+  .st-plan.is-current { border-color: var(--green); }
+  .st-plan.is-pro { border-color: var(--blue); }
+  .st-plan-name { font-size: 14px; font-weight: 800; }
+  .st-plan-price { font-size: 22px; font-weight: 700; margin: 6px 0 2px; }
+  .st-plan-price span { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .st-plan-alt { font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; }
+  .st-plan-badge {
+    position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 700;
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .st-plan.is-current .st-plan-badge { background: var(--green-bg); color: var(--green); }
+  .st-plan.is-pro .st-plan-badge { background: var(--blue-bg); color: var(--blue); }
+  .st-plan ul { margin: 0 0 12px; padding-left: 18px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+  .st-upgrade-btn {
+    width: 100%; padding: 10px; border-radius: 999px; border: none; cursor: pointer;
+    background: var(--blue); color: #fff; font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .st-upgrade-btn:hover { opacity: 0.9; }
+  .st-plan-note { font-size: 11px; color: var(--text-secondary); margin-top: 10px; }
+
+  /* Units */
+  .st-unit-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 0; border-top: 1px solid var(--border);
+  }
+  .st-unit-row:first-of-type { border-top: none; }
+  .st-unit-label { font-size: 13px; font-weight: 600; }
+  .st-unit-hint { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .st-seg { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .st-seg button {
+    padding: 7px 14px; border: none; border-radius: 999px; cursor: pointer;
+    background: none; color: var(--text-secondary); font-size: 12px; font-weight: 700; font-family: inherit;
+  }
+  .st-seg button.is-active { background: var(--text); color: var(--bg); }
+
+  @media (max-width: 640px) {
+    .st-plans { grid-template-columns: 1fr; }
+  }
+</style>
+
+{% if not current_user %}
+  <div class="st-card">
+    <div class="st-card-title" data-i18n="settings.loginTitle">Log in to manage settings</div>
+    <div class="st-card-sub" data-i18n="settings.loginSub">Your account, subscription, and unit preferences live on your account.</div>
+    <a href="{{ url_for('auth.login_page') }}" class="st-save-btn" style="display:inline-block; text-decoration:none;" data-i18n="sidebar.login">Log in</a>
+  </div>
+{% else %}
+
+<div class="st-card" id="account">
+  <div class="st-card-title" data-i18n="settings.account.title">Account</div>
+  <div class="st-card-sub" data-i18n="settings.account.sub">Your profile details, used across RepCheck.</div>
+  <div class="st-field">
+    <label for="st-name" data-i18n="settings.account.nameLabel">Name</label>
+    <input type="text" id="st-name" value="{{ current_user.name }}" autocomplete="name">
+  </div>
+  <div class="st-field">
+    <label for="st-email" data-i18n="settings.account.emailLabel">Email</label>
+    <input type="email" id="st-email" value="{{ current_user.email }}" autocomplete="email"
+           {% if current_user.auth_provider != 'local' %}disabled title="Managed by {{ current_user.auth_provider }} sign-in"{% endif %}>
+    {% if current_user.auth_provider != 'local' %}
+      <div class="st-unit-hint" id="st-email-managed-hint" data-provider="{{ current_user.auth_provider|capitalize }}">Signed in with {{ current_user.auth_provider|capitalize }} — email is managed there.</div>
+    {% endif %}
+  </div>
+  <button type="button" class="st-save-btn" id="st-account-save" data-i18n="settings.account.save">Save changes</button>
+  <span class="st-status" id="st-account-status"></span>
+</div>
+
+<div class="st-card" id="appearance">
+  <div class="st-card-title" data-i18n="settings.appearance.title">Appearance</div>
+  <div class="st-card-sub" data-i18n="settings.appearance.sub">Light or dark theme, applied everywhere in the app instantly.</div>
+  <div class="st-unit-row" style="border-top:none; padding-top:0;">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.appearance.theme">Theme</div>
+      <div class="st-unit-hint" data-i18n="settings.appearance.hint">Switch anytime — this is the only place to change it.</div>
+    </div>
+    <div class="st-seg" data-theme-seg>
+      <button type="button" data-value="light" data-i18n="settings.appearance.light">☀️ Light</button>
+      <button type="button" data-value="dark" data-i18n="settings.appearance.dark">🌙 Dark</button>
+    </div>
+  </div>
+</div>
+
+<div class="st-card" id="language">
+  <div class="st-card-title" data-i18n="settings.language.title">Language</div>
+  <div class="st-card-sub" data-i18n="settings.language.sub">Applied everywhere in the app instantly, and stays until you change it again.</div>
+  <div class="st-unit-row" style="border-top:none; padding-top:0;">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.language.appLanguage">App language</div>
+      <div class="st-unit-hint" data-i18n="settings.language.hint">Switch anytime — this is the only place to change it.</div>
+    </div>
+    <div class="st-seg" data-lang-seg>
+      <button type="button" data-value="en" data-i18n="settings.language.en">EN English</button>
+      <button type="button" data-value="th" data-i18n="settings.language.th">TH ไทย</button>
+    </div>
+  </div>
+</div>
+
+<div class="st-card" id="subscription">
+  <div class="st-card-title" data-i18n="settings.subscription.title">Subscription</div>
+  <div class="st-card-sub" data-i18n="settings.subscription.sub">Compare your current plan with RepCheck Pro.</div>
+  <div class="st-plans">
+    <div class="st-plan is-current">
+      <span class="st-plan-badge" data-i18n="settings.subscription.currentPlan">CURRENT PLAN</span>
+      <div class="st-plan-name" data-i18n="settings.subscription.free">Free</div>
+      <div class="st-plan-price">฿0 <span data-i18n="settings.subscription.perMonth">/ month</span></div>
+      <div class="st-plan-alt" data-i18n="settings.subscription.freeAlt">Everything you're using today.</div>
+      <ul>
+        <li data-i18n="settings.subscription.featureLogging">Workout &amp; nutrition logging</li>
+        <li data-i18n="settings.subscription.featureCoaching">Personalized coaching targets</li>
+        <li data-i18n="settings.subscription.featureFormLimited">Form analysis (limited daily)</li>
+        <li data-i18n="settings.subscription.featureChatLimited">Coach chat (limited daily)</li>
+        <li data-i18n="settings.subscription.featureFriends">Friends &amp; challenges</li>
+      </ul>
+    </div>
+    <div class="st-plan is-pro">
+      <span class="st-plan-badge" data-i18n="settings.subscription.pro">PRO</span>
+      <div class="st-plan-name" data-i18n="settings.subscription.proName">RepCheck Pro</div>
+      <div class="st-plan-price">฿149 <span data-i18n="settings.subscription.perMonth">/ month</span></div>
+      <div class="st-plan-alt" data-i18n="settings.subscription.proAlt">or ฿999 / year (save ~44%)</div>
+      <ul>
+        <li data-i18n="settings.subscription.featureFormUnlimited">Unlimited form analysis</li>
+        <li data-i18n="settings.subscription.featureChatUnlimited">Unlimited coach chat</li>
+        <li data-i18n="settings.subscription.featurePriority">Priority AI processing</li>
+        <li data-i18n="settings.subscription.featureInsights">Advanced coaching insights</li>
+        <li data-i18n="settings.subscription.featureEarlyAccess">Early access to new features</li>
+      </ul>
+      <button type="button" class="st-upgrade-btn" id="st-upgrade-btn" data-i18n="settings.subscription.upgrade">Upgrade to Pro</button>
+      <div class="st-plan-note" id="st-upgrade-note"></div>
+    </div>
+  </div>
+</div>
+
+<div class="st-card" id="units">
+  <div class="st-card-title" data-i18n="settings.units.title">Units</div>
+  <div class="st-card-sub" data-i18n="settings.units.sub">Changes apply everywhere in the app instantly. Your logged data isn't modified — only how it's shown.</div>
+
+  <div class="st-unit-row">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.units.weight">Weight</div>
+      <div class="st-unit-hint" data-i18n="settings.units.weightHint">Body weight, station loads, logging inputs.</div>
+    </div>
+    <div class="st-seg" data-unit="weight">
+      <button type="button" data-value="kg">kg</button>
+      <button type="button" data-value="lb">lb</button>
+    </div>
+  </div>
+
+  <div class="st-unit-row">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.units.height">Height</div>
+      <div class="st-unit-hint" data-i18n="settings.units.heightHint">Coaching questionnaire and profile.</div>
+    </div>
+    <div class="st-seg" data-unit="height">
+      <button type="button" data-value="cm">cm</button>
+      <button type="button" data-value="ftin" data-i18n="settings.units.ftin">ft / in</button>
+    </div>
+  </div>
+
+  <div class="st-unit-row">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.units.distance">Distance</div>
+      <div class="st-unit-hint" data-i18n="settings.units.distanceHint">Runs and race segments.</div>
+    </div>
+    <div class="st-seg" data-unit="distance">
+      <button type="button" data-value="km">km</button>
+      <button type="button" data-value="m">m</button>
+    </div>
+  </div>
+
+  <div class="st-unit-row">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.units.clock">Clock</div>
+      <div class="st-unit-hint" data-i18n="settings.units.clockHint">Meal times and timelines.</div>
+    </div>
+    <div class="st-seg" data-unit="clock">
+      <button type="button" data-value="12h" data-i18n="settings.units.12h">12-hour</button>
+      <button type="button" data-value="24h" data-i18n="settings.units.24h">24-hour</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    const t = RepCheckI18n.t;
+
+    // ---------- Account ----------
+    const saveBtn = document.getElementById("st-account-save");
+    const statusEl = document.getElementById("st-account-status");
+    saveBtn.addEventListener("click", async () => {
+      statusEl.textContent = t("settings.account.saving");
+      statusEl.style.color = "var(--text-secondary)";
+      try {
+        const emailInput = document.getElementById("st-email");
+        const response = await fetch("/api/account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: document.getElementById("st-name").value,
+            email: emailInput.disabled ? null : emailInput.value,
+          }),
+        });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error || t("settings.account.errorGeneric"));
+        statusEl.textContent = t("settings.account.saved");
+        statusEl.style.color = "var(--green)";
+        // Sidebar shows the (first) name — refresh so it updates.
+        setTimeout(() => location.reload(), 600);
+      } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.style.color = "var(--red)";
+      }
+    });
+
+    const emailManagedHintEl = document.getElementById("st-email-managed-hint");
+    if (emailManagedHintEl) {
+      emailManagedHintEl.textContent = t("settings.account.emailManagedBy", { provider: emailManagedHintEl.dataset.provider });
+    }
+
+    // ---------- Subscription (no payment processing wired up) ----------
+    document.getElementById("st-upgrade-btn").addEventListener("click", () => {
+      document.getElementById("st-upgrade-note").textContent = t("settings.subscription.notConnected");
+    });
+
+    // ---------- Units ----------
+    function paintUnits() {
+      const units = RepCheckUnits.getUnits();
+      document.querySelectorAll(".st-seg[data-unit]").forEach((seg) => {
+        const kind = seg.dataset.unit;
+        seg.querySelectorAll("button").forEach((btn) => {
+          btn.classList.toggle("is-active", btn.dataset.value === units[kind]);
+        });
+      });
+    }
+    document.querySelectorAll(".st-seg[data-unit] button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        RepCheckUnits.setUnits({ [btn.closest(".st-seg").dataset.unit]: btn.dataset.value });
+        paintUnits();
+      });
+    });
+    paintUnits();
+
+    // ---------- Appearance (theme) ----------
+    // The only place theme is changed anywhere in the app — home.html's
+    // old toggle button was removed in favor of this single control.
+    const THEME_KEY = "repcheck_theme";
+    function applyTheme(theme) {
+      if (theme === "dark") {
+        document.documentElement.setAttribute("data-theme", "dark");
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+      }
+      document.querySelectorAll("[data-theme-seg] button").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.value === theme);
+      });
+    }
+    applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    document.querySelectorAll("[data-theme-seg] button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        localStorage.setItem(THEME_KEY, btn.dataset.value);
+        applyTheme(btn.dataset.value);
+      });
+    });
+
+    // ---------- Language ----------
+    // The only place language is changed anywhere in the app — every
+    // other page's toggle button was removed in favor of this control.
+    function paintLang() {
+      const lang = RepCheckI18n.getLang();
+      document.querySelectorAll("[data-lang-seg] button").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.value === lang);
+      });
+    }
+    paintLang();
+    document.querySelectorAll("[data-lang-seg] button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        RepCheckI18n.setLang(btn.dataset.value);
+        paintLang();
+      });
+    });
+    if (emailManagedHintEl) {
+      document.addEventListener("repcheck:language-changed", () => {
+        emailManagedHintEl.textContent = t("settings.account.emailManagedBy", { provider: emailManagedHintEl.dataset.provider });
+      });
+    }
+  })();
+</script>
+
+{% endif %}
+{% endblock %}

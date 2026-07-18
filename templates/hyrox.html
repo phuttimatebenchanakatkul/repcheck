@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - HYROX{% endblock %}
+{% block heading %}HYROX{% endblock %}
+{% block subheading %}{% endblock %}
+
+{% block content %}
+<!--
+  Unlike the other pages (which server-render most of their markup and
+  sprinkle in small inline <script> blocks), this page is intentionally
+  built the other way around: the template just drops an empty mount
+  point, and a separate class-based controller (static/hyrox.js) owns
+  everything — state, rendering, the stopwatch loop, and storage. See
+  that file for the actual implementation.
+-->
+<div id="hyrox-root"></div>
+
+<link rel="stylesheet" href="{{ asset_url('hyrox.css') }}">
+<script src="{{ asset_url('hyrox.js') }}"></script>
+{% endblock %}

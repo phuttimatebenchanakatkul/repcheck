@@ -1,0 +1,1413 @@
+"""Local web app: upload a workout video, pick an exercise, get form feedback.
+
+Flow: browser upload -> saved to uploads/ -> pipeline.run_pipeline()
+      (trim + sample frames + call Gemini) -> rendered
+      Positives/Negatives/Improvements/Injury Prevention page.
+
+Usage:
+    python app.py
+
+    Open http://127.0.0.1:5000 on this machine, or http://<this-pc's-LAN-IP>:5000
+    from any other device on the same Wi-Fi network.
+
+Requires:
+    ffmpeg installed and on PATH
+    pip install flask opencv-python google-genai python-dotenv markdown
+
+    Put your key in a .env file next to this script:
+        GEMINI_API_KEY=...
+"""
+
+import mimetypes
+import os
+import re
+import uuid
+from datetime import date
+from pathlib import Path
+
+import markdown as markdown_lib
+from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
+from werkzeug.utils import secure_filename
+
+from analyze_chat import get_analysis_chat_reply
+from analyze_food_gemini import FoodAnalysisError, analyze_food_photo
+from auth import auth_bp, current_user
+from hyrox_coach import get_hyrox_race_analysis
+from barcode_scanner import BarcodeScanError, lookup_by_barcode, scan_and_lookup, search_open_food_facts
+from coach_chat import get_coach_reply
+from checkin_analyzer import CheckinAnalysisError, analyze_checkin_with_photos
+from coaching_engine import (
+    FEMALE_BODY_FAT_RANGES,
+    LOSS_RATE_DEFAULT_PCT,
+    LOSS_RATE_MAX_PCT,
+    LOSS_RATE_MIN_PCT,
+    MALE_BODY_FAT_RANGES,
+    apply_calorie_delta,
+    calculate_targets,
+    distribute_weekly_calories,
+    weekly_adjustment,
+)
+from database import (
+    add_friendship,
+    append_nutrition_log_entry,
+    create_challenge,
+    create_custom_exercise,
+    create_custom_food,
+    create_hyrox_result,
+    create_progress_photo,
+    delete_custom_exercise,
+    delete_custom_food,
+    delete_progress_photo,
+    delete_user_data,
+    get_all_user_data,
+    get_challenge,
+    get_custom_exercises,
+    get_custom_foods,
+    get_exercise_leaderboard,
+    get_friends,
+    get_hyrox_leaderboard,
+    get_latest_analyze_result,
+    get_or_create_friend_code,
+    get_progress_photo,
+    get_progress_photos,
+    get_total_reps_leaderboard,
+    get_user_by_friend_code,
+    get_visible_challenges,
+    has_submitted_today,
+    init_db,
+    mark_onboarding_completed,
+    save_analyze_result,
+    save_submission,
+    set_user_data,
+    set_weight_log_entry,
+    update_account,
+)
+from rep_form_analyzer import CHALLENGE_EXERCISES, RepCountError, analyze_reps
+from exercise_details import EXERCISE_DETAILS
+from exercise_icons import EXERCISE_ICONS
+from food_library import FOOD_LIBRARY
+from pipeline import run_pipeline
+from sort_food_images import build_food_image_map
+from split_planner import generate_split_plan
+from workout_library import EXERCISE_CATEGORIES, WORKOUT_EXERCISES
+
+DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
+UPLOAD_DIR = DATA_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Unlike UPLOAD_DIR above (scratch space -- videos are processed then
+# deleted), these are kept permanently: the whole point of a weekly
+# check-in photo is to compare it against future check-ins. Never served
+# by a public static route -- always through /api/checkin/photo/<id>,
+# which checks the photo's user_id against the logged-in session first.
+PROGRESS_PHOTOS_DIR = DATA_DIR / "progress_photos"
+PROGRESS_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
+ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_CONTENT_LENGTH = 300 * 1024 * 1024  # 300 MB
+
+# Any exercise name from this library can be picked and analyzed — see
+# analyze_form_gemini.resolve_exercise for how curated vs. generic
+# coaching notes get applied.
+EXERCISE_LIBRARY = WORKOUT_EXERCISES
+
+SECTION_STYLES = {
+    "movement summary": "summary",
+    "positives": "positives",
+    "negatives": "negatives",
+    "improvements": "improvements",
+    "injury prevention": "injury",
+    "how to progress": "progress",
+}
+
+SECTION_ICONS = {
+    "summary": '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>',
+    "positives": '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    "negatives": '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+    "improvements": '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.46.46 1.15 1.26 1.41 2.5"/></svg>',
+    "injury": '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>',
+    "progress": '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+}
+
+app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
+# Needed for the coach chat's per-session message cap and for login
+# sessions (Flask's session cookie is signed with this). Local
+# single-machine app, so a fixed fallback is fine — set FLASK_SECRET_KEY
+# in .env to override.
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "repcheck-local-dev-secret")
+
+app.register_blueprint(auth_bp)
+init_db()
+
+
+@app.context_processor
+def inject_current_user():
+    # Makes {{ current_user }} available in every template (including
+    # base.html's sidebar) without passing it into each render_template call.
+    return {"current_user": current_user()}
+
+
+# One-off, per user's explicit request: for this single account only, the
+# "Analyze" nav link (sidebar + mobile tab bar) jumps straight to their
+# most recent analysis result instead of the upload form. Deliberately not
+# a general feature -- every other account keeps landing on the upload
+# page. See analyze_latest() for the route this points at, and
+# save_analyze_result()/get_latest_analyze_result() in database.py for
+# where a result comes from (nothing existed to "jump to" before this —
+# analysis results were never persisted anywhere until this was added).
+ANALYZE_LATEST_REDIRECT_EMAIL = "phuttimatebenchanakatkul@gmail.com"
+
+
+@app.context_processor
+def inject_analyze_nav_href():
+    user = current_user()
+    if user and user["email"] == ANALYZE_LATEST_REDIRECT_EMAIL and get_latest_analyze_result(user["id"]):
+        return {"analyze_nav_href": url_for("analyze_latest")}
+    return {"analyze_nav_href": url_for("analyze_page")}
+
+
+def asset_url(filename):
+    # Plain url_for('static', filename=...) has no cache-busting, so once
+    # a browser (especially mobile Safari/Chrome) has cached style.css/
+    # hyrox.css/hyrox.js/etc., editing those files server-side doesn't
+    # actually change what that device renders until the user manually
+    # hard-refreshes or clears cache -- which looks exactly like "the fix
+    # didn't work" even though the server is serving the new file. Append
+    # the file's on-disk mtime as a query string so every edit gets a new
+    # URL and is always fetched fresh.
+    path = os.path.join(app.static_folder, filename)
+    try:
+        version = int(os.path.getmtime(path))
+    except OSError:
+        version = 0
+    return f"{url_for('static', filename=filename)}?v={version}"
+
+
+@app.context_processor
+def inject_asset_url():
+    return {"asset_url": asset_url}
+
+
+# Every localStorage key that used to be the *only* copy of that data,
+# now also mirrored server-side (see database.get_all_user_data /
+# set_user_data) so it follows a logged-in user's account instead of
+# being stranded on whichever browser origin wrote it. static/
+# account_sync.js has the matching client-side allowlist — keep both in
+# sync if a new synced key is ever added.
+SYNCED_DATA_KEYS = {
+    "repcheck_theme",
+    "repcheck_language",
+    "repcheck_units_v1",
+    "repcheck_workout_log_v2",
+    "repcheck_split_plan_v1",
+    "repcheck_nutrition_log_v1",
+    "repcheck_nutrition_goals_v1",
+    "repcheck_nutrition_favorites_v1",
+    "repcheck_analyze_log_v1",
+    "repcheck_coach_chat_v1",
+    "repcheck_coaching_profile_v1",
+    "repcheck_weight_log_v1",
+    "repcheck_day_status_v1",
+    "repcheck_coaching_last_adjustment_v1",
+    "repcheck_coaching_distribution_v1",
+    "repcheck_coaching_inactivity_notified_v1",
+    "repcheck_hyrox_history_v1",
+    "repcheck_hyrox_history_synced_v1",
+}
+
+
+@app.route("/api/sync", methods=["GET"])
+def api_sync_get_all():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    # user_id lets the client tell "this browser's local data belongs to
+    # whichever account was last logged in here" apart from "it belongs to
+    # ME" -- see the owner-id check in static/account_sync.js.
+    return jsonify({"ok": True, "user_id": user["id"], "values": get_all_user_data(user["id"])})
+
+
+@app.route("/api/sync/<key>", methods=["PUT", "POST"])
+def api_sync_put(key):
+    # POST is accepted as an alias for PUT specifically so the client can
+    # use navigator.sendBeacon() (which only ever sends POST) for writes
+    # made right before a page navigation -- a normal fetch(), even with
+    # {keepalive: true}, gets cancelled by some browsers/payload sizes on
+    # unload, which was silently dropping the write: the user logs food,
+    # navigates to another page, that page's own /api/sync GET pulls the
+    # still-stale server copy and overwrites the fresh local data with it.
+    # See static/account_sync.js for the client side of this.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if key not in SYNCED_DATA_KEYS:
+        return jsonify({"ok": False, "error": "Unknown sync key."}), 400
+    payload = request.get_json(silent=True) or {}
+    if "value" not in payload:
+        return jsonify({"ok": False, "error": "Missing value."}), 400
+    set_user_data(user["id"], key, payload["value"])
+    return jsonify({"ok": True})
+
+
+@app.route("/api/sync/<key>", methods=["DELETE"])
+def api_sync_delete(key):
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if key not in SYNCED_DATA_KEYS:
+        return jsonify({"ok": False, "error": "Unknown sync key."}), 400
+    delete_user_data(user["id"], key)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/nutrition/log-entry", methods=["POST"])
+def api_nutrition_log_entry():
+    # Authoritative, synchronous "add one food entry" write path. The
+    # generic /api/sync/<key> route above re-sends the *whole* nutrition
+    # log blob on every localStorage write, fire-and-forget from the
+    # browser (sendBeacon or a keepalive fetch) -- good enough for most
+    # synced data, but it was letting freshly-logged food quietly vanish
+    # if that write raced with the user navigating to another page before
+    # it landed. nutrition.html now calls this endpoint directly (and
+    # awaits the response) for every "Add to log" action, so a food is
+    # only treated as logged once the server has actually confirmed it,
+    # with a real error surfaced to the user otherwise instead of a
+    # silent loss.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    date_iso = str(payload.get("date") or "").strip()
+    entry = payload.get("entry")
+
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    if not isinstance(entry, dict) or not entry.get("id"):
+        return jsonify({"ok": False, "error": "Invalid entry."}), 400
+
+    day_entries = append_nutrition_log_entry(user["id"], date_iso, entry)
+    return jsonify({"ok": True, "date": date_iso, "day_entries": day_entries})
+
+
+@app.route("/api/weight/log-entry", methods=["POST"])
+def api_weight_log_entry():
+    # Same authoritative-write fix as /api/nutrition/log-entry above,
+    # applied to weigh-ins: coaching.js's logWeight() used to only go
+    # through the generic fire-and-forget blob sync, so a weigh-in could
+    # get silently dropped by a stale hydration pull if the user navigated
+    # away right after logging it. This is awaited directly from
+    # logWeight(), so a weigh-in is only treated as saved once the server
+    # has actually confirmed it.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    date_iso = str(payload.get("date") or "").strip()
+    entry = payload.get("entry")
+
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    if not isinstance(entry, dict) or not isinstance(entry.get("kg"), (int, float)) or entry["kg"] <= 0 or entry["kg"] > 400:
+        return jsonify({"ok": False, "error": "Invalid entry."}), 400
+
+    weight_log = set_weight_log_entry(user["id"], date_iso, entry)
+    return jsonify({"ok": True, "date": date_iso, "weight_log": weight_log})
+
+
+@app.route("/api/checkin/photo", methods=["POST"])
+def api_checkin_photo_upload():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    angle = request.form.get("angle")
+    if angle not in ("front", "back"):
+        return jsonify({"ok": False, "error": "angle must be 'front' or 'back'."}), 400
+    date_iso = str(request.form.get("date") or "").strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+
+    file = request.files.get("photo")
+    if not file or not file.filename:
+        return jsonify({"ok": False, "error": "No photo uploaded."}), 400
+    ext = Path(secure_filename(file.filename)).suffix.lower()
+    if ext not in ALLOWED_PHOTO_EXTENSIONS:
+        return jsonify({"ok": False, "error": "Unsupported image format."}), 400
+
+    # Filename is a fresh uuid, not the user's original filename or any
+    # guessable id -- the DB row (gated by user_id) is the only real
+    # access control, but there's no reason to also make the on-disk name
+    # itself predictable.
+    filename = f"{uuid.uuid4().hex}{ext}"
+    file.save(PROGRESS_PHOTOS_DIR / filename)
+    photo_id = create_progress_photo(user["id"], date_iso, angle, filename)
+    return jsonify({"ok": True, "id": photo_id})
+
+
+@app.route("/api/checkin/photos", methods=["GET"])
+def api_checkin_photos_list():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    photos = get_progress_photos(user["id"])
+    return jsonify({"ok": True, "photos": [{"id": p["id"], "date": p["date"], "angle": p["angle"]} for p in photos]})
+
+
+@app.route("/api/checkin/photo/<int:photo_id>", methods=["GET"])
+def api_checkin_photo_get(photo_id):
+    # Progress photos are never public -- every request here re-checks
+    # that the logged-in session actually owns this specific photo, the
+    # same way a video URL guess can't pull up someone else's HYROX
+    # submission or challenge attempt elsewhere in this app.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    photo = get_progress_photo(photo_id)
+    if not photo or photo["user_id"] != user["id"]:
+        return jsonify({"ok": False, "error": "Not found."}), 404
+    path = PROGRESS_PHOTOS_DIR / photo["filename"]
+    if not path.exists():
+        return jsonify({"ok": False, "error": "Not found."}), 404
+    return send_file(path)
+
+
+@app.route("/api/checkin/photo/<int:photo_id>", methods=["DELETE"])
+def api_checkin_photo_delete(photo_id):
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    photo = get_progress_photo(photo_id)
+    if not photo or photo["user_id"] != user["id"]:
+        return jsonify({"ok": False, "error": "Not found."}), 404
+    path = PROGRESS_PHOTOS_DIR / photo["filename"]
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    delete_progress_photo(user["id"], photo_id)
+    return jsonify({"ok": True})
+
+
+def split_summary_and_detail(html):
+    """Split a section's rendered HTML into (summary_html, detail_html).
+
+    summary_html is just the first bullet -- the "most important takeaway"
+    the prompt asks Gemini to lead with -- unwrapped from its <li> into a
+    bare <p> so it reads like a plain headline, and is ALWAYS shown.
+    detail_html is every *remaining* bullet as a <ul>, revealed only when
+    the card is expanded (the redesigned breakdown keeps the headline
+    visible and reveals the extra detail beneath it, rather than swapping
+    one for the other), or None when there's just the single bullet and so
+    nothing extra to reveal. A section that isn't a bullet list at all
+    becomes summary=the whole html, detail=None.
+    """
+    items = re.findall(r"<li>.*?</li>", html, flags=re.DOTALL)
+    if not items:
+        return html, None
+    first_text = re.sub(r"</?li>", "", items[0])
+    summary = f"<p>{first_text}</p>"
+    if len(items) == 1:
+        return summary, None
+    return summary, f"<ul>{''.join(items[1:])}</ul>"
+
+
+def split_feedback_sections(feedback_markdown):
+    """Split Gemini's "## Heading" markdown into section dicts: a friendly
+    display title, a plain-language summary (first bullet), and the extra
+    detail revealed on expand."""
+    parts = re.split(r"^##\s+(.+)$", feedback_markdown, flags=re.MULTILINE)
+    sections = []
+    # parts[0] is any preamble before the first heading; skip it
+    for heading, body in zip(parts[1::2], parts[2::2]):
+        css_class = SECTION_STYLES.get(heading.strip().lower(), "improvements")
+        html = markdown_lib.markdown(body.strip())
+        summary_html, detail_html = split_summary_and_detail(html)
+        sections.append({
+            "heading": heading.strip(),
+            "css_class": css_class,
+            # Friendlier, less-clinical display title than Gemini's raw
+            # "## Movement Summary"/"## Negatives" headings -- localized via
+            # i18n (see analyze.section.* keys); the raw heading is kept for
+            # any debugging/fallback need.
+            "title_key": "analyze.section." + css_class,
+            "icon": SECTION_ICONS.get(css_class, SECTION_ICONS["improvements"]),
+            "summary_html": summary_html,
+            "detail_html": detail_html,
+        })
+    return sections
+
+
+@app.route("/", methods=["GET"])
+def home():
+    user = current_user()
+    # New accounts land here straight from signup/login (see auth.py) --
+    # send them to the combined onboarding wizard first instead, no matter
+    # which page they land on /'s redirect from. Accounts that existed
+    # before this feature shipped were backfilled to onboarding_completed=1
+    # (see database.py's init_db) so this only ever fires for genuinely
+    # new signups.
+    if user and not user["onboarding_completed"]:
+        return redirect(url_for("onboarding_page"))
+    return render_template(
+        "home.html", active_nav="home", i18n_page="home", exercise_icons=EXERCISE_ICONS
+    )
+
+
+@app.route("/onboarding", methods=["GET"])
+def onboarding_page():
+    user = current_user()
+    if not user:
+        return redirect(url_for("auth.login_page"))
+    if user["onboarding_completed"]:
+        return redirect(url_for("home"))
+    return render_template("onboarding.html", exercise_icons=EXERCISE_ICONS)
+
+
+@app.route("/api/onboarding/complete", methods=["POST"])
+def api_onboarding_complete():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    mark_onboarding_completed(user["id"])
+    return jsonify({"ok": True})
+
+
+@app.route("/analyze", methods=["GET"])
+def analyze_page():
+    return render_template(
+        "index.html",
+        exercise_library=EXERCISE_LIBRARY,
+        active_nav="analyze",
+        i18n_page="analyze",
+        exercise_icons=EXERCISE_ICONS,
+    )
+
+
+@app.route("/workouts", methods=["GET"])
+def workouts():
+    return render_template(
+        "workouts.html",
+        active_nav="workouts",
+        exercise_library=WORKOUT_EXERCISES,
+        exercise_details=EXERCISE_DETAILS,
+        exercise_categories=EXERCISE_CATEGORIES,
+        exercise_icons=EXERCISE_ICONS,
+        i18n_page="workouts",
+    )
+
+
+@app.route("/nutrition", methods=["GET"])
+def nutrition():
+    # Rebuilt on every request (cheap directory listing) so newly sorted
+    # photos show up immediately, without restarting the server.
+    return render_template(
+        "nutrition.html",
+        active_nav="nutrition",
+        food_library=FOOD_LIBRARY,
+        food_images=build_food_image_map(),
+        i18n_page="nutrition",
+    )
+
+
+@app.route("/coach", methods=["GET"])
+def coach():
+    return render_template("coach.html", active_nav="coach", i18n_page="coach")
+
+
+@app.route("/api/analyze-food", methods=["POST"])
+def api_analyze_food():
+    image_file = request.files.get("image")
+    if not image_file or image_file.filename == "":
+        return jsonify({"ok": False, "error": "Please provide a photo."}), 400
+
+    # Camera captures come through as a Blob with no real filename, so the
+    # browser-reported content type (not the filename extension) is the
+    # reliable signal here.
+    mime_type = image_file.mimetype if image_file.mimetype in ALLOWED_IMAGE_MIME_TYPES else "image/jpeg"
+
+    try:
+        result = analyze_food_photo(image_file.read(), mime_type=mime_type)
+        return jsonify({"ok": True, **result})
+    except FoodAnalysisError as exc:
+        app.logger.warning("Food photo analysis failed: %s", exc)
+        return jsonify({"ok": False, "error": "Couldn't analyze that photo. Please try again."}), 502
+
+
+@app.route("/api/scan-barcode", methods=["POST"])
+def api_scan_barcode():
+    image_file = request.files.get("image")
+    if not image_file or image_file.filename == "":
+        return jsonify({"ok": False, "error": "Please provide a photo of the barcode."}), 400
+
+    try:
+        result = scan_and_lookup(image_file.read())
+        return jsonify({"ok": True, **result})
+    except BarcodeScanError as exc:
+        app.logger.warning("Barcode scan failed: %s", exc)
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+
+@app.route("/api/lookup-barcode", methods=["POST"])
+def api_lookup_barcode():
+    # Companion to /api/scan-barcode: for browsers that support the
+    # BarcodeDetector API, the barcode is decoded live in-browser from the
+    # camera feed (see nutrition.html) -- no photo upload needed, just the
+    # decoded value to look up.
+    payload = request.get_json(silent=True) or {}
+    barcode = str(payload.get("barcode") or "").strip()
+    if not barcode:
+        return jsonify({"ok": False, "error": "No barcode value given."}), 400
+
+    try:
+        result = lookup_by_barcode(barcode)
+        return jsonify({"ok": True, **result})
+    except BarcodeScanError as exc:
+        app.logger.warning("Barcode lookup failed: %s", exc)
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+
+@app.route("/api/search-food-online", methods=["GET"])
+def api_search_food_online():
+    # Extends the food-log search bar beyond the curated FOOD_LIBRARY
+    # (food_library.py) out to Open Food Facts' full product database, so
+    # branded/packaged items that aren't in the hand-curated library can
+    # still be found and logged by name, not just by scanning a barcode.
+    query = request.args.get("q", "")
+    try:
+        results = search_open_food_facts(query, limit=12)
+        return jsonify({"ok": True, "results": results})
+    except BarcodeScanError as exc:
+        app.logger.warning("Open Food Facts search failed: %s", exc)
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+
+@app.route("/api/custom-foods", methods=["GET"])
+def api_get_custom_foods():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    return jsonify({"ok": True, "foods": get_custom_foods(user["id"])})
+
+
+@app.route("/api/custom-foods", methods=["POST"])
+def api_create_custom_food():
+    # A user-made food/dish -- name, emoji, and macros, all typed in by
+    # hand for things a barcode scan or AI photo can't cover. Stored per
+    # user_id (see database.create_custom_food), so it only ever shows up
+    # in that one user's own search results, never the shared
+    # FOOD_LIBRARY/DISHES data or any other user's account.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "").strip()
+    emoji = str(payload.get("emoji") or "").strip()
+
+    def _positive_float(key):
+        try:
+            return max(0.0, float(payload.get(key, 0) or 0))
+        except (TypeError, ValueError):
+            return 0.0
+
+    protein = _positive_float("protein")
+    fat = _positive_float("fat")
+    carbs = _positive_float("carbs")
+
+    # Name and emoji are optional -- someone who just wants to log
+    # protein/fat/carbs (no barcode, no dish name) shouldn't be blocked
+    # from doing so, so both fall back to a generic default instead of
+    # erroring.
+    name = name or "Custom food"
+    emoji = emoji or "\U0001F37D️"
+    if protein == 0 and fat == 0 and carbs == 0:
+        return jsonify({"ok": False, "error": "Enter at least one macro (protein, fat, or carbs)."}), 400
+
+    # Always derived server-side from the macros, never trusted from the
+    # client -- protein and carbs are 4 kcal/g, fat is 9 kcal/g, so the
+    # calories shown always genuinely match the entered macros.
+    calories = round(protein * 4 + carbs * 4 + fat * 9)
+
+    food_id = create_custom_food(user["id"], name[:60], emoji, calories, protein, fat, carbs)
+    return jsonify({
+        "ok": True,
+        "food": {
+            "id": food_id, "name": name[:60], "emoji": emoji,
+            "calories": calories, "protein": protein, "fat": fat, "carbs": carbs,
+        },
+    })
+
+
+@app.route("/api/custom-foods/<int:food_id>", methods=["DELETE"])
+def api_delete_custom_food(food_id):
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    delete_custom_food(user["id"], food_id)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/custom-exercises", methods=["GET"])
+def api_get_custom_exercises():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    return jsonify({"ok": True, "exercises": get_custom_exercises(user["id"])})
+
+
+@app.route("/api/custom-exercises", methods=["POST"])
+def api_create_custom_exercise():
+    # An exercise a user invented themselves, not in workout_library.py's
+    # shared EXERCISE_CATEGORIES. Stored per user_id (see
+    # database.create_custom_exercise), so it only ever shows up in that
+    # one user's own split-builder search, never any other user's account.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "Enter a name for the exercise."}), 400
+
+    exercise_id = create_custom_exercise(user["id"], name[:60])
+    return jsonify({"ok": True, "exercise": {"id": exercise_id, "name": name[:60]}})
+
+
+@app.route("/api/custom-exercises/<int:exercise_id>", methods=["DELETE"])
+def api_delete_custom_exercise(exercise_id):
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    delete_custom_exercise(user["id"], exercise_id)
+    return jsonify({"ok": True})
+
+
+@app.route("/hyrox", methods=["GET"])
+def hyrox():
+    # This page's content is intentionally not server-rendered — see
+    # templates/hyrox.html and static/hyrox.js for why.
+    return render_template("hyrox.html", active_nav="hyrox", i18n_page="hyrox")
+
+
+@app.route("/settings", methods=["GET"])
+def settings():
+    return render_template("settings.html", active_nav="settings")
+
+
+@app.route("/friends", methods=["GET"])
+def friends():
+    return render_template(
+        "friends.html", active_nav="friends", i18n_page="friends",
+        add_code=request.args.get("add", ""),
+    )
+
+
+@app.route("/weight-history", methods=["GET"])
+def weight_history():
+    # Client-side rendered from repcheck_weight_log_v1, same as everything
+    # else coaching.js owns — no server-side weight data to pass in here.
+    return render_template("weight_history.html", active_nav="nutrition", i18n_page="weightHistory")
+
+
+@app.route("/logging-history", methods=["GET"])
+def logging_history():
+    # Same "client-side rendered from localStorage" pattern as
+    # /weight-history above -- reads repcheck_nutrition_log_v1 and
+    # repcheck_day_status_v1 directly, same keys/status logic as the
+    # Daily logging card on the nutrition page (static/coaching.js), just
+    # expanded to a full month of circles instead of one week's strip.
+    return render_template("logging_history.html", active_nav="nutrition", i18n_page="loggingHistory")
+
+
+@app.route("/streaks", methods=["GET"])
+def streaks():
+    # Same "client-side rendered from localStorage" pattern as
+    # /weight-history and /logging-history above -- reads
+    # repcheck_workout_log_v2 and repcheck_nutrition_log_v1 directly, same
+    # activity/streak logic as the home page's streak tile
+    # (templates/home.html), just expanded into its own page with a
+    # current/longest streak summary and a full month pictograph.
+    return render_template("streaks.html", active_nav="home", i18n_page="streaks")
+
+
+@app.route("/api/account", methods=["POST"])
+def api_account_update():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    payload = request.get_json(silent=True) or {}
+    error = update_account(user["id"], name=payload.get("name"), email=payload.get("email"))
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
+    return jsonify({"ok": True})
+
+
+# ---------- Friends ----------
+@app.route("/api/friends", methods=["GET"])
+def api_friends():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    return jsonify({
+        "ok": True,
+        "code": get_or_create_friend_code(user["id"]),
+        "friends": [{"id": f["id"], "name": f["name"]} for f in get_friends(user["id"])],
+    })
+
+
+@app.route("/api/friends/qr.png", methods=["GET"])
+def api_friends_qr():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    import io
+
+    import qrcode
+
+    # Encode a real link, not the bare code -- scanning with the in-app
+    # scanner still works exactly the same (it reads the code out of the
+    # query string), but this way scanning with the phone's own camera
+    # app or any other QR reader opens RepCheck directly to the add-friend
+    # flow instead of just showing an inert text string to copy by hand.
+    add_url = f"{request.host_url}friends?add={get_or_create_friend_code(user['id'])}"
+    img = qrcode.make(add_url, box_size=8, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
+
+
+@app.route("/api/friends/add", methods=["POST"])
+def api_friends_add():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    payload = request.get_json(silent=True) or {}
+    code = (payload.get("code") or "").strip()
+    if not code:
+        return jsonify({"ok": False, "error": "Enter a friend code."}), 400
+    other = get_user_by_friend_code(code)
+    if not other:
+        return jsonify({"ok": False, "error": "No user found with that code."}), 404
+    if other["id"] == user["id"]:
+        return jsonify({"ok": False, "error": "That's your own code."}), 400
+    add_friendship(user["id"], other["id"])
+    return jsonify({"ok": True, "friend": {"id": other["id"], "name": other["name"]}})
+
+
+# ---------- Challenges ----------
+@app.route("/api/challenges", methods=["GET"])
+def api_challenges():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    return jsonify({"ok": True, "challenges": get_visible_challenges(user["id"]), "me": user["id"]})
+
+
+# Fixed reference date so the rotation is stable across restarts and for
+# every user at once — no per-user/per-challenge state needed, "today's
+# exercise" is just a pure function of the calendar date. Cycles through
+# CHALLENGE_EXERCISES in its declared order (push-ups -> sit-ups ->
+# pull-ups -> push-ups -> ...), forever.
+_CHALLENGE_ROTATION_EPOCH = date(2026, 1, 1)
+_CHALLENGE_ROTATION_ORDER = list(CHALLENGE_EXERCISES.keys())
+
+
+def get_todays_challenge_exercise():
+    days_since_epoch = (date.today() - _CHALLENGE_ROTATION_EPOCH).days
+    return _CHALLENGE_ROTATION_ORDER[days_since_epoch % len(_CHALLENGE_ROTATION_ORDER)]
+
+
+@app.route("/api/challenges", methods=["POST"])
+def api_challenges_create():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    # The exercise is no longer a user choice -- one exercise rotates in
+    # per day for everybody, so there's nothing to read from the request
+    # body anymore.
+    exercise = get_todays_challenge_exercise()
+    if has_submitted_today(user["id"], exercise):
+        return jsonify({
+            "ok": False,
+            "error": "You've already recorded today's attempt — come back tomorrow.",
+            "limitReached": True,
+        }), 429
+    challenge_id = create_challenge(user["id"], exercise)
+    return jsonify({"ok": True, "id": challenge_id, "exercise": exercise})
+
+
+@app.route("/api/challenges/today", methods=["GET"])
+def api_challenges_today():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    exercise = get_todays_challenge_exercise()
+    return jsonify({
+        "ok": True,
+        "exercise": exercise,
+        "label": CHALLENGE_EXERCISES[exercise]["label"],
+        "attempted": has_submitted_today(user["id"], exercise),
+    })
+
+
+@app.route("/api/challenges/<int:challenge_id>/submit", methods=["POST"])
+def api_challenge_submit(challenge_id):
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    challenge = get_challenge(challenge_id)
+    if not challenge:
+        return jsonify({"ok": False, "error": "Challenge not found."}), 404
+    # Re-checked here (on top of the check in api_challenges_create) in case
+    # the record modal was left open across a day boundary, or another tab
+    # already used up today's attempt for this exercise in the meantime.
+    if has_submitted_today(user["id"], challenge["exercise"]):
+        return jsonify({
+            "ok": False,
+            "error": "You've already recorded an attempt for this exercise today — try again tomorrow.",
+            "limitReached": True,
+        }), 429
+
+    file = request.files.get("video")
+    if not file or not file.filename:
+        return jsonify({"ok": False, "error": "No video uploaded."}), 400
+    # .webm is deliberately allowed here (on top of ALLOWED_EXTENSIONS)
+    # because the in-app recorder uses MediaRecorder, which produces
+    # video/webm in every major browser — the old check only allowed
+    # upload-from-file extensions, so every in-app recorded attempt was
+    # rejected before it ever reached the rep counter.
+    ext = Path(secure_filename(file.filename)).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS and ext != ".webm":
+        return jsonify({"ok": False, "error": "Unsupported video format."}), 400
+
+    raw_path = UPLOAD_DIR / f"challenge_{challenge_id}_{user['id']}_{uuid.uuid4().hex}{ext}"
+    trimmed_path = raw_path.with_name(raw_path.stem + "_25s.mp4")
+    file.save(raw_path)
+    try:
+        result = analyze_reps(raw_path, challenge["exercise"], trimmed_path=trimmed_path)
+    except RepCountError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    finally:
+        # The clips only exist to be counted — don't hoard user videos.
+        for p in (raw_path, trimmed_path):
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    save_submission(challenge_id, user["id"], result["reps"], result["notes"])
+    return jsonify({
+        "ok": True,
+        "reps": result["reps"],
+        "rejected": result.get("rejected", 0),
+        "notes": result["notes"],
+    })
+
+
+@app.route("/api/leaderboard", methods=["GET"])
+def api_leaderboard():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    scope = request.args.get("scope", "friends")
+    limit = request.args.get("limit", type=int)
+
+    if scope == "global":
+        user_ids = None
+    else:
+        friend_ids = [f["id"] for f in get_friends(user["id"])]
+        user_ids = [user["id"]] + friend_ids
+
+    # Ranked by total reps accumulated across every exercise combined
+    # (push-ups + sit-ups + pull-ups all feed the same running total) --
+    # see get_total_reps_leaderboard's docstring. Always fetched
+    # unlimited so "my rank" is correct even when it falls outside
+    # whatever `limit` the caller wants displayed (e.g. rank 80 of 200 on
+    # the global board, which a limit=50 list would never include).
+    all_rows = get_total_reps_leaderboard(user_ids=user_ids)
+    my_rank = None
+    for i, row in enumerate(all_rows):
+        if row["user_id"] == user["id"]:
+            my_rank = {"rank": i + 1, "total_reps": row["total_reps"], "name": row["name"]}
+            break
+
+    return jsonify({
+        "ok": True,
+        "scope": scope,
+        "me": user["id"],
+        "leaderboard": all_rows[:limit] if limit else all_rows,
+        "totalEntries": len(all_rows),
+        "myRank": my_rank,
+    })
+
+
+HYROX_GENDERS = {"men", "women"}
+HYROX_CATEGORIES = {"open", "pro"}
+HYROX_FORMATS = {"singles", "doubles"}
+# Anything faster than this for a full race is not a real finish (matches
+# the same implausibly-fast guard static/hyrox.js already applies before
+# a run is even offered to save locally) -- rejected here too so a bad
+# client request can't pollute the global leaderboard.
+HYROX_MIN_PLAUSIBLE_SECONDS = 20 * 60
+
+
+@app.route("/api/hyrox/results", methods=["POST"])
+def api_create_hyrox_result():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    gender = str(payload.get("gender") or "").strip()
+    category = str(payload.get("category") or "").strip()
+    format_ = str(payload.get("format") or "").strip()
+    try:
+        total_seconds = float(payload.get("total_seconds"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid time."}), 400
+
+    if gender not in HYROX_GENDERS or category not in HYROX_CATEGORIES or format_ not in HYROX_FORMATS:
+        return jsonify({"ok": False, "error": "Invalid gender, category, or format."}), 400
+    if total_seconds < HYROX_MIN_PLAUSIBLE_SECONDS:
+        return jsonify({"ok": False, "error": "That time isn't a plausible race finish."}), 400
+
+    result_id = create_hyrox_result(user["id"], gender, category, format_, total_seconds)
+    return jsonify({"ok": True, "id": result_id})
+
+
+@app.route("/api/hyrox/leaderboard", methods=["GET"])
+def api_hyrox_leaderboard():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    gender = request.args.get("gender", "")
+    category = request.args.get("category", "")
+    format_ = request.args.get("format", "")
+    if gender not in HYROX_GENDERS or category not in HYROX_CATEGORIES or format_ not in HYROX_FORMATS:
+        return jsonify({"ok": False, "error": "Invalid gender, category, or format."}), 400
+
+    rows = get_hyrox_leaderboard(gender, category, format_)
+    my_rank = None
+    for i, row in enumerate(rows):
+        if row["user_id"] == user["id"]:
+            my_rank = {"rank": i + 1, "best_seconds": row["best_seconds"], "name": row["name"]}
+            break
+
+    return jsonify({
+        "ok": True,
+        "leaderboard": rows[:50],
+        "totalEntries": len(rows),
+        "me": my_rank,
+    })
+
+
+@app.route("/api/coach-chat", methods=["POST"])
+def api_coach_chat():
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message", "")).strip()
+    history = payload.get("history") or []
+
+    if not message:
+        return jsonify({"ok": False, "error": "Message can't be empty."}), 400
+    if not isinstance(history, list):
+        return jsonify({"ok": False, "error": "Invalid history."}), 400
+
+    result = get_coach_reply(message, history)
+    return jsonify({
+        "ok": True,
+        "reply": result["reply"],
+        "limited": result["limited"],
+        "retry_after_seconds": result["retry_after_seconds"],
+    })
+
+
+@app.route("/api/analyze-chat", methods=["POST"])
+def api_analyze_chat():
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message", "")).strip()
+    history = payload.get("history") or []
+    context = payload.get("context") or {}
+
+    if not message:
+        return jsonify({"ok": False, "error": "Message can't be empty."}), 400
+    if not isinstance(history, list):
+        return jsonify({"ok": False, "error": "Invalid history."}), 400
+    if not isinstance(context, dict):
+        return jsonify({"ok": False, "error": "Invalid context."}), 400
+
+    result = get_analysis_chat_reply(message, history, context)
+    return jsonify({
+        "ok": True,
+        "reply": result["reply"],
+        "limited": result["limited"],
+        "retry_after_seconds": result["retry_after_seconds"],
+    })
+
+
+@app.route("/api/hyrox/analyze", methods=["POST"])
+def api_hyrox_analyze():
+    payload = request.get_json(silent=True) or {}
+    race = payload.get("race") or {}
+    if not isinstance(race, dict):
+        return jsonify({"ok": False, "error": "Invalid race."}), 400
+
+    segments = race.get("segments")
+    if not isinstance(segments, list) or not segments:
+        return jsonify({"ok": False, "error": "Race has no segments to analyze."}), 400
+
+    result = get_hyrox_race_analysis(race)
+    return jsonify({
+        "ok": True,
+        "overall": result["overall"],
+        "overall_detail": result["overall_detail"],
+        "tips": result["tips"],
+        "limited": result["limited"],
+        "retry_after_seconds": result["retry_after_seconds"],
+    })
+
+
+@app.route("/api/generate-split", methods=["POST"])
+def api_generate_split():
+    payload = request.get_json(silent=True) or {}
+    split_type = str(payload.get("split_type", "")).strip()
+    days_per_week = payload.get("days_per_week")
+    custom_days = payload.get("custom_days") or []
+    # Free text the user typed themselves (e.g. "I want more mobility and
+    # to gain muscle") -- steers day-type/exercise selection in
+    # generate_split_plan(), never trusted as exercise names directly.
+    goal = str(payload.get("goal") or "").strip()[:300]
+    # "home" / "gym" / "hybrid" from the wizard's "Where do you usually
+    # train?" question -- generate_split_plan() treats anything else
+    # (missing, unrecognized) as no preference, same as before this
+    # question existed.
+    location = str(payload.get("location") or "").strip().lower()
+    # Exercises the user hand-picked per custom day from the categorized
+    # picker (see workouts.html's "plan your own split" flow) -- each
+    # name is checked against the real library so nothing unvalidated
+    # reaches the AI prompt or the fallback plan.
+    valid_exercise_names = set(WORKOUT_EXERCISES)
+    raw_custom_days_exercises = payload.get("custom_days_exercises")
+    custom_days_exercises = None
+    if isinstance(raw_custom_days_exercises, dict):
+        custom_days_exercises = {}
+        for label, names in raw_custom_days_exercises.items():
+            if not isinstance(names, list):
+                continue
+            cleaned = [str(n) for n in names if str(n) in valid_exercise_names]
+            if cleaned:
+                custom_days_exercises[str(label)[:60]] = cleaned
+
+    if split_type not in {"ppl", "upper_lower", "full_body", "bro_split", "custom"}:
+        return jsonify({"ok": False, "error": "Unknown split type."}), 400
+    try:
+        days_per_week = int(days_per_week)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days_per_week must be a number."}), 400
+    if not 1 <= days_per_week <= 7:
+        return jsonify({"ok": False, "error": "days_per_week must be between 1 and 7."}), 400
+    if split_type == "custom" and not custom_days:
+        return jsonify({"ok": False, "error": "Please name at least one custom day."}), 400
+
+    plan = generate_split_plan(split_type, days_per_week, custom_days, goal, custom_days_exercises, location)
+    return jsonify({"ok": True, **plan})
+
+
+@app.route("/api/coaching/body-fat-ranges", methods=["GET"])
+def api_coaching_body_fat_ranges():
+    gender = request.args.get("gender", "male")
+    ranges = FEMALE_BODY_FAT_RANGES if gender == "female" else MALE_BODY_FAT_RANGES
+    return jsonify({"ok": True, "ranges": ranges})
+
+
+def _validate_coaching_profile(payload):
+    aspiration = payload.get("aspiration")
+    gender = payload.get("gender")
+    activity_level = payload.get("activity_level")
+    protein_preference = payload.get("protein_preference")
+    body_fat_range_id = payload.get("body_fat_range_id")
+    # Defaults to "balanced" rather than requiring it, so older saved
+    # profiles from before this question existed (no diet_preference in
+    # their payload at all) keep working exactly as before instead of
+    # failing validation.
+    diet_preference = payload.get("diet_preference") or "balanced"
+
+    if aspiration not in {"lose", "maintain", "gain"}:
+        return None, "Please choose a goal: lose, maintain, or gain weight."
+    if gender not in {"male", "female"}:
+        return None, "Please choose a gender."
+    if activity_level not in {"none", "cardio_only", "lift_only", "lift_and_cardio"}:
+        return None, "Please choose an activity level."
+    if protein_preference not in {"low_moderate", "moderate", "high", "highest"}:
+        return None, "Please choose a protein intake level."
+    if diet_preference not in {"balanced", "low_fat", "low_carb", "keto"}:
+        return None, "Please choose a diet type."
+    valid_range_ids = {r["id"] for r in (FEMALE_BODY_FAT_RANGES if gender == "female" else MALE_BODY_FAT_RANGES)}
+    if body_fat_range_id not in valid_range_ids:
+        return None, "Please choose a body type."
+    try:
+        weight_kg = float(payload.get("weight_kg"))
+        # 35kg floor rather than a lower "technically possible" number --
+        # below this the Katch-McArdle BMR/protein-per-kg-lean math this
+        # profile feeds into stops producing safe, realistic targets, and
+        # this app isn't built/reviewed for that population (e.g. children,
+        # or a weight someone in eating-disorder recovery might enter).
+        if not 35 <= weight_kg <= 300:
+            raise ValueError
+    except (TypeError, ValueError):
+        return None, "Please enter a realistic weight of at least 35 kg."
+
+    # Height is collected for the profile (and shown in the user's chosen
+    # units); Katch-McArdle doesn't need it, so it's stored, not computed on.
+    height_cm = None
+    if payload.get("height_cm") is not None:
+        try:
+            height_cm = float(payload.get("height_cm"))
+            if not 100 <= height_cm <= 250:
+                raise ValueError
+        except (TypeError, ValueError):
+            return None, "Please choose a realistic height."
+
+    loss_rate_pct = None
+    if aspiration == "lose":
+        try:
+            loss_rate_pct = float(payload.get("loss_rate_pct", LOSS_RATE_DEFAULT_PCT))
+            if not LOSS_RATE_MIN_PCT - 0.01 <= loss_rate_pct <= LOSS_RATE_MAX_PCT + 0.01:
+                raise ValueError
+        except (TypeError, ValueError):
+            return None, "Please choose a realistic weekly weight loss rate."
+
+    return {
+        "aspiration": aspiration,
+        "gender": gender,
+        "activity_level": activity_level,
+        "protein_preference": protein_preference,
+        "diet_preference": diet_preference,
+        "body_fat_range_id": body_fat_range_id,
+        "weight_kg": weight_kg,
+        "height_cm": height_cm,
+        "loss_rate_pct": loss_rate_pct,
+    }, None
+
+
+@app.route("/api/coaching/calculate", methods=["POST"])
+def api_coaching_calculate():
+    payload = request.get_json(silent=True) or {}
+    profile, error = _validate_coaching_profile(payload)
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
+
+    targets = calculate_targets(profile)
+
+    distribution = None
+    if payload.get("distribution") == "weekly":
+        training_days = set(payload.get("training_days") or [])
+        distribution = distribute_weekly_calories(
+            targets["calories"], targets["protein"], targets["fat"], targets["carbs"], training_days
+        )
+
+    return jsonify({"ok": True, "targets": targets, "distribution": distribution})
+
+
+@app.route("/api/coaching/weekly-adjustment", methods=["POST"])
+def api_coaching_weekly_adjustment():
+    payload = request.get_json(silent=True) or {}
+    profile, error = _validate_coaching_profile(payload)
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
+
+    current_targets = payload.get("current_targets")
+    week_weight_entries = payload.get("week_weight_entries") or []
+    week_calorie_days = payload.get("week_calorie_days") or []
+    if not isinstance(current_targets, dict) or "calories" not in current_targets:
+        return jsonify({"ok": False, "error": "Missing current_targets."}), 400
+
+    # The deterministic trend calculation always runs first, both as the
+    # answer for a photo-less check-in and as the anchor/fallback for a
+    # photo-informed one (see checkin_analyzer.py's module docstring).
+    baseline = weekly_adjustment(profile, current_targets, week_weight_entries, week_calorie_days)
+
+    photo_ids = payload.get("photo_ids") or []
+    user = current_user()
+    photo_files = []
+    if photo_ids and user:
+        for raw_id in photo_ids[:2]:  # front + back at most
+            try:
+                photo = get_progress_photo(int(raw_id))
+            except (TypeError, ValueError):
+                continue
+            if not photo or photo["user_id"] != user["id"]:
+                continue
+            path = PROGRESS_PHOTOS_DIR / photo["filename"]
+            if not path.exists():
+                continue
+            mime_type = mimetypes.guess_type(photo["filename"])[0] or "image/jpeg"
+            photo_files.append((path.read_bytes(), mime_type))
+
+    if not photo_files:
+        return jsonify({"ok": True, "adjustment": baseline})
+
+    try:
+        ai_result = analyze_checkin_with_photos(profile, week_weight_entries, week_calorie_days, baseline, photo_files)
+        adjustment = apply_calorie_delta(profile, current_targets, ai_result["delta"], ai_result["reason"])
+    except CheckinAnalysisError:
+        # Photo analysis failed (no API key, Gemini hiccup, bad response) --
+        # fall back to the deterministic number rather than failing the
+        # whole check-in the user just spent time completing.
+        adjustment = baseline
+
+    return jsonify({"ok": True, "adjustment": adjustment})
+
+
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    wants_json = "application/json" in request.headers.get("Accept", "")
+
+    def fail(message):
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 400
+        return render_template(
+            "index.html", exercise_library=EXERCISE_LIBRARY, active_nav="analyze", i18n_page="analyze", error=message
+        )
+
+    video_file = request.files.get("video")
+    exercise = request.form.get("exercise", "").strip()
+
+    if not video_file or video_file.filename == "":
+        return fail("Please choose a video file.")
+
+    if not exercise:
+        return fail("Please choose an exercise.")
+
+    suffix = Path(video_file.filename).suffix.lower()
+    if suffix not in ALLOWED_EXTENSIONS:
+        return fail(f"Unsupported file type '{suffix}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
+
+    job_id = uuid.uuid4().hex[:12]
+    safe_name = secure_filename(video_file.filename) or "upload"
+    raw_path = UPLOAD_DIR / f"{job_id}_{safe_name}"
+    trimmed_path = UPLOAD_DIR / f"{job_id}_trimmed{suffix}"
+
+    video_file.save(raw_path)
+
+    try:
+        result = run_pipeline(raw_path, exercise, trimmed_path=trimmed_path)
+        sections = split_feedback_sections(result["feedback"])
+
+        # Model name / clip duration are useful for debugging but not
+        # shown to the user — keep them in the server log only.
+        app.logger.info(
+            "Analyzed %s with %s: %.1fs clip, %s reps",
+            result["exercise_label"], result["model"],
+            result["duration_seconds"], result["reps"],
+        )
+
+        # The uploaded video is always deleted (see the `finally` below) —
+        # this is the only thing that survives an analysis. Only for a
+        # logged-in user (anonymous/local-only use has no account to store
+        # it against); see /analyze/latest for where this gets read back.
+        user = current_user()
+        if user:
+            save_analyze_result(
+                user["id"], result["exercise_label"], result["overall_score"],
+                result["stretch_score"], result["squeeze_score"], result["favored"],
+                result["reps"], result["feedback"],
+            )
+
+        if wants_json:
+            return jsonify({
+                "ok": True,
+                "exercise_label": result["exercise_label"],
+                "overall_score": result["overall_score"],
+                "stretch_score": result["stretch_score"],
+                "squeeze_score": result["squeeze_score"],
+                "favored": result["favored"],
+                "reps": result["reps"],
+                "sections": sections,
+                "feedback_text": result["feedback"],
+            })
+
+        return render_template(
+            "result.html",
+            exercise_label=result["exercise_label"],
+            overall_score=result["overall_score"],
+            stretch_score=result["stretch_score"],
+            squeeze_score=result["squeeze_score"],
+            favored=result["favored"],
+            reps=result["reps"],
+            sections=sections,
+            feedback_text=result["feedback"],
+            active_nav="analyze",
+            i18n_page="result",
+        )
+    except SystemExit as exc:
+        return fail(str(exc))
+    finally:
+        raw_path.unlink(missing_ok=True)
+        trimmed_path.unlink(missing_ok=True)
+
+
+@app.route("/analyze/latest", methods=["GET"])
+def analyze_latest():
+    # Jumps straight to a user's most recent analysis result instead of the
+    # upload form -- only reachable at all if analyze_results actually has
+    # a row for them (see inject_analyze_nav_href, which is what decides
+    # whether the nav even links here). Falls back to the normal upload
+    # page for anyone who lands on this URL directly without a stored
+    # result (logged out, or never analyzed anything yet), rather than
+    # erroring.
+    user = current_user()
+    if not user:
+        return redirect(url_for("analyze_page"))
+    row = get_latest_analyze_result(user["id"])
+    if not row:
+        return redirect(url_for("analyze_page"))
+    sections = split_feedback_sections(row["feedback_text"])
+    return render_template(
+        "result.html",
+        exercise_label=row["exercise_label"],
+        overall_score=row["overall_score"],
+        stretch_score=row["stretch_score"],
+        squeeze_score=row["squeeze_score"],
+        favored=row["favored"],
+        reps=row["reps"],
+        sections=sections,
+        feedback_text=row["feedback_text"],
+        active_nav="analyze",
+        i18n_page="result",
+    )
+
+
+if __name__ == "__main__":
+    # host="0.0.0.0" makes this reachable from other devices on the same
+    # Wi-Fi network, not just this machine, at http://<this-pc's-LAN-IP>:5000
+    #
+    # HTTPS via ssl_context="adhoc" was tried here to enable the in-app
+    # live-camera features (barcode/QR scanning need getUserMedia, which
+    # requires a secure context off of localhost) -- reverted back to
+    # plain HTTP because the self-signed cert's browser trust warning was
+    # too much friction. Those camera features are commented out in
+    # nutrition.html/friends.html to match (they fall back to photo
+    # upload / manual entry instead, both of which work fine over plain
+    # HTTP). Re-enable both together if camera scanning comes back:
+    # app.run(host="0.0.0.0", port=5000, debug=True, ssl_context="adhoc")
+    #
+    # threaded=True matters beyond just responsiveness: the onboarding
+    # wizard's save() fires several background saves (profile, nutrition
+    # goals, split plan) right before navigating to a brand-new page that
+    # itself needs an immediate response from this same server. Without
+    # threading, Flask's dev server can only handle one request at a time,
+    # so that in-flight burst could get starved by the next page's own
+    # requests (or vice versa) — this was silently dropping some of the
+    # onboarding saves, leaving onboarding_completed=1 with no profile or
+    # split plan actually persisted, which then also made the app think
+    # onboarding was already done next time (so it never re-asked to fix
+    # itself either).
+    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)

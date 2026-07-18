@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Logging History{% endblock %}
+{% block heading %}Logging History{% endblock %}
+{% block subheading %}Every day this month, at a glance — tap a circle to mark it fasting or an incomplete log.{% endblock %}
+
+{% block content %}
+<!--
+  A month-wide pictograph companion to the "Daily logging" week-strip on
+  the Personalized Coaching card (static/coaching.js) -- same status
+  logic and same two localStorage keys (repcheck_nutrition_log_v1,
+  repcheck_day_status_v1), just a full month of circles instead of 7
+  days, reached via the card's "View full month" link. Deliberately its
+  own page (like weight_history.html) rather than a modal, since a full
+  month of circles plus per-day popups needs real room to breathe. Also
+  links coaching.css to reuse its .pc-popup-* classes for the status
+  popup, rather than re-styling an identical popup from scratch.
+-->
+<link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
+<style>
+  .lh-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 20px 22px; margin-bottom: 16px; max-width: 720px;
+  }
+  .lh-back { display: inline-block; margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-decoration: none; }
+  .lh-back:hover { color: var(--text); }
+
+  .lh-toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; }
+  .lh-nav-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .lh-nav-btn:hover { border-color: var(--text-secondary); }
+  .lh-nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .lh-nav-btn:disabled:hover { border-color: var(--border); }
+  .lh-nav-label { font-size: 15px; font-weight: 700; min-width: 140px; text-align: center; }
+
+  .lh-summary-row { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 20px; }
+  .lh-summary-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .lh-summary-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .lh-summary-value { font-weight: 700; color: var(--text); }
+
+  .lh-circle-grid {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .lh-circle {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: none; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    position: relative;
+  }
+  .lh-circle.is-today { box-shadow: 0 0 0 2px var(--blue); }
+  .lh-circle[data-status="logged"] { background: var(--green); color: #fff; }
+  .lh-circle[data-status="fasting"] { background: var(--amber); color: #fff; }
+  .lh-circle[data-status="incomplete"] { background: var(--text-secondary); color: #fff; }
+  .lh-circle[data-status="none"] { background: var(--border); color: var(--text); }
+  .lh-circle:disabled { opacity: 0.3; cursor: default; }
+
+  .lh-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; font-size: 11px; color: var(--text-secondary); }
+  .lh-legend-item { display: flex; align-items: center; gap: 5px; }
+  .lh-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+</style>
+
+<a href="{{ url_for('nutrition') }}" class="lh-back" data-i18n="loggingHistory.backToNutrition">&larr; Back to Nutrition</a>
+
+<div class="lh-card">
+  <div class="lh-toolbar">
+    <button type="button" class="lh-nav-btn" id="lh-prev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="lh-nav-label" id="lh-nav-label"></div>
+    <button type="button" class="lh-nav-btn" id="lh-next"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+
+  <div class="lh-summary-row" id="lh-summary"></div>
+  <div class="lh-circle-grid" id="lh-circle-grid"></div>
+
+  <div class="lh-legend">
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--green)"></span><span data-i18n="coaching.legend.logged">Logged</span></div>
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--amber)"></span><span data-i18n="coaching.legend.fasting">Fasting</span></div>
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--text-secondary)"></span><span data-i18n="coaching.legend.incomplete">Incomplete</span></div>
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--border)"></span><span data-i18n="coaching.legend.notLogged">Not logged</span></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    const NUTRITION_LOG_KEY = "repcheck_nutrition_log_v1";
+    const DAY_STATUS_KEY = "repcheck_day_status_v1";
+
+    function loadJson(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch (err) {
+        return fallback;
+      }
+    }
+    function saveJson(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+    function el(html) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html.trim();
+      return wrap.firstElementChild;
+    }
+    function toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    // Same status logic as static/coaching.js's getDayStatus/setDayStatus
+    // -- a day defaults to "logged" the moment it has at least one food
+    // entry, or "none" ("not logged") otherwise, and either can be
+    // manually overridden to "fasting" or "incomplete". Deliberately kept
+    // in sync with that copy rather than importing it, since coaching.js
+    // is written as a self-contained page controller, not a shared module.
+    function hasEntries(dateIso, nutritionLog) {
+      const entries = nutritionLog[dateIso];
+      return Array.isArray(entries) && entries.length > 0;
+    }
+    function getDayStatus(dateIso, nutritionLog, dayStatusMap) {
+      const override = dayStatusMap[dateIso];
+      if (override === "fasting" || override === "incomplete") return override;
+      return hasEntries(dateIso, nutritionLog) ? "logged" : "none";
+    }
+
+    const t = RepCheckI18n.t;
+    function monthName(i) { return t(`common.month.${i}`); }
+
+    const today = new Date();
+    const todayIso = toIsoDate(today);
+    let viewYear = today.getFullYear();
+    let viewMonth = today.getMonth(); // 0-11
+    let openPopupDate = null; // ISO date currently showing the status popup, or null
+
+    function daysInMonth(year, month) {
+      return new Date(year, month + 1, 0).getDate();
+    }
+
+    function renderSummary(days, nutritionLog, dayStatusMap) {
+      const counts = { logged: 0, fasting: 0, incomplete: 0, none: 0 };
+      days.forEach((dateIso) => {
+        if (dateIso > todayIso) return; // future days don't count toward the month's summary
+        counts[getDayStatus(dateIso, nutritionLog, dayStatusMap)]++;
+      });
+      const summaryEl = document.getElementById("lh-summary");
+      summaryEl.innerHTML = `
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--green)"></span><span class="lh-summary-value">${counts.logged}</span> ${t("loggingHistory.summary.logged")}</div>
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--amber)"></span><span class="lh-summary-value">${counts.fasting}</span> ${t("loggingHistory.summary.fasting")}</div>
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--text-secondary)"></span><span class="lh-summary-value">${counts.incomplete}</span> ${t("loggingHistory.summary.incomplete")}</div>
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--border)"></span><span class="lh-summary-value">${counts.none}</span> ${t("loggingHistory.summary.notLogged")}</div>
+      `;
+    }
+
+    function renderGrid() {
+      const nutritionLog = loadJson(NUTRITION_LOG_KEY, {});
+      const dayStatusMap = loadJson(DAY_STATUS_KEY, {});
+      const total = daysInMonth(viewYear, viewMonth);
+      const days = Array.from({ length: total }, (_, i) => {
+        const d = new Date(viewYear, viewMonth, i + 1);
+        return toIsoDate(d);
+      });
+
+      renderSummary(days, nutritionLog, dayStatusMap);
+
+      const gridEl = document.getElementById("lh-circle-grid");
+      gridEl.innerHTML = "";
+      days.forEach((dateIso, i) => {
+        const status = getDayStatus(dateIso, nutritionLog, dayStatusMap);
+        const isFuture = dateIso > todayIso;
+        const circle = el(`
+          <button type="button" class="lh-circle ${dateIso === todayIso ? "is-today" : ""}" data-status="${status}" data-date="${dateIso}" ${isFuture ? "disabled" : ""}>
+            ${i + 1}
+          </button>
+        `);
+        if (!isFuture) {
+          circle.addEventListener("click", () => openPopup(dateIso));
+        }
+        gridEl.appendChild(circle);
+      });
+    }
+
+    function renderNavLabel() {
+      document.getElementById("lh-nav-label").textContent = `${monthName(viewMonth)} ${viewYear}`;
+      // Can't page past the current month -- there's nothing to log yet.
+      document.getElementById("lh-next").disabled = (viewYear === today.getFullYear() && viewMonth === today.getMonth());
+    }
+
+    function render() {
+      renderNavLabel();
+      renderGrid();
+    }
+
+    // ---------- Status popup (mirrors coaching.js's renderDayPopup, reusing
+    // coaching.css's .pc-popup-* classes) ----------
+    function closePopup() {
+      openPopupDate = null;
+      const existing = document.getElementById("lh-popup-overlay");
+      if (existing) existing.remove();
+    }
+
+    function setStatus(status) {
+      const dayStatusMap = loadJson(DAY_STATUS_KEY, {});
+      if (status === "logged") {
+        delete dayStatusMap[openPopupDate]; // clear override -> back to automatic detection
+      } else {
+        dayStatusMap[openPopupDate] = status;
+      }
+      saveJson(DAY_STATUS_KEY, dayStatusMap);
+      closePopup();
+      render();
+    }
+
+    function openPopup(dateIso) {
+      closePopup();
+      openPopupDate = dateIso;
+
+      const nutritionLog = loadJson(NUTRITION_LOG_KEY, {});
+      const dayStatusMap = loadJson(DAY_STATUS_KEY, {});
+      const currentStatus = getDayStatus(dateIso, nutritionLog, dayStatusMap);
+      const dateLabel = new Date(dateIso + "T00:00:00").toLocaleDateString(
+        RepCheckI18n.getLang() === "th" ? "th-TH" : undefined,
+        { weekday: "long", month: "short", day: "numeric" }
+      );
+
+      // Same restriction as coaching.js's renderDayPopup: a day with zero
+      // entries can only go to "Fasting" (or back to "Not logged");
+      // "Incomplete" implies some logging happened, so it doesn't apply.
+      const options = hasEntries(dateIso, nutritionLog)
+        ? [
+            { id: "logged", title: t("coaching.status.logged.title") },
+            { id: "incomplete", title: t("coaching.status.incomplete.title") },
+          ]
+        : [
+            { id: "logged", title: t("coaching.status.notLogged.title") },
+            { id: "fasting", title: t("coaching.status.fasting.title") },
+          ];
+
+      const overlay = el(`
+        <div class="pc-popup-overlay" id="lh-popup-overlay">
+          <div class="pc-popup">
+            <div class="pc-popup-title">${dateLabel}</div>
+            <div class="pc-popup-sub">${t("coaching.dayPopup.question")}</div>
+            <div class="pc-popup-options" id="lh-popup-options"></div>
+            <button type="button" class="pc-btn-secondary pc-popup-close" id="lh-popup-close">${t("common.close")}</button>
+          </div>
+        </div>
+      `);
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) closePopup();
+      });
+      overlay.querySelector("#lh-popup-close").addEventListener("click", closePopup);
+
+      const optionsEl = overlay.querySelector("#lh-popup-options");
+      options.forEach((opt) => {
+        const btn = el(`
+          <button type="button" class="pc-popup-option ${currentStatus === opt.id ? "is-selected" : ""}">
+            <span>${opt.title}</span>
+          </button>
+        `);
+        btn.addEventListener("click", () => setStatus(opt.id));
+        optionsEl.appendChild(btn);
+      });
+
+      document.body.appendChild(overlay);
+    }
+
+    document.getElementById("lh-prev").addEventListener("click", () => {
+      viewMonth -= 1;
+      if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+      render();
+    });
+    document.getElementById("lh-next").addEventListener("click", () => {
+      if (document.getElementById("lh-next").disabled) return;
+      viewMonth += 1;
+      if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+      render();
+    });
+
+    render();
+    document.addEventListener("repcheck:language-changed", render);
+  })();
+</script>
+{% endblock %}

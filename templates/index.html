@@ -1,0 +1,1006 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Analyze{% endblock %}
+{% block heading %}Analyze your form{% endblock %}
+{% block subheading %}Upload a set, pick the exercise, get instant feedback.{% endblock %}
+
+{% block content %}
+<div class="card" id="upload-view">
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <div class="an-hero">
+    <div class="an-hero-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+    </div>
+    <div class="an-hero-title" data-i18n="analyze.heroTitle">See exactly what to fix</div>
+    <div class="an-hero-sub" data-i18n="analyze.heroSub">Upload a set and get instant, detailed feedback on your form — every time you lift.</div>
+  </div>
+
+  <form id="analyze-form" enctype="multipart/form-data">
+    <div class="field">
+      <label for="video" data-i18n="analyze.videoLabel">Video</label>
+      <div class="file-drop" id="file-drop">
+        <input type="file" id="video" name="video" accept="video/*" required class="file-drop-input">
+        <div class="file-drop-icon" id="file-drop-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        </div>
+        <div class="file-drop-text">
+          <div class="file-drop-title" id="file-drop-title" data-i18n="analyze.dropTitle">Click to upload or drag and drop</div>
+          <div class="file-drop-sub" id="file-drop-sub" data-i18n="analyze.dropSub">MP4, MOV, AVI, or MKV</div>
+        </div>
+      </div>
+      <div class="hint" data-i18n="analyze.trimHint">The first 5 seconds are trimmed off and only ~75 seconds are analyzed.</div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="analyze.exerciseLabel">Exercise</label>
+      <input type="hidden" id="exercise" name="exercise" required>
+
+      <button type="button" class="ex-picker-btn" id="ex-picker-btn">
+        <span class="ex-picker-plus">+</span>
+        <span data-i18n="analyze.chooseExercise">Choose an exercise</span>
+      </button>
+
+      <div class="selected-exercise-chip" id="selected-exercise-chip" style="display:none;">
+        <div class="exercise-icon" id="selected-exercise-icon"></div>
+        <span id="selected-exercise-label"></span>
+        <button type="button" class="clear-exercise-btn" id="clear-exercise-btn" data-i18n-aria-label="analyze.clearExercise" aria-label="Clear selected exercise">&times;</button>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-primary" id="submit-btn" data-i18n="analyze.submit">Analyze my form</button>
+  </form>
+
+  <div class="an-recent" id="an-recent" style="display:none;">
+    <div class="an-recent-title" data-i18n="analyze.recentAnalyses">Recent analyses</div>
+    <div class="an-recent-strip" id="an-recent-strip"></div>
+  </div>
+</div>
+
+<div class="ex-modal-overlay" id="ex-modal-overlay" style="display:none;">
+  <div class="ex-modal">
+    <div class="ex-modal-header">
+      <div class="ex-modal-search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="ex-modal-search" data-i18n-placeholder="analyze.searchPlaceholder" placeholder="Search for an exercise, e.g. squat, lat pulldown..." autocomplete="off">
+      </div>
+      <button type="button" class="ex-modal-close" id="ex-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+    </div>
+    <div class="ex-modal-body" id="ex-modal-body"></div>
+  </div>
+</div>
+
+<div class="card" id="analyzing-view" style="display:none;">
+  <div class="video-wrap">
+    <video id="preview-video" muted loop autoplay playsinline></video>
+    <canvas id="pose-canvas"></canvas>
+    <div class="scan-line"></div>
+    <div class="analyzing-overlay">
+      <span class="live-dot"></span>
+      <span id="status-text" data-i18n="analyze.status1">Loading video...</span>
+    </div>
+  </div>
+</div>
+
+<div id="result-view" style="display:none;"></div>
+
+<style>
+  .an-hero { text-align: center; padding: 4px 4px 24px; }
+  .an-hero-icon {
+    width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
+  }
+  .an-hero-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
+  .an-hero-sub { font-size: 13px; color: var(--text-secondary); line-height: 1.5; max-width: 320px; margin: 0 auto; }
+
+  .file-drop {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 18px;
+    background: var(--bg);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  }
+  .file-drop:hover { border-color: var(--blue); }
+  .file-drop.is-dragover { border-color: var(--blue); background: var(--blue-bg); }
+  .file-drop.has-file { border-style: solid; border-color: var(--green); background: var(--green-bg); }
+  .file-drop:active { transform: scale(0.99); }
+  .file-drop-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .file-drop-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--blue-bg);
+    color: var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .file-drop.has-file .file-drop-icon { background: rgba(31, 169, 113, 0.18); color: var(--green); }
+  .file-drop-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .file-drop-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .ex-picker-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--blue-bg);
+    border: 1.5px solid transparent;
+    border-radius: 16px;
+    padding: 14px;
+    color: var(--blue);
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .ex-picker-btn:hover { border-color: var(--blue); transform: translateY(-1px); }
+  .ex-picker-plus {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  /* ---------- Recent analyses strip -- surfaces the analyze-log data that
+     already gets collected (repcheck_analyze_log_v1) but previously only
+     powered the exercise-picker's "Recent" section; showing it directly on
+     the upload screen turns it into a visible history/progress cue meant
+     to pull the user back to analyze again, not just a quiet picker aid. */
+  .an-recent { margin-top: 22px; }
+  .an-recent-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 10px; }
+  .an-recent-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .an-recent-strip::-webkit-scrollbar { display: none; }
+  .an-recent-card {
+    flex-shrink: 0;
+    width: 104px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .an-recent-card:hover { border-color: var(--blue); transform: translateY(-2px); }
+  .an-recent-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--card-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+  .an-recent-icon .ex-icon-img { width: 100%; height: 100%; object-fit: cover; }
+  .an-recent-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .an-recent-date { font-size: 10px; color: var(--text-secondary); }
+
+  .ex-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 15, 20, 0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+    animation: section-reveal 0.15s ease;
+  }
+  .ex-modal {
+    width: 100%;
+    max-width: 560px;
+    max-height: 82vh;
+    background: var(--card-bg);
+    border-radius: 20px 20px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  @media (min-width: 560px) {
+    .ex-modal-overlay { align-items: center; }
+    .ex-modal { border-radius: var(--radius-lg); max-height: 76vh; }
+  }
+  .ex-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .ex-modal-search-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 11px 14px;
+    color: var(--text-secondary);
+  }
+  .ex-modal-search-wrap input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .ex-modal-search-wrap input::placeholder { color: var(--text-secondary); }
+  .ex-modal-close {
+    background: var(--bg);
+    border: none;
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .ex-modal-close:hover { color: var(--text); }
+  .ex-modal-body {
+    overflow-y: auto;
+    padding: 16px;
+  }
+  .ex-modal-section { margin-bottom: 20px; }
+  .ex-modal-section:last-child { margin-bottom: 0; }
+  .ex-modal-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 10px;
+  }
+  .ex-modal-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 10px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 12px;
+  }
+  .ex-modal-result-item:hover { background: var(--bg); }
+  .ex-modal-result-item:active { background: var(--sidebar-active); }
+  .ex-modal-empty {
+    padding: 12px 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .selected-exercise-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: var(--sidebar-active);
+    border: 1px solid var(--border);
+  }
+  .selected-exercise-chip span {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .clear-exercise-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .clear-exercise-btn:hover { color: var(--red); }
+
+  .video-wrap {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: #000;
+    max-height: 70vh;
+  }
+  .video-wrap video {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  #pose-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .scan-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    top: 0;
+    background: linear-gradient(90deg, transparent, #7CFFB2, transparent);
+    box-shadow: 0 0 14px 3px rgba(124, 255, 178, 0.85);
+    animation: scan 2.4s ease-in-out infinite;
+  }
+  @keyframes scan {
+    0%   { top: 0%; }
+    50%  { top: 100%; }
+    100% { top: 0%; }
+  }
+  .analyzing-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.65) 100%);
+    display: flex;
+    align-items: flex-end;
+    padding: 16px 18px;
+    gap: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff5252;
+    display: inline-block;
+    margin-bottom: 1px;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+</style>
+
+<script src="{{ asset_url('analyze_chat_widget.js') }}"></script>
+<script type="module">
+  import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
+
+  const POSE_WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+  const POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
+  const POSE_CONNECTIONS = [
+    [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+    [11, 23], [12, 24], [23, 24],
+    [23, 25], [25, 27], [24, 26], [26, 28],
+    [27, 29], [29, 31], [28, 30], [30, 32],
+  ];
+
+  const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
+  const EXERCISE_ICONS = {{ exercise_icons | tojson }};
+  const ANALYZE_LOG_KEY = "repcheck_analyze_log_v1";
+
+  // Small stroke-based glyphs (viewBox 0 0 24 24, stroke=currentColor) for
+  // the results hero + per-stat icon chips, matching the icon convention
+  // already used elsewhere in the app (see nutrition.html's macro icons).
+  const ANALYZE_ICONS = {
+    check: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+    target: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>`,
+    expand: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
+    contract: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
+    repeat: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
+    sparkle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11.4 3.5a.6.6 0 0 1 1.2 0l1.1 3.2a3 3 0 0 0 1.9 1.9l3.2 1.1a.6.6 0 0 1 0 1.1l-3.2 1.1a3 3 0 0 0-1.9 1.9l-1.1 3.2a.6.6 0 0 1-1.2 0l-1.1-3.2a3 3 0 0 0-1.9-1.9L5.2 11.9a.6.6 0 0 1 0-1.1l3.2-1.1a3 3 0 0 0 1.9-1.9z"/><path d="M18.5 15.5a.4.4 0 0 1 .8 0l.5 1.4a1.5 1.5 0 0 0 1 1l1.4.5a.4.4 0 0 1 0 .8l-1.4.5a1.5 1.5 0 0 0-1 1l-.5 1.4a.4.4 0 0 1-.8 0l-.5-1.4a1.5 1.5 0 0 0-1-1l-1.4-.5a.4.4 0 0 1 0-.8l1.4-.5a1.5 1.5 0 0 0 1-1z"/></svg>`,
+  };
+
+  function logAnalyzedExercise(exerciseLabel) {
+    let log = [];
+    try { log = JSON.parse(localStorage.getItem(ANALYZE_LOG_KEY)) || []; } catch (err) { log = []; }
+    log.push({ exercise: exerciseLabel, analyzedAt: Date.now() });
+    localStorage.setItem(ANALYZE_LOG_KEY, JSON.stringify(log.slice(-50)));
+  }
+
+  const form = document.getElementById("analyze-form");
+  const exerciseInput = document.getElementById("exercise");
+  const uploadView = document.getElementById("upload-view");
+  const analyzingView = document.getElementById("analyzing-view");
+  const resultView = document.getElementById("result-view");
+  const previewVideo = document.getElementById("preview-video");
+  const poseCanvas = document.getElementById("pose-canvas");
+  const poseCtx = poseCanvas.getContext("2d");
+  const statusText = document.getElementById("status-text");
+
+  let poseLandmarker = null;
+  let poseLandmarkerPromise = null;
+  let poseRafId = null;
+
+  async function createLandmarker(vision, delegate) {
+    return PoseLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
+      runningMode: "VIDEO",
+      numPoses: 1,
+    });
+  }
+
+  function getPoseLandmarker() {
+    if (poseLandmarker) return Promise.resolve(poseLandmarker);
+    if (!poseLandmarkerPromise) {
+      poseLandmarkerPromise = (async () => {
+        const vision = await FilesetResolver.forVisionTasks(POSE_WASM_URL);
+        try {
+          poseLandmarker = await createLandmarker(vision, "GPU");
+        } catch (err) {
+          poseLandmarker = await createLandmarker(vision, "CPU");
+        }
+        return poseLandmarker;
+      })().catch((err) => {
+        console.warn("Pose overlay unavailable, continuing without it:", err);
+        return null;
+      });
+    }
+    return poseLandmarkerPromise;
+  }
+
+  function drawPose(result) {
+    poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+    if (!result.landmarks || !result.landmarks.length) return;
+
+    for (const landmarks of result.landmarks) {
+      poseCtx.strokeStyle = "rgba(70, 255, 140, 0.9)";
+      poseCtx.lineWidth = Math.max(2, poseCanvas.width * 0.004);
+      for (const [a, b] of POSE_CONNECTIONS) {
+        const p1 = landmarks[a];
+        const p2 = landmarks[b];
+        if (!p1 || !p2) continue;
+        poseCtx.beginPath();
+        poseCtx.moveTo(p1.x * poseCanvas.width, p1.y * poseCanvas.height);
+        poseCtx.lineTo(p2.x * poseCanvas.width, p2.y * poseCanvas.height);
+        poseCtx.stroke();
+      }
+      poseCtx.fillStyle = "rgba(255, 70, 70, 0.95)";
+      const dotRadius = Math.max(2.5, poseCanvas.width * 0.006);
+      for (const p of landmarks) {
+        poseCtx.beginPath();
+        poseCtx.arc(p.x * poseCanvas.width, p.y * poseCanvas.height, dotRadius, 0, 2 * Math.PI);
+        poseCtx.fill();
+      }
+    }
+  }
+
+  function startPoseLoop() {
+    function loop() {
+      if (poseLandmarker && previewVideo.readyState >= 2 && previewVideo.videoWidth) {
+        if (poseCanvas.width !== previewVideo.videoWidth) {
+          poseCanvas.width = previewVideo.videoWidth;
+          poseCanvas.height = previewVideo.videoHeight;
+        }
+        const result = poseLandmarker.detectForVideo(previewVideo, performance.now());
+        drawPose(result);
+      }
+      poseRafId = requestAnimationFrame(loop);
+    }
+    poseRafId = requestAnimationFrame(loop);
+  }
+
+  function stopPoseLoop() {
+    if (poseRafId) {
+      cancelAnimationFrame(poseRafId);
+      poseRafId = null;
+    }
+    poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+  }
+
+  // ---------- Exercise picker modal ----------
+  const selectedExerciseChip = document.getElementById("selected-exercise-chip");
+  const selectedExerciseIcon = document.getElementById("selected-exercise-icon");
+  const selectedExerciseLabel = document.getElementById("selected-exercise-label");
+  const clearExerciseBtn = document.getElementById("clear-exercise-btn");
+  const exPickerBtn = document.getElementById("ex-picker-btn");
+  const exModalOverlay = document.getElementById("ex-modal-overlay");
+  const exModalSearch = document.getElementById("ex-modal-search");
+  const exModalBody = document.getElementById("ex-modal-body");
+  const exModalClose = document.getElementById("ex-modal-close");
+
+  const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  function iconForExercise(name) {
+    const n = name.toLowerCase();
+    if (n.includes("curl") && !n.includes("leg")) return "\u{1F4AA}";
+    if (n.includes("fly") || n.includes("raise") || n.includes("face pull")) return "\u{1F91D}";
+    if (n.includes("squat") || n.includes("lunge") || n.includes("leg") || n.includes("calf") || n.includes("step-up")) return "\u{1F9B5}";
+    if (n.includes("deadlift") || n.includes("good morning") || n.includes("hip thrust") || n.includes("glute bridge")) return "\u{1F9CD}";
+    if (n.includes("plank") || n.includes("crunch") || n.includes("sit-up") || n.includes("twist") || n.includes("dead bug") || n.includes("mountain climber") || n.includes("rollout")) return "\u{1F9D8}";
+    if (n.includes("pull") || n.includes("row") || n.includes("chin-up")) return "\u{1F3CB}️";
+    return "\u{1F3CB}️";
+  }
+  // Prefer the real per-exercise illustration from the icon pack; fall
+  // back to the generic emoji heuristic above for anything not covered.
+  function exerciseIconHtml(name) {
+    const path = EXERCISE_ICONS[name];
+    if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
+    return iconForExercise(name);
+  }
+
+  function getTodaysSplitInfo() {
+    let plan;
+    try { plan = JSON.parse(localStorage.getItem("repcheck_split_plan_v1")); } catch (err) { plan = null; }
+    if (!plan || !plan.schedule || !plan.days) return null;
+    const weekdayIndex = new Date().getDay();
+    const weekdayKey = WEEKDAY_KEYS[weekdayIndex];
+    const label = plan.schedule[weekdayKey];
+    if (!label || label === "Rest") return null;
+    const day = plan.days.find((d) => d.label === label);
+    if (!day) return null;
+    return { weekdayName: WEEKDAY_NAMES[weekdayIndex], label, exercises: day.exercises };
+  }
+
+  function getRecentAnalyzed(limit) {
+    let log = [];
+    try { log = JSON.parse(localStorage.getItem(ANALYZE_LOG_KEY)) || []; } catch (err) { log = []; }
+    const seen = new Set();
+    const result = [];
+    for (const entry of log.slice().sort((a, b) => b.analyzedAt - a.analyzedAt)) {
+      if (seen.has(entry.exercise)) continue;
+      seen.add(entry.exercise);
+      result.push(entry.exercise);
+      if (result.length >= limit) break;
+    }
+    return result;
+  }
+
+  // Unlike getRecentAnalyzed() above (deduped by exercise, for the
+  // picker's "Recent" section), this keeps every entry so the upload
+  // screen's strip reads as an activity feed ("you did this 2 days ago"),
+  // not just a set of unique exercises.
+  function getRecentAnalysisEntries(limit) {
+    let log = [];
+    try { log = JSON.parse(localStorage.getItem(ANALYZE_LOG_KEY)) || []; } catch (err) { log = []; }
+    return log.slice().sort((a, b) => b.analyzedAt - a.analyzedAt).slice(0, limit);
+  }
+
+  function relativeDateLabel(timestamp) {
+    const t = RepCheckI18n.t;
+    const days = Math.floor((Date.now() - timestamp) / 86400000);
+    if (days <= 0) return t("analyze.today");
+    if (days === 1) return t("analyze.yesterday");
+    if (days < 7) return t("analyze.daysAgo", { n: days });
+    return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function renderRecentAnalyses() {
+    const wrap = document.getElementById("an-recent");
+    const strip = document.getElementById("an-recent-strip");
+    const entries = getRecentAnalysisEntries(8);
+    if (!entries.length) {
+      wrap.style.display = "none";
+      return;
+    }
+    wrap.style.display = "block";
+    strip.innerHTML = entries.map((entry) => `
+      <button type="button" class="an-recent-card" data-name="${entry.exercise}">
+        <div class="an-recent-icon">${exerciseIconHtml(entry.exercise)}</div>
+        <div class="an-recent-name">${entry.exercise}</div>
+        <div class="an-recent-date">${relativeDateLabel(entry.analyzedAt)}</div>
+      </button>
+    `).join("");
+    strip.querySelectorAll("[data-name]").forEach((card) => {
+      card.addEventListener("click", () => {
+        selectExercise(card.dataset.name);
+        fileDrop.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  }
+
+  function selectExercise(name) {
+    exerciseInput.value = name;
+    selectedExerciseLabel.textContent = name;
+    selectedExerciseIcon.innerHTML = exerciseIconHtml(name);
+    selectedExerciseChip.style.display = "flex";
+  }
+
+  function clearSelectedExercise() {
+    exerciseInput.value = "";
+    selectedExerciseChip.style.display = "none";
+  }
+
+  function exerciseRowHtml(name) {
+    return `<div class="ex-modal-result-item" data-name="${name}"><span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span><span>${name}</span></div>`;
+  }
+
+  function wireExerciseRows() {
+    exModalBody.querySelectorAll("[data-name]").forEach((item) => {
+      item.addEventListener("click", () => {
+        selectExercise(item.dataset.name);
+        closeExerciseModal();
+      });
+    });
+  }
+
+  function renderExerciseModalDefault() {
+    const t = RepCheckI18n.t;
+    const sections = [];
+    const splitInfo = getTodaysSplitInfo();
+    if (splitInfo) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("analyze.topPicksFor", { weekday: splitInfo.weekdayName, label: splitInfo.label })}</div>
+          ${splitInfo.exercises.map(exerciseRowHtml).join("")}
+        </div>
+      `);
+    }
+    const recent = getRecentAnalyzed(6);
+    if (recent.length) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("analyze.recent")}</div>
+          ${recent.map(exerciseRowHtml).join("")}
+        </div>
+      `);
+    }
+    if (!sections.length) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("analyze.allExercises")}</div>
+          ${EXERCISE_LIBRARY.slice(0, 20).map(exerciseRowHtml).join("")}
+        </div>
+      `);
+    }
+    exModalBody.innerHTML = sections.join("");
+    wireExerciseRows();
+  }
+
+  function renderExerciseModalSearch(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      renderExerciseModalDefault();
+      return;
+    }
+    const matches = EXERCISE_LIBRARY.filter((name) => name.toLowerCase().includes(q)).slice(0, 30);
+    exModalBody.innerHTML = matches.length
+      ? `<div class="ex-modal-section">${matches.map(exerciseRowHtml).join("")}</div>`
+      : `<div class="ex-modal-empty">${RepCheckI18n.t("analyze.noMatch", { query })}</div>`;
+    wireExerciseRows();
+  }
+
+  function openExerciseModal() {
+    exModalOverlay.style.display = "flex";
+    exModalSearch.value = "";
+    renderExerciseModalDefault();
+    setTimeout(() => exModalSearch.focus(), 0);
+  }
+
+  function closeExerciseModal() {
+    exModalOverlay.style.display = "none";
+  }
+
+  exPickerBtn.addEventListener("click", openExerciseModal);
+  exModalClose.addEventListener("click", closeExerciseModal);
+  exModalOverlay.addEventListener("click", (event) => {
+    if (event.target === exModalOverlay) closeExerciseModal();
+  });
+  exModalSearch.addEventListener("input", () => renderExerciseModalSearch(exModalSearch.value));
+  clearExerciseBtn.addEventListener("click", clearSelectedExercise);
+
+  // ---------- File dropzone ----------
+  const fileDrop = document.getElementById("file-drop");
+  const videoInput = document.getElementById("video");
+  const fileDropTitle = document.getElementById("file-drop-title");
+  const fileDropSub = document.getElementById("file-drop-sub");
+
+  function formatFileSize(bytes) {
+    const mb = bytes / (1024 * 1024);
+    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  function updateFileDropDisplay() {
+    const file = videoInput.files[0];
+    if (file) {
+      fileDrop.classList.add("has-file");
+      fileDropTitle.textContent = file.name;
+      fileDropSub.textContent = `${formatFileSize(file.size)} • ${RepCheckI18n.t("analyze.clickToChange")}`;
+    } else {
+      fileDrop.classList.remove("has-file");
+      fileDropTitle.textContent = RepCheckI18n.t("analyze.dropTitle");
+      fileDropSub.textContent = RepCheckI18n.t("analyze.dropSub");
+    }
+  }
+  document.addEventListener("repcheck:language-changed", updateFileDropDisplay);
+
+  renderRecentAnalyses();
+  document.addEventListener("repcheck:language-changed", renderRecentAnalyses);
+
+  videoInput.addEventListener("change", updateFileDropDisplay);
+
+  ["dragenter", "dragover"].forEach((evt) => {
+    fileDrop.addEventListener(evt, (event) => {
+      event.preventDefault();
+      fileDrop.classList.add("is-dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach((evt) => {
+    fileDrop.addEventListener(evt, (event) => {
+      event.preventDefault();
+      fileDrop.classList.remove("is-dragover");
+    });
+  });
+  fileDrop.addEventListener("drop", (event) => {
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      videoInput.files = dt.files;
+      updateFileDropDisplay();
+    }
+  });
+
+  const STATUS_MESSAGE_KEYS = [
+    "analyze.status1",
+    "analyze.status2",
+    "analyze.status3",
+    "analyze.status4",
+    "analyze.status5",
+    "analyze.status6",
+    "analyze.status7",
+  ];
+
+  let statusInterval = null;
+
+  function cycleStatus() {
+    let i = 0;
+    statusText.textContent = RepCheckI18n.t(STATUS_MESSAGE_KEYS[0]);
+    statusInterval = setInterval(() => {
+      i = (i + 1) % STATUS_MESSAGE_KEYS.length;
+      statusText.textContent = RepCheckI18n.t(STATUS_MESSAGE_KEYS[i]);
+    }, 2200);
+  }
+
+  function stopCycleStatus() {
+    if (statusInterval) {
+      clearInterval(statusInterval);
+      statusInterval = null;
+    }
+  }
+
+  function sectionsHtml(data) {
+    const t = RepCheckI18n.t;
+    const sections = data.sections.map((s) => {
+      const hasDetail = !!s.detail_html;
+      const chevron = hasDetail
+        ? `<span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>`
+        : "";
+      const detail = hasDetail ? `<div class="fb-item-detail">${s.detail_html}</div>` : "";
+      return `
+        <div class="fb-item fb-${s.css_class}${hasDetail ? " is-expandable" : ""}">
+          <button type="button" class="fb-item-main"${hasDetail ? "" : " disabled"}>
+            <span class="fb-item-icon">${s.icon}</span>
+            <span class="fb-item-text">
+              <span class="fb-item-title">${t(s.title_key)}</span>
+              <span class="fb-item-summary">${s.summary_html}</span>
+            </span>
+            ${chevron}
+          </button>
+          ${detail}
+        </div>
+      `;
+    }).join("");
+
+    const scoreClass = (score) => {
+      if (score === null || score === undefined) return "";
+      if (score >= 80) return "score-good";
+      if (score >= 50) return "score-ok";
+      return "score-bad";
+    };
+
+    const overall = data.overall_score;
+    const stretch = data.stretch_score;
+    const squeeze = data.squeeze_score;
+    const favored = data.favored;
+    const reps = data.reps;
+
+    let favorNoteHtml = "";
+    if (favored === "balanced") {
+      favorNoteHtml = `<div class="favor-note">${t("analyze.balancedNote")}</div>`;
+    } else if (favored === "stretch" || favored === "squeeze") {
+      const other = favored === "stretch" ? t("analyze.squeeze") : t("analyze.stretch");
+      const favoredLabel = favored === "stretch" ? t("analyze.stretch") : t("analyze.squeeze");
+      favorNoteHtml = `<div class="favor-note">${t("analyze.favorsNote", { favored: `<strong>${favoredLabel}</strong>`, other })}</div>`;
+    }
+
+    return `
+      <div class="card">
+        <div class="an-result-hero">
+          <div class="an-result-hero-icon">${ANALYZE_ICONS.check}</div>
+          <div class="an-result-hero-title">${t("analyze.resultHeroTitle")}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat score-stat ${scoreClass(overall)}">
+            <div class="stat-icon-chip">${ANALYZE_ICONS.target}</div>
+            <div class="stat-label">${t("analyze.overallFormTechnique")}</div>
+            <div class="stat-value">${overall ?? "—"}<span class="score-out-of">/100</span></div>
+          </div>
+          <div class="stat score-stat ${scoreClass(stretch)}">
+            <div class="stat-icon-chip">${ANALYZE_ICONS.expand}</div>
+            <div class="stat-label">${t("analyze.stretch")}</div>
+            <div class="stat-value">${stretch ?? "—"}<span class="score-out-of">/100</span></div>
+          </div>
+          <div class="stat score-stat ${scoreClass(squeeze)}">
+            <div class="stat-icon-chip">${ANALYZE_ICONS.contract}</div>
+            <div class="stat-label">${t("analyze.squeeze")}</div>
+            <div class="stat-value">${squeeze ?? "—"}<span class="score-out-of">/100</span></div>
+          </div>
+          <div class="stat stat-purple">
+            <div class="stat-icon-chip stat-icon-chip-purple">${ANALYZE_ICONS.repeat}</div>
+            <div class="stat-label">${t("analyze.repsCounted")}</div>
+            <div class="stat-value">${reps ?? "—"}</div>
+          </div>
+        </div>
+        ${favorNoteHtml}
+      </div>
+      <div class="card">
+        <div class="fb-head">
+          <div class="fb-head-title">${t("analyze.formBreakdownFor", { exercise: data.exercise_label })}</div>
+          <div class="fb-head-sub">${t("analyze.breakdownHint")}</div>
+        </div>
+        <div class="fb-list">${sections}</div>
+      </div>
+      <div class="ac-card">
+        <div class="ac-header">
+          <div class="ac-header-avatar">${ANALYZE_ICONS.sparkle}</div>
+          <div>
+            <div class="ac-header-title">${t("analyzeChat.headerTitle")}</div>
+            <div class="ac-header-sub" id="ac-header-sub">${t("analyzeChat.headerSub")}</div>
+          </div>
+        </div>
+        <div class="ac-messages" id="ac-messages"></div>
+        <div class="ac-suggestions" id="ac-suggestions"></div>
+        <form class="ac-input-row" id="ac-form">
+          <input type="text" id="ac-input" placeholder="${t("analyzeChat.inputPlaceholder")}" autocomplete="off" maxlength="500">
+          <button type="submit" class="ac-send-btn" id="ac-send-btn" aria-label="Send message">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+          </button>
+        </form>
+      </div>
+      <div class="an-sticky-cta-spacer"></div>
+      <div class="an-sticky-cta">
+        <button class="btn-primary" id="reset-btn">${t("analyze.analyzeAnother")}</button>
+      </div>
+    `;
+  }
+
+  function resetToUpload() {
+    stopCycleStatus();
+    stopPoseLoop();
+    if (previewVideo.src) {
+      URL.revokeObjectURL(previewVideo.src);
+      previewVideo.removeAttribute("src");
+    }
+    resultView.style.display = "none";
+    resultView.innerHTML = "";
+    analyzingView.style.display = "none";
+    uploadView.style.display = "block";
+    form.reset();
+    updateFileDropDisplay();
+    clearSelectedExercise();
+    renderRecentAnalyses();
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const videoInput = document.getElementById("video");
+    const file = videoInput.files[0];
+    if (!file || !exerciseInput.value) {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    previewVideo.src = objectUrl;
+
+    uploadView.style.display = "none";
+    analyzingView.style.display = "block";
+    cycleStatus();
+    getPoseLandmarker().then((pl) => { if (pl) startPoseLoop(); });
+
+    const formData = new FormData();
+    formData.append("video", file);
+    formData.append("exercise", exerciseInput.value);
+
+    try {
+      const response = await fetch("{{ url_for('analyze') }}", {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+        body: formData,
+      });
+      const data = await response.json();
+
+      stopCycleStatus();
+      stopPoseLoop();
+
+      if (!response.ok || !data.ok) {
+        analyzingView.style.display = "none";
+        uploadView.style.display = "block";
+        const errorBox = uploadView.querySelector(".error") || document.createElement("div");
+        errorBox.className = "error";
+        errorBox.textContent = data.error || RepCheckI18n.t("analyze.somethingWrong");
+        uploadView.insertBefore(errorBox, uploadView.firstChild);
+        return;
+      }
+
+      analyzingView.style.display = "none";
+      resultView.innerHTML = sectionsHtml(data);
+      resultView.style.display = "block";
+      logAnalyzedExercise(data.exercise_label);
+      document.getElementById("reset-btn").addEventListener("click", resetToUpload);
+      resultView.querySelectorAll(".fb-item.is-expandable .fb-item-main").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          btn.closest(".fb-item").classList.toggle("is-expanded");
+        });
+      });
+      AnalyzeChatWidget.init({
+        exercise_label: data.exercise_label,
+        overall_score: data.overall_score,
+        stretch_score: data.stretch_score,
+        squeeze_score: data.squeeze_score,
+        reps: data.reps,
+        feedback_text: data.feedback_text,
+      });
+    } catch (err) {
+      stopCycleStatus();
+      stopPoseLoop();
+      analyzingView.style.display = "none";
+      uploadView.style.display = "block";
+    }
+  });
+</script>
+{% endblock %}

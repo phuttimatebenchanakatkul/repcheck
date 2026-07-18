@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RepCheck - Welcome</title>
+  <script>
+    (function () {
+      if (localStorage.getItem("repcheck_theme") === "dark") {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+    // Signup/login always redirect a brand-new account here before it ever
+    // reaches home.html -- see app.py's home() route -- so this is always
+    // a logged-in user, but account_sync.js still needs the flag set to
+    // wire up its localStorage<->server sync (see that file's header).
+    window.REPCHECK_LOGGED_IN = true;
+    window.REPCHECK_USER_NAME = {{ (current_user.name.split(" ")[0] if current_user else "") | tojson }};
+    window.EXERCISE_ICONS = {{ exercise_icons | tojson }};
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset_url('style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='logo-mark.png') }}">
+  <script src="{{ asset_url('account_sync.js') }}"></script>
+  <script src="{{ asset_url('units.js') }}"></script>
+  <script src="{{ asset_url('i18n.js') }}"></script>
+  <style>
+    body.ob-body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      padding: 24px 16px;
+    }
+    .ob-wrap { width: 100%; max-width: 560px; transition: max-width 0.15s ease; }
+    .ob-wrap.is-wide { max-width: 660px; }
+    .ob-logo { display: block; height: 32px; margin: 0 auto 22px; }
+    .ob-card {
+      background: var(--card-bg);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      padding: 32px 28px;
+    }
+    .ob-progress { display: flex; gap: 5px; margin-bottom: 26px; }
+    .ob-progress-dot { flex: 1; height: 5px; border-radius: 999px; background: var(--border); transition: background 0.2s ease; }
+    .ob-progress-dot.is-done { background: linear-gradient(90deg, var(--blue), #5b8def); }
+    .ob-intro { text-align: center; padding: 10px 0 4px; }
+    .ob-intro-title { font-size: 22px; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.01em; }
+    .ob-intro-sub { font-size: 14px; color: var(--text-secondary); line-height: 1.55; margin-bottom: 28px; }
+    .ob-section-label {
+      display: inline-flex; align-items: center; font-size: 11px; font-weight: 800; color: var(--blue);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px;
+      background: var(--blue-bg); padding: 5px 11px; border-radius: 999px;
+    }
+    .ob-loading { text-align: center; padding: 60px 0; color: var(--text-secondary); font-size: 14px; }
+    .ob-error { text-align: center; padding: 18px 0; color: var(--red); font-size: 14px; }
+
+    /* ---------- Question heading shown at the top of every step ---------- */
+    .ob-wizard-step-label {
+      font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.01em;
+      margin-bottom: 20px; line-height: 1.25;
+    }
+
+    /* ---------- Choice cards (aspiration/gender/activity/protein/diet/
+       distribution) -- a single full-width stacked list, icon chip on the
+       left so an option reads visually without needing the title text at
+       all, title+sub on the right, a checkmark badge on selection. ---------- */
+    .ob-choice-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+    .ob-choice-card {
+      display: flex; align-items: center; gap: 14px; width: 100%;
+      border: 1.5px solid var(--border); border-radius: 18px; padding: 14px 16px; cursor: pointer;
+      background: var(--card-bg); text-align: left; font-family: inherit;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .ob-choice-card:hover { border-color: var(--blue); transform: translateY(-1px); }
+    .ob-choice-card.is-selected {
+      border-color: var(--blue);
+      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
+      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
+    }
+    .ob-choice-icon {
+      flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg); color: var(--text-secondary);
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .ob-choice-icon svg { width: 22px; height: 22px; }
+    .ob-choice-card.is-selected .ob-choice-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
+    .ob-choice-text { flex: 1; min-width: 0; }
+    .ob-choice-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .ob-choice-card.is-selected .ob-choice-title { color: var(--blue); }
+    .ob-choice-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
+    .ob-choice-check {
+      flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
+      background: var(--blue); color: #fff; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transform: scale(0.5); transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    .ob-choice-card.is-selected .ob-choice-check { opacity: 1; transform: scale(1); }
+
+    /* ---------- Body type cards (already illustrated -- just modernized
+       chrome, layout/icon generation unchanged) ---------- */
+    .ob-body-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
+    .ob-body-type-card {
+      position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;
+      border: 1.5px solid var(--border); border-radius: 16px; padding: 14px 10px; cursor: pointer;
+      background: var(--card-bg); color: var(--text); text-align: center; font-family: inherit;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .ob-body-type-card:hover { border-color: var(--blue); transform: translateY(-1px); }
+    .ob-body-type-card.is-selected {
+      border-color: var(--blue);
+      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
+      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
+    }
+    .ob-body-type-check {
+      position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
+      font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .ob-body-type-icon { display: flex; align-items: center; justify-content: center; }
+    .ob-body-type-label { font-size: 13px; font-weight: 800; color: var(--text); }
+
+    /* ---------- Weight / loss-rate fields ---------- */
+    .ob-field { margin-bottom: 18px; }
+    .ob-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+    .ob-field label span { color: var(--text); font-weight: 700; }
+    .ob-field input {
+      width: 100%; padding: 13px 15px; border: 1.5px solid var(--border);
+      background: var(--bg); color: var(--text); border-radius: 14px; font-size: 16px; font-family: inherit;
+      transition: border-color 0.15s ease;
+    }
+    .ob-field input:focus { outline: none; border-color: var(--blue); }
+    .ob-field input[type="range"] {
+      width: 100%; padding: 0; border: none; background: none;
+      accent-color: var(--blue); height: 22px; cursor: pointer;
+    }
+    .ob-field-hint { font-size: 12px; color: var(--text-secondary); margin-top: 8px; min-height: 14px; }
+    .ob-goal-textarea {
+      width: 100%; min-height: 120px; padding: 13px 15px; border: 1.5px solid var(--border);
+      background: var(--bg); color: var(--text); border-radius: 14px; font-size: 14px; font-family: inherit;
+      line-height: 1.5; resize: vertical; transition: border-color 0.15s ease;
+    }
+    .ob-goal-textarea:focus { outline: none; border-color: var(--blue); }
+
+    /* ---------- Vertical height ruler (scroll-snap through 1cm ticks) ---------- */
+    .ob-height-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
+    .ob-height-ruler-value { font-size: 34px; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.01em; }
+    .ob-height-ruler-window {
+      position: relative;
+      width: 150px;
+      height: 210px;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+      mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+    }
+    .ob-height-ruler-indicator {
+      position: absolute; left: 6px; right: 6px; top: 98px; height: 14px;
+      border-top: 2.5px solid var(--blue); border-bottom: 2.5px solid var(--blue);
+      background: var(--blue-bg); border-radius: 7px;
+      pointer-events: none; z-index: 2;
+    }
+    .ob-height-ruler-scroll {
+      height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory;
+      padding: 98px 0; scrollbar-width: none;
+    }
+    .ob-height-ruler-scroll::-webkit-scrollbar { display: none; }
+    .ob-height-ruler-row {
+      height: 14px; display: flex; align-items: center; justify-content: center;
+      gap: 8px; scroll-snap-align: center;
+    }
+    .ob-height-ruler-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); width: 28px; text-align: right; }
+    .ob-height-ruler-mark { height: 2px; width: 14px; background: var(--border); border-radius: 1px; }
+    .ob-height-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
+    .ob-height-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
+
+    /* ---------- Split-type / location cards -- same icon-left, text-right
+       list layout as .ob-choice-card so every question in the wizard
+       shares one modern visual language. ---------- */
+    .ob-type-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+    .ob-type-card {
+      display: flex; align-items: center; gap: 14px;
+      border: 1.5px solid var(--border); border-radius: 18px; padding: 14px 16px; cursor: pointer;
+      background: var(--card-bg);
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .ob-type-card:hover { border-color: var(--blue); transform: translateY(-1px); }
+    .ob-type-card.is-selected {
+      border-color: var(--blue);
+      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
+      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
+    }
+    .ob-type-card-icon {
+      flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg); color: var(--text-secondary);
+    }
+    .ob-type-card-icon svg { width: 22px; height: 22px; }
+    .ob-type-card.is-selected .ob-type-card-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
+    .ob-type-card-text { flex: 1; min-width: 0; }
+    .ob-type-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .ob-type-card.is-selected .ob-type-card-title { color: var(--blue); }
+    .ob-type-card-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
+
+    .ob-custom-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .ob-custom-input-row input {
+      flex: 1; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 14px;
+      background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit;
+    }
+    .ob-custom-input-row input:focus { outline: none; border-color: var(--blue); }
+    .ob-custom-add-btn {
+      padding: 12px 18px; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+      font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .ob-custom-days { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .ob-custom-day-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: var(--bg); border-radius: 14px; padding: 11px 14px; font-size: 14px; font-weight: 600;
+    }
+    .ob-custom-day-remove { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px; line-height: 1; }
+
+    .ob-days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 22px; }
+    .ob-day-btn {
+      padding: 13px 0; border: 1.5px solid var(--border); border-radius: 14px; background: var(--card-bg); color: var(--text);
+      font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .ob-day-btn:hover { border-color: var(--blue); }
+    .ob-day-btn.is-selected {
+      border-color: var(--blue); background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
+      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.28);
+    }
+
+    /* ---------- Result screen -- reuses the same icon-chip/gradient/pill
+       language as the question steps (.ob-choice-*/.ob-section-label)
+       instead of the plain text list this screen used to be. ---------- */
+    .ob-result-hero { text-align: center; margin-bottom: 20px; }
+    .ob-result-hero-icon {
+      width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--green), #29b87e); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 20px rgba(31, 169, 113, 0.35);
+    }
+    .ob-result-hero-icon svg { width: 26px; height: 26px; }
+    .ob-result-hero-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+
+    .ob-result-section { background: var(--bg); border-radius: 20px; padding: 20px 18px; margin-bottom: 18px; }
+    .ob-result-calorie-icon {
+      width: 44px; height: 44px; margin: 10px auto 8px; border-radius: 13px;
+      background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ob-result-calorie-icon svg { width: 22px; height: 22px; }
+    .ob-result-calories { font-size: 44px; font-weight: 800; text-align: center; margin: 0 0 2px; letter-spacing: -0.02em; }
+    .ob-result-label { text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
+    .ob-result-detail { font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: -10px; margin-bottom: 4px; }
+    .ob-macro-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .ob-macro-chip { background: var(--card-bg); border-radius: 14px; padding: 14px 8px; text-align: center; }
+    .ob-macro-chip-icon {
+      width: 32px; height: 32px; margin: 0 auto 8px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ob-macro-chip-icon svg { width: 16px; height: 16px; }
+    .ob-macro-icon-protein { background: var(--red-bg); color: var(--red); }
+    .ob-macro-icon-fat { background: var(--amber-bg); color: var(--amber); }
+    .ob-macro-icon-carbs { background: var(--green-bg); color: var(--green); }
+    .ob-macro-chip-value { font-size: 16px; font-weight: 800; }
+    .ob-macro-chip-label { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+    .ob-review-day {
+      background: var(--card-bg); border: 1.5px solid var(--border); border-radius: 18px;
+      padding: 16px; margin-bottom: 12px;
+    }
+    .ob-review-day-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .ob-review-day-icon {
+      width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px;
+      background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ob-review-day-icon svg { width: 16px; height: 16px; }
+    .ob-review-day-title { font-size: 14px; font-weight: 700; }
+    .ob-review-exercise-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .ob-review-exercise-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; padding: 5px 12px 5px 5px; border-radius: 999px;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);
+    }
+    .ob-review-exercise-chip-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 999px; overflow: hidden; flex-shrink: 0; background: var(--card-bg);
+    }
+    .ob-rationale {
+      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg)); color: var(--text); border-radius: 16px; padding: 14px 16px;
+      margin: 6px 0 20px;
+    }
+    .ob-rationale-label {
+      display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--blue);
+      text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px;
+    }
+    .ob-rationale-label svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .ob-rationale-text { font-size: 13px; line-height: 1.55; }
+    .ob-weekday-row {
+      display: flex; align-items: center; gap: 12px; background: var(--card-bg);
+      border: 1.5px solid var(--border); border-radius: 14px; padding: 8px 12px; margin-bottom: 8px;
+    }
+    .ob-weekday-row label {
+      width: 42px; flex-shrink: 0; text-align: center; font-size: 11px; font-weight: 800;
+      color: var(--blue); background: var(--blue-bg); border-radius: 10px; padding: 7px 0;
+    }
+    .ob-weekday-row select {
+      flex: 1; padding: 8px 4px; border: none; background: none; color: var(--text);
+      font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
+    }
+    .ob-weekday-row select:focus { outline: none; }
+
+    /* ---------- Wizard nav buttons ---------- */
+    .ob-wizard-actions { display: flex; gap: 10px; margin-top: 4px; }
+    .ob-btn-primary, .ob-btn-secondary {
+      flex: 1; padding: 14px; border-radius: 14px; font-size: 14px; font-weight: 700;
+      cursor: pointer; font-family: inherit; border: none;
+      transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    }
+    .ob-btn-primary {
+      background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+      box-shadow: 0 6px 16px rgba(47, 102, 232, 0.3);
+    }
+    .ob-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(47, 102, 232, 0.38); }
+    .ob-btn-primary:active:not(:disabled) { transform: translateY(0); }
+    .ob-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+    .ob-btn-secondary { background: var(--bg); border: 1.5px solid var(--border); color: var(--text); }
+    .ob-btn-secondary:hover { border-color: var(--text-secondary); }
+
+    @media (max-width: 480px) {
+      .ob-body-type-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .ob-field input, .ob-custom-input-row input, .ob-goal-textarea { font-size: 16px; } /* prevents iOS auto-zoom */
+    }
+  </style>
+</head>
+<body class="ob-body">
+  <div class="ob-wrap">
+    <img class="ob-logo" src="{{ url_for('static', filename='logo-full.png') }}" alt="RepCheck">
+    <div class="ob-card">
+      <div class="ob-progress" id="ob-progress"></div>
+      <div id="ob-body"></div>
+    </div>
+  </div>
+  <script src="{{ asset_url('onboarding.js') }}"></script>
+</body>
+</html>

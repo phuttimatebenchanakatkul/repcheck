@@ -1,0 +1,3616 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Nutrition{% endblock %}
+{% block heading %}Nutrition Log{% endblock %}
+{% block subheading %}Log what you eat and track calories, carbs, fat, and protein. Saved on this browser.{% endblock %}
+
+{% block content %}
+<div class="nl-page" id="nl-page">
+  <div class="nl-summary">
+    <div class="nl-summary-head">
+      <div class="nl-summary-title" data-i18n="nutrition.totals.title">Today's Totals</div>
+      <button type="button" class="nl-goals-toggle" id="nl-goals-toggle" data-i18n="nutrition.totals.editGoals">Edit goals</button>
+    </div>
+
+    <div class="nl-goals-form" id="nl-goals-form" style="display:none;">
+      <label><span data-i18n="nutrition.goals.protein">Protein (g)</span><input type="number" min="20" max="400" id="goal-protein"></label>
+      <label><span data-i18n="nutrition.goals.fat">Fat (g)</span><input type="number" min="15" max="300" id="goal-fat"></label>
+      <label><span data-i18n="nutrition.goals.carbs">Carbs (g)</span><input type="number" min="20" max="800" id="goal-carbs"></label>
+      <label><span data-i18n="nutrition.goals.calories">Calories (auto)</span><input type="number" id="goal-calories" readonly></label>
+      <div class="nl-goals-hint" data-i18n="nutrition.goals.hint">Calories are calculated for you from protein/fat/carbs (protein &amp; carbs = 4 kcal/g, fat = 9 kcal/g), so the numbers always add up.</div>
+      <button type="button" class="nl-save-goals-btn" id="nl-save-goals-btn" data-i18n="nutrition.goals.save">Save goals</button>
+    </div>
+
+    <div class="nl-hero-row">
+      <div class="nl-cal-ring-wrap">
+        <svg class="nl-cal-ring" viewBox="0 0 120 120">
+          <defs>
+            <linearGradient id="nl-cal-ring-gradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#4d7ff5"/>
+              <stop offset="100%" stop-color="#2f66e8"/>
+            </linearGradient>
+            <linearGradient id="nl-cal-ring-gradient-over" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#e8837b"/>
+              <stop offset="100%" stop-color="#d1453b"/>
+            </linearGradient>
+          </defs>
+          <circle class="nl-cal-ring-track" cx="60" cy="60" r="52"/>
+          <circle class="nl-cal-ring-fill" id="nl-cal-ring-fill" cx="60" cy="60" r="52"/>
+        </svg>
+        <div class="nl-cal-ring-center">
+          <div class="nl-cal-ring-value" id="nl-cal-ring-value">0</div>
+          <div class="nl-cal-ring-label" id="nl-cal-ring-label" data-i18n="nutrition.totals.kcalLeft">kcal left</div>
+          <div class="nl-cal-ring-sub" id="nl-cal-ring-sub">0 / 2000</div>
+        </div>
+      </div>
+
+      <div class="nl-macro-pills">
+        <div class="nl-macro-pill">
+          <div class="nl-macro-pill-head">
+            <span class="nl-macro-icon nl-icon-protein"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="3" height="6" rx="1"/><rect x="19" y="9" width="3" height="6" rx="1"/><path d="M5 12h1M18 12h1"/><rect x="6.5" y="7" width="2" height="10" rx="1"/><rect x="15.5" y="7" width="2" height="10" rx="1"/><path d="M8.5 12h7"/></svg></span>
+            <span class="nl-macro-pill-label" data-i18n="common.protein">Protein</span>
+          </div>
+          <div class="nl-macro-pill-value"><span id="nl-protein-total">0</span><span class="nl-macro-goal">/<span id="nl-protein-goal">150</span>g</span></div>
+          <div class="nl-progress"><div class="nl-progress-fill nl-fill-protein" id="nl-protein-fill"></div></div>
+        </div>
+        <div class="nl-macro-pill">
+          <div class="nl-macro-pill-head">
+            <span class="nl-macro-icon nl-icon-fat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69s5.66 5.86 8 10.09A8 8 0 1 1 4 12.78C6.34 8.55 12 2.69 12 2.69z"/></svg></span>
+            <span class="nl-macro-pill-label" data-i18n="common.fat">Fat</span>
+          </div>
+          <div class="nl-macro-pill-value"><span id="nl-fat-total">0</span><span class="nl-macro-goal">/<span id="nl-fat-goal">70</span>g</span></div>
+          <div class="nl-progress"><div class="nl-progress-fill nl-fill-fat" id="nl-fat-fill"></div></div>
+        </div>
+        <div class="nl-macro-pill">
+          <div class="nl-macro-pill-head">
+            <span class="nl-macro-icon nl-icon-carbs"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3.5 19.5 12 11"/><path d="M18 3a2.83 2.83 0 0 0-2.83 2.83c0 1.14.65 2.05 1.65 2.9C17.65 9.36 18 10.5 18 11a3 3 0 0 0 3-3c0-1.5-1-2.5-1.83-3.17C18.35 4.05 18 3.14 18 3Z"/><path d="M13 8a2.83 2.83 0 0 0-2.83 2.83c0 1.14.65 2.05 1.65 2.9.83.7 1.18 1.85 1.18 2.35a3 3 0 0 0 3-3c0-1.5-1-2.5-1.83-3.17C13.35 9.05 13 8.14 13 8Z"/><path d="M8 13a2.83 2.83 0 0 0-2.83 2.83c0 1.14.65 2.05 1.65 2.9.83.7 1.18 1.85 1.18 2.35a3 3 0 0 0 3-3c0-1.5-1-2.5-1.83-3.17C8.35 14.05 8 13.14 8 13Z"/></svg></span>
+            <span class="nl-macro-pill-label" data-i18n="common.carbs">Carbs</span>
+          </div>
+          <div class="nl-macro-pill-value"><span id="nl-carbs-total">0</span><span class="nl-macro-goal">/<span id="nl-carbs-goal">250</span>g</span></div>
+          <div class="nl-progress"><div class="nl-progress-fill nl-fill-carbs" id="nl-carbs-fill"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button type="button" class="nl-scan-btn" id="nl-scan-btn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    Analyze a food photo
+  </button>
+
+  <div class="nl-date-strip-wrap">
+    <button type="button" class="nl-week-nav" id="nl-prev-week" aria-label="Previous week">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="nl-date-strip" id="nl-date-strip"></div>
+    <button type="button" class="nl-week-nav" id="nl-next-week" aria-label="Next week">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+
+  <div class="nl-timeline" id="nl-timeline"></div>
+
+  <!--
+    Quick-add bar: stays pinned to the bottom of the page. Clicking/
+    focusing it opens the same search popup as the "+" on an hour row
+    (favorites, recent, and top picks for the current hour), except it
+    never sets pendingHour, so addFoodToSelectedDay() always logs at the
+    real current wall-clock time — see that function's `pendingHour !==
+    null` branch — rather than pinning to the top-of-hour like the
+    hour-row "+" does.
+  -->
+  <div class="nl-quickadd-bar">
+    <div class="nl-quickadd-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="nl-quickadd-input" placeholder="Log a food now — search and tap to add..." autocomplete="off" readonly>
+    </div>
+  </div>
+</div>
+
+<!--
+  Weight tracking + daily-logging cards live in their own module
+  (static/coaching.js/css) rather than more inline script in this already-
+  large file. Placed BELOW the main log card so "Today's Totals" leads the
+  page. It reads this page's localStorage keys (goals, nutrition log)
+  directly and the two sides stay in sync via a "repcheck:goals-updated"
+  event.
+-->
+<div id="coaching-root"></div>
+<link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
+
+<div class="af-modal-overlay" id="af-modal-overlay" style="display:none;">
+  <div class="af-modal">
+    <div class="af-modal-header">
+      <div class="af-modal-title" id="af-modal-title">Analyze a food photo</div>
+      <button type="button" class="nl-modal-close" id="af-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="af-modal-body" id="af-modal-body"></div>
+  </div>
+  <!-- Kept outside af-modal-body (which gets fully replaced on every
+       render) so a direct-camera quick action can trigger these without
+       first rendering any choice screen. The "capture" attribute opens
+       the device's native camera app directly (works over plain HTTP,
+       unlike getUserMedia which needs a secure context) -- "Upload"
+       omits it to open the normal file/gallery picker instead. -->
+  <input type="file" id="af-camera-input" accept="image/*" capture="environment" style="display:none;">
+  <input type="file" id="af-upload-input" accept="image/*" style="display:none;">
+  <input type="file" id="af-barcode-input" accept="image/*" capture="environment" style="display:none;">
+</div>
+
+<!-- Confirm-amount step shown before logging a food picked from search/
+     quick-add/favorites — same amount-card UI as the barcode/photo scan
+     result screen, so choosing how much of something you're logging looks
+     and works the same everywhere in the app. -->
+<div class="af-modal-overlay" id="lq-modal-overlay" style="display:none;">
+  <div class="af-modal">
+    <div class="af-modal-header">
+      <div class="af-modal-title" id="lq-modal-title">Log food</div>
+      <button type="button" class="nl-modal-close" id="lq-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="af-modal-body" id="lq-modal-body"></div>
+  </div>
+</div>
+
+<div class="nl-modal-overlay" id="nl-modal-overlay" style="display:none;">
+  <div class="nl-modal">
+    <div class="nl-modal-header">
+      <div class="nl-modal-title" id="nl-modal-title">Add food</div>
+      <button type="button" class="nl-modal-close" id="nl-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+    </div>
+    <div class="nl-modal-search-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="modal-food-search" data-i18n-placeholder="nutrition.search.placeholder" placeholder="Search for a food..." autocomplete="off">
+    </div>
+    <div class="nl-modal-results" id="modal-food-results"></div>
+  </div>
+</div>
+
+<style>
+  /* Reuses the site's global theme variables so it matches whichever
+     light/dark theme is active, same as the Workouts page. */
+
+  .nl-page {
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 24px;
+  }
+
+  /* ---------- Summary / goals ---------- */
+
+  .nl-summary { margin-bottom: 20px; }
+
+  .nl-summary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .nl-summary-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+  .nl-goals-toggle {
+    padding: 7px 15px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .nl-goals-toggle:hover { border-color: var(--blue); color: var(--blue); }
+  .nl-goals-toggle:active { transform: scale(0.94); }
+
+  .nl-goals-form {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 14px;
+    animation: nl-pop-in 0.15s ease;
+  }
+  .nl-goals-form label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .nl-goals-form input {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .nl-goals-form input[readonly] {
+    background: var(--border);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+  }
+  .nl-goals-hint {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-top: -2px;
+  }
+  .nl-save-goals-btn {
+    grid-column: 1 / -1;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: none;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .nl-save-goals-btn:hover { opacity: 0.85; }
+
+  /* Today's Totals hero: a calorie progress RING as the headline visual
+     (the number people actually check -- "how much can I still eat
+     today") with the three macros as compact supporting pills below it,
+     instead of four equal-weight boxes in a grid. */
+  .nl-hero-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .nl-cal-ring-wrap { position: relative; width: 152px; height: 152px; flex-shrink: 0; }
+  .nl-cal-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .nl-cal-ring-track { fill: none; stroke: var(--bg); stroke-width: 10; }
+  .nl-cal-ring-fill {
+    fill: none;
+    stroke: url(#nl-cal-ring-gradient);
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.3s ease;
+  }
+  .nl-cal-ring-fill.is-over { stroke: url(#nl-cal-ring-gradient-over); }
+  .nl-cal-ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .nl-cal-ring-value { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+  .nl-cal-ring-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
+  .nl-cal-ring-sub { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+
+  .nl-macro-pills {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
+  }
+  .nl-macro-pill {
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 11px 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .nl-macro-pill:hover { box-shadow: 0 6px 18px rgba(20, 20, 20, 0.06); }
+  .nl-macro-pill:active { transform: scale(0.97); }
+  .nl-macro-pill-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .nl-macro-pill-label { font-size: 10.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.02em; }
+  .nl-macro-pill-value { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+  /* Small colored badge behind each icon instead of a bare stroke icon --
+     ties the macro's accent color to a proper chip, matching the
+     icon-chip language used on the home page's tiles. */
+  .nl-macro-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  }
+  .nl-icon-protein { color: var(--red); background: var(--red-bg); }
+  .nl-icon-fat { color: var(--amber); background: var(--amber-bg); }
+  .nl-icon-carbs { color: var(--green); background: var(--green-bg); }
+  .nl-macro-goal { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-left: 1px; }
+  .nl-progress {
+    margin-top: 10px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .nl-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+  .nl-fill-calories { background: linear-gradient(90deg, var(--blue), #6d94f2); }
+  .nl-fill-protein { background: linear-gradient(90deg, var(--red), #e8837b); }
+  .nl-fill-fat { background: linear-gradient(90deg, var(--amber), #d4a85c); }
+  .nl-fill-carbs { background: linear-gradient(90deg, var(--green), #5cc99a); }
+
+  /* ---------- Date strip ---------- */
+
+  .nl-date-strip-wrap { display: flex; align-items: center; gap: 6px; }
+  .nl-week-nav {
+    background: none; border: none; color: var(--text-secondary);
+    padding: 6px; cursor: pointer; flex-shrink: 0;
+  }
+  .nl-week-nav:hover { color: var(--text); }
+  .nl-week-nav:active { transform: scale(0.88); }
+  .nl-date-strip { flex: 1; display: flex; justify-content: space-between; gap: 4px; }
+  .nl-date-cell {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: none; border: none; color: var(--text-secondary); cursor: pointer;
+    padding: 4px 0; font-family: inherit;
+  }
+  .nl-date-weekday { font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
+  .nl-date-number {
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; font-weight: 700; color: var(--text);
+    background: var(--bg);
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.1s ease;
+  }
+  .nl-date-cell:active .nl-date-number { transform: scale(0.9); }
+  .nl-date-cell.is-today .nl-date-number { box-shadow: inset 0 0 0 2px var(--blue); }
+  .nl-date-cell.is-selected .nl-date-number {
+    background: linear-gradient(135deg, var(--blue), #5c86ef);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(47, 102, 232, 0.35);
+  }
+
+  /* ---------- Analyze-a-photo entry point + modal ---------- */
+
+  .nl-scan-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 16px;
+    border: none;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  }
+  .nl-scan-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
+  .nl-scan-btn:active { transform: translateY(0) scale(0.99); }
+
+  .af-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 10, 14, 0.5);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    /* dvh tracks the actual visible viewport (browser chrome collapsing,
+       on-screen keyboard) -- plain vh is computed against the largest
+       possible viewport, so on mobile it can size this overlay taller
+       than what's actually visible, pushing the modal's bottom content
+       (the log/add button) past the fold with no way to scroll to it.
+       vh stays as the fallback for browsers without dvh support. */
+    padding: 8vh 16px 16px;
+    padding: 8dvh 16px 16px;
+    /* Must beat .mobile-tabbar's z-index: 100 (base.html) -- it's fixed
+       to the bottom of the screen and, being later in the DOM at the
+       same z-index, was painting on top of this modal's last ~60-80px
+       on mobile, permanently covering the log/add button no matter how
+       far you scrolled. */
+    z-index: 300;
+    animation: nl-fade-in 0.15s ease;
+  }
+  .af-modal {
+    background: var(--card-bg);
+    border-radius: 26px;
+    box-shadow: 0 24px 60px rgba(10, 10, 14, 0.22);
+    width: 100%;
+    max-width: 480px;
+    max-height: 84vh;
+    max-height: 84dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: nl-pop-in 0.18s ease;
+  }
+  .af-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 22px 10px;
+    flex-shrink: 0;
+  }
+  .af-modal-title { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
+  .af-modal-body { padding: 4px 22px 22px; overflow-y: auto; flex: 1; min-height: 0; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+  /* Entry tiles: same gradient-badge design language as the home page's
+     quick actions and the "+" sheet, so logging food reads as part of one
+     system. 2-col grid; a .af-tile-wide 5th tile fills the last row. */
+  .af-choice-intro { font-size: 13px; color: var(--text-secondary); font-weight: 500; margin: 0 2px 15px; }
+  .af-tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .af-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    padding: 18px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 18px;
+    background: var(--bg);
+    color: var(--text);
+    text-align: center;
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.12s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  }
+  .af-tile:hover { border-color: transparent; box-shadow: 0 10px 24px rgba(20, 20, 20, 0.12); transform: translateY(-2px); }
+  .af-tile:active { transform: scale(0.95); }
+  .af-tile-wide { grid-column: 1 / -1; }
+  .af-tile-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 48px; height: 48px; border-radius: 15px; color: #fff; flex-shrink: 0;
+  }
+  .af-tile-title { line-height: 1.25; }
+  .af-tile-green .af-tile-icon { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 6px 14px rgba(31, 169, 113, 0.42); }
+  .af-tile-blue .af-tile-icon { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 6px 14px rgba(47, 102, 232, 0.42); }
+  .af-tile-purple .af-tile-icon { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 6px 14px rgba(124, 79, 224, 0.42); }
+  .af-tile-amber .af-tile-icon { background: linear-gradient(135deg, #e8a33f, var(--amber)); box-shadow: 0 6px 14px rgba(185, 131, 42, 0.42); }
+  .af-tile-red .af-tile-icon { background: linear-gradient(135deg, #e2685f, var(--red)); box-shadow: 0 6px 14px rgba(209, 69, 59, 0.42); }
+
+  .af-emoji-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .af-emoji-btn {
+    font-size: 20px;
+    line-height: 1;
+    padding: 9px 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .af-emoji-btn.is-active { border-color: var(--blue); background: var(--blue); }
+  .af-macro-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .af-create-calories {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin: 4px 0 14px;
+  }
+  .af-create-calories-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .af-create-calories-value { font-size: 18px; font-weight: 800; color: var(--blue); }
+  .af-create-calories-hint { font-size: 11px; color: var(--text-secondary); flex-basis: 100%; }
+
+  .af-loading { text-align: center; padding: 40px 0; color: var(--text-secondary); font-size: 13px; }
+  .af-loading-spinner {
+    width: 30px; height: 30px; margin: 0 auto 14px;
+    border: 3px solid var(--border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: af-spin 0.8s linear infinite;
+  }
+  @keyframes af-spin { to { transform: rotate(360deg); } }
+
+  .af-recent-section { margin-top: 24px; }
+  .af-recent-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 12px;
+  }
+  .af-recent-head > span { font-size: 12px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .af-view-log-btn {
+    background: none; border: none; color: var(--blue); font-size: 12px; font-weight: 700;
+    cursor: pointer; font-family: inherit; padding: 0;
+  }
+  .af-view-log-btn:hover { text-decoration: underline; }
+  .af-recent-list { display: flex; flex-direction: column; gap: 8px; }
+  .af-recent-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg); border-radius: 14px; padding: 11px 12px;
+    transition: box-shadow 0.15s ease, transform 0.1s ease;
+  }
+  .af-recent-row:hover { box-shadow: 0 8px 18px rgba(20, 20, 20, 0.08); transform: translateY(-1px); }
+  .af-recent-icon {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 36px; height: 36px; border-radius: 11px; color: #fff;
+    background: linear-gradient(135deg, #29b87e, var(--green));
+    box-shadow: 0 5px 12px rgba(31, 169, 113, 0.35);
+  }
+  .af-recent-info { min-width: 0; flex: 1; }
+  .af-recent-name { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .af-recent-meta { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+  .af-recent-relog-btn {
+    flex-shrink: 0; padding: 8px 14px; border-radius: 999px; border: none;
+    background: var(--blue-bg); color: var(--blue); font-size: 12px; font-weight: 800;
+    cursor: pointer; font-family: inherit;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .af-recent-relog-btn:hover { opacity: 0.85; }
+  .af-recent-relog-btn:active { transform: scale(0.94); }
+  .af-recent-empty {
+    font-size: 12.5px; color: var(--text-secondary); text-align: center;
+    padding: 22px 16px; background: var(--bg); border-radius: 14px; line-height: 1.5;
+  }
+
+  .af-result-photo {
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 14px;
+  }
+  .af-confidence-note {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .af-confidence-note strong { color: var(--text); text-transform: capitalize; }
+
+  /* ---------- Live barcode scanner (in-app camera feed) ---------- */
+  .af-scanner-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #000;
+    margin-bottom: 4px;
+  }
+  .af-scanner-video { width: 100%; height: 100%; object-fit: cover; }
+  .af-scanner-frame {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 78%; height: 34%;
+    border: 2px solid var(--blue);
+    border-radius: 10px;
+    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+  }
+  .af-scanner-hint {
+    position: absolute;
+    bottom: 14px; left: 0; right: 0;
+    text-align: center;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+  }
+  /* ---------- Macro donut + micronutrients (scan results, log-food popup) ---------- */
+  .mn-donut-row { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
+  .mn-donut-wrap { position: relative; width: 108px; height: 108px; flex-shrink: 0; }
+  .mn-donut { width: 100%; height: 100%; }
+  .mn-donut-track { fill: none; stroke: var(--bg); stroke-width: 12; }
+  .mn-donut-seg { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dasharray 0.25s ease; }
+  .mn-seg-protein { stroke: var(--red); }
+  .mn-seg-fat { stroke: var(--amber); }
+  .mn-seg-carbs { stroke: var(--green); }
+  .mn-donut-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .mn-donut-calories { font-size: 22px; font-weight: 800; color: var(--blue); line-height: 1.1; }
+  .mn-donut-calories-label { font-size: 10px; color: var(--text-secondary); font-weight: 600; margin-top: 1px; }
+  .mn-macro-legend { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .mn-legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .mn-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .mn-dot-protein { background: var(--red); }
+  .mn-dot-fat { background: var(--amber); }
+  .mn-dot-carbs { background: var(--green); }
+  .mn-legend-pct { font-weight: 800; min-width: 34px; }
+  .mn-legend-label { color: var(--text-secondary); flex: 1; }
+  .mn-legend-grams { font-weight: 600; color: var(--text-secondary); }
+
+  .mn-micro-section {
+    background: var(--bg); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;
+  }
+  .mn-micro-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .mn-micro-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+  .mn-micro-label { color: var(--text-secondary); }
+  .mn-micro-value { font-weight: 700; }
+
+  .af-field { margin-bottom: 12px; }
+  .af-field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600; }
+  .af-field input, .af-field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .af-actions { display: flex; gap: 10px; margin-top: 16px; }
+
+  /* ---------- Amount editor (single-ingredient scans: barcode / one-food photo) ---------- */
+  .af-amount-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .af-amount-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .af-amount-title { font-size: 12px; font-weight: 700; color: var(--text); }
+  .af-amount-serving-hint { font-size: 11px; color: var(--text-secondary); }
+  .af-amount-input-row { display: flex; align-items: center; gap: 10px; }
+  #af-amount-value {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 20px;
+    font-weight: 700;
+    font-family: inherit;
+    transition: border-color 0.15s ease;
+  }
+  #af-amount-value:focus { outline: none; border-color: var(--blue); }
+  .af-unit-seg {
+    display: flex;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px;
+    flex-shrink: 0;
+  }
+  .af-unit-seg button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .af-unit-seg button.is-active { background: var(--blue); color: #fff; }
+
+  .af-error { color: var(--red); font-size: 13px; text-align: center; padding: 20px 0; }
+
+  .nl-save-error-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 90px;
+    transform: translateX(-50%);
+    background: var(--red);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 12px 18px;
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    z-index: 400;
+    max-width: 90vw;
+    text-align: center;
+    animation: nl-fade-in 0.15s ease;
+  }
+  .af-ingredient-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .af-ingredient-row {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+  .af-ingredient-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .af-ingredient-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .af-ingredient-amount { color: var(--text-secondary); font-weight: 600; flex-shrink: 0; }
+  .af-ingredient-macros { color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
+  .af-secondary-btn {
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .af-secondary-btn:hover { border-color: var(--text-secondary); }
+
+  /* ---------- Add-food modal ---------- */
+
+  .nl-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 8vh 16px 16px;
+    padding: 8dvh 16px 16px;
+    z-index: 300; /* beat .mobile-tabbar's z-index: 100, see .af-modal-overlay comment */
+    animation: nl-fade-in 0.15s ease;
+  }
+  .nl-modal {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 480px;
+    max-height: 78vh;
+    max-height: 78dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: nl-pop-in 0.18s ease;
+  }
+  .nl-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px 12px;
+  }
+  .nl-modal-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+  .nl-modal-close {
+    background: var(--bg);
+    border: none;
+    color: var(--text-secondary);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .nl-modal-close:hover { color: var(--text); background: var(--sidebar-active); }
+
+  /* Bigger, calmer search field -- it's the primary thing you do in this
+     modal, so it reads as the anchor with a blue focus ring rather than a
+     thin grey pill. */
+  .nl-modal-search-wrap {
+    display: flex; align-items: center; gap: 11px;
+    margin: 0 20px 16px;
+    background: var(--bg); border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 13px 16px; color: var(--text-secondary);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .nl-modal-search-wrap:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); color: var(--blue); }
+  .nl-modal-search-wrap svg { flex-shrink: 0; }
+  .nl-modal-search-wrap input {
+    flex: 1; min-width: 0; background: none; border: none; color: var(--text);
+    font-size: 15px; font-weight: 500; font-family: inherit; outline: none;
+  }
+  .nl-modal-search-wrap input::placeholder { color: var(--text-secondary); font-weight: 400; }
+  .nl-modal-results {
+    overflow-y: auto;
+    padding: 0 12px 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .nl-search-empty { padding: 26px 14px; font-size: 13px; color: var(--text-secondary); text-align: center; }
+
+  .nl-modal-section { margin: 0 0 18px; }
+  .nl-modal-section-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 8px 8px;
+  }
+
+  /* Scannable full-width list rows (icon + name + macro line + heart)
+     instead of a dense grid of tiny squares -- easier to read on a phone
+     and each result can show its macros without crowding. */
+  .nl-food-list { display: flex; flex-direction: column; gap: 2px; }
+  .nl-food-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 12px;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: var(--text);
+    transition: background-color 0.13s ease, transform 0.08s ease;
+  }
+  .nl-food-row:hover { background: var(--bg); }
+  .nl-food-row:active { transform: scale(0.99); background: var(--sidebar-active); }
+  .nl-food-row-icon {
+    flex-shrink: 0;
+    width: 40px; height: 40px;
+    border-radius: 11px;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 21px; line-height: 1;
+    overflow: hidden;
+  }
+  .nl-food-row:hover .nl-food-row-icon { background: var(--sidebar-active); }
+  .nl-food-photo-row { width: 100%; height: 100%; border-radius: 11px; }
+  .nl-food-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .nl-food-row-name {
+    font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nl-food-row-macros {
+    display: flex; align-items: baseline;
+    font-size: 11.5px; color: var(--text-secondary); font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nl-frm-cal { font-weight: 700; color: var(--text); }
+  .nl-frm-cal::after { content: "·"; margin: 0 6px; color: var(--text-secondary); font-weight: 700; }
+  .nl-food-row-fav {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    opacity: 0.65;
+    transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+  }
+  .nl-food-row-fav:hover { opacity: 1; color: var(--red); background: var(--red-bg); }
+  .nl-food-row-fav:active { transform: scale(0.85); }
+  .nl-food-row-fav.is-fav { color: var(--red); opacity: 1; }
+
+  /* ---------- Timeline ---------- */
+
+  .nl-timeline {
+    margin-top: 14px; max-height: 640px; overflow-y: auto; padding-right: 10px;
+    scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .nl-timeline::-webkit-scrollbar { width: 8px; }
+  .nl-timeline::-webkit-scrollbar-track { background: transparent; }
+  .nl-timeline::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+  .nl-timeline::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+  /* Quick-add bar: pinned to the bottom of the page (not the internally-
+     scrolling .nl-timeline), so it's always reachable without scrolling
+     back up to the hour rows or opening the modal. */
+  .nl-quickadd-bar {
+    position: sticky; bottom: 0; z-index: 5;
+    margin-top: 14px;
+    background: var(--card-bg);
+    background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 10px;
+  }
+  .nl-quickadd-input-wrap {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
+    padding: 12px 16px; color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  .nl-quickadd-input-wrap:hover { border-color: var(--blue); }
+  .nl-quickadd-input-wrap input {
+    flex: 1; min-width: 0; background: none; border: none; color: var(--text);
+    font-size: 14px; font-family: inherit; outline: none;
+    cursor: pointer; /* readonly -- clicking/focusing it opens the search popup instead of typing inline */
+  }
+  .nl-quickadd-input-wrap input::placeholder { color: var(--text-secondary); }
+
+  .nl-hour-row { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--border); }
+  .nl-hour-label { width: 56px; flex-shrink: 0; font-size: 12px; color: var(--text-secondary); padding-top: 6px; }
+  .nl-hour-body { flex: 1; min-width: 0; }
+  .nl-hour-add-btn {
+    width: 26px; height: 26px; border-radius: 50%; border: none; background: var(--bg);
+    color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .nl-hour-add-btn:hover { background: var(--sidebar-active); }
+  .nl-hour-add-btn:active { transform: scale(0.85); }
+
+  .nl-entry-card {
+    display: flex; align-items: center; gap: 12px; background: var(--bg);
+    border-radius: 18px; padding: 10px 12px; margin-top: 10px; cursor: pointer;
+    animation: nl-pop-in 0.18s ease;
+    transition: box-shadow 0.15s ease, transform 0.1s ease;
+  }
+  .nl-entry-card:hover { box-shadow: 0 6px 16px rgba(20, 20, 20, 0.06); }
+  .nl-entry-card:active { transform: scale(0.985); }
+  .nl-entry-icon {
+    width: 40px; height: 40px; border-radius: 14px; background: var(--card-bg);
+    box-shadow: 0 1px 3px rgba(20, 20, 20, 0.08);
+    display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+  }
+  .nl-entry-info { flex: 1; min-width: 0; }
+  .nl-entry-name {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nl-entry-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .nl-entry-toggle {
+    background: none; border: none; color: var(--text-secondary); padding: 6px;
+    cursor: pointer; flex-shrink: 0; display: flex; transition: transform 0.15s ease;
+  }
+  .nl-entry-toggle:hover { color: var(--text); }
+  .nl-entry-toggle.is-expanded { transform: rotate(180deg); }
+
+  .nl-entry-fav-btn {
+    background: none; border: none; color: var(--text-secondary); padding: 6px;
+    cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s ease, transform 0.1s ease;
+  }
+  .nl-entry-fav-btn:hover { color: var(--red); }
+  .nl-entry-fav-btn:active { transform: scale(0.85); }
+  .nl-entry-fav-btn.is-fav { color: var(--red); }
+
+  .nl-entry-detail {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px; margin: -4px 0 10px; animation: nl-slide-down 0.18s ease;
+  }
+  /* Amount control: label (+ hint) on the left, the number field on the
+     right, in one clean bordered card. */
+  .nl-amount-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 14px;
+  }
+  .nl-amount-meta { min-width: 0; }
+  .nl-amount-title { display: block; font-size: 13.5px; font-weight: 700; color: var(--text); }
+  .nl-amount-hint { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+  .nl-amount-field {
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 3px 8px 3px 4px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .nl-amount-field:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .nl-amount-field input {
+    width: 60px; padding: 7px 6px; border: none; background: none;
+    color: var(--text); border-radius: 8px; font-size: 16px; font-weight: 700;
+    font-family: inherit; text-align: center; outline: none;
+  }
+  /* Hide the native number spinners for a cleaner field. */
+  .nl-amount-field input::-webkit-outer-spin-button,
+  .nl-amount-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .nl-amount-field input[type=number] { -moz-appearance: textfield; }
+  .nl-unit-select {
+    padding: 8px 8px; border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); border-radius: 10px; font-size: 13px; font-family: inherit; cursor: pointer;
+  }
+  .nl-amount-field .nl-unit-select { border: none; background: none; padding: 6px 2px; font-weight: 600; }
+  .nl-amount-unit-label { font-size: 13px; color: var(--text-secondary); font-weight: 700; padding-right: 4px; }
+  .nl-add-ingredient-btn {
+    display: inline-block;
+    margin: 6px 0 10px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px dashed var(--border);
+    background: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .nl-add-ingredient-btn:hover { color: var(--text); border-color: var(--text-secondary); }
+  .nl-add-ingredient-standalone { margin-top: -4px; }
+
+  /* ---------- Entry hero: animated macro ring ---------- */
+  .nl-hero {
+    display: flex; align-items: center; gap: 20px;
+    padding: 6px 4px 18px;
+  }
+  .nl-hero-ring { position: relative; width: 108px; height: 108px; flex-shrink: 0; }
+  .nl-hero-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  /* The transition is what makes editing amounts feel alive: the arcs
+     glide to their new share instead of snapping (patchEntryHero mutates
+     these styles in place, never re-creates the elements). */
+  .nl-hero-seg { transition: stroke-dasharray 0.45s ease, stroke-dashoffset 0.45s ease; }
+  .nl-hero-ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .nl-hero-kcal { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+  .nl-hero-kcal-label {
+    font-size: 10px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px;
+  }
+  .nl-hero-macros { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .nl-hero-macro { display: flex; align-items: center; gap: 9px; }
+  .nl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .nl-dot-protein { background: var(--red); }
+  .nl-dot-fat { background: var(--amber); }
+  .nl-dot-carbs { background: var(--green); }
+  .nl-hero-macro-label {
+    flex: 1; min-width: 0; font-size: 11px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nl-hero-macro-value { font-size: 14.5px; font-weight: 800; letter-spacing: -0.01em; }
+  .nl-hero-macro-pct {
+    width: 42px; text-align: center; flex-shrink: 0;
+    font-size: 11px; font-weight: 800; color: var(--text-secondary);
+    background: var(--bg); border-radius: 999px; padding: 3px 0;
+  }
+
+  .nl-ingredients {
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 4px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .nl-ingredients-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 11px 12px;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .nl-ingredients-toggle:hover { color: var(--blue); }
+  .nl-ingredients-toggle svg { flex-shrink: 0; transition: transform 0.2s ease; }
+  .nl-ingredients-toggle.is-open svg { transform: rotate(180deg); }
+  .nl-ingredients-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 2px 6px 6px;
+  }
+
+  /* Each raw ingredient is its own compact card. The name always gets a
+     full-width line to itself, so it can never be squeezed to nothing by
+     the amount/unit controls fighting it for space (the bug before). */
+  .nl-ingredient-row {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-width: 0;
+  }
+  .nl-ingredient-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nl-ingredient-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+
+  /* Real sorted photos (sort_food_images.py) drop into the same icon slots
+     as the emoji fallback, just sized/rounded per context. */
+  .nl-food-photo { border-radius: 50%; object-fit: cover; display: block; }
+  .nl-food-photo-entry { width: 38px; height: 38px; }
+  .nl-food-photo-ingredient { width: 20px; height: 20px; }
+  .nl-ingredient-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nl-ingredient-remove {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+    flex-shrink: 0;
+  }
+  .nl-ingredient-remove:hover { color: var(--red); }
+
+  .nl-ingredient-bottom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .nl-ingredient-amount-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .nl-ingredient-grams {
+    width: 56px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .nl-ingredient-row .nl-unit-select {
+    padding: 6px 6px;
+    font-size: 12px;
+  }
+  /* Always-visible per-ingredient macro blocks: one tinted mini-card per
+     value, same color language as the hero ring above but much smaller,
+     so they read clearly without competing with the dish-level ring. */
+  .nl-ing-macros {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    margin-top: 9px;
+  }
+  .nl-ing-chip {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    border-radius: 9px; padding: 6px 4px 5px; text-align: center; min-width: 0;
+  }
+  .nl-ing-chip-value { font-size: 12px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.15; }
+  .nl-ing-chip-label {
+    font-size: 8.5px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  .nl-ing-kcal { background: var(--blue-bg); }
+  .nl-ing-kcal .nl-ing-chip-value { color: var(--blue); }
+  .nl-ing-p { background: var(--red-bg); }
+  .nl-ing-p .nl-ing-chip-value { color: var(--red); }
+  .nl-ing-f { background: var(--amber-bg); }
+  .nl-ing-f .nl-ing-chip-value { color: var(--amber); }
+  .nl-ing-c { background: var(--green-bg); }
+  .nl-ing-c .nl-ing-chip-value { color: var(--green); }
+
+  .nl-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .nl-remove-food-btn {
+    padding: 8px 14px; border-radius: 999px; border: 1px solid var(--red-bg);
+    background: none; color: var(--red); font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .nl-done-btn {
+    padding: 8px 20px; border-radius: 999px; border: none; background: var(--text);
+    color: var(--bg); font-size: 12px; font-weight: 700; cursor: pointer;
+    font-family: inherit; flex-shrink: 0;
+  }
+  .nl-done-btn:hover { opacity: 0.85; }
+  .nl-done-btn:active { transform: scale(0.95); }
+
+  .nl-empty-hint { color: var(--text-secondary); font-size: 13px; padding: 30px 0; text-align: center; }
+
+  @keyframes nl-pop-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes nl-slide-down {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes nl-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @media (max-width: 600px) {
+    .nl-goals-form { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .nl-page { padding: 14px; border-radius: var(--radius-md); }
+    .nl-summary-title { font-size: 14px; }
+    .nl-goals-toggle { padding: 8px 14px; }
+    .nl-cal-ring-wrap { width: 128px; height: 128px; }
+    .nl-cal-ring-value { font-size: 25px; }
+    .nl-macro-pills { gap: 8px; }
+    .nl-macro-pill { padding: 9px 8px; }
+    .nl-macro-pill-value { font-size: 13px; }
+    .nl-date-number { width: 32px; height: 32px; font-size: 13px; }
+    .nl-date-weekday { font-size: 10px; }
+    .nl-week-nav { padding: 8px; }
+    .nl-hour-label { width: 40px; font-size: 11px; }
+    .nl-hour-row { gap: 8px; padding: 10px 0; }
+    .nl-hour-add-btn { width: 30px; height: 30px; }
+    .nl-entry-card { padding: 10px; gap: 8px; }
+    .nl-entry-icon { width: 34px; height: 34px; font-size: 16px; }
+    .nl-hero { gap: 14px; }
+    .nl-hero-ring { width: 96px; height: 96px; }
+    .nl-hero-kcal { font-size: 22px; }
+    .nl-amount-field input { font-size: 16px; } /* 16px prevents iOS auto-zoom on focus */
+    .nl-ingredient-grams { font-size: 16px; }
+    .nl-done-btn, .nl-remove-food-btn { padding: 10px 16px; }
+    .nl-modal-overlay { padding: 0; align-items: stretch; }
+    .nl-modal { max-width: none; max-height: none; height: 100vh; height: 100dvh; border-radius: 0; }
+    .nl-modal-search-wrap input { font-size: 16px; } /* 16px prevents iOS auto-zoom on focus */
+
+    .nl-scan-btn { padding: 11px; font-size: 13px; margin-bottom: 12px; }
+    .af-modal-overlay { padding: 0; align-items: stretch; }
+    .af-modal {
+      max-width: none;
+      max-height: none;
+      /* Same dvh-over-vh reasoning as above: on small screens the modal
+         goes edge-to-edge, so it needs the real visible height, not the
+         browser's theoretical full-chrome-hidden height, or the bottom
+         action button ends up unreachable. */
+      height: 100vh;
+      height: 100dvh;
+      border-radius: 0;
+    }
+    .af-modal-header { padding: 14px 16px 8px; }
+    .af-modal-body { padding: 4px 16px 16px; }
+    .af-tile { padding: 15px 8px; font-size: 12.5px; gap: 9px; }
+    .af-tile-icon { width: 44px; height: 44px; border-radius: 13px; }
+    .af-result-photo { max-height: 130px; }
+    .af-field input, .af-field select { font-size: 16px; padding: 9px 10px; } /* 16px prevents iOS auto-zoom on focus */
+    .af-ingredient-row { padding: 8px 10px; font-size: 12px; }
+    #af-amount-value { font-size: 16px; padding: 10px 12px; } /* 16px prevents iOS auto-zoom on focus */
+    .af-unit-seg button { padding: 7px 9px; font-size: 11px; }
+  }
+</style>
+
+<script>
+  const FOOD_LIBRARY = {{ food_library | tojson }};
+  const FOOD_IMAGES = {{ food_images | tojson }};
+  const STORAGE_KEY = "repcheck_nutrition_log_v1";
+  const GOALS_KEY = "repcheck_nutrition_goals_v1";
+  const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+  const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0 -> 23 (midnight to 11 PM)
+  const EXPANDED = new Set();
+  const INGREDIENTS_EXPANDED = new Set(); // which composite dishes have their ingredients panel open (default minimized)
+
+  const CHEVRON_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  // All macros are always stored/computed in grams internally (matching
+  // the library's per-100g/100mL convention). Unit selectors only affect
+  // what's displayed and how a typed number is interpreted -- mL is
+  // treated as 1:1 with grams (same water-density approximation the
+  // library already uses for liquids), oz converts via the real factor.
+  const UNIT_FACTORS = { g: 1, oz: 28.3495, ml: 1 };
+  const UNIT_LABELS = { g: "g", oz: "oz", ml: "mL" };
+
+  function gramsToUnit(grams, unit) {
+    return Math.round((grams / UNIT_FACTORS[unit]) * 10) / 10;
+  }
+  function unitToGrams(value, unit) {
+    return value * UNIT_FACTORS[unit];
+  }
+  function unitOptionsHtml(selected) {
+    return Object.keys(UNIT_FACTORS)
+      .map((u) => `<option value="${u}" ${u === selected ? "selected" : ""}>${UNIT_LABELS[u]}</option>`)
+      .join("");
+  }
+
+  // Sane per-day bounds so goals can't be set to something physically
+  // unrealistic (e.g. 4000g of carbs).
+  const MACRO_BOUNDS = {
+    protein: { min: 20, max: 400 },
+    fat: { min: 15, max: 300 },
+    carbs: { min: 20, max: 800 },
+  };
+
+  // Calories are always derived from protein/fat/carbs using the
+  // standard 4 kcal/g (protein, carbs) and 9 kcal/g (fat) conversion, so
+  // the calorie goal can never be inconsistent with the macro goals.
+  function caloriesFromMacros({ protein, fat, carbs }) {
+    return Math.round(protein * 4 + fat * 9 + carbs * 4);
+  }
+
+  function clamp(value, { min, max }, fallback) {
+    const n = parseFloat(value);
+    if (Number.isNaN(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+
+  const DEFAULT_MACRO_GOALS = { protein: 150, fat: 65, carbs: 200 };
+  const DEFAULT_GOALS = {
+    ...DEFAULT_MACRO_GOALS,
+    calories: caloriesFromMacros(DEFAULT_MACRO_GOALS),
+  };
+
+  function loadLog() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch (err) { return {}; }
+  }
+  function saveLog() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+    // Lets the Personalized coaching card (a separate script, static/
+    // coaching.js) know to redraw its "eaten today" bar chart immediately
+    // instead of only picking up the change on the next full page load.
+    document.dispatchEvent(new CustomEvent("repcheck:nutrition-log-updated"));
+  }
+
+  // Confirms a newly-added entry is durably saved server-side (see
+  // POST /api/nutrition/log-entry in app.py) before the caller treats the
+  // "Add to log" action as done. The generic account_sync.js blob sync
+  // (which saveLog() above also triggers via the wrapped localStorage
+  // .setItem) is fire-and-forget and re-sends the *whole* log on every
+  // write -- good enough for most synced data, but it was letting
+  // freshly-logged food quietly disappear if that write raced with the
+  // user navigating away before it landed. This is awaited directly by
+  // every "add to log" call site instead, with a visible error on
+  // failure so a save never silently fails.
+  async function persistLogEntry(dateIso, entry) {
+    if (!window.REPCHECK_LOGGED_IN) return; // nothing to confirm — log-only-in-this-browser mode
+    try {
+      const response = await fetch("{{ url_for('api_nutrition_log_entry') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: dateIso, entry }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Save failed");
+    } catch (err) {
+      showLogSaveError();
+    }
+  }
+
+  function showLogSaveError() {
+    const existing = document.querySelector(".nl-save-error-toast");
+    if (existing) existing.remove();
+    const toast = document.createElement("div");
+    toast.className = "nl-save-error-toast";
+    toast.textContent = RepCheckI18n.t("nutrition.log.saveError");
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+  }
+
+  function loadGoals() {
+    let merged;
+    try {
+      merged = { ...DEFAULT_GOALS, ...(JSON.parse(localStorage.getItem(GOALS_KEY)) || {}) };
+    } catch (err) {
+      merged = { ...DEFAULT_GOALS };
+    }
+    // Re-clamp and re-derive calories even for goals saved before this
+    // validation existed, so a stale/inconsistent stored value can never
+    // stick around.
+    const protein = clamp(merged.protein, MACRO_BOUNDS.protein, DEFAULT_GOALS.protein);
+    const fat = clamp(merged.fat, MACRO_BOUNDS.fat, DEFAULT_GOALS.fat);
+    const carbs = clamp(merged.carbs, MACRO_BOUNDS.carbs, DEFAULT_GOALS.carbs);
+    return { protein, fat, carbs, calories: caloriesFromMacros({ protein, fat, carbs }) };
+  }
+  function saveGoals() { localStorage.setItem(GOALS_KEY, JSON.stringify(goals)); }
+
+  let log = loadLog();
+  let goals = loadGoals();
+  let pendingHour = null; // set when a specific hour row's "+" is clicked
+
+  function foodByName(name) {
+    return FOOD_LIBRARY.find((f) => f.name === name);
+  }
+
+  function iconForFood(name) {
+    const n = name.toLowerCase();
+    if (n.includes("pizza")) return "\u{1F355}";
+    if (n.includes("cheeseburger") || n.includes("hamburger")) return "\u{1F354}";
+    if (n.includes("fries")) return "\u{1F35F}";
+    if (n.includes("taco")) return "\u{1F32E}";
+    if (n.includes("burrito")) return "\u{1F32F}";
+    if (n.includes("sushi")) return "\u{1F363}";
+    if (n.includes("nugget") || n.includes("fried chicken")) return "\u{1F357}";
+    if (n.includes("grilled cheese")) return "\u{1F9C0}";
+    if (n.includes("caesar salad") || n.includes("salad")) return "\u{1F957}";
+    if (n.includes("spaghetti") || n.includes("alfredo")) return "\u{1F35D}";
+    if (n.includes("stir fry")) return "\u{1F958}";
+    if (n.includes("pancake") || n.includes("waffle")) return "\u{1F95E}";
+    if (n.includes("donut")) return "\u{1F369}";
+    if (n.includes("cookie")) return "\u{1F36A}";
+    if (n.includes("cake") || n.includes("muffin")) return "\u{1F9C1}";
+    if (n.includes("ice cream")) return "\u{1F368}";
+    if (n.includes("chips") || n.includes("pretzel") || n.includes("popcorn")) return "\u{1F37F}";
+    if (n.includes("cheese") || n.includes("butter")) return "\u{1F9C0}";
+    if (n.includes("milk") || n.includes("yogurt") || n.includes("cream")) return "\u{1F95B}";
+    if (n.includes("egg")) return "\u{1F95A}";
+    if (n.includes("chicken") || n.includes("turkey") || n.includes("duck")) return "\u{1F357}";
+    if (n.includes("beef") || n.includes("steak") || n.includes("brisket") || n.includes("bacon") || n.includes("ham") || n.includes("sausage") || n.includes("pork")) return "\u{1F969}";
+    if (n.includes("salmon") || n.includes("tuna") || n.includes("shrimp") || n.includes("cod") || n.includes("tilapia") || n.includes("halibut") || n.includes("crab") || n.includes("lobster") || n.includes("sardine") || n.includes("mahi")) return "\u{1F41F}";
+    if (n.includes("rice") || n.includes("pasta") || n.includes("noodle") || n.includes("bread") || n.includes("oats") || n.includes("quinoa") || n.includes("couscous") || n.includes("barley") || n.includes("bulgur") || n.includes("farro") || n.includes("bagel") || n.includes("tortilla") || n.includes("pita") || n.includes("naan") || n.includes("croissant") || n.includes("cornbread") || n.includes("muffin")) return "\u{1F35A}";
+    if (n.includes("banana") || n.includes("apple") || n.includes("orange") || n.includes("berr") || n.includes("grape") || n.includes("melon") || n.includes("pineapple") || n.includes("mango") || n.includes("peach") || n.includes("pear") || n.includes("kiwi") || n.includes("cherr") || n.includes("date") || n.includes("raisin")) return "\u{1F34E}";
+    if (n.includes("almond") || n.includes("walnut") || n.includes("cashew") || n.includes("peanut") || n.includes("pistachio") || n.includes("pecan") || n.includes("sunflower") || n.includes("chia") || n.includes("flax")) return "\u{1F95C}";
+    if (n.includes("broccoli") || n.includes("spinach") || n.includes("potato") || n.includes("avocado") || n.includes("carrot") || n.includes("cucumber") || n.includes("tomato") || n.includes("pepper") || n.includes("onion") || n.includes("garlic") || n.includes("zucchini") || n.includes("cauliflower") || n.includes("asparagus") || n.includes("cabbage") || n.includes("kale") || n.includes("mushroom") || n.includes("corn") || n.includes("beet")) return "\u{1F966}";
+    if (n.includes("bean") || n.includes("lentil") || n.includes("tofu") || n.includes("tempeh") || n.includes("edamame")) return "\u{1F331}";
+    if (n.includes("chocolate") || n.includes("honey") || n.includes("sugar") || n.includes("granola")) return "\u{1F36B}";
+    if (n.includes("oil") || n.includes("mayo")) return "\u{1F9C8}";
+    if (n.includes("protein powder")) return "\u{1F964}";
+    return "\u{1F37D}️";
+  }
+
+  // Prefers a real sorted photo (see sort_food_images.py) over the emoji
+  // fallback, whenever one exists for this exact food name.
+  function foodIconHtml(name, photoClass) {
+    const url = FOOD_IMAGES[name];
+    if (url) {
+      return `<img class="nl-food-photo ${photoClass}" src="${url}" alt="${name}">`;
+    }
+    return iconForFood(name);
+  }
+
+  function entryTotals(entry) {
+    // Composite dishes (with a per-ingredient recipe): total = sum of
+    // every ingredient's own scaled contribution. Simple foods: a single
+    // amount scaling the food's own per-100g macros.
+    if (entry.ingredients && entry.ingredients.length) {
+      return entry.ingredients.reduce((acc, ing) => {
+        const scale = ing.grams / 100;
+        acc.calories += ing.baseCalories * scale;
+        acc.carbs += ing.baseCarbs * scale;
+        acc.fat += ing.baseFat * scale;
+        acc.protein += ing.baseProtein * scale;
+        acc.grams += ing.grams;
+        return acc;
+      }, { calories: 0, carbs: 0, fat: 0, protein: 0, grams: 0 });
+    }
+    const scale = entry.grams / 100;
+    return {
+      calories: entry.baseCalories * scale,
+      carbs: entry.baseCarbs * scale,
+      fat: entry.baseFat * scale,
+      protein: entry.baseProtein * scale,
+      grams: entry.grams,
+    };
+  }
+
+  function scaledMacros(entry) {
+    const t = entryTotals(entry);
+    return {
+      calories: Math.round(t.calories),
+      carbs: Math.round(t.carbs * 10) / 10,
+      fat: Math.round(t.fat * 10) / 10,
+      protein: Math.round(t.protein * 10) / 10,
+    };
+  }
+
+  // ---------- Goals UI ----------
+  const goalsToggleBtn = document.getElementById("nl-goals-toggle");
+  const goalsFormEl = document.getElementById("nl-goals-form");
+  const goalCaloriesInput = document.getElementById("goal-calories");
+  const goalProteinInput = document.getElementById("goal-protein");
+  const goalFatInput = document.getElementById("goal-fat");
+  const goalCarbsInput = document.getElementById("goal-carbs");
+
+  function fillGoalInputs() {
+    goalProteinInput.value = goals.protein;
+    goalFatInput.value = goals.fat;
+    goalCarbsInput.value = goals.carbs;
+    goalCaloriesInput.value = goals.calories;
+  }
+
+  function updateLiveCalories() {
+    goalCaloriesInput.value = caloriesFromMacros({
+      protein: parseFloat(goalProteinInput.value) || 0,
+      fat: parseFloat(goalFatInput.value) || 0,
+      carbs: parseFloat(goalCarbsInput.value) || 0,
+    });
+  }
+
+  [goalProteinInput, goalFatInput, goalCarbsInput].forEach((input) => {
+    input.addEventListener("input", updateLiveCalories);
+  });
+
+  goalsToggleBtn.addEventListener("click", () => {
+    const showing = goalsFormEl.style.display !== "none";
+    if (showing) {
+      goalsFormEl.style.display = "none";
+    } else {
+      fillGoalInputs();
+      goalsFormEl.style.display = "grid";
+    }
+  });
+
+  document.getElementById("nl-save-goals-btn").addEventListener("click", () => {
+    const protein = clamp(goalProteinInput.value, MACRO_BOUNDS.protein, goals.protein);
+    const fat = clamp(goalFatInput.value, MACRO_BOUNDS.fat, goals.fat);
+    const carbs = clamp(goalCarbsInput.value, MACRO_BOUNDS.carbs, goals.carbs);
+
+    goals = { protein, fat, carbs, calories: caloriesFromMacros({ protein, fat, carbs }) };
+    saveGoals();
+    goalsFormEl.style.display = "none";
+    renderSummary();
+  });
+
+  function renderSummary() {
+    const entries = log[selectedDate] || [];
+    const totals = entries.reduce((acc, entry) => {
+      const m = scaledMacros(entry);
+      acc.calories += m.calories;
+      acc.protein += m.protein;
+      acc.fat += m.fat;
+      acc.carbs += m.carbs;
+      return acc;
+    }, { calories: 0, protein: 0, fat: 0, carbs: 0 });
+
+    document.getElementById("nl-protein-total").textContent = Math.round(totals.protein);
+    document.getElementById("nl-fat-total").textContent = Math.round(totals.fat);
+    document.getElementById("nl-carbs-total").textContent = Math.round(totals.carbs);
+    document.getElementById("nl-protein-goal").textContent = goals.protein;
+    document.getElementById("nl-fat-goal").textContent = goals.fat;
+    document.getElementById("nl-carbs-goal").textContent = goals.carbs;
+
+    const pct = (value, goal) => Math.max(0, Math.min(100, (value / goal) * 100 || 0));
+    document.getElementById("nl-protein-fill").style.width = `${pct(totals.protein, goals.protein)}%`;
+    document.getElementById("nl-fat-fill").style.width = `${pct(totals.fat, goals.fat)}%`;
+    document.getElementById("nl-carbs-fill").style.width = `${pct(totals.carbs, goals.carbs)}%`;
+
+    // Calorie ring -- "remaining" is the headline number (how much is
+    // left to eat today), not a raw consumed/goal pair, since that's the
+    // number people actually act on. It fills fully and switches to an
+    // amber/red tone once the goal is exceeded, rather than trying to
+    // draw the ring past 100%.
+    const consumed = Math.round(totals.calories);
+    const goal = goals.calories;
+    const remaining = goal - consumed;
+    const isOver = remaining < 0;
+    const ringPct = goal > 0 ? Math.max(0, Math.min(1, consumed / goal)) : 0;
+    const circumference = 2 * Math.PI * 52;
+    const ringFillEl = document.getElementById("nl-cal-ring-fill");
+    ringFillEl.style.strokeDasharray = `${circumference}`;
+    ringFillEl.style.strokeDashoffset = `${circumference * (1 - ringPct)}`;
+    ringFillEl.classList.toggle("is-over", isOver);
+    document.getElementById("nl-cal-ring-value").textContent = Math.abs(remaining);
+    document.getElementById("nl-cal-ring-label").textContent = RepCheckI18n.t(isOver ? "nutrition.totals.kcalOver" : "nutrition.totals.kcalLeft");
+    document.getElementById("nl-cal-ring-sub").textContent = `${consumed} / ${goal}`;
+  }
+
+  // ---------- Dates ----------
+  function toIsoDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function startOfWeek(date) {
+    const d = new Date(date);
+    const diff = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  const today = new Date();
+  let selectedDate = toIsoDate(today);
+  let weekStart = startOfWeek(today);
+
+  const dateStripEl = document.getElementById("nl-date-strip");
+  const timelineEl = document.getElementById("nl-timeline");
+
+  // ---------- Favorites ----------
+  const FAVORITES_KEY = "repcheck_nutrition_favorites_v1";
+
+  function loadFavorites() {
+    try { return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []); }
+    catch (err) { return new Set(); }
+  }
+  function saveFavorites() { localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(favorites))); }
+
+  let favorites = loadFavorites();
+
+  function toggleFavorite(name) {
+    if (favorites.has(name)) favorites.delete(name); else favorites.add(name);
+    saveFavorites();
+  }
+
+  // ---------- History-derived suggestions ----------
+  function allLoggedEntries() {
+    return Object.values(log).flat();
+  }
+
+  function getRecentFoods(limit) {
+    const seen = new Set();
+    const names = [];
+    const entries = allLoggedEntries().sort((a, b) => b.addedAt - a.addedAt);
+    for (const entry of entries) {
+      if (!seen.has(entry.food)) {
+        seen.add(entry.food);
+        names.push(entry.food);
+      }
+      if (names.length >= limit) break;
+    }
+    return names;
+  }
+
+  function getRecentScans(limit) {
+    return allLoggedEntries()
+      .filter((e) => e.source === "scan")
+      .sort((a, b) => b.addedAt - a.addedAt)
+      .slice(0, limit);
+  }
+
+  // "Top picks" for an hour are foods the user genuinely tends to eat
+  // AROUND that time -- not just anything logged there once. A food only
+  // qualifies if it was logged in this hour's window on at least
+  // TOP_PICK_MIN_DAYS *different days*, so a one-off (a snack logged at
+  // 3pm a single time) never shows up, while a real habit (coffee every
+  // morning, the same lunch most weekdays) does. The window is the target
+  // hour ±1 so "my usual 8am breakfast" still counts when it's logged at
+  // 7:50 one day and 8:15 the next, instead of splitting across exact
+  // clock hours. Ranked by how many distinct days it recurs on.
+  const TOP_PICK_MIN_DAYS = 2;
+  function getTopPicksForHour(hour, limit) {
+    const daysByFood = new Map(); // food -> Set of "YYYY-MM-DD" it was logged near this hour
+    for (const entry of allLoggedEntries()) {
+      const when = new Date(entry.addedAt);
+      let hourDiff = Math.abs(when.getHours() - hour);
+      if (hourDiff > 12) hourDiff = 24 - hourDiff; // wrap around midnight (23 vs 0 = 1 apart)
+      if (hourDiff > 1) continue;
+      if (!daysByFood.has(entry.food)) daysByFood.set(entry.food, new Set());
+      daysByFood.get(entry.food).add(toIsoDate(when));
+    }
+    return Array.from(daysByFood.entries())
+      .filter(([, days]) => days.size >= TOP_PICK_MIN_DAYS)
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, limit)
+      .map(([name]) => name);
+  }
+
+  // ---------- Add-food / add-ingredient modal ----------
+  const modalOverlay = document.getElementById("nl-modal-overlay");
+  const modalTitle = document.getElementById("nl-modal-title");
+  const modalCloseBtn = document.getElementById("nl-modal-close");
+  const modalSearchInput = document.getElementById("modal-food-search");
+  const modalResultsEl = document.getElementById("modal-food-results");
+
+  let modalMode = null; // { type: "add-food" } (uses pendingHour) | { type: "add-ingredient", entryId }
+
+  function openAddFoodModal(hour) {
+    pendingHour = hour;
+    modalMode = { type: "add-food" };
+    modalTitle.textContent = RepCheckI18n.t("nutrition.modal.addFoodAt", { hour: hourLabel(hour) });
+    showModal();
+  }
+
+  function openAddIngredientModal(entryId) {
+    modalMode = { type: "add-ingredient", entryId };
+    modalTitle.textContent = RepCheckI18n.t("nutrition.modal.addIngredient");
+    showModal();
+  }
+
+  function showModal() {
+    modalOverlay.style.display = "flex";
+    modalSearchInput.value = "";
+    renderModalDefaultSections();
+    modalSearchInput.focus();
+  }
+
+  function closeModal() {
+    modalOverlay.style.display = "none";
+    modalMode = null;
+    pendingHour = null;
+  }
+
+  modalCloseBtn.addEventListener("click", closeModal);
+  modalOverlay.addEventListener("click", (event) => {
+    if (event.target === modalOverlay) closeModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modalOverlay.style.display !== "none") closeModal();
+  });
+
+  // ---------- Confirm amount before logging (search / quick-add / favorites) ----------
+  // Same amount-card UI as the barcode/AI photo scan result screen (see
+  // renderAfResult) — picking a food no longer silently logs a fixed
+  // 100g/default-recipe amount; this lets the amount be adjusted first,
+  // with a clear "1 serving = Xg" reference.
+  const lqModalOverlay = document.getElementById("lq-modal-overlay");
+  const lqModalBody = document.getElementById("lq-modal-body");
+  const lqModalCloseBtn = document.getElementById("lq-modal-close");
+  let lqFood = null;
+  let lqServingGrams = 100;
+  let lqUnit = "serving";
+  let lqAmountValue = 1;
+  let lqPendingHour = null;
+
+  function lqGramsPerUnit(unit) {
+    if (unit === "g") return 1;
+    if (unit === "oz") return OZ_TO_GRAMS;
+    return lqServingGrams;
+  }
+  function lqCurrentGrams() {
+    return Math.max(0, lqAmountValue * lqGramsPerUnit(lqUnit));
+  }
+  function lqMacrosFor(grams) {
+    // food.calories/protein/fat/carbs/sodium_mg/sugar_g are always
+    // per-100g here, whether it's a raw ingredient or a composite dish
+    // (food_library.py derives a dish's per-100g values, sodium/sugar
+    // included, from its recipe server-side), so the same scale-by-grams
+    // math works for both.
+    const scale = grams / 100;
+    return {
+      calories: Math.round(lqFood.calories * scale),
+      protein: Math.round(lqFood.protein * scale * 10) / 10,
+      fat: Math.round(lqFood.fat * scale * 10) / 10,
+      carbs: Math.round(lqFood.carbs * scale * 10) / 10,
+      sodiumMg: (lqFood.sodium_mg || lqFood.sodium_mg === 0) ? Math.round(lqFood.sodium_mg * scale) : undefined,
+      sugarG: (lqFood.sugar_g || lqFood.sugar_g === 0) ? Math.round(lqFood.sugar_g * scale * 10) / 10 : undefined,
+    };
+  }
+  function refreshLqDonut() {
+    const m = lqMacrosFor(lqCurrentGrams());
+    document.getElementById("lq-donut-area").innerHTML =
+      donutChartHtml(m.protein, m.fat, m.carbs, m.calories) + micronutrientsHtml(m.sodiumMg, m.sugarG);
+  }
+
+  function openLogAmountModal(name, hour) {
+    const food = foodByName(name);
+    if (!food) return;
+    lqFood = food;
+    lqPendingHour = (typeof hour === "number") ? hour : null;
+    // A composite dish's recipe default total is its natural "1 serving";
+    // a raw ingredient has no inherent serving, so fall back to the
+    // 100g reference its macros are already anchored to.
+    lqServingGrams = (food.ingredients && food.ingredients.length)
+      ? (food.ingredients.reduce((sum, ing) => sum + ing.grams, 0) || 100)
+      : 100;
+    lqUnit = "serving";
+    lqAmountValue = 1;
+
+    document.getElementById("lq-modal-title").textContent = food.name;
+    lqModalBody.innerHTML = `
+      <div id="lq-donut-area"></div>
+      <div class="af-amount-card">
+        <div class="af-amount-head">
+          <span class="af-amount-title">Amount</span>
+          <span class="af-amount-serving-hint">1 serving = ${lqServingGrams}g</span>
+        </div>
+        <div class="af-amount-input-row">
+          <input type="text" inputmode="decimal" id="lq-amount-value" value="1">
+          <div class="af-unit-seg" id="lq-unit-seg">
+            <button type="button" data-unit="serving" class="is-active">serving</button>
+            <button type="button" data-unit="g">g</button>
+            <button type="button" data-unit="oz">oz</button>
+          </div>
+        </div>
+      </div>
+      <div class="af-actions">
+        <button type="button" class="af-secondary-btn" id="lq-cancel-btn" style="flex:1;">Cancel</button>
+        <button type="button" class="nl-save-goals-btn" id="lq-add-btn" style="flex:2;">Add to log</button>
+      </div>
+    `;
+    refreshLqDonut();
+
+    document.getElementById("lq-cancel-btn").addEventListener("click", closeLogAmountModal);
+    document.getElementById("lq-add-btn").addEventListener("click", async () => {
+      pendingHour = lqPendingHour; // addFoodToSelectedDay() reads + resets this itself
+      const name = lqFood.name;
+      const grams = lqCurrentGrams();
+      closeLogAmountModal(); // close immediately -- the entry already shows in the timeline; the server confirm happens in the background and surfaces a toast if it fails
+      await addFoodToSelectedDay(name, grams);
+    });
+    const amountInput = document.getElementById("lq-amount-value");
+    amountInput.addEventListener("input", () => {
+      const parsed = parseFloat(amountInput.value);
+      lqAmountValue = isFinite(parsed) && parsed >= 0 ? parsed : 0;
+      refreshLqDonut();
+    });
+    document.getElementById("lq-unit-seg").addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-unit]");
+      if (!btn) return;
+      const grams = lqCurrentGrams();
+      lqUnit = btn.dataset.unit;
+      lqAmountValue = Math.round((grams / lqGramsPerUnit(lqUnit)) * 100) / 100;
+      amountInput.value = lqAmountValue;
+      document.querySelectorAll("#lq-unit-seg button").forEach((b) => b.classList.toggle("is-active", b === btn));
+      refreshLqDonut();
+    });
+
+    lqModalOverlay.style.display = "flex";
+  }
+
+  function closeLogAmountModal() {
+    lqModalOverlay.style.display = "none";
+    lqFood = null;
+  }
+
+  lqModalCloseBtn.addEventListener("click", closeLogAmountModal);
+  lqModalOverlay.addEventListener("click", (event) => {
+    if (event.target === lqModalOverlay) closeLogAmountModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && lqModalOverlay.style.display !== "none") closeLogAmountModal();
+  });
+
+  // ---------- Analyze-a-photo (camera or upload) ----------
+  const afModalOverlay = document.getElementById("af-modal-overlay");
+  const afModalBody = document.getElementById("af-modal-body");
+  const afModalCloseBtn = document.getElementById("af-modal-close");
+  const afScanBtn = document.getElementById("nl-scan-btn");
+  const afCameraInput = document.getElementById("af-camera-input");
+  const afUploadInput = document.getElementById("af-upload-input");
+  const afBarcodeInput = document.getElementById("af-barcode-input");
+  afCameraInput.addEventListener("change", () => { if (afCameraInput.files[0]) useAfImage(afCameraInput.files[0]); });
+  afUploadInput.addEventListener("change", () => { if (afUploadInput.files[0]) useAfImage(afUploadInput.files[0]); });
+  afBarcodeInput.addEventListener("change", () => { if (afBarcodeInput.files[0]) useBarcodeImage(afBarcodeInput.files[0]); });
+
+  let afImageBlob = null;   // the photo (captured or uploaded) waiting to be analyzed
+  let afPreviewUrl = null;  // object URL for the preview <img>, revoked on close
+  let afResult = null;      // last successful analysis, kept for logging
+
+  function openAnalyzeFoodModal() {
+    afModalOverlay.style.display = "flex";
+    renderAfChoice();
+  }
+
+  function closeAnalyzeFoodModal() {
+    afModalOverlay.style.display = "none";
+    if (afPreviewUrl) { URL.revokeObjectURL(afPreviewUrl); afPreviewUrl = null; }
+    afImageBlob = null;
+    afResult = null;
+    stopLiveBarcodeScan(); // no-op if no live scan was in progress
+  }
+
+  afScanBtn.addEventListener("click", openAnalyzeFoodModal);
+  afModalCloseBtn.addEventListener("click", closeAnalyzeFoodModal);
+  afModalOverlay.addEventListener("click", (event) => {
+    if (event.target === afModalOverlay) closeAnalyzeFoodModal();
+  });
+
+  // Shared by renderAfChoice() and renderAfMealQuickChoice() -- the
+  // "Recent scans" list + its "log again" wiring look and behave the
+  // same regardless of which choice screen led here.
+  function afRecentSectionHtml(recentScans) {
+    return `
+      <div class="af-recent-section">
+        <div class="af-recent-head">
+          <span>Recent scans</span>
+          <button type="button" class="af-view-log-btn" id="af-view-log-btn">View full food log →</button>
+        </div>
+        ${recentScans.length ? `<div class="af-recent-list" id="af-recent-list"></div>` : `<div class="af-recent-empty">Photos you scan and log will show up here for quick re-logging.</div>`}
+      </div>
+    `;
+  }
+
+  function wireAfRecentSection(recentScans) {
+    document.getElementById("af-view-log-btn").addEventListener("click", () => {
+      closeAnalyzeFoodModal();
+      document.querySelector(".nl-timeline").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    const recentListEl = document.getElementById("af-recent-list");
+    if (recentListEl) {
+      recentListEl.innerHTML = recentScans.map((entry) => {
+        const totals = entryTotals(entry);
+        const dateLabel = new Date(entry.addedAt).toLocaleDateString([], { month: "short", day: "numeric" });
+        return `
+          <div class="af-recent-row">
+            <span class="af-recent-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+            <div class="af-recent-info">
+              <div class="af-recent-name">${entry.food}</div>
+              <div class="af-recent-meta">${dateLabel} • ${formatTime(entry.addedAt)} • ${Math.round(totals.calories)} kcal</div>
+            </div>
+            <button type="button" class="af-recent-relog-btn" data-relog="${entry.id}" title="Log this again now">+ Log again</button>
+          </div>
+        `;
+      }).join("");
+      recentListEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-relog]");
+        if (!btn) return;
+        const original = allLoggedEntries().find((e) => e.id === btn.dataset.relog);
+        if (!original) return;
+        relogEntry(original);
+      });
+    }
+  }
+
+  function renderAfChoice() {
+    const recentScans = getRecentScans(6);
+    afModalBody.innerHTML = `
+      <div class="af-choice-intro">Log your food any way you like.</div>
+      <div class="af-tile-grid">
+        <button type="button" class="af-tile af-tile-green" id="af-take-photo-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+          <span class="af-tile-title">Take photo</span>
+        </button>
+        <button type="button" class="af-tile af-tile-blue" id="af-upload-photo-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+          <span class="af-tile-title">Upload photo</span>
+        </button>
+        <button type="button" class="af-tile af-tile-purple" id="af-scan-barcode-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
+          <span class="af-tile-title">Scan barcode</span>
+        </button>
+        <button type="button" class="af-tile af-tile-amber" id="af-create-food-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+          <span class="af-tile-title">Create food</span>
+        </button>
+        <button type="button" class="af-tile af-tile-wide af-tile-red" id="af-quick-macro-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+          <span class="af-tile-title">Log macros</span>
+        </button>
+      </div>
+      ${afRecentSectionHtml(recentScans)}
+    `;
+    document.getElementById("af-take-photo-btn").addEventListener("click", () => afCameraInput.click());
+    document.getElementById("af-upload-photo-btn").addEventListener("click", () => afUploadInput.click());
+    document.getElementById("af-scan-barcode-btn").addEventListener("click", () => {
+      // Live in-app scanning when the browser supports it (no photo
+      // capture/upload round-trip needed) -- startLiveBarcodeScan() falls
+      // back to the file-input photo flow on its own if BarcodeDetector
+      // isn't available or camera access fails.
+      startLiveBarcodeScan();
+    });
+    document.getElementById("af-create-food-btn").addEventListener("click", () => renderAfCreateForm(false));
+    document.getElementById("af-quick-macro-btn").addEventListener("click", () => renderAfCreateForm(true));
+    wireAfRecentSection(recentScans);
+  }
+
+  // The FAB/home "Scan a meal" quick action's entry screen: just the two
+  // photo paths (take/upload) plus recent re-logging -- barcode/create-
+  // food/log-macros stay reachable from the full "Analyze a food photo"
+  // button on this page instead, so this stays a fast, two-choice popup.
+  function renderAfMealQuickChoice() {
+    const recentScans = getRecentScans(6);
+    afModalBody.innerHTML = `
+      <div class="af-choice-intro">Snap or upload a photo of your meal.</div>
+      <div class="af-tile-grid">
+        <button type="button" class="af-tile af-tile-green" id="af-take-photo-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+          <span class="af-tile-title">Take photo</span>
+        </button>
+        <button type="button" class="af-tile af-tile-blue" id="af-upload-photo-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+          <span class="af-tile-title">Upload photo</span>
+        </button>
+      </div>
+      ${afRecentSectionHtml(recentScans)}
+    `;
+    document.getElementById("af-take-photo-btn").addEventListener("click", () => afCameraInput.click());
+    document.getElementById("af-upload-photo-btn").addEventListener("click", () => afUploadInput.click());
+    wireAfRecentSection(recentScans);
+  }
+
+  // Landing screen for the barcode quick action when a page navigation
+  // to get here was unavoidable (see the "barcode" branch of
+  // handleQuickAction below) -- a real tap is required to open the
+  // camera (browsers block auto-opening a file/camera picker after a
+  // navigation), so this is the smallest possible ask: one button, no
+  // choice screen.
+  function renderAfBarcodeQuickPrompt() {
+    afModalBody.innerHTML = `
+      <div class="af-tile-grid">
+        <button type="button" class="af-tile af-tile-wide af-tile-purple" id="af-open-barcode-camera-btn">
+          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
+          <span class="af-tile-title">Open camera</span>
+        </button>
+      </div>
+    `;
+    document.getElementById("af-open-barcode-camera-btn").addEventListener("click", () => afBarcodeInput.click());
+  }
+
+  // Re-logs a past scanned entry at the current moment, on the currently
+  // selected day — same ingredient breakdown, fresh id/timestamp, so it's
+  // independently editable from the original without touching it.
+  async function relogEntry(original) {
+    const dateForEntry = selectedDate;
+    if (!log[dateForEntry]) log[dateForEntry] = [];
+    const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    const now = new Date();
+    const addedAt = new Date(dateForEntry + "T00:00:00");
+    addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
+    const clone = { id, food: original.food, addedAt: addedAt.getTime(), source: "scan" };
+    if (original.ingredients) {
+      clone.ingredients = original.ingredients.map((ing) => ({ ...ing }));
+    } else {
+      Object.assign(clone, {
+        grams: original.grams, unit: original.unit,
+        baseCalories: original.baseCalories, baseCarbs: original.baseCarbs,
+        baseFat: original.baseFat, baseProtein: original.baseProtein,
+      });
+    }
+    log[dateForEntry].push(clone);
+    saveLog();
+    renderTimeline();
+    renderSummary();
+    closeAnalyzeFoodModal();
+    await persistLogEntry(dateForEntry, clone);
+  }
+
+  function useAfImage(blobOrFile) {
+    afImageBlob = blobOrFile;
+    if (afPreviewUrl) URL.revokeObjectURL(afPreviewUrl);
+    afPreviewUrl = URL.createObjectURL(blobOrFile);
+    renderAfLoading();
+    analyzeAfPhoto();
+  }
+
+  function renderAfLoading() {
+    afModalBody.innerHTML = `
+      <img class="af-result-photo" src="${afPreviewUrl}" alt="">
+      <div class="af-loading">
+        <div class="af-loading-spinner"></div>
+        Analyzing your photo...
+      </div>
+    `;
+  }
+
+  async function analyzeAfPhoto() {
+    try {
+      const formData = new FormData();
+      formData.append("image", afImageBlob, "photo.jpg");
+      const response = await fetch("{{ url_for('api_analyze_food') }}", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Analysis failed");
+      if (!data.ingredients || !data.ingredients.length) {
+        afModalBody.innerHTML = `
+          <img class="af-result-photo" src="${afPreviewUrl}" alt="">
+          <div class="af-error">Couldn't identify any food in that photo. Please try another one.</div>
+          <div class="af-actions">
+            <button type="button" class="nl-save-goals-btn" id="af-retry-btn" style="flex:1;">Try again</button>
+          </div>
+        `;
+        document.getElementById("af-retry-btn").addEventListener("click", renderAfChoice);
+        return;
+      }
+      afResult = data;
+      renderAfResult(data);
+    } catch (err) {
+      afModalBody.innerHTML = `
+        <div class="af-error">Couldn't analyze that photo. Please try again.</div>
+        <div class="af-actions">
+          <button type="button" class="nl-save-goals-btn" id="af-retry-btn" style="flex:1;">Try again</button>
+        </div>
+      `;
+      document.getElementById("af-retry-btn").addEventListener("click", renderAfChoice);
+    }
+  }
+
+  // ---------- Scan a barcode (packaged products, via Open Food Facts) ----------
+  // Reuses afResult/renderAfResult/addAfResultToLog as-is: barcode_scanner.py
+  // returns the exact same {food_name, confidence, note, ingredients, ...}
+  // shape as the AI photo analysis, so the result screen and "Add to log"
+  // button work identically regardless of which path produced the data.
+  function useBarcodeImage(blobOrFile) {
+    // The direct-camera quick action (?quick=barcode) clicks afBarcodeInput
+    // without ever opening the modal overlay first, so make sure it's
+    // visible here before showing the loading/result screen in it.
+    afModalOverlay.style.display = "flex";
+    afImageBlob = blobOrFile;
+    if (afPreviewUrl) URL.revokeObjectURL(afPreviewUrl);
+    afPreviewUrl = URL.createObjectURL(blobOrFile);
+    renderBarcodeLoading();
+    scanBarcodeImage();
+  }
+
+  function renderBarcodeLoading() {
+    afModalBody.innerHTML = `
+      <img class="af-result-photo" src="${afPreviewUrl}" alt="">
+      <div class="af-loading">
+        <div class="af-loading-spinner"></div>
+        Reading barcode...
+      </div>
+    `;
+  }
+
+  async function scanBarcodeImage() {
+    try {
+      const formData = new FormData();
+      formData.append("image", afImageBlob, "barcode.jpg");
+      const response = await fetch("{{ url_for('api_scan_barcode') }}", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Couldn't scan that barcode.");
+      afResult = data;
+      renderAfResult(data);
+    } catch (err) {
+      afModalBody.innerHTML = `
+        <div class="af-error">${(err.message || "Couldn't scan that barcode.").replace(/</g, "&lt;")}</div>
+        <div class="af-actions">
+          <button type="button" class="nl-save-goals-btn" id="af-retry-btn" style="flex:1;">Try again</button>
+        </div>
+      `;
+      document.getElementById("af-retry-btn").addEventListener("click", renderAfChoice);
+    }
+  }
+
+  // ---------- Live in-app barcode scanning (no photo upload needed) ----------
+  // DISABLED FOR NOW: getUserMedia (needed for a live camera feed) only
+  // works in a "secure context" (HTTPS, or plain HTTP on localhost only),
+  // and the self-signed HTTPS cert this required on the LAN was too much
+  // friction for now (browser trust warnings on every device). Commented
+  // out rather than deleted so it's easy to re-enable later --
+  // startBarcodeScan()'s button handler below calls the file-input
+  // photo-capture flow directly instead, which works everywhere.
+  /*
+  let barcodeLiveStream = null;
+  let barcodeLiveRafId = null;
+
+  async function startLiveBarcodeScan() {
+    if (!("BarcodeDetector" in window)) {
+      document.getElementById("af-barcode-input").click();
+      return;
+    }
+    try {
+      barcodeLiveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    } catch (err) {
+      // Camera denied, unavailable, or (most commonly here) blocked
+      // because the page isn't a secure context -- the photo-capture
+      // flow still works everywhere, so just fall back to it silently.
+      document.getElementById("af-barcode-input").click();
+      return;
+    }
+
+    afModalBody.innerHTML = `
+      <div class="af-scanner-wrap">
+        <video id="af-scanner-video" class="af-scanner-video" autoplay playsinline muted></video>
+        <div class="af-scanner-frame"></div>
+        <div class="af-scanner-hint">Point the camera at a barcode</div>
+      </div>
+      <div class="af-actions">
+        <button type="button" class="af-secondary-btn" id="af-scanner-cancel-btn" style="flex:1;">Cancel</button>
+      </div>
+    `;
+    const video = document.getElementById("af-scanner-video");
+    video.srcObject = barcodeLiveStream;
+    document.getElementById("af-scanner-cancel-btn").addEventListener("click", () => {
+      stopLiveBarcodeScan();
+      renderAfChoice();
+    });
+
+    const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+    const tick = async () => {
+      if (!barcodeLiveStream) return;
+      try {
+        const codes = await detector.detect(video);
+        if (codes.length) {
+          const value = codes[0].rawValue;
+          stopLiveBarcodeScan();
+          lookupScannedBarcode(value);
+          return;
+        }
+      } catch (err) { // transient decode failure — keep scanning
+      }
+      barcodeLiveRafId = requestAnimationFrame(tick);
+    };
+    barcodeLiveRafId = requestAnimationFrame(tick);
+  }
+
+  function stopLiveBarcodeScan() {
+    if (barcodeLiveRafId) cancelAnimationFrame(barcodeLiveRafId);
+    barcodeLiveRafId = null;
+    if (barcodeLiveStream) barcodeLiveStream.getTracks().forEach((track) => track.stop());
+    barcodeLiveStream = null;
+  }
+
+  async function lookupScannedBarcode(barcode) {
+    afPreviewUrl = null; // no photo for a live scan — renderAfResult/loading skip the <img> when this is null
+    afModalBody.innerHTML = `
+      <div class="af-loading">
+        <div class="af-loading-spinner"></div>
+        Looking up ${barcode}...
+      </div>
+    `;
+    try {
+      const response = await fetch("{{ url_for('api_lookup_barcode') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ barcode }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Couldn't find that product.");
+      afResult = data;
+      renderAfResult(data);
+    } catch (err) {
+      afModalBody.innerHTML = `
+        <div class="af-error">${(err.message || "Couldn't find that product.").replace(/</g, "&lt;")}</div>
+        <div class="af-actions">
+          <button type="button" class="nl-save-goals-btn" id="af-retry-btn" style="flex:1;">Try again</button>
+        </div>
+      `;
+      document.getElementById("af-retry-btn").addEventListener("click", renderAfChoice);
+    }
+  }
+  */
+  function startLiveBarcodeScan() {
+    // Live camera scanning is disabled for now (see comment block above)
+    // -- go straight to the photo-capture flow, which decodes the
+    // barcode server-side with pyzbar and works over plain HTTP.
+    afBarcodeInput.click();
+  }
+  function stopLiveBarcodeScan() {} // no-op while live scanning is disabled; kept so closeAnalyzeFoodModal()'s call is harmless
+
+  // Grams-per-unit for the amount editor below. "serving" isn't fixed —
+  // it's whatever grams the scan itself reported as one serving/portion
+  // (the label's serving size for a barcode scan, or the estimated
+  // portion size for an AI photo scan), set fresh per result in
+  // renderAfResult().
+  const OZ_TO_GRAMS = 28.3495;
+  let afServingGrams = 100;
+  let afUnit = "serving";
+  let afAmountValue = 1;
+
+  function gramsPerAfUnit(unit) {
+    if (unit === "g") return 1;
+    if (unit === "oz") return OZ_TO_GRAMS;
+    return afServingGrams; // "serving"
+  }
+
+  function currentAfGrams() {
+    return Math.max(0, afAmountValue * gramsPerAfUnit(afUnit));
+  }
+
+  function renderAfResult(result) {
+    const nowHour = new Date().getHours();
+    // Reference "1 serving" = however much this scan originally reported
+    // (sum of all ingredients — 1 item for a barcode/single-food scan,
+    // several for a multi-ingredient dish). The amount editor scales
+    // every ingredient proportionally, so this works the same either way.
+    afServingGrams = result.ingredients.reduce((sum, ing) => sum + ing.grams, 0) || 100;
+    afUnit = "serving";
+    afAmountValue = 1;
+
+    afModalBody.innerHTML = `
+      ${afPreviewUrl ? `<img class="af-result-photo" src="${afPreviewUrl}" alt="">` : ""}
+      <div class="af-confidence-note">
+        <strong>${result.confidence}</strong> confidence${result.note ? ` — ${result.note}` : ""}
+      </div>
+      <div class="af-field">
+        <label for="af-food-name">Food</label>
+        <input type="text" id="af-food-name" maxlength="40" value="${result.food_name.replace(/"/g, "&quot;")}">
+      </div>
+      <div id="af-donut-area"></div>
+      <div class="af-amount-card">
+        <div class="af-amount-head">
+          <span class="af-amount-title">Amount</span>
+          <span class="af-amount-serving-hint">1 serving = ${afServingGrams}g</span>
+        </div>
+        <div class="af-amount-input-row">
+          <input type="text" inputmode="decimal" id="af-amount-value" value="1">
+          <div class="af-unit-seg" id="af-unit-seg">
+            <button type="button" data-unit="serving" class="is-active">serving</button>
+            <button type="button" data-unit="g">g</button>
+            <button type="button" data-unit="oz">oz</button>
+          </div>
+        </div>
+      </div>
+      <div class="af-field">
+        <label for="af-hour">Log at</label>
+        <select id="af-hour">
+          <option value="">Current time (${hourLabel(nowHour)})</option>
+          ${HOURS.map((h) => `<option value="${h}">${hourLabel(h)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="af-actions">
+        <button type="button" class="af-secondary-btn" id="af-retake-btn" style="flex:1;">Retake</button>
+        <button type="button" class="nl-save-goals-btn" id="af-add-btn" style="flex:2;">Add to log</button>
+      </div>
+    `;
+    document.getElementById("af-retake-btn").addEventListener("click", renderAfChoice);
+    document.getElementById("af-add-btn").addEventListener("click", () => addAfResultToLog());
+
+    const amountInput = document.getElementById("af-amount-value");
+    amountInput.addEventListener("input", () => {
+      const parsed = parseFloat(amountInput.value);
+      afAmountValue = isFinite(parsed) && parsed >= 0 ? parsed : 0;
+      refreshAfDonut(result);
+    });
+    document.getElementById("af-unit-seg").addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-unit]");
+      if (!btn) return;
+      // Convert the current amount into the newly-picked unit so
+      // switching units doesn't silently change how much is logged
+      // (e.g. "2 servings" -> "60 g", not reset back to "1").
+      const grams = currentAfGrams();
+      afUnit = btn.dataset.unit;
+      afAmountValue = Math.round((grams / gramsPerAfUnit(afUnit)) * 100) / 100;
+      amountInput.value = afAmountValue;
+      document.querySelectorAll("#af-unit-seg button").forEach((b) => b.classList.toggle("is-active", b === btn));
+      refreshAfDonut(result);
+    });
+    refreshAfDonut(result);
+  }
+
+  function refreshAfDonut(result) {
+    // Every ingredient's grams scales by the same factor relative to the
+    // scan's original total, so the dish's totals scale linearly too —
+    // no need to re-sum per-ingredient here.
+    const scale = afServingGrams > 0 ? currentAfGrams() / afServingGrams : 0;
+    // Keep "no data" (undefined) distinct from a genuine 0 -- custom foods
+    // don't collect sodium/sugar at all, so that section should stay
+    // hidden for them (micronutrientsHtml treats undefined that way),
+    // not show a misleading "0 mg / 0 g" as if it were verified.
+    const hasSodium = result.sodium_mg !== undefined && result.sodium_mg !== null;
+    const hasSugar = result.sugar_g !== undefined && result.sugar_g !== null;
+    const totals = {
+      calories: result.calories * scale,
+      protein: result.protein * scale,
+      fat: result.fat * scale,
+      carbs: result.carbs * scale,
+      sodiumMg: hasSodium ? result.sodium_mg * scale : undefined,
+      sugarG: hasSugar ? result.sugar_g * scale : undefined,
+    };
+    document.getElementById("af-donut-area").innerHTML =
+      donutChartHtml(totals.protein, totals.fat, totals.carbs, totals.calories) +
+      micronutrientsHtml(totals.sodiumMg, totals.sugarG);
+  }
+
+  async function addAfResultToLog() {
+    const name = document.getElementById("af-food-name").value.trim() || "Analyzed food";
+    const hourValue = document.getElementById("af-hour").value;
+    const dateForEntry = selectedDate;
+
+    if (!log[dateForEntry]) log[dateForEntry] = [];
+
+    const now = new Date();
+    const addedAt = new Date(dateForEntry + "T00:00:00");
+    if (hourValue !== "") {
+      // A specific hour was chosen — log it there.
+      addedAt.setHours(parseInt(hourValue, 10), 0, 0, 0);
+    } else {
+      // No time chosen — log it at the exact current moment.
+      addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
+    }
+
+    const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    // Every ingredient scales by the same factor the amount editor
+    // applied (relative to the scan's original total), so the dish's
+    // macro ratios stay correct at whatever amount was actually chosen.
+    const scale = afServingGrams > 0 ? currentAfGrams() / afServingGrams : 1;
+    // Logged as a composite entry (same shape as any recipe from
+    // food_library.py) so every raw ingredient the AI detected is shown
+    // and independently editable via the normal ingredients panel —
+    // exactly like a dish added from search, not a single locked macro
+    // blob.
+    const entry = {
+      id,
+      food: name,
+      addedAt: addedAt.getTime(),
+      source: "scan", // marks it for the "Recent scans" list in the scan modal
+      ingredients: afResult.ingredients.map((ing) => ({
+        name: ing.name,
+        grams: Math.round(ing.grams * scale * 100) / 100,
+        unit: "g",
+        baseCalories: ing.calories,
+        baseCarbs: ing.carbs,
+        baseFat: ing.fat,
+        baseProtein: ing.protein,
+      })),
+    };
+    log[dateForEntry].push(entry);
+
+    saveLog();
+    renderTimeline();
+    renderSummary();
+    closeAnalyzeFoodModal();
+    await persistLogEntry(dateForEntry, entry);
+  }
+
+  // ---------- Create a custom food (name/emoji/macros typed in by hand) ----------
+  // Also doubles as the "just log my macros" quick-entry path: name and
+  // emoji are optional here (default to a generic food + plate emoji), so
+  // someone who only cares about protein/fat/carbs can skip straight to
+  // those fields and hit Create & log. Calories are always computed from
+  // the macros server-side (protein/carbs = 4 kcal/g, fat = 9 kcal/g) —
+  // see api_create_custom_food() in app.py — never entered directly.
+  const CUSTOM_FOOD_EMOJIS = [
+    "\u{1F37D}️", "\u{1F357}", "\u{1F969}", "\u{1F41F}", "\u{1F95A}", "\u{1F9C0}", "\u{1F95B}",
+    "\u{1F35A}", "\u{1F35D}", "\u{1F355}", "\u{1F354}", "\u{1F32E}", "\u{1F363}", "\u{1F957}",
+    "\u{1F966}", "\u{1F34E}", "\u{1F34C}", "\u{1F347}", "\u{1F951}", "\u{1F95C}", "\u{1F331}",
+    "\u{1F35E}", "\u{1F9C1}", "\u{1F369}", "\u{1F36A}", "\u{1F368}", "\u{1F36B}", "\u{1F37F}",
+    "\u{1F964}", "\u{1F9C8}", "☕",
+  ];
+  let customFoods = []; // this user's own created foods, from GET /api/custom-foods
+  let afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
+
+  async function loadCustomFoods() {
+    try {
+      const response = await fetch("/api/custom-foods");
+      const data = await response.json();
+      if (data.ok) customFoods = data.foods;
+    } catch (err) {
+      // Search just falls back to FOOD_LIBRARY + Open Food Facts — not fatal.
+    }
+  }
+
+  function customFoodCalories() {
+    const p = parseFloat(document.getElementById("af-create-protein").value) || 0;
+    const f = parseFloat(document.getElementById("af-create-fat").value) || 0;
+    const c = parseFloat(document.getElementById("af-create-carbs").value) || 0;
+    return Math.round(p * 4 + f * 9 + c * 4);
+  }
+
+  // quickMode=true is the "Log macros" entry point: just protein/fat/carbs,
+  // no name/emoji picker, for when you just want to punch in numbers and
+  // log instantly. It's the same underlying form and endpoint as the full
+  // "Create food" flow -- name/emoji simply fall back to their server-side
+  // defaults ("Custom food" / 🍽️, see api_create_custom_food() in app.py)
+  // and the entry still gets saved to this user's own food library, so it
+  // stays findable later even from the quick path.
+  function renderAfCreateForm(quickMode) {
+    afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
+    afModalBody.innerHTML = `
+      ${quickMode ? "" : `
+      <div class="af-field">
+        <label for="af-create-name">Name (optional)</label>
+        <input type="text" id="af-create-name" maxlength="60" placeholder="e.g. Mom's lasagna">
+      </div>
+      <div class="af-field">
+        <label>Emoji</label>
+        <div class="af-emoji-grid" id="af-emoji-grid">
+          ${CUSTOM_FOOD_EMOJIS.map((e, i) => `<button type="button" class="af-emoji-btn ${i === 0 ? "is-active" : ""}" data-emoji="${e}">${e}</button>`).join("")}
+        </div>
+      </div>
+      `}
+      <div class="af-macro-grid">
+        <div class="af-field">
+          <label for="af-create-protein">Protein (g)</label>
+          <input type="text" inputmode="decimal" id="af-create-protein" value="0">
+        </div>
+        <div class="af-field">
+          <label for="af-create-fat">Fat (g)</label>
+          <input type="text" inputmode="decimal" id="af-create-fat" value="0">
+        </div>
+        <div class="af-field">
+          <label for="af-create-carbs">Carbs (g)</label>
+          <input type="text" inputmode="decimal" id="af-create-carbs" value="0">
+        </div>
+      </div>
+      <div class="af-create-calories">
+        <span class="af-create-calories-label">Calories</span>
+        <span class="af-create-calories-value" id="af-create-calories-value">0</span>
+        <span class="af-create-calories-hint">Auto-calculated — protein &amp; carbs are 4 kcal/g, fat is 9 kcal/g.</span>
+      </div>
+      <div id="af-create-error" class="af-error" style="display:none;"></div>
+      <div class="af-actions">
+        <button type="button" class="af-secondary-btn" id="af-create-back-btn" style="flex:1;">Back</button>
+        <button type="button" class="nl-save-goals-btn" id="af-create-submit-btn" style="flex:2;">${quickMode ? "Log now" : "Create &amp; log"}</button>
+      </div>
+    `;
+
+    document.getElementById("af-create-back-btn").addEventListener("click", renderAfChoice);
+    const emojiGrid = document.getElementById("af-emoji-grid");
+    if (emojiGrid) {
+      emojiGrid.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-emoji]");
+        if (!btn) return;
+        afCreateEmoji = btn.dataset.emoji;
+        document.querySelectorAll("#af-emoji-grid .af-emoji-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      });
+    }
+    const calValueEl = document.getElementById("af-create-calories-value");
+    ["af-create-protein", "af-create-fat", "af-create-carbs"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", () => {
+        calValueEl.textContent = customFoodCalories();
+      });
+    });
+    document.getElementById("af-create-submit-btn").addEventListener("click", submitCustomFood);
+  }
+
+  async function submitCustomFood() {
+    const errorEl = document.getElementById("af-create-error");
+    errorEl.style.display = "none";
+    const nameEl = document.getElementById("af-create-name");
+    const name = nameEl ? nameEl.value.trim() : "";
+    const protein = parseFloat(document.getElementById("af-create-protein").value) || 0;
+    const fat = parseFloat(document.getElementById("af-create-fat").value) || 0;
+    const carbs = parseFloat(document.getElementById("af-create-carbs").value) || 0;
+
+    if (protein <= 0 && fat <= 0 && carbs <= 0) {
+      errorEl.textContent = "Enter at least one macro (protein, fat, or carbs).";
+      errorEl.style.display = "block";
+      return;
+    }
+
+    const submitBtn = document.getElementById("af-create-submit-btn");
+    submitBtn.disabled = true;
+    try {
+      const response = await fetch("/api/custom-foods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, emoji: afCreateEmoji, protein, fat, carbs }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        errorEl.textContent = data.error || "Couldn't create that food.";
+        errorEl.style.display = "block";
+        submitBtn.disabled = false;
+        return;
+      }
+      customFoods.unshift(data.food);
+
+      // Reshape into the same {food_name, ingredients: [...], calories/
+      // protein/fat/carbs} object renderAfResult() already knows how to
+      // show (donut chart + amount editor) and log — no sodium/sugar
+      // keys, since this form never collects that data (refreshAfDonut
+      // treats missing sodium/sugar as "no data" and hides that section).
+      const food = data.food;
+      afPreviewUrl = null;
+      afResult = {
+        food_name: food.name,
+        confidence: "custom",
+        note: "Your own food entry.",
+        ingredients: [{
+          name: food.name, grams: 100,
+          calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
+        }],
+        calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
+      };
+      renderAfResult(afResult);
+    } catch (err) {
+      errorEl.textContent = "Couldn't create that food. Please try again.";
+      errorEl.style.display = "block";
+      submitBtn.disabled = false;
+    }
+  }
+
+  const HEART_OUTLINE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+  const HEART_FILLED = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+
+  // A compact "142 kcal · 27P / 3F / 0C" line (per 100g) for a food that
+  // lives in the shared library. Online/custom foods aren't in the library
+  // so they render without one -- the row still works, it just leads with
+  // the name. Kept muted and secondary so the food name stays the anchor.
+  function foodMacroLine(name) {
+    const f = foodByName(name);
+    if (!f) return "";
+    return `<div class="nl-food-row-macros">
+        <span class="nl-frm-cal">${Math.round(f.calories)} kcal</span>
+        <span class="nl-frm-macros">${Math.round(f.protein)}P / ${Math.round(f.fat)}F / ${Math.round(f.carbs)}C</span>
+      </div>`;
+  }
+  function macroLineFrom(macros) {
+    return `<div class="nl-food-row-macros">
+        <span class="nl-frm-cal">${Math.round(macros.calories || 0)} kcal</span>
+        <span class="nl-frm-macros">${Math.round(macros.protein || 0)}P / ${Math.round(macros.fat || 0)}F / ${Math.round(macros.carbs || 0)}C</span>
+      </div>`;
+  }
+
+  // One full-width list row: icon, name + macro line, and a heart. Replaces
+  // the old dense square-tile grid -- a scannable list reads far better on a
+  // phone and lets each result carry its macros without crowding. The
+  // data-food / data-fav-toggle hooks are unchanged, so the same delegated
+  // click handler (tap row = pick to log, tap heart = favorite) still works.
+  function foodRowHtml(name) {
+    const isFav = favorites.has(name);
+    return `
+      <button type="button" class="nl-food-row" data-food="${name}">
+        <span class="nl-food-row-icon">${foodIconHtml(name, "nl-food-photo-row")}</span>
+        <span class="nl-food-row-body">
+          <span class="nl-food-row-name">${name}</span>
+          ${foodMacroLine(name)}
+        </span>
+        <span class="nl-food-row-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${name}" role="button" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? HEART_FILLED : HEART_OUTLINE}</span>
+      </button>
+    `;
+  }
+
+  function foodSectionHtml(title, names) {
+    if (!names.length) return "";
+    return `
+      <div class="nl-modal-section">
+        <div class="nl-modal-section-title">${title}</div>
+        <div class="nl-food-list">${names.map(foodRowHtml).join("")}</div>
+      </div>
+    `;
+  }
+
+  function renderModalDefaultSections() {
+    const t = RepCheckI18n.t;
+    // Favorites first, per how the modal should prioritize them.
+    const sections = [
+      foodSectionHtml(t("nutrition.favorites"), Array.from(favorites)),
+    ];
+    // "Top picks" hour comes from wherever the modal was opened: the
+    // hour-row "+" pins it to that row's hour via pendingHour, while the
+    // quick-add bar (which leaves pendingHour null so logging still uses
+    // the real current time) carries its own topPicksHour computed as
+    // "right now" when the popup opened.
+    const topPicksHour = modalMode && modalMode.type === "add-food" ? pendingHour
+      : modalMode && modalMode.type === "quickadd" ? modalMode.topPicksHour
+      : null;
+    if (topPicksHour !== null && topPicksHour !== undefined) {
+      sections.push(foodSectionHtml(t("nutrition.topPicksForHour", { hour: hourLabel(topPicksHour) }), getTopPicksForHour(topPicksHour, 8)));
+    }
+    sections.push(foodSectionHtml(t("nutrition.recent"), getRecentFoods(8)));
+
+    const html = sections.join("");
+    modalResultsEl.innerHTML = html || `<div class="nl-search-empty">${t("nutrition.searchToAdd")}</div>`;
+  }
+
+  // ---------- Open Food Facts online search (extends FOOD_LIBRARY) ----------
+  // Shared by the search modal and the quick-add bar: fetches
+  // /api/search-food-online (debounced, since it fires on every
+  // keystroke) and hands back results in the exact same shape a barcode
+  // scan produces, so picking one opens the same donut/amount-card/
+  // sodium-sugar result screen as a scan does (see openScannedResultModal).
+  async function fetchOffResults(query) {
+    try {
+      const response = await fetch(`/api/search-food-online?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      return data.ok ? data.results : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function offResultRowHtml(result, index) {
+    return `
+      <button type="button" class="nl-food-row" data-off-index="${index}">
+        <span class="nl-food-row-icon">${foodIconHtml(result.food_name, "nl-food-photo-row")}</span>
+        <span class="nl-food-row-body">
+          <span class="nl-food-row-name">${result.food_name}</span>
+          ${macroLineFrom(result)}
+        </span>
+      </button>
+    `;
+  }
+
+  // Reshapes one of this user's own created foods (from customFoods /
+  // GET /api/custom-foods) into the same result-object shape a scan or
+  // OFF search produces, so it can be opened through the exact same
+  // renderAfResult() review screen.
+  function customFoodToResult(food) {
+    return {
+      food_name: food.name,
+      confidence: "custom",
+      note: "Your own food entry.",
+      ingredients: [{
+        name: food.name, grams: 100,
+        calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
+      }],
+      calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
+    };
+  }
+
+  function customFoodRowHtml(food, index) {
+    return `
+      <button type="button" class="nl-food-row" data-custom-index="${index}">
+        <span class="nl-food-row-icon">${food.emoji}</span>
+        <span class="nl-food-row-body">
+          <span class="nl-food-row-name">${food.name}</span>
+          ${macroLineFrom(food)}
+        </span>
+      </button>
+    `;
+  }
+
+  // Opens the same result screen a barcode/photo scan produces, pre-filled
+  // with an already-fetched result (an Open Food Facts search hit) instead
+  // of running a fresh scan.
+  function openScannedResultModal(result) {
+    afPreviewUrl = null;
+    afResult = result;
+    afModalOverlay.style.display = "flex";
+    renderAfResult(result);
+  }
+
+  // Ranks food-name matches so the simplest, most on-point results come
+  // first and hyper-specific ones sink. A plain substring filter buried
+  // "Chicken Breast" under "Thai fried chicken curry adobo sauce" just
+  // because both contain "chicken". Scoring, high to low: the name IS the
+  // query; the name starts with it; the query begins a word inside the
+  // name; the query is a buried substring. Then a penalty for every extra
+  // word (and extra character) beyond the query, so for a short/generic
+  // search a short common food outranks a long over-specified dish.
+  // Favorites get a boost so a food you've starred surfaces first among
+  // otherwise-similar hits.
+  function scoreFoodMatch(name, q, qWordCount) {
+    const lower = name.toLowerCase();
+    const idx = lower.indexOf(q);
+    if (idx === -1) return -Infinity;
+    let score;
+    if (lower === q) score = 1000;
+    else if (idx === 0) score = 620;
+    else if (!/[a-z0-9]/.test(lower[idx - 1])) score = 380; // query begins a word
+    else score = 130;
+    const nameWordCount = lower.split(/\s+/).filter(Boolean).length;
+    score -= Math.max(0, nameWordCount - qWordCount) * 24;
+    score -= Math.max(0, lower.length - q.length) * 0.7;
+    if (favorites.has(name)) score += 450;
+    return score;
+  }
+
+  let modalOffDebounceId = null;
+  let modalOffResults = [];
+  // Fewer results than before (was 24) -- a short, ranked list is far less
+  // overwhelming than a wall of near-duplicates, and the best matches are
+  // now reliably at the top so the extras were mostly noise anyway.
+  const MODAL_MAX_RESULTS = 14;
+
+  function renderModalResults(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      renderModalDefaultSections();
+      return;
+    }
+    const qWordCount = q.split(/\s+/).filter(Boolean).length;
+    let matches = FOOD_LIBRARY
+      .filter((f) => f.name.toLowerCase().includes(q))
+      .map((f) => ({ name: f.name, score: scoreFoodMatch(f.name, q, qWordCount) }))
+      .sort((a, b) => b.score - a.score || a.name.length - b.name.length)
+      .slice(0, MODAL_MAX_RESULTS)
+      .map((m) => m.name);
+
+    // This user's own created foods match alongside the shared library —
+    // same list, no visual distinction, so they read as "part of my
+    // search" rather than a separate silo.
+    const customMatches = customFoods
+      .map((food, i) => ({ food, i }))
+      .filter(({ food }) => food.name.toLowerCase().includes(q));
+
+    // Online results land in this SAME list once they arrive (see below)
+    // rather than a separate labeled section — it should just read as
+    // "more search results", not a distinct source.
+    modalResultsEl.innerHTML = `
+      <div class="nl-food-list" id="modal-food-list">${matches.map(foodRowHtml).join("")}${customMatches.map(({ food, i }) => customFoodRowHtml(food, i)).join("")}</div>
+      <div class="nl-search-empty" id="modal-empty-msg" style="${matches.length || customMatches.length ? "display:none;" : ""}">${RepCheckI18n.t("nutrition.noMatch", { query })}</div>
+    `;
+
+    if (modalOffDebounceId) clearTimeout(modalOffDebounceId);
+    modalOffDebounceId = setTimeout(async () => {
+      if (modalSearchInput.value.trim().toLowerCase() !== q) return; // stale — a newer keystroke has since fired
+      modalOffResults = await fetchOffResults(query.trim());
+      const list = document.getElementById("modal-food-list");
+      if (!list || !modalOffResults.length) return;
+      list.insertAdjacentHTML("beforeend", modalOffResults.map(offResultRowHtml).join(""));
+      const emptyMsg = document.getElementById("modal-empty-msg");
+      if (emptyMsg) emptyMsg.style.display = "none";
+    }, 350);
+  }
+
+  // Event delegation on the results container: listeners are attached
+  // once here rather than re-attached after every render, so a click
+  // never gets lost to a stale/replaced element reference.
+  modalResultsEl.addEventListener("click", (event) => {
+    const favBtn = event.target.closest("[data-fav-toggle]");
+    if (favBtn) {
+      event.stopPropagation();
+      toggleFavorite(favBtn.dataset.favToggle);
+      if (modalSearchInput.value.trim()) {
+        renderModalResults(modalSearchInput.value);
+      } else {
+        renderModalDefaultSections();
+      }
+      return;
+    }
+
+    const offTile = event.target.closest("[data-off-index]");
+    if (offTile) {
+      const result = modalOffResults[parseInt(offTile.dataset.offIndex, 10)];
+      if (result) {
+        closeModal();
+        openScannedResultModal(result);
+      }
+      return;
+    }
+
+    const customTile = event.target.closest("[data-custom-index]");
+    if (customTile) {
+      const food = customFoods[parseInt(customTile.dataset.customIndex, 10)];
+      if (food) {
+        closeModal();
+        openScannedResultModal(customFoodToResult(food));
+      }
+      return;
+    }
+
+    const tile = event.target.closest("[data-food]");
+    if (tile) {
+      if (modalMode && modalMode.type === "add-ingredient") {
+        addIngredientToEntry(modalMode.entryId, tile.dataset.food);
+        closeModal();
+      } else {
+        const hourForLog = pendingHour; // capture before closeModal() clears it
+        closeModal();
+        openLogAmountModal(tile.dataset.food, hourForLog);
+      }
+    }
+  });
+
+  modalSearchInput.addEventListener("input", () => renderModalResults(modalSearchInput.value));
+
+  // ---------- Quick-add bar ----------
+  // Clicking/focusing it opens the same search popup as the "+" on an
+  // hour row (openAddFoodModal) -- favorites, recent, and top picks for
+  // an hour -- except it never sets pendingHour, so addFoodToSelectedDay()
+  // always logs at the real current time (see that function's
+  // `pendingHour !== null` branch) instead of pinning to the top of
+  // whatever hour is passed in for the "top picks" section.
+  const quickaddInput = document.getElementById("nl-quickadd-input");
+
+  function openQuickaddModal() {
+    pendingHour = null;
+    modalMode = { type: "quickadd", topPicksHour: new Date().getHours() };
+    modalTitle.textContent = RepCheckI18n.t("nutrition.modal.logFoodNow");
+    showModal();
+  }
+
+  quickaddInput.addEventListener("click", openQuickaddModal);
+  quickaddInput.addEventListener("focus", openQuickaddModal);
+
+  function renderDateStrip() {
+    const todayIso = toIsoDate(today);
+    const cells = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const iso = toIsoDate(d);
+      const classes = ["nl-date-cell"];
+      if (iso === todayIso) classes.push("is-today");
+      if (iso === selectedDate) classes.push("is-selected");
+      cells.push(`
+        <button type="button" class="${classes.join(" ")}" data-date="${iso}">
+          <span class="nl-date-weekday">${WEEKDAY_LETTERS[i]}</span>
+          <span class="nl-date-number">${d.getDate()}</span>
+        </button>
+      `);
+    }
+    dateStripEl.innerHTML = cells.join("");
+    dateStripEl.querySelectorAll("[data-date]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedDate = btn.dataset.date;
+        renderDateStrip();
+        renderTimeline();
+        renderSummary();
+      });
+    });
+  }
+
+  function formatTime(timestamp) {
+    return RepCheckUnits.formatTime(timestamp);
+  }
+
+  function hourLabel(hour) {
+    return RepCheckUnits.formatHourLabel(hour);
+  }
+
+  function entriesForHour(hour) {
+    const dayEntries = log[selectedDate] || [];
+    return dayEntries.filter((e) => new Date(e.addedAt).getHours() === hour);
+  }
+
+  function renderTimeline() {
+    const dayEntries = log[selectedDate] || [];
+
+    timelineEl.innerHTML = HOURS.map((hour) => {
+      const entries = entriesForHour(hour);
+      return `
+        <div class="nl-hour-row">
+          <div class="nl-hour-label">${hourLabel(hour)}</div>
+          <div class="nl-hour-body">
+            <button type="button" class="nl-hour-add-btn" data-hour-add="${hour}">+</button>
+            <div class="nl-hour-entries">
+              ${entries.map((entry) => renderEntry(entry)).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    if (!dayEntries.length) {
+      timelineEl.insertAdjacentHTML("afterbegin", `<div class="nl-empty-hint">${RepCheckI18n.t("nutrition.empty.day")}</div>`);
+    }
+
+    wireTimelineEvents();
+  }
+
+  function renderEntry(entry) {
+    const expanded = EXPANDED.has(entry.id);
+    const m = scaledMacros(entry);
+    const totals = entryTotals(entry);
+    const isFav = favorites.has(entry.food);
+    return `
+      <div class="nl-entry-card" data-toggle-entry="${entry.id}">
+        <div class="nl-entry-icon">${foodIconHtml(entry.food, "nl-food-photo-entry")}</div>
+        <div class="nl-entry-info">
+          <div class="nl-entry-name">${entry.food}</div>
+          <div class="nl-entry-sub">${formatTime(entry.addedAt)} • ${Math.round(totals.grams)}g • ${m.calories} kcal</div>
+        </div>
+        <button type="button" class="nl-entry-fav-btn ${isFav ? "is-fav" : ""}" data-entry-fav-toggle="${entry.food}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">
+          ${isFav ? HEART_FILLED : HEART_OUTLINE}
+        </button>
+        <button type="button" class="nl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? "Minimize" : "Expand"}">
+          ${CHEVRON_ICON}
+        </button>
+      </div>
+      ${expanded ? renderEntryDetail(entry) : ""}
+    `;
+  }
+
+  function renderEntryDetail(entry) {
+    const t = RepCheckI18n.t;
+    const m = scaledMacros(entry);
+    const totals = entryTotals(entry);
+    const isComposite = !!(entry.ingredients && entry.ingredients.length);
+
+    const amountHtml = isComposite ? `
+      <div class="nl-amount-card">
+        <div class="nl-amount-meta">
+          <label class="nl-amount-title" for="total-grams-${entry.id}">${t("nutrition.amount.totalLabel")}</label>
+          <div class="nl-amount-hint">${t("nutrition.amount.hint")}</div>
+        </div>
+        <div class="nl-amount-field">
+          <input type="number" min="0" id="total-grams-${entry.id}" value="${Math.round(totals.grams)}" data-total-grams-entry="${entry.id}">
+          <span class="nl-amount-unit-label">g</span>
+        </div>
+      </div>
+    ` : `
+      <div class="nl-amount-card">
+        <div class="nl-amount-meta">
+          <label class="nl-amount-title" for="grams-${entry.id}">${t("nutrition.amount.label")}</label>
+        </div>
+        <div class="nl-amount-field">
+          <input type="number" min="0" id="grams-${entry.id}" value="${gramsToUnit(entry.grams, entry.unit || "g")}" data-grams-entry="${entry.id}">
+          <select class="nl-unit-select" data-amount-unit-entry="${entry.id}">${unitOptionsHtml(entry.unit || "g")}</select>
+        </div>
+      </div>
+      <button type="button" class="nl-add-ingredient-btn nl-add-ingredient-standalone" data-add-ingredient="${entry.id}">${t("nutrition.addIngredient")}</button>
+    `;
+
+    return `
+      <div class="nl-entry-detail">
+        ${entryHeroHtml(entry.id, m)}
+        ${amountHtml}
+        ${isComposite ? renderIngredientsPanel(entry) : ""}
+        <div class="nl-detail-actions">
+          <button type="button" class="nl-remove-food-btn" data-remove-entry="${entry.id}">${t("nutrition.removeFood")}</button>
+          <button type="button" class="nl-done-btn" data-toggle-entry="${entry.id}">${t("common.done")}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function ingredientMacroValues(ing) {
+    const scale = ing.grams / 100;
+    return {
+      calories: Math.round(ing.baseCalories * scale),
+      protein: Math.round(ing.baseProtein * scale * 10) / 10,
+      fat: Math.round(ing.baseFat * scale * 10) / 10,
+      carbs: Math.round(ing.baseCarbs * scale * 10) / 10,
+    };
+  }
+
+  // ---------- Entry hero: animated macro ring ----------
+  // The centerpiece of an expanded entry: calories in the middle of a
+  // donut whose colored arcs show where those calories come from
+  // (protein=red, fat=amber, carbs=green — the app's macro colors).
+  // Arc lengths/labels are patched IN PLACE by patchEntryHero() when an
+  // amount is edited, so the CSS transition on the arcs makes the ring
+  // visibly re-balance as you type — the numbers feel alive instead of
+  // just swapping.
+  const HERO_R = 40;
+  const HERO_C = 2 * Math.PI * HERO_R;
+
+  function heroGeometry(m) {
+    const pK = Math.max(0, m.protein) * 4;
+    const fK = Math.max(0, m.fat) * 9;
+    const cK = Math.max(0, m.carbs) * 4;
+    const tot = pK + fK + cK;
+    const frac = (k) => (tot > 0 ? k / tot : 0);
+    const pLen = HERO_C * frac(pK);
+    const fLen = HERO_C * frac(fK);
+    const cLen = HERO_C * frac(cK);
+    return {
+      pLen, fLen, cLen,
+      pPct: Math.round(frac(pK) * 100),
+      fPct: Math.round(frac(fK) * 100),
+      cPct: Math.round(frac(cK) * 100),
+    };
+  }
+
+  function heroSegStyle(len, offset) {
+    return `stroke-dasharray:${len} ${HERO_C};stroke-dashoffset:${-offset};`;
+  }
+
+  function entryHeroHtml(entryId, m) {
+    const t = RepCheckI18n.t;
+    const g = heroGeometry(m);
+    const macroRow = (dotClass, label, value, pct) => `
+      <div class="nl-hero-macro">
+        <span class="nl-dot ${dotClass}"></span>
+        <span class="nl-hero-macro-label">${label}</span>
+        <span class="nl-hero-macro-value">${value}g</span>
+        <span class="nl-hero-macro-pct">${pct}%</span>
+      </div>
+    `;
+    return `
+      <div class="nl-hero" data-entry-hero="${entryId}">
+        <div class="nl-hero-ring">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="${HERO_R}" fill="none" stroke="var(--bg)" stroke-width="11"/>
+            <circle class="nl-hero-seg nl-seg-protein" cx="50" cy="50" r="${HERO_R}" fill="none" stroke="var(--red)" stroke-width="11" style="${heroSegStyle(g.pLen, 0)}"/>
+            <circle class="nl-hero-seg nl-seg-fat" cx="50" cy="50" r="${HERO_R}" fill="none" stroke="var(--amber)" stroke-width="11" style="${heroSegStyle(g.fLen, g.pLen)}"/>
+            <circle class="nl-hero-seg nl-seg-carbs" cx="50" cy="50" r="${HERO_R}" fill="none" stroke="var(--green)" stroke-width="11" style="${heroSegStyle(g.cLen, g.pLen + g.fLen)}"/>
+          </svg>
+          <div class="nl-hero-ring-center">
+            <div class="nl-hero-kcal">${m.calories}</div>
+            <div class="nl-hero-kcal-label">kcal</div>
+          </div>
+        </div>
+        <div class="nl-hero-macros">
+          ${macroRow("nl-dot-protein", t("common.protein"), m.protein, g.pPct)}
+          ${macroRow("nl-dot-fat", t("common.fat"), m.fat, g.fPct)}
+          ${macroRow("nl-dot-carbs", t("common.carbs"), m.carbs, g.cPct)}
+        </div>
+      </div>
+    `;
+  }
+
+  // In-place update (never innerHTML) so the focused amount <input> is
+  // untouched and the arcs' CSS transition actually animates.
+  function patchEntryHero(detail, m) {
+    const hero = detail.querySelector("[data-entry-hero]");
+    if (!hero) return;
+    const g = heroGeometry(m);
+    const seg = (cls, len, offset) => {
+      const el = hero.querySelector(cls);
+      el.style.strokeDasharray = `${len} ${HERO_C}`;
+      el.style.strokeDashoffset = `${-offset}`;
+    };
+    seg(".nl-seg-protein", g.pLen, 0);
+    seg(".nl-seg-fat", g.fLen, g.pLen);
+    seg(".nl-seg-carbs", g.cLen, g.pLen + g.fLen);
+    hero.querySelector(".nl-hero-kcal").textContent = m.calories;
+    const values = hero.querySelectorAll(".nl-hero-macro-value");
+    const pcts = hero.querySelectorAll(".nl-hero-macro-pct");
+    [m.protein, m.fat, m.carbs].forEach((v, i) => { values[i].textContent = `${v}g`; });
+    [g.pPct, g.fPct, g.cPct].forEach((v, i) => { pcts[i].textContent = `${v}%`; });
+  }
+
+  // Per-ingredient macro blocks: always visible, one tinted block per
+  // value (same color language as the hero ring above), but sized well
+  // below the dish-level ring so the hierarchy stays dish > ingredient.
+  function ingMiniMacrosHtml(ing) {
+    const t = RepCheckI18n.t;
+    const v = ingredientMacroValues(ing);
+    return `
+      <span class="nl-ing-chip nl-ing-kcal"><span class="nl-ing-chip-value">${v.calories}</span><span class="nl-ing-chip-label">kcal</span></span>
+      <span class="nl-ing-chip nl-ing-p"><span class="nl-ing-chip-value">${v.protein}g</span><span class="nl-ing-chip-label">${t("common.protein")}</span></span>
+      <span class="nl-ing-chip nl-ing-f"><span class="nl-ing-chip-value">${v.fat}g</span><span class="nl-ing-chip-label">${t("common.fat")}</span></span>
+      <span class="nl-ing-chip nl-ing-c"><span class="nl-ing-chip-value">${v.carbs}g</span><span class="nl-ing-chip-label">${t("common.carbs")}</span></span>
+    `;
+  }
+
+  // ---------- Macro donut + micronutrients ----------
+  // Shared by the scan-result popup (barcode/AI photo) and the log-food
+  // amount popup, so "how much of this am I logging" looks and works the
+  // same everywhere in the app. The ring shows the macro SPLIT (share of
+  // calories from protein/fat/carbs), not their gram amounts directly —
+  // that's the standard way nutrition apps visualize "balance" of a meal,
+  // since a gram of fat (9 kcal) isn't equivalent to a gram of carbs/
+  // protein (4 kcal each).
+  function donutChartHtml(protein, fat, carbs, calories) {
+    const proteinKcal = Math.max(0, protein) * 4;
+    const fatKcal = Math.max(0, fat) * 9;
+    const carbsKcal = Math.max(0, carbs) * 4;
+    const totalKcal = proteinKcal + fatKcal + carbsKcal;
+    const r = 46;
+    const circumference = 2 * Math.PI * r;
+    const proteinFrac = totalKcal > 0 ? proteinKcal / totalKcal : 0;
+    const fatFrac = totalKcal > 0 ? fatKcal / totalKcal : 0;
+    const carbsFrac = totalKcal > 0 ? carbsKcal / totalKcal : 0;
+    const proteinLen = circumference * proteinFrac;
+    const fatLen = circumference * fatFrac;
+    const carbsLen = circumference * carbsFrac;
+
+    const round1 = (v) => Math.round(v * 10) / 10;
+
+    return `
+      <div class="mn-donut-row">
+        <div class="mn-donut-wrap">
+          <svg class="mn-donut" viewBox="0 0 120 120">
+            <circle class="mn-donut-track" cx="60" cy="60" r="${r}"></circle>
+            ${totalKcal > 0 ? `
+              <circle class="mn-donut-seg mn-seg-protein" cx="60" cy="60" r="${r}"
+                stroke-dasharray="${proteinLen} ${circumference}" stroke-dashoffset="0"
+                transform="rotate(-90 60 60)"></circle>
+              <circle class="mn-donut-seg mn-seg-fat" cx="60" cy="60" r="${r}"
+                stroke-dasharray="${fatLen} ${circumference}" stroke-dashoffset="${-proteinLen}"
+                transform="rotate(-90 60 60)"></circle>
+              <circle class="mn-donut-seg mn-seg-carbs" cx="60" cy="60" r="${r}"
+                stroke-dasharray="${carbsLen} ${circumference}" stroke-dashoffset="${-(proteinLen + fatLen)}"
+                transform="rotate(-90 60 60)"></circle>
+            ` : ""}
+          </svg>
+          <div class="mn-donut-center">
+            <div class="mn-donut-calories">${Math.round(calories)}</div>
+            <div class="mn-donut-calories-label">Calories</div>
+          </div>
+        </div>
+        <div class="mn-macro-legend">
+          <div class="mn-legend-row">
+            <span class="mn-dot mn-dot-protein"></span>
+            <span class="mn-legend-pct">${Math.round(proteinFrac * 100)}%</span>
+            <span class="mn-legend-label">Protein</span>
+            <span class="mn-legend-grams">${round1(protein)}g</span>
+          </div>
+          <div class="mn-legend-row">
+            <span class="mn-dot mn-dot-fat"></span>
+            <span class="mn-legend-pct">${Math.round(fatFrac * 100)}%</span>
+            <span class="mn-legend-label">Fat</span>
+            <span class="mn-legend-grams">${round1(fat)}g</span>
+          </div>
+          <div class="mn-legend-row">
+            <span class="mn-dot mn-dot-carbs"></span>
+            <span class="mn-legend-pct">${Math.round(carbsFrac * 100)}%</span>
+            <span class="mn-legend-label">Carbs</span>
+            <span class="mn-legend-grams">${round1(carbs)}g</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // sodiumMg/sugarG are undefined (not 0) for foods with no known value
+  // (e.g. anything from the manual search library, which doesn't carry
+  // this data) — that's shown as an empty section rather than a
+  // fabricated "0 mg", which would be misleading.
+  function micronutrientsHtml(sodiumMg, sugarG) {
+    const rows = [];
+    if (sodiumMg !== undefined && sodiumMg !== null) {
+      rows.push(`<div class="mn-micro-row"><span class="mn-micro-label">Sodium</span><span class="mn-micro-value">${Math.round(sodiumMg)} mg</span></div>`);
+    }
+    if (sugarG !== undefined && sugarG !== null) {
+      rows.push(`<div class="mn-micro-row"><span class="mn-micro-label">Sugar</span><span class="mn-micro-value">${Math.round(sugarG * 10) / 10} g</span></div>`);
+    }
+    if (!rows.length) return "";
+    return `<div class="mn-micro-section"><div class="mn-micro-title">Other nutrients</div>${rows.join("")}</div>`;
+  }
+
+  function renderIngredientsPanel(entry) {
+    const t = RepCheckI18n.t;
+    const isOpen = INGREDIENTS_EXPANDED.has(entry.id);
+    return `
+      <div class="nl-ingredients">
+        <button type="button" class="nl-ingredients-toggle ${isOpen ? "is-open" : ""}" data-toggle-ingredients="${entry.id}">
+          <span>${t("nutrition.ingredientsCount", { n: entry.ingredients.length, action: isOpen ? t("nutrition.minimize") : t("nutrition.adjustAmounts") })}</span>
+          ${CHEVRON_ICON}
+        </button>
+        ${isOpen ? `
+          <div class="nl-ingredients-list">
+            ${entry.ingredients.map((ing, i) => `
+              <div class="nl-ingredient-row">
+                <div class="nl-ingredient-top">
+                  <div class="nl-ingredient-icon">${foodIconHtml(ing.name, "nl-food-photo-ingredient")}</div>
+                  <div class="nl-ingredient-name">${ing.name}</div>
+                  <button type="button" class="nl-ingredient-remove" data-remove-ingredient-entry="${entry.id}" data-remove-ingredient-index="${i}" aria-label="Remove ingredient">&times;</button>
+                </div>
+                <div class="nl-ingredient-bottom">
+                  <div class="nl-ingredient-amount-group">
+                    <input type="number" min="0" class="nl-ingredient-grams" value="${gramsToUnit(ing.grams, ing.unit || "g")}"
+                           data-ingredient-entry="${entry.id}" data-ingredient-index="${i}">
+                    <select class="nl-unit-select" data-ingredient-unit-entry="${entry.id}" data-ingredient-unit-index="${i}">${unitOptionsHtml(ing.unit || "g")}</select>
+                  </div>
+                </div>
+                <div class="nl-ing-macros" data-ing-macros>${ingMiniMacrosHtml(ing)}</div>
+              </div>
+            `).join("")}
+          </div>
+          <button type="button" class="nl-add-ingredient-btn" data-add-ingredient="${entry.id}">${t("nutrition.addIngredient")}</button>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function findEntry(id) {
+    return (log[selectedDate] || []).find((e) => e.id === id);
+  }
+
+  function wireTimelineEvents() {
+    timelineEl.querySelectorAll("[data-hour-add]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openAddFoodModal(parseInt(btn.dataset.hourAdd, 10));
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const id = el.dataset.toggleEntry;
+        if (EXPANDED.has(id)) EXPANDED.delete(id); else EXPANDED.add(id);
+        renderTimeline();
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-entry-fav-toggle]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleFavorite(btn.dataset.entryFavToggle);
+        renderTimeline();
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-remove-entry]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const id = btn.dataset.removeEntry;
+        log[selectedDate] = (log[selectedDate] || []).filter((e) => e.id !== id);
+        EXPANDED.delete(id);
+        saveLog();
+        renderTimeline();
+        renderSummary();
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-grams-entry]").forEach((input) => {
+      input.addEventListener("click", (event) => event.stopPropagation());
+      input.addEventListener("input", () => {
+        const entry = findEntry(input.dataset.gramsEntry);
+        if (!entry) return;
+
+        const value = parseFloat(input.value);
+        const grams = unitToGrams(value, entry.unit || "g");
+        entry.grams = grams > 0 ? grams : entry.grams;
+        saveLog();
+
+        // Patch just the numbers in place instead of calling
+        // renderTimeline(), which would destroy and recreate this very
+        // input mid-keystroke and kick focus (and the mobile keyboard)
+        // back up to the top of the page.
+        const m = scaledMacros(entry);
+        const detail = input.closest(".nl-entry-detail");
+        patchEntryHero(detail, m);
+
+        const card = detail.previousElementSibling;
+        if (card && card.classList.contains("nl-entry-card")) {
+          card.querySelector(".nl-entry-sub").textContent =
+            `${formatTime(entry.addedAt)} • ${Math.round(entryTotals(entry).grams)}g • ${m.calories} kcal`;
+        }
+
+        renderSummary();
+      });
+    });
+
+    // Total-amount editor for composite dishes: scales every ingredient's
+    // grams proportionally so the dish's overall macros stay consistent
+    // with its recipe instead of just editing one number in isolation.
+    timelineEl.querySelectorAll("[data-total-grams-entry]").forEach((input) => {
+      input.addEventListener("click", (event) => event.stopPropagation());
+      input.addEventListener("input", () => {
+        const entry = findEntry(input.dataset.totalGramsEntry);
+        if (!entry || !entry.ingredients || !entry.ingredients.length) return;
+
+        const newTotal = parseFloat(input.value);
+        const oldTotal = entryTotals(entry).grams;
+        if (!(newTotal > 0) || !(oldTotal > 0)) return;
+
+        const scale = newTotal / oldTotal;
+        entry.ingredients.forEach((ing) => { ing.grams = ing.grams * scale; });
+        saveLog();
+
+        // Patch every visible number in place (this input's own focus, and
+        // any other open ingredient rows, must not be destroyed mid-type).
+        const detail = input.closest(".nl-entry-detail");
+
+        detail.querySelectorAll("[data-ingredient-entry]").forEach((gramsInput) => {
+          const idx = parseInt(gramsInput.dataset.ingredientIndex, 10);
+          const ing = entry.ingredients[idx];
+          gramsInput.value = gramsToUnit(ing.grams, ing.unit || "g");
+          const row = gramsInput.closest(".nl-ingredient-row");
+          const miniMacros = row.querySelector("[data-ing-macros]");
+          if (miniMacros) miniMacros.innerHTML = ingMiniMacrosHtml(ing);
+        });
+
+        const m = scaledMacros(entry);
+        patchEntryHero(detail, m);
+
+        const card = detail.previousElementSibling;
+        if (card && card.classList.contains("nl-entry-card")) {
+          card.querySelector(".nl-entry-sub").textContent =
+            `${formatTime(entry.addedAt)} • ${Math.round(entryTotals(entry).grams)}g • ${m.calories} kcal`;
+        }
+
+        renderSummary();
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-toggle-ingredients]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const id = btn.dataset.toggleIngredients;
+        if (INGREDIENTS_EXPANDED.has(id)) INGREDIENTS_EXPANDED.delete(id); else INGREDIENTS_EXPANDED.add(id);
+        renderTimeline();
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-ingredient-entry]").forEach((input) => {
+      input.addEventListener("click", (event) => event.stopPropagation());
+      input.addEventListener("input", () => {
+        const entry = findEntry(input.dataset.ingredientEntry);
+        if (!entry) return;
+        const idx = parseInt(input.dataset.ingredientIndex, 10);
+        const value = parseFloat(input.value);
+        const grams = unitToGrams(value, entry.ingredients[idx].unit || "g");
+        entry.ingredients[idx].grams = grams >= 0 ? grams : entry.ingredients[idx].grams;
+        saveLog();
+
+        // Same in-place patching approach as the simple-food amount input:
+        // update this ingredient's own macro strip, the entry's hero ring,
+        // and the collapsed card's subtitle, without touching the focused
+        // <input> itself.
+        const ing = entry.ingredients[idx];
+        const row = input.closest(".nl-ingredient-row");
+        const miniMacros = row.querySelector("[data-ing-macros]");
+        if (miniMacros) miniMacros.innerHTML = ingMiniMacrosHtml(ing);
+
+        const m = scaledMacros(entry);
+        const detail = input.closest(".nl-entry-detail");
+        patchEntryHero(detail, m);
+
+        // The "Total amount" field is just a scaling control, not the
+        // source of truth — keep it in sync with the real ingredient sum
+        // whenever a raw ingredient's own amount changes.
+        const totalGramsInput = detail.querySelector("[data-total-grams-entry]");
+        if (totalGramsInput && document.activeElement !== totalGramsInput) {
+          totalGramsInput.value = Math.round(entryTotals(entry).grams);
+        }
+
+        const card = detail.previousElementSibling;
+        if (card && card.classList.contains("nl-entry-card")) {
+          card.querySelector(".nl-entry-sub").textContent =
+            `${formatTime(entry.addedAt)} • ${Math.round(entryTotals(entry).grams)}g • ${m.calories} kcal`;
+        }
+
+        renderSummary();
+      });
+    });
+
+    // Changing the unit only changes what's displayed/typed — the
+    // canonical amount stays in grams, so no macro recompute is needed.
+    timelineEl.querySelectorAll("[data-amount-unit-entry]").forEach((select) => {
+      select.addEventListener("click", (event) => event.stopPropagation());
+      select.addEventListener("change", () => {
+        const entry = findEntry(select.dataset.amountUnitEntry);
+        if (!entry) return;
+        entry.unit = select.value;
+        saveLog();
+        const amountInput = select.parentElement.querySelector("[data-grams-entry]");
+        if (amountInput) amountInput.value = gramsToUnit(entry.grams, entry.unit);
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-ingredient-unit-entry]").forEach((select) => {
+      select.addEventListener("click", (event) => event.stopPropagation());
+      select.addEventListener("change", () => {
+        const entry = findEntry(select.dataset.ingredientUnitEntry);
+        if (!entry) return;
+        const idx = parseInt(select.dataset.ingredientUnitIndex, 10);
+        const ing = entry.ingredients[idx];
+        ing.unit = select.value;
+        saveLog();
+        const gramsInput = select.parentElement.querySelector("[data-ingredient-entry]");
+        if (gramsInput) gramsInput.value = gramsToUnit(ing.grams, ing.unit);
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-add-ingredient]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openAddIngredientModal(btn.dataset.addIngredient);
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-remove-ingredient-entry]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const entry = findEntry(btn.dataset.removeIngredientEntry);
+        if (!entry || !entry.ingredients) return;
+        const idx = parseInt(btn.dataset.removeIngredientIndex, 10);
+        entry.ingredients.splice(idx, 1);
+        saveLog();
+        renderTimeline();
+        renderSummary();
+      });
+    });
+  }
+
+  async function addFoodToSelectedDay(name, gramsOverride) {
+    const food = foodByName(name);
+    if (!food) return;
+    const dateForEntry = selectedDate;
+    if (!log[dateForEntry]) log[dateForEntry] = [];
+
+    const now = new Date();
+    const addedAt = new Date(dateForEntry + "T00:00:00");
+    if (pendingHour !== null) {
+      // Logged via a specific hour row's "+" button — put it at that hour
+      // rather than the real current time.
+      addedAt.setHours(pendingHour, 0, 0, 0);
+    } else {
+      addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
+    }
+    pendingHour = null;
+
+    const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    const entry = { id, food: food.name, addedAt: addedAt.getTime() };
+
+    if (food.ingredients && food.ingredients.length) {
+      // Composite dish: denormalize each ingredient's own per-100g macros
+      // (looked up from the library) plus its default recipe amount, so
+      // it's independently adjustable and edits recalculate the whole
+      // dish's totals.
+      entry.ingredients = food.ingredients.map((ing) => {
+        const base = foodByName(ing.name) || { calories: 0, carbs: 0, fat: 0, protein: 0 };
+        return {
+          name: ing.name,
+          grams: ing.grams,
+          unit: "g",
+          baseCalories: base.calories,
+          baseCarbs: base.carbs,
+          baseFat: base.fat,
+          baseProtein: base.protein,
+        };
+      });
+      // The amount-confirm popup lets the user pick a different total than
+      // the recipe's own default — scale every ingredient proportionally
+      // so the dish's macro ratios stay correct at the new amount.
+      if (gramsOverride > 0) {
+        const defaultTotal = entry.ingredients.reduce((sum, ing) => sum + ing.grams, 0);
+        if (defaultTotal > 0) {
+          const scale = gramsOverride / defaultTotal;
+          entry.ingredients.forEach((ing) => { ing.grams = ing.grams * scale; });
+        }
+      }
+    } else {
+      entry.grams = gramsOverride > 0 ? gramsOverride : 100;
+      entry.unit = "g";
+      entry.baseCalories = food.calories;
+      entry.baseCarbs = food.carbs;
+      entry.baseFat = food.fat;
+      entry.baseProtein = food.protein;
+    }
+
+    log[dateForEntry].push(entry);
+    EXPANDED.add(id);
+    saveLog();
+    renderTimeline();
+    renderSummary();
+    await persistLogEntry(dateForEntry, entry);
+  }
+
+  function addIngredientToEntry(entryId, foodName) {
+    const entry = findEntry(entryId);
+    const base = foodByName(foodName);
+    if (!entry || !base) return;
+
+    if (!entry.ingredients) {
+      // Turn a simple food entry into a composite one, keeping its
+      // current amount as the first ingredient (itself).
+      entry.ingredients = [{
+        name: entry.food,
+        grams: entry.grams,
+        unit: entry.unit || "g",
+        baseCalories: entry.baseCalories,
+        baseCarbs: entry.baseCarbs,
+        baseFat: entry.baseFat,
+        baseProtein: entry.baseProtein,
+      }];
+      delete entry.grams;
+      delete entry.unit;
+      delete entry.baseCalories;
+      delete entry.baseCarbs;
+      delete entry.baseFat;
+      delete entry.baseProtein;
+    }
+
+    entry.ingredients.push({
+      name: base.name,
+      grams: 50,
+      unit: "g",
+      baseCalories: base.calories,
+      baseCarbs: base.carbs,
+      baseFat: base.fat,
+      baseProtein: base.protein,
+    });
+
+    EXPANDED.add(entryId);
+    INGREDIENTS_EXPANDED.add(entryId); // reveal the panel so they can see/adjust what was just added
+    saveLog();
+    renderTimeline();
+    renderSummary();
+  }
+
+  document.getElementById("nl-prev-week").addEventListener("click", () => {
+    weekStart.setDate(weekStart.getDate() - 7);
+    weekStart = new Date(weekStart);
+    renderDateStrip();
+  });
+  document.getElementById("nl-next-week").addEventListener("click", () => {
+    weekStart.setDate(weekStart.getDate() + 7);
+    weekStart = new Date(weekStart);
+    renderDateStrip();
+  });
+
+  renderDateStrip();
+  renderTimeline();
+  renderSummary();
+  loadCustomFoods();
+  document.addEventListener("repcheck:language-changed", () => {
+    renderTimeline();
+    renderSummary();
+  });
+  // Clock format (12h/24h) affects hour labels and logged-entry times —
+  // re-render so switching it in Settings updates immediately, no reload.
+  document.addEventListener("repcheck:units-changed", () => {
+    renderTimeline();
+  });
+  // The coaching module writes new goals straight into this page's own
+  // "repcheck_nutrition_goals_v1" key when it calculates/adjusts a
+  // target — re-read them here so Today's Totals updates immediately
+  // instead of waiting for a reload.
+  document.addEventListener("repcheck:goals-updated", () => {
+    goals = loadGoals();
+    renderSummary();
+  });
+
+  // ---------- Mobile FAB quick actions ("Scan a meal" / "Log today's
+  // weight" land here with ?quick=... — see base.html's mt-fab-sheet). ----------
+  (function handleQuickAction() {
+    const quick = new URLSearchParams(location.search).get("quick");
+    if (!quick) return;
+    history.replaceState(null, "", location.pathname); // don't re-trigger on refresh
+
+    if (quick === "scan") {
+      // The FAB/home "Scan a meal" tile only needs the two photo paths
+      // plus recent re-logging -- barcode/create-food/log-macros stay
+      // reachable from the full "Analyze a food photo" button instead.
+      afModalOverlay.style.display = "flex";
+      renderAfMealQuickChoice();
+      return;
+    }
+    if (quick === "barcode") {
+      // Browsers drop "user activation" across a page navigation, so
+      // afBarcodeInput.click() here (post-navigation) is silently
+      // blocked -- can't auto-open the camera. base.html's FAB handler
+      // already avoids this navigation entirely when it can (clicking
+      // the camera input directly while still on this page); this path
+      // only runs when a navigation from another page was unavoidable,
+      // so show one single-tap prompt instead of a silent no-op.
+      afModalOverlay.style.display = "flex";
+      renderAfBarcodeQuickPrompt();
+      return;
+    }
+    if (quick === "checkin") {
+      // Deep link from the home page's Nutrition tile "Check in" button
+      // (see templates/home.html) — coaching.js (loaded after this
+      // script) owns the actual button/modal, so poll briefly for it
+      // rather than assuming it's already rendered.
+      let attempts = 0;
+      const tryOpenCheckin = () => {
+        const btn = document.querySelector('[data-action="open-checkin"]');
+        if (btn) {
+          btn.click();
+        } else if (attempts++ < 20) {
+          setTimeout(tryOpenCheckin, 100);
+        }
+      };
+      tryOpenCheckin();
+    }
+  })();
+</script>
+<script src="{{ asset_url('coaching.js') }}"></script>
+{% endblock %}

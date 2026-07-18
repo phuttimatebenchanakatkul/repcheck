@@ -1,0 +1,2192 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Workouts{% endblock %}
+{% block heading %}Workout Log{% endblock %}
+{% block subheading %}Log sets and reps as you go. Saved on this browser.{% endblock %}
+
+{% block content %}
+<div class="wl-plan-card" id="wl-plan-card">
+  <div class="wl-plan-header">
+    <div class="wl-plan-title" id="wl-plan-title" data-i18n="workouts.plan.title">Today's plan</div>
+    <button type="button" class="wl-plan-btn" id="wl-plan-btn">Plan my split</button>
+  </div>
+  <div class="wl-plan-body" id="wl-plan-body"></div>
+</div>
+
+<div class="wl-page" id="wl-page">
+  <div class="wl-date-strip-wrap">
+    <button type="button" class="wl-week-nav" id="wl-prev-week" aria-label="Previous week">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="wl-date-strip" id="wl-date-strip"></div>
+    <button type="button" class="wl-week-nav" id="wl-next-week" aria-label="Next week">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+
+  <div class="wl-timeline" id="wl-timeline"></div>
+</div>
+
+<div class="ex-modal-overlay" id="ex-modal-overlay" style="display:none;">
+  <div class="ex-modal">
+    <div class="ex-modal-header">
+      <div class="ex-modal-search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="ex-modal-search" data-i18n-placeholder="workouts.search.placeholder" placeholder="Search for an exercise..." autocomplete="off">
+      </div>
+      <button type="button" class="ex-modal-close" id="ex-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+    </div>
+    <div class="ex-modal-body" id="ex-modal-body"></div>
+  </div>
+</div>
+
+<div class="split-modal-overlay" id="split-modal-overlay" style="display:none;">
+  <div class="split-modal">
+    <div class="split-modal-header">
+      <div class="split-modal-title" id="split-modal-title" data-i18n="workouts.wizard.title">Plan your split</div>
+      <button type="button" class="ex-modal-close" id="split-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+    </div>
+    <div class="split-modal-body" id="split-modal-body"></div>
+  </div>
+</div>
+
+<!--
+  Exercise detail modal: opened by tapping any exercise chip that came
+  from a generated split (the "Assign your week" review, and the
+  Workouts page's "Today's plan" card). Rather than hand-curating a
+  specific YouTube video id per exercise — which risks silently pointing
+  at a deleted, wrong, or low-quality video with no way to verify it from
+  here — the video panel embeds a live YouTube search for
+  "<exercise name> proper form tutorial", so it's always a real, current,
+  relevant result instead of a guess.
+-->
+<div class="exd-modal-overlay" id="exd-modal-overlay" style="display:none;">
+  <div class="exd-modal">
+    <div class="exd-modal-header">
+      <div class="exd-modal-title-row">
+        <span class="exd-modal-emoji" id="exd-modal-emoji"></span>
+        <span class="exd-modal-title" id="exd-modal-title"></span>
+      </div>
+      <button type="button" class="ex-modal-close" id="exd-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="exd-modal-body">
+      <!--
+        YouTube blocks embedding its search-results page in an iframe (and
+        there's no way to safely hardcode a specific video id per exercise
+        from here without risking a wrong, deleted, or unrelated video) —
+        so this links out to a real, live YouTube search instead of
+        showing a broken/empty player.
+      -->
+      <a class="exd-video-card" id="exd-video-link" target="_blank" rel="noopener noreferrer">
+        <span class="exd-video-card-play">▶</span>
+        <span class="exd-video-card-text">
+          <span class="exd-video-card-title">Watch a demonstration</span>
+          <span class="exd-video-card-sub">Opens real YouTube results for this exercise in a new tab</span>
+        </span>
+      </a>
+      <div class="exd-desc-label">How to perform it</div>
+      <p class="exd-desc-text" id="exd-modal-desc"></p>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* This page reuses the site's global theme variables (--bg, --card-bg,
+     --text, etc. from style.css) so switching themes here matches the
+     whole app instead of being its own isolated color scheme. */
+
+  .wl-page {
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 22px;
+  }
+
+  .wl-date-strip-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .wl-week-nav {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .wl-week-nav:hover { color: var(--text); }
+  .wl-date-strip {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  .wl-date-cell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: inherit;
+  }
+  .wl-date-weekday {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .wl-date-number {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--bg);
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.1s ease;
+  }
+  .wl-date-cell.is-today .wl-date-number {
+    box-shadow: inset 0 0 0 2px var(--blue);
+  }
+  .wl-date-cell.is-selected .wl-date-number {
+    background: var(--text);
+    color: var(--card-bg);
+  }
+
+  /* ---------- Today's plan card ---------- */
+  .wl-plan-card {
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 16px;
+  }
+  .wl-plan-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .wl-plan-title { font-size: 17px; font-weight: 700; cursor: pointer; }
+  .wl-plan-title:hover { color: var(--blue); }
+  .wl-plan-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .wl-plan-btn:hover { border-color: var(--text-secondary); }
+  .wl-plan-btn svg { flex-shrink: 0; }
+  .wl-plan-empty { font-size: 13px; color: var(--text-secondary); }
+  .wl-plan-rest { font-size: 13px; color: var(--text-secondary); }
+  .wl-plan-day-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+  }
+  .wl-plan-day-icon { display: flex; flex-shrink: 0; color: var(--blue); }
+  .wl-plan-day-type { color: var(--blue); font-weight: 700; }
+  .wl-plan-exercise-list { display: flex; flex-direction: column; gap: 10px; }
+  .wl-plan-exercise-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .wl-plan-exercise-row:hover { outline: 1px solid var(--blue); color: var(--blue); }
+  .wl-plan-exercise-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--blue-bg);
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .wl-plan-exercise-emoji {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+    background: var(--dark-card); font-size: 17px; overflow: hidden;
+  }
+  .wl-plan-exercise-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .wl-plan-exercise-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wl-plan-exercise-meta { font-size: 11px; font-weight: 500; color: var(--text-secondary); }
+  .wl-plan-quick-add {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: var(--card-bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .wl-plan-quick-add:hover { background: var(--sidebar-active); }
+  .wl-plan-quick-add.is-added { color: var(--green); }
+  .wl-plan-exercise-grip {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+  }
+  .wl-plan-more {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 0;
+  }
+  .wl-plan-more svg { transition: transform 0.15s ease; }
+  .wl-plan-more.is-expanded svg { transform: rotate(180deg); }
+
+  .split-rationale {
+    background: var(--blue-bg);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 4px 0 18px;
+  }
+  .split-rationale strong { color: var(--blue); }
+
+  /* ---------- Exercise picker modal (shared look with Analyze page) ---------- */
+  .ex-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 15, 20, 0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+    animation: wl-pop-in 0.15s ease;
+  }
+  .ex-modal {
+    width: 100%;
+    max-width: 560px;
+    max-height: 82vh;
+    background: var(--card-bg);
+    border-radius: 20px 20px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  @media (min-width: 560px) {
+    .ex-modal-overlay { align-items: center; }
+    .ex-modal { border-radius: var(--radius-lg); max-height: 76vh; }
+  }
+  .ex-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .ex-modal-search-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 11px 14px;
+    color: var(--text-secondary);
+  }
+  .ex-modal-search-wrap input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .ex-modal-search-wrap input::placeholder { color: var(--text-secondary); }
+  .ex-modal-close {
+    background: var(--bg);
+    border: none;
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .ex-modal-close:hover { color: var(--text); }
+  .ex-modal-body { overflow-y: auto; padding: 16px; }
+  .ex-modal-section { margin-bottom: 20px; }
+  .ex-modal-section:last-child { margin-bottom: 0; }
+  .ex-modal-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 10px;
+  }
+  .ex-modal-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 10px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 12px;
+  }
+  .ex-modal-result-item:hover { background: var(--bg); }
+  .ex-modal-result-item:active { background: var(--sidebar-active); }
+  .ex-modal-result-item span:nth-child(2) { flex: 1; }
+  .ex-modal-result-fav {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    opacity: 0.5;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .ex-modal-result-fav:hover { opacity: 1; color: var(--red); }
+  .ex-modal-result-fav:active { transform: scale(0.85); }
+  .ex-modal-result-fav.is-fav { color: var(--red); opacity: 1; }
+  .ex-modal-empty { padding: 12px 10px; font-size: 13px; color: var(--text-secondary); }
+
+  /* ---------- Split planner wizard modal ---------- */
+  .split-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 15, 20, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+    animation: wl-pop-in 0.15s ease;
+  }
+  .split-modal {
+    width: 100%;
+    max-width: 480px;
+    max-height: 86vh;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .split-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .split-modal-title { font-size: 16px; font-weight: 700; }
+  .split-modal-body { overflow-y: auto; padding: 18px; }
+  .split-step-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 12px;
+  }
+  .split-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .split-type-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    cursor: pointer;
+    background: var(--bg);
+  }
+  .split-type-card.is-selected { border-color: var(--blue); background: var(--blue-bg); }
+  .split-type-card-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .split-type-card-sub { font-size: 11px; color: var(--text-secondary); margin-top: 3px; line-height: 1.3; }
+
+  .split-custom-input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .split-custom-input-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .split-custom-add-btn {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: none;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .split-custom-days { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .split-custom-day-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 8px 8px 8px 14px;
+  }
+  .split-custom-day-name { font-size: 13px; font-weight: 700; flex: 1; min-width: 0; }
+  .split-custom-pick-btn {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .split-custom-remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+  }
+
+  .split-ex-picker-search {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: inherit;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+  }
+  .split-ex-picker-list { max-height: 50vh; overflow-y: auto; }
+  .split-ex-picker-category { margin-bottom: 16px; }
+  .split-ex-picker-category-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 8px;
+  }
+  .split-ex-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .split-ex-picker-item:last-child { border-bottom: none; }
+  .split-ex-picker-item input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+  .split-ex-picker-item-remove {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .split-ex-create-btn {
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px dashed var(--border);
+    background: none;
+    color: var(--blue);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    margin-bottom: 14px;
+  }
+  .split-ex-create-form {
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .split-ex-create-form input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: inherit;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+  }
+  .split-ex-create-form-actions { display: flex; gap: 8px; }
+  .split-ex-create-form-actions .split-primary-btn,
+  .split-ex-create-form-actions .split-secondary-btn { margin-top: 0; }
+  .split-secondary-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .split-ex-add-prompt {
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .split-ex-add-prompt p { font-size: 13px; margin: 0 0 12px; color: var(--text); }
+  .split-ex-add-prompt-actions { display: flex; gap: 8px; }
+
+  .split-goal-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.4; }
+  .split-goal-textarea {
+    width: 100%;
+    min-height: 90px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    margin-bottom: 18px;
+    box-sizing: border-box;
+  }
+
+  .split-days-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .split-day-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .split-day-btn.is-selected { background: var(--text); color: var(--card-bg); border-color: var(--text); }
+
+  .split-primary-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 999px;
+    border: none;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .split-primary-btn:hover { opacity: 0.85; }
+  .split-primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .split-loading { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 13px; }
+
+  .split-review-day { margin-bottom: 18px; }
+  .split-review-day-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+  /* 2-column grid of tappable, emoji-led exercise chips — every one opens
+     a demo video + description, so this doubles as a quick "what does
+     this even look like?" reference while reviewing the generated split. */
+  .split-review-exercise-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .split-review-exercise-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px 6px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    min-width: 0;
+  }
+  .split-review-exercise-chip span:last-child {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .split-review-exercise-chip:hover { border-color: var(--blue); color: var(--blue); }
+  .split-review-exercise-chip:active { transform: scale(0.96); }
+  .split-review-exercise-chip-emoji {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    background: var(--card-bg); font-size: 15px; overflow: hidden;
+  }
+  @media (max-width: 400px) {
+    .split-review-exercise-chips { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- Exercise detail modal (video + description) ---------- */
+  .exd-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 210; padding: 16px;
+  }
+  .exd-modal {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    width: 100%; max-width: 480px; max-height: 88vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .exd-modal-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .exd-modal-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .exd-modal-emoji {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 12px; background: var(--blue-bg);
+    font-size: 18px; flex-shrink: 0; overflow: hidden;
+  }
+  .exd-modal-title { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .exd-modal-body { padding: 18px; overflow-y: auto; }
+  .exd-video-card {
+    display: flex; align-items: center; gap: 14px;
+    border-radius: 14px; background: var(--blue-bg); padding: 16px;
+    margin-bottom: 16px; text-decoration: none; color: var(--text);
+  }
+  .exd-video-card:hover { opacity: 0.9; }
+  .exd-video-card-play {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 44px; height: 44px; border-radius: 50%; background: var(--blue); color: #fff;
+    font-size: 15px; padding-left: 3px; /* optically center the triangle */
+  }
+  .exd-video-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .exd-video-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .exd-video-card-sub { font-size: 11px; color: var(--text-secondary); }
+  .exd-desc-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+  .exd-desc-text { font-size: 13px; line-height: 1.6; color: var(--text); margin: 0; }
+
+  .split-weekday-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+  .split-weekday-row label { width: 44px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+  .split-weekday-row select {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+
+  .split-week-tabs { display: flex; gap: 5px; margin-bottom: 16px; }
+  .split-week-tab {
+    flex: 1;
+    text-align: center;
+    padding: 9px 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border: none;
+    font-family: inherit;
+  }
+  .split-week-tab.is-active { background: var(--blue); color: #fff; }
+  .split-week-tab-dot {
+    display: block;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    margin: 5px auto 0;
+    background: var(--green);
+  }
+  .split-week-tab-dot.is-rest { background: var(--border); }
+  .split-week-tab.is-active .split-week-tab-dot { background: #fff; }
+  .split-day-plan-label { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+
+  .wl-timeline {
+    margin-top: 14px;
+    max-height: 640px;
+    overflow-y: auto;
+    padding-right: 10px;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .wl-timeline::-webkit-scrollbar { width: 8px; }
+  .wl-timeline::-webkit-scrollbar-track { background: transparent; }
+  .wl-timeline::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+  .wl-timeline::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+  .wl-hour-row {
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  .wl-hour-label {
+    width: 56px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding-top: 6px;
+  }
+  .wl-hour-body { flex: 1; min-width: 0; }
+  .wl-hour-add-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .wl-hour-add-btn:hover { background: var(--sidebar-active); }
+
+  .wl-entry-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg);
+    border-radius: 16px;
+    padding: 10px 12px;
+    margin-top: 10px;
+    cursor: pointer;
+    animation: wl-pop-in 0.18s ease;
+  }
+  .wl-entry-card:active { transform: scale(0.985); }
+  .wl-entry-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .wl-entry-info { flex: 1; min-width: 0; }
+  .wl-entry-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wl-entry-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .wl-entry-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    transition: transform 0.15s ease;
+  }
+  .wl-entry-toggle:hover { color: var(--text); }
+  .wl-entry-toggle.is-expanded { transform: rotate(180deg); }
+
+  .wl-entry-detail {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin: -4px 0 10px;
+    animation: wl-slide-down 0.18s ease;
+  }
+  .wl-set-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .wl-set-row span {
+    width: 50px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .wl-set-row input {
+    width: 90px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .wl-set-row button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 15px;
+  }
+  .wl-set-row button:hover { color: var(--red); }
+  .wl-detail-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    gap: 10px;
+  }
+
+  .wl-add-set-btn, .wl-remove-exercise-btn {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .wl-remove-exercise-btn { color: var(--red); border-color: var(--red-bg); margin-left: 8px; }
+
+  .wl-done-btn {
+    padding: 8px 20px;
+    border-radius: 999px;
+    border: none;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .wl-done-btn:hover { opacity: 0.85; }
+  .wl-done-btn:active { transform: scale(0.95); }
+
+  .wl-empty-hint {
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 30px 0;
+    text-align: center;
+  }
+
+  @media (max-width: 480px) {
+    .wl-page { padding: 14px; }
+    .wl-date-number { width: 28px; height: 28px; font-size: 12px; }
+    .wl-date-weekday { font-size: 10px; }
+    .wl-date-strip-wrap { gap: 2px; }
+    .wl-week-nav { padding: 2px; }
+    .wl-plan-card { padding: 16px; }
+    .split-type-grid { grid-template-columns: 1fr; }
+    .wl-hour-label { width: 42px; font-size: 11px; }
+    .wl-hour-row { gap: 8px; padding: 10px 0; }
+    .wl-entry-card { padding: 8px 10px; gap: 8px; }
+    .wl-entry-icon { width: 32px; height: 32px; font-size: 15px; }
+    .wl-entry-name { font-size: 13px; }
+    .wl-entry-sub { font-size: 11px; }
+    .wl-set-row input { width: 70px; }
+    .wl-add-set-btn, .wl-remove-exercise-btn { padding: 7px 10px; font-size: 11px; }
+  }
+
+  .wl-date-cell:active .wl-date-number { transform: scale(0.9); }
+  .wl-hour-add-btn:active { transform: scale(0.85); }
+  .wl-week-nav:active { transform: scale(0.88); }
+
+  @keyframes wl-pop-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes wl-slide-down {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+
+<script>
+  const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
+  const EXERCISE_DETAILS = {{ exercise_details | tojson }};
+  const EXERCISE_CATEGORIES = {{ exercise_categories | tojson }};
+  const EXERCISE_ICONS = {{ exercise_icons | tojson }};
+  const STORAGE_KEY = "repcheck_workout_log_v2";
+  const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+  const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0 -> 23 (midnight to 11 PM)
+  const EXPANDED = new Set();
+
+  const CHEVRON_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  // ---------- Exercise detail modal (emoji + video + description) ----------
+  function exerciseDetail(name) {
+    return EXERCISE_DETAILS[name] || {
+      emoji: "🏋️",
+      description: "Move through a full, controlled range of motion with a steady tempo — avoid using momentum or swinging your body to move the weight, and stop a rep or two before your form breaks down.",
+    };
+  }
+  function exerciseEmoji(name) {
+    return exerciseDetail(name).emoji;
+  }
+  // Prefer the real per-exercise illustration from the icon pack; fall
+  // back to the emoji for any exercise the pack doesn't cover.
+  function exerciseIconHtml(name) {
+    const path = EXERCISE_ICONS[name];
+    if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
+    return exerciseEmoji(name);
+  }
+  // No specific video id is hardcoded per exercise — there's no way to
+  // verify from here that a given id still exists or is actually a good,
+  // correct-form video, and YouTube doesn't allow its search-results page
+  // to be embedded in an iframe. Linking out to a live search is the
+  // option that's actually guaranteed to work and show a real result.
+  function youtubeSearchUrl(name) {
+    const query = encodeURIComponent(`${name} proper form tutorial`);
+    return `https://www.youtube.com/results?search_query=${query}`;
+  }
+
+  const exdOverlay = document.getElementById("exd-modal-overlay");
+  const exdEmojiEl = document.getElementById("exd-modal-emoji");
+  const exdTitleEl = document.getElementById("exd-modal-title");
+  const exdDescEl = document.getElementById("exd-modal-desc");
+  const exdVideoLink = document.getElementById("exd-video-link");
+  const exdCloseBtn = document.getElementById("exd-modal-close");
+
+  function openExerciseDetailModal(name) {
+    const detail = exerciseDetail(name);
+    exdEmojiEl.innerHTML = exerciseIconHtml(name);
+    exdTitleEl.textContent = name;
+    exdDescEl.textContent = detail.description;
+    exdVideoLink.href = youtubeSearchUrl(name);
+    exdOverlay.style.display = "flex";
+  }
+  function closeExerciseDetailModal() {
+    exdOverlay.style.display = "none";
+  }
+  exdCloseBtn.addEventListener("click", closeExerciseDetailModal);
+  exdOverlay.addEventListener("click", (event) => {
+    if (event.target === exdOverlay) closeExerciseDetailModal();
+  });
+  // Delegated on <body> so it works no matter which parent re-renders
+  // the chip (split wizard modal vs. the Today's plan card).
+  document.body.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-exercise-detail]");
+    if (chip) openExerciseDetailModal(chip.dataset.exerciseDetail);
+  });
+
+  function loadLog() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch (err) {
+      return {};
+    }
+  }
+  function saveLog() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+  }
+
+  let log = loadLog();
+  let pendingHour = null; // set when a specific hour row's "+" is clicked
+
+  // ---------- Dates ----------
+  function toIsoDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function startOfWeek(date) {
+    const d = new Date(date);
+    const diff = (d.getDay() + 6) % 7; // Monday-first offset
+    d.setDate(d.getDate() - diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  const today = new Date();
+  let selectedDate = toIsoDate(today);
+  let weekStart = startOfWeek(today);
+
+  const dateStripEl = document.getElementById("wl-date-strip");
+  const timelineEl = document.getElementById("wl-timeline");
+
+  function renderDateStrip() {
+    const todayIso = toIsoDate(today);
+    const cells = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const iso = toIsoDate(d);
+      const classes = ["wl-date-cell"];
+      if (iso === todayIso) classes.push("is-today");
+      if (iso === selectedDate) classes.push("is-selected");
+      cells.push(`
+        <button type="button" class="${classes.join(" ")}" data-date="${iso}">
+          <span class="wl-date-weekday">${WEEKDAY_LETTERS[i]}</span>
+          <span class="wl-date-number">${d.getDate()}</span>
+        </button>
+      `);
+    }
+    dateStripEl.innerHTML = cells.join("");
+    dateStripEl.querySelectorAll("[data-date]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedDate = btn.dataset.date;
+        renderDateStrip();
+        renderTimeline();
+      });
+    });
+  }
+
+  function formatTime(timestamp) {
+    return RepCheckUnits.formatTime(timestamp);
+  }
+
+  function hourLabel(hour) {
+    return RepCheckUnits.formatHourLabel(hour);
+  }
+
+  function entriesForHour(hour) {
+    const dayEntries = log[selectedDate] || [];
+    return dayEntries.filter((e) => new Date(e.addedAt).getHours() === hour);
+  }
+
+  function repsSummary(sets) {
+    const t = RepCheckI18n.t;
+    const reps = sets.map((s) => (s.reps === "" || s.reps === null || s.reps === undefined ? null : s.reps));
+    if (reps.every((r) => r === null)) return t("workouts.exercise.setsLogged", { n: sets.length, s: sets.length === 1 ? "" : "s" });
+    return t("workouts.exercise.setsReps", { n: sets.length, s: sets.length === 1 ? "" : "s", reps: reps.map((r) => (r === null ? "-" : r)).join(", ") });
+  }
+
+  function renderTimeline() {
+    const dayEntries = log[selectedDate] || [];
+
+    timelineEl.innerHTML = HOURS.map((hour) => {
+      const entries = entriesForHour(hour);
+      return `
+        <div class="wl-hour-row">
+          <div class="wl-hour-label">${hourLabel(hour)}</div>
+          <div class="wl-hour-body">
+            <button type="button" class="wl-hour-add-btn" data-hour-add="${hour}">+</button>
+            <div class="wl-hour-entries" data-hour-entries="${hour}">
+              ${entries.map((entry) => renderEntry(entry)).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    if (!dayEntries.length) {
+      timelineEl.insertAdjacentHTML("afterbegin", `<div class="wl-empty-hint">${RepCheckI18n.t("workouts.empty.day")}</div>`);
+    }
+
+    wireTimelineEvents();
+  }
+
+  function renderEntry(entry) {
+    const expanded = EXPANDED.has(entry.id);
+    return `
+      <div class="wl-entry-card" data-toggle-entry="${entry.id}">
+        <div class="wl-entry-icon">\u{1F4AA}</div>
+        <div class="wl-entry-info">
+          <div class="wl-entry-name">${entry.exercise}</div>
+          <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${repsSummary(entry.sets)}</div>
+        </div>
+        <button type="button" class="wl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? RepCheckI18n.t("common.minimize") : "Expand"}">
+          ${CHEVRON_ICON}
+        </button>
+      </div>
+      ${expanded ? renderEntryDetail(entry) : ""}
+    `;
+  }
+
+  function renderEntryDetail(entry) {
+    const t = RepCheckI18n.t;
+    return `
+      <div class="wl-entry-detail">
+        ${entry.sets.map((set, i) => `
+          <div class="wl-set-row">
+            <span>Set ${i + 1}</span>
+            <input type="number" min="0" inputmode="numeric" value="${set.reps ?? ""}" placeholder="reps"
+                   data-reps-entry="${entry.id}" data-reps-index="${i}">
+            <button type="button" data-remove-set-entry="${entry.id}" data-remove-set-index="${i}">&times;</button>
+          </div>
+        `).join("")}
+        <div class="wl-detail-actions">
+          <div>
+            <button type="button" class="wl-add-set-btn" data-add-set="${entry.id}">${t("workouts.exercise.addSet")}</button>
+            <button type="button" class="wl-remove-exercise-btn" data-remove-entry="${entry.id}">${t("workouts.exercise.removeExercise")}</button>
+          </div>
+          <button type="button" class="wl-done-btn" data-toggle-entry="${entry.id}">${t("common.done")}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function findEntry(id) {
+    return (log[selectedDate] || []).find((e) => e.id === id);
+  }
+
+  function wireTimelineEvents() {
+    timelineEl.querySelectorAll("[data-hour-add]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pendingHour = parseInt(btn.dataset.hourAdd, 10);
+        openExerciseModal();
+      });
+    });
+
+    // Clicking anywhere on the card (except the inputs/buttons inside the
+    // expanded detail) minimizes/expands that exercise.
+    timelineEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const id = el.dataset.toggleEntry;
+        if (EXPANDED.has(id)) EXPANDED.delete(id); else EXPANDED.add(id);
+        renderTimeline();
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-add-set]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const entry = findEntry(btn.dataset.addSet);
+        if (entry) {
+          entry.sets.push({ reps: "" });
+          saveLog();
+          renderTimeline();
+        }
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-remove-set-entry]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const entry = findEntry(btn.dataset.removeSetEntry);
+        const index = parseInt(btn.dataset.removeSetIndex, 10);
+        if (entry) {
+          entry.sets.splice(index, 1);
+          saveLog();
+          renderTimeline();
+        }
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-remove-entry]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const id = btn.dataset.removeEntry;
+        log[selectedDate] = (log[selectedDate] || []).filter((e) => e.id !== id);
+        EXPANDED.delete(id);
+        saveLog();
+        renderTimeline();
+      });
+    });
+
+    timelineEl.querySelectorAll("[data-reps-entry]").forEach((input) => {
+      input.addEventListener("click", (event) => event.stopPropagation());
+      input.addEventListener("input", () => {
+        const entry = findEntry(input.dataset.repsEntry);
+        const index = parseInt(input.dataset.repsIndex, 10);
+        if (entry) {
+          entry.sets[index].reps = input.value === "" ? "" : parseInt(input.value, 10);
+          saveLog();
+        }
+      });
+    });
+  }
+
+  function addExerciseToSelectedDay(name) {
+    if (!log[selectedDate]) log[selectedDate] = [];
+    const now = new Date();
+    // If logged via a specific hour row's "+" button, put it at that hour.
+    // Otherwise (e.g. typed straight into the search bar) stamp the exact
+    // real moment, on the selected calendar date.
+    const addedAt = new Date(selectedDate + "T00:00:00");
+    if (pendingHour !== null) {
+      addedAt.setHours(pendingHour, 0, 0, 0);
+    } else {
+      addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
+    }
+    pendingHour = null;
+
+    const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    log[selectedDate].push({
+      id,
+      exercise: name,
+      addedAt: addedAt.getTime(),
+      sets: [{ reps: "" }],
+    });
+    EXPANDED.add(id); // show it expanded right away so you can log the first set
+    saveLog();
+    renderTimeline();
+  }
+
+  // Quick-add from Today's Plan: always logs to *today*, at the exact
+  // moment tapped, regardless of which date is selected in the strip above.
+  function quickLogExerciseNow(name) {
+    const todayIso = toIsoDate(new Date());
+    if (!log[todayIso]) log[todayIso] = [];
+    const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    log[todayIso].push({
+      id,
+      exercise: name,
+      addedAt: Date.now(),
+      sets: [{ reps: "" }],
+    });
+    saveLog();
+    if (selectedDate === todayIso) {
+      renderTimeline();
+    }
+  }
+
+  // ---------- Exercise picker modal ----------
+  const exModalOverlay = document.getElementById("ex-modal-overlay");
+  const exModalSearch = document.getElementById("ex-modal-search");
+  const exModalBody = document.getElementById("ex-modal-body");
+  const exModalClose = document.getElementById("ex-modal-close");
+
+  const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const SPLIT_PLAN_KEY = "repcheck_split_plan_v1";
+
+  function loadSplitPlan() {
+    try { return JSON.parse(localStorage.getItem(SPLIT_PLAN_KEY)); } catch (err) { return null; }
+  }
+
+  function getTodaysSplitInfo() {
+    const plan = loadSplitPlan();
+    if (!plan || !plan.schedule || !plan.days) return null;
+    const weekdayIndex = new Date().getDay();
+    const weekdayKey = WEEKDAY_KEYS[weekdayIndex];
+    const label = plan.schedule[weekdayKey];
+    if (!label || label === "Rest") return null;
+    const day = plan.days.find((d) => d.label === label);
+    if (!day) return null;
+    return { weekdayName: WEEKDAY_NAMES[weekdayIndex], label, exercises: day.exercises };
+  }
+
+  function getRecentWorkouts(limit) {
+    const seen = new Set();
+    const result = [];
+    const allEntries = Object.values(log).flat().sort((a, b) => b.addedAt - a.addedAt);
+    for (const entry of allEntries) {
+      if (seen.has(entry.exercise)) continue;
+      seen.add(entry.exercise);
+      result.push(entry.exercise);
+      if (result.length >= limit) break;
+    }
+    return result;
+  }
+
+  // ---------- Exercise favorites ----------
+  const EXERCISE_FAVORITES_KEY = "repcheck_exercise_favorites_v1";
+  function loadExerciseFavorites() {
+    try { return new Set(JSON.parse(localStorage.getItem(EXERCISE_FAVORITES_KEY)) || []); }
+    catch (err) { return new Set(); }
+  }
+  function saveExerciseFavorites() { localStorage.setItem(EXERCISE_FAVORITES_KEY, JSON.stringify(Array.from(exerciseFavorites))); }
+  let exerciseFavorites = loadExerciseFavorites();
+  function toggleExerciseFavorite(name) {
+    if (exerciseFavorites.has(name)) exerciseFavorites.delete(name); else exerciseFavorites.add(name);
+    saveExerciseFavorites();
+  }
+
+  const EX_HEART_OUTLINE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+  const EX_HEART_FILLED = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+
+  function exerciseRowHtml(name) {
+    const isFav = exerciseFavorites.has(name);
+    return `
+      <div class="ex-modal-result-item" data-name="${name}">
+        <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
+        <span>${name}</span>
+        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${name}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
+      </div>
+    `;
+  }
+
+  function refreshExerciseModal() {
+    const query = exModalSearch.value.trim();
+    if (query) renderExerciseModalSearch(query);
+    else renderExerciseModalDefault();
+  }
+
+  function wireExerciseRows() {
+    exModalBody.querySelectorAll("[data-name]").forEach((item) => {
+      item.addEventListener("click", (event) => {
+        if (event.target.closest("[data-fav-toggle]")) return;
+        addExerciseToSelectedDay(item.dataset.name);
+        closeExerciseModal();
+      });
+    });
+    exModalBody.querySelectorAll("[data-fav-toggle]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleExerciseFavorite(btn.dataset.favToggle);
+        refreshExerciseModal();
+      });
+    });
+  }
+
+  function renderExerciseModalDefault() {
+    const t = RepCheckI18n.t;
+    const sections = [];
+    if (exerciseFavorites.size) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("nutrition.favorites")}</div>
+          ${Array.from(exerciseFavorites).map(exerciseRowHtml).join("")}
+        </div>
+      `);
+    }
+    if (customExercises.length) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("workouts.wizard.customExercises")}</div>
+          ${customExercises.map((ex) => exerciseRowHtml(ex.name)).join("")}
+        </div>
+      `);
+    }
+    const splitInfo = getTodaysSplitInfo();
+    if (splitInfo) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("analyze.topPicksFor", { weekday: splitInfo.weekdayName, label: splitInfo.label })}</div>
+          ${splitInfo.exercises.map(exerciseRowHtml).join("")}
+        </div>
+      `);
+    }
+    const recent = getRecentWorkouts(6);
+    if (recent.length) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("analyze.recent")}</div>
+          ${recent.map(exerciseRowHtml).join("")}
+        </div>
+      `);
+    }
+    if (!sections.length) {
+      sections.push(`
+        <div class="ex-modal-section">
+          <div class="ex-modal-section-title">${t("analyze.allExercises")}</div>
+          ${EXERCISE_LIBRARY.slice(0, 20).map(exerciseRowHtml).join("")}
+        </div>
+      `);
+    }
+    exModalBody.innerHTML = sections.join("");
+    wireExerciseRows();
+  }
+
+  function renderExerciseModalSearch(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      renderExerciseModalDefault();
+      return;
+    }
+    const customNames = customExercises.map((ex) => ex.name);
+    const libraryMatches = EXERCISE_LIBRARY.filter((name) => !customNames.includes(name) && name.toLowerCase().includes(q));
+    const customMatches = customNames.filter((name) => name.toLowerCase().includes(q));
+    const matches = [...customMatches, ...libraryMatches]
+      .sort((a, b) => (exerciseFavorites.has(b) ? 1 : 0) - (exerciseFavorites.has(a) ? 1 : 0))
+      .slice(0, 30);
+    exModalBody.innerHTML = matches.length
+      ? `<div class="ex-modal-section">${matches.map(exerciseRowHtml).join("")}</div>`
+      : `<div class="ex-modal-empty">${RepCheckI18n.t("workouts.search.noMatch", { query })}</div>`;
+    wireExerciseRows();
+  }
+
+  async function openExerciseModal() {
+    exModalOverlay.style.display = "flex";
+    exModalSearch.value = "";
+    renderExerciseModalDefault();
+    setTimeout(() => exModalSearch.focus(), 0);
+    await loadCustomExercises();
+    if (!exModalSearch.value.trim()) renderExerciseModalDefault();
+  }
+
+  function closeExerciseModal() {
+    exModalOverlay.style.display = "none";
+    pendingHour = null;
+  }
+
+  exModalClose.addEventListener("click", closeExerciseModal);
+  exModalOverlay.addEventListener("click", (event) => {
+    if (event.target === exModalOverlay) closeExerciseModal();
+  });
+  exModalSearch.addEventListener("input", () => renderExerciseModalSearch(exModalSearch.value));
+
+  // ---------- Today's plan card ----------
+  const WORKOUTS_PLAN_EXPANDED = new Set(); // day labels currently showing the full list
+
+  const PLAN_CALENDAR_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+  const PLAN_PENCIL_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+  const PLAN_CHEVRON_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
+  const PLAN_GRIP_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>`;
+
+  // No prescribed set/rep data exists per exercise anywhere in the app --
+  // this buckets by movement pattern the same way a coach would default
+  // them, purely for the "N sets • X-Y reps" line under each name.
+  function getSetsRepsText(name) {
+    const lower = name.toLowerCase();
+    if (/lateral raise|rear delt|face pull|front raise/.test(lower)) return "3 sets • 12-15 reps";
+    if (/curl|extension|pushdown|crusher|kickback|fly|flye|shrug|calf raise/.test(lower)) return "3 sets • 10-12 reps";
+    if (/^(flat bench press|overhead press|barbell row|deadlift|back squat|front squat)$/.test(lower)) return "4 sets • 6-8 reps";
+    if (/press|squat|deadlift|row|pull-?up|lat pulldown|leg press/.test(lower)) return "4 sets • 8-10 reps";
+    return "3 sets • 10-12 reps";
+  }
+
+  function renderTodaysPlanCard() {
+    const t = RepCheckI18n.t;
+    const planBodyEl = document.getElementById("wl-plan-body");
+    const planBtn = document.getElementById("wl-plan-btn");
+    const plan = loadSplitPlan();
+    planBtn.innerHTML = `${PLAN_PENCIL_SVG}<span>${plan ? t("workouts.plan.editSplit") : t("workouts.plan.planSplit")}</span>`;
+
+    const info = getTodaysSplitInfo();
+    if (!plan) {
+      planBodyEl.innerHTML = `<div class="wl-plan-empty">${t("workouts.plan.empty")}</div>`;
+      return;
+    }
+    if (!info) {
+      planBodyEl.innerHTML = `<div class="wl-plan-rest">${t("workouts.plan.restDay")}</div>`;
+      return;
+    }
+    const expanded = WORKOUTS_PLAN_EXPANDED.has(info.label);
+    const shown = expanded ? info.exercises : info.exercises.slice(0, 3);
+    const remaining = info.exercises.length - 3;
+    planBodyEl.innerHTML = `
+      <div class="wl-plan-day-label">
+        <span class="wl-plan-day-icon">${PLAN_CALENDAR_SVG}</span>
+        <span>${t("workouts.plan.dayLabel", { weekday: info.weekdayName, label: info.label })}</span>
+      </div>
+      <div class="wl-plan-exercise-list">
+        ${shown.map((name, i) => `
+          <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+            <span class="wl-plan-exercise-num">${i + 1}</span>
+            <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
+            <span class="wl-plan-exercise-info">
+              <span class="wl-plan-exercise-name">${name}</span>
+              <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+            </span>
+            <button type="button" class="wl-plan-quick-add" data-quick-add="${name}" aria-label="Log ${name} now" title="Log now">+</button>
+            <span class="wl-plan-exercise-grip">${PLAN_GRIP_SVG}</span>
+          </div>
+        `).join("")}
+      </div>
+      ${remaining > 0 ? `<button type="button" class="wl-plan-more${expanded ? " is-expanded" : ""}" id="wl-plan-more-btn">${expanded ? t("common.minimize") : t("home.moreCount", { n: remaining })}${PLAN_CHEVRON_SVG}</button>` : ""}
+    `;
+    planBodyEl.querySelectorAll("[data-quick-add]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation(); // don't also trigger the row's exercise-detail modal
+        quickLogExerciseNow(btn.dataset.quickAdd);
+        btn.textContent = "✓";
+        btn.classList.add("is-added");
+        setTimeout(() => {
+          btn.textContent = "+";
+          btn.classList.remove("is-added");
+        }, 1200);
+      });
+    });
+    const moreBtn = document.getElementById("wl-plan-more-btn");
+    if (moreBtn) {
+      moreBtn.addEventListener("click", () => {
+        if (expanded) WORKOUTS_PLAN_EXPANDED.delete(info.label);
+        else WORKOUTS_PLAN_EXPANDED.add(info.label);
+        renderTodaysPlanCard();
+      });
+    }
+  }
+
+  // ---------- Split planner wizard ----------
+  function getSplitTypes() {
+    const t = RepCheckI18n.t;
+    return [
+      { id: "ppl", title: t("workouts.split.ppl"), sub: t("workouts.split.pplSub") },
+      { id: "upper_lower", title: t("workouts.split.upperLower"), sub: t("workouts.split.upperLowerSub") },
+      { id: "full_body", title: t("workouts.split.fullBody"), sub: t("workouts.split.fullBodySub") },
+      { id: "bro_split", title: t("workouts.split.broSplit"), sub: t("workouts.split.broSplitSub") },
+      { id: "custom", title: t("workouts.split.custom"), sub: t("workouts.split.customSub") },
+    ];
+  }
+
+  const splitModalOverlay = document.getElementById("split-modal-overlay");
+  const splitModalBody = document.getElementById("split-modal-body");
+  const splitModalClose = document.getElementById("split-modal-close");
+  const splitModalTitle = document.getElementById("split-modal-title");
+  const planBtnEl = document.getElementById("wl-plan-btn");
+
+  let splitWizard = { type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
+
+  // This user's own invented exercises (never shared with other users) --
+  // loaded once and cached, same pattern as customFoods in nutrition.html.
+  let customExercises = [];
+  let customExercisesLoaded = false;
+  async function loadCustomExercises() {
+    if (customExercisesLoaded) return;
+    try {
+      const response = await fetch("/api/custom-exercises");
+      const data = await response.json();
+      if (data.ok) customExercises = data.exercises;
+      customExercisesLoaded = true;
+    } catch (err) {
+      // Picker just falls back to the built-in library -- not fatal.
+    }
+  }
+
+  function openSplitModal() {
+    splitWizard = { type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
+    splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
+    splitModalOverlay.style.display = "flex";
+    renderSplitStepType();
+  }
+
+  function closeSplitModal() {
+    splitModalOverlay.style.display = "none";
+  }
+
+  function renderSplitStepType() {
+    const t = RepCheckI18n.t;
+    splitModalTitle.textContent = t("workouts.wizard.title");
+    splitModalBody.innerHTML = `
+      <div class="split-step-label">${t("workouts.wizard.step1")}</div>
+      <div class="split-type-grid">
+        ${getSplitTypes().map((st) => `
+          <div class="split-type-card ${splitWizard.type === st.id ? "is-selected" : ""}" data-split-type="${st.id}">
+            <div class="split-type-card-title">${st.title}</div>
+          </div>
+        `).join("")}
+      </div>
+      ${splitWizard.type === "custom" ? `
+        <div class="split-custom-input-row">
+          <input type="text" id="split-custom-input" data-i18n-placeholder="workouts.wizard.customPlaceholder" placeholder="e.g. Chest Day" autocomplete="off">
+          <button type="button" class="split-custom-add-btn" id="split-custom-add-btn">${t("workouts.wizard.add")}</button>
+        </div>
+        <div class="split-custom-days" id="split-custom-days"></div>
+      ` : ""}
+      <button type="button" class="split-primary-btn" id="split-next-btn" ${canProceedFromType() ? "" : "disabled"}>${splitWizard.type === "custom" ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
+    `;
+    RepCheckI18n.applyI18n(splitModalBody);
+
+    splitModalBody.querySelectorAll("[data-split-type]").forEach((card) => {
+      card.addEventListener("click", () => {
+        splitWizard.type = card.dataset.splitType;
+        renderSplitStepType();
+      });
+    });
+
+    if (splitWizard.type === "custom") {
+      renderCustomDays();
+      const addBtn = document.getElementById("split-custom-add-btn");
+      const input = document.getElementById("split-custom-input");
+      const addDay = () => {
+        const value = input.value.trim();
+        if (value) {
+          splitWizard.customDays.push(value);
+          input.value = "";
+          renderSplitStepType();
+          document.getElementById("split-custom-input").focus();
+        }
+      };
+      addBtn.addEventListener("click", addDay);
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") { event.preventDefault(); addDay(); }
+      });
+    }
+
+    document.getElementById("split-next-btn").addEventListener("click", () => {
+      if (splitWizard.type === "custom") {
+        splitWizard.goal = "";
+        splitWizard.daysPerWeek = Math.min(splitWizard.customDays.length, 7);
+      }
+      renderSplitStepLocation();
+    });
+  }
+
+  function getTrainingLocations() {
+    const t = RepCheckI18n.t;
+    return [
+      { id: "gym", title: t("workouts.wizard.location.gym.title"), sub: t("workouts.wizard.location.gym.sub") },
+      { id: "home", title: t("workouts.wizard.location.home.title"), sub: t("workouts.wizard.location.home.sub") },
+      { id: "hybrid", title: t("workouts.wizard.location.hybrid.title"), sub: t("workouts.wizard.location.hybrid.sub") },
+    ];
+  }
+
+  // Where the user usually trains -- feeds generate_split_plan()'s
+  // location filter (see split_planner.py) so "home" never gets offered
+  // a cable/machine exercise it has no way to actually do, "gym" gets the
+  // full equipment-heavy pool, and "hybrid" gets both plus a dedicated
+  // strength-and-endurance/conditioning day blended into the split.
+  function renderSplitStepLocation() {
+    const t = RepCheckI18n.t;
+    splitModalTitle.textContent = t("workouts.wizard.locationTitle");
+    splitModalBody.innerHTML = `
+      <div class="split-step-label">${t("workouts.wizard.stepLocation")}</div>
+      <div class="split-type-grid">
+        ${getTrainingLocations().map((loc) => `
+          <div class="split-type-card ${splitWizard.location === loc.id ? "is-selected" : ""}" data-split-location="${loc.id}">
+            <div class="split-type-card-title">${loc.title}</div>
+          </div>
+        `).join("")}
+      </div>
+      <button type="button" class="split-primary-btn" id="split-location-next-btn" ${splitWizard.location ? "" : "disabled"}>${splitWizard.type === "custom" ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
+    `;
+    splitModalBody.querySelectorAll("[data-split-location]").forEach((card) => {
+      card.addEventListener("click", () => {
+        splitWizard.location = card.dataset.splitLocation;
+        renderSplitStepLocation();
+      });
+    });
+    document.getElementById("split-location-next-btn").addEventListener("click", () => {
+      // A custom split is already fully the user's own design (their own
+      // day names, and any exercises they hand-picked) -- there's
+      // nothing left to ask except where they train. Skip the goal and
+      // days-per-week questions entirely and go straight to the review
+      // page, one training day per custom day name (capped at 7, since a
+      // week only has 7 days).
+      if (splitWizard.type === "custom") {
+        generatePlan();
+      } else {
+        renderSplitStepGoal();
+      }
+    });
+  }
+
+  function renderSplitStepGoal() {
+    const t = RepCheckI18n.t;
+    splitModalTitle.textContent = t("workouts.wizard.goalTitle");
+    splitModalBody.innerHTML = `
+      <div class="split-step-label">${t("workouts.wizard.stepGoal")}</div>
+      <div class="split-goal-hint">${t("workouts.wizard.goalHint")}</div>
+      <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${splitWizard.goal.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
+      <button type="button" class="split-primary-btn" id="split-goal-next-btn">${t("common.next")}</button>
+    `;
+    document.getElementById("split-goal-next-btn").addEventListener("click", () => {
+      splitWizard.goal = document.getElementById("split-goal-input").value.trim();
+      renderSplitStepDays();
+    });
+  }
+
+  function canProceedFromType() {
+    if (!splitWizard.type) return false;
+    if (splitWizard.type === "custom") return splitWizard.customDays.length > 0;
+    return true;
+  }
+
+  function renderCustomDays() {
+    const t = RepCheckI18n.t;
+    const daysEl = document.getElementById("split-custom-days");
+    daysEl.innerHTML = splitWizard.customDays.map((name, i) => {
+      const pickedCount = (splitWizard.customDayExercises[name] || []).length;
+      return `
+        <div class="split-custom-day-row">
+          <span class="split-custom-day-name">${name}</span>
+          <button type="button" class="split-custom-pick-btn" data-pick-exercises="${i}">
+            ${pickedCount ? t("workouts.wizard.exercisesPicked", { n: pickedCount }) : t("workouts.wizard.pickExercises")}
+          </button>
+          <button type="button" class="split-custom-remove-btn" data-remove-custom="${i}" aria-label="${t("common.remove")}">&times;</button>
+        </div>
+      `;
+    }).join("");
+    daysEl.querySelectorAll("[data-remove-custom]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = parseInt(btn.dataset.removeCustom, 10);
+        const [removedName] = splitWizard.customDays.splice(i, 1);
+        delete splitWizard.customDayExercises[removedName];
+        renderSplitStepType();
+      });
+    });
+    daysEl.querySelectorAll("[data-pick-exercises]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const dayName = splitWizard.customDays[parseInt(btn.dataset.pickExercises, 10)];
+        renderExercisePickerStep(dayName);
+      });
+    });
+    document.getElementById("split-next-btn").disabled = !canProceedFromType();
+  }
+
+  // ---------- "Plan your own split" categorized exercise picker ----------
+  // Lets the user pick exactly which exercises belong to a custom day,
+  // browsing by goal-oriented category (strength/muscle-building broken
+  // out by muscle group, plus Mobility & Flexibility, Athletic / Speed &
+  // Agility, Functional / Real-World Strength, Balance & Stability, and
+  // Prenatal / Low-Impact) instead of only relying on the app's guess
+  // from the day's typed name. Picking is optional -- skip it and the
+  // backend still guesses a sensible pool for that day's name.
+  async function renderExercisePickerStep(dayName) {
+    const t = RepCheckI18n.t;
+    splitModalTitle.textContent = t("workouts.wizard.pickExercisesTitle", { day: dayName });
+    const selected = new Set(splitWizard.customDayExercises[dayName] || []);
+
+    await loadCustomExercises();
+
+    splitModalBody.innerHTML = `
+      <input type="text" id="split-ex-picker-search" class="split-ex-picker-search" placeholder="${t("workouts.search.placeholder")}" autocomplete="off">
+      <button type="button" class="split-ex-create-btn" id="split-ex-create-btn">+ ${t("workouts.wizard.createExercise")}</button>
+      <div id="split-ex-create-slot"></div>
+      <div class="split-ex-picker-list" id="split-ex-picker-list"></div>
+      <button type="button" class="split-primary-btn" id="split-ex-picker-done-btn" style="margin-top:12px;">${t("common.done")}</button>
+    `;
+
+    const listEl = document.getElementById("split-ex-picker-list");
+    const searchInput = document.getElementById("split-ex-picker-search");
+    const createSlot = document.getElementById("split-ex-create-slot");
+
+    function renderList(query) {
+      const q = query.trim().toLowerCase();
+      const customNames = customExercises.map((e) => e.name);
+      const filteredCustom = q ? customExercises.filter((e) => e.name.toLowerCase().includes(q)) : customExercises;
+      const customHtml = filteredCustom.length ? `
+        <div class="split-ex-picker-category">
+          <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
+          ${filteredCustom.map((ex) => `
+            <label class="split-ex-picker-item">
+              <input type="checkbox" data-exercise="${ex.name}" ${selected.has(ex.name) ? "checked" : ""}>
+              <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
+              <span>${ex.name}</span>
+              <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
+            </label>
+          `).join("")}
+        </div>
+      ` : "";
+
+      const builtInHtml = Object.entries(EXERCISE_CATEGORIES).map(([category, names]) => {
+        const filtered = (q ? names.filter((n) => n.toLowerCase().includes(q)) : names).filter((n) => !customNames.includes(n));
+        if (!filtered.length) return "";
+        return `
+          <div class="split-ex-picker-category">
+            <div class="split-ex-picker-category-title">${category}</div>
+            ${filtered.map((name) => `
+              <label class="split-ex-picker-item">
+                <input type="checkbox" data-exercise="${name}" ${selected.has(name) ? "checked" : ""}>
+                <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
+                <span>${name}</span>
+              </label>
+            `).join("")}
+          </div>
+        `;
+      }).join("");
+
+      const html = customHtml + builtInHtml;
+      listEl.innerHTML = html || `<div class="ex-modal-empty">${t("workouts.search.noMatch", { query })}</div>`;
+      listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) selected.add(checkbox.dataset.exercise);
+          else selected.delete(checkbox.dataset.exercise);
+          updateDoneLabel();
+        });
+      });
+      listEl.querySelectorAll("[data-remove-custom-exercise]").forEach((btn) => {
+        btn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          const id = parseInt(btn.dataset.removeCustomExercise, 10);
+          const removed = customExercises.find((e) => e.id === id);
+          customExercises = customExercises.filter((e) => e.id !== id);
+          if (removed) selected.delete(removed.name);
+          renderList(searchInput.value);
+          updateDoneLabel();
+          try {
+            await fetch(`/api/custom-exercises/${id}`, { method: "DELETE" });
+          } catch (err) {
+            // Already removed from the UI; a failed request just means it
+            // may reappear next time the picker loads fresh data.
+          }
+        });
+      });
+    }
+
+    function updateDoneLabel() {
+      document.getElementById("split-ex-picker-done-btn").textContent =
+        selected.size ? t("workouts.wizard.doneWithCount", { n: selected.size }) : t("common.done");
+    }
+
+    function closeCreateForm() {
+      createSlot.innerHTML = "";
+    }
+
+    function openCreateForm() {
+      createSlot.innerHTML = `
+        <div class="split-ex-create-form">
+          <input type="text" id="split-ex-create-name" placeholder="${t("workouts.wizard.exerciseName")}" autocomplete="off" maxlength="60">
+          <div class="split-ex-create-form-actions">
+            <button type="button" class="split-secondary-btn" id="split-ex-create-cancel-btn">${t("common.cancel")}</button>
+            <button type="button" class="split-primary-btn" id="split-ex-create-save-btn">${t("common.save")}</button>
+          </div>
+        </div>
+      `;
+      const nameInput = document.getElementById("split-ex-create-name");
+      nameInput.focus();
+      document.getElementById("split-ex-create-cancel-btn").addEventListener("click", closeCreateForm);
+      document.getElementById("split-ex-create-save-btn").addEventListener("click", async () => {
+        const name = nameInput.value.trim();
+        if (!name) return;
+        try {
+          const response = await fetch("/api/custom-exercises", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          const data = await response.json();
+          if (!data.ok) return;
+          customExercises = [data.exercise, ...customExercises];
+          closeCreateForm();
+          openAddPrompt(data.exercise.name);
+        } catch (err) {
+          // Nothing to add to the picker if this fails -- the user can retry.
+        }
+      });
+    }
+
+    function openAddPrompt(name) {
+      createSlot.innerHTML = `
+        <div class="split-ex-add-prompt">
+          <p>${t("workouts.wizard.addExerciseNowQuestion", { name })}</p>
+          <div class="split-ex-add-prompt-actions">
+            <button type="button" class="split-secondary-btn" id="split-ex-add-later-btn">${t("workouts.wizard.saveForLater")}</button>
+            <button type="button" class="split-primary-btn" id="split-ex-add-now-btn">${t("workouts.wizard.addNow")}</button>
+          </div>
+        </div>
+      `;
+      document.getElementById("split-ex-add-later-btn").addEventListener("click", () => {
+        closeCreateForm();
+        renderList(searchInput.value);
+      });
+      document.getElementById("split-ex-add-now-btn").addEventListener("click", () => {
+        selected.add(name);
+        closeCreateForm();
+        renderList(searchInput.value);
+        updateDoneLabel();
+      });
+    }
+
+    document.getElementById("split-ex-create-btn").addEventListener("click", () => {
+      if (createSlot.innerHTML) {
+        closeCreateForm();
+      } else {
+        openCreateForm();
+      }
+    });
+
+    searchInput.addEventListener("input", () => renderList(searchInput.value));
+    renderList("");
+    updateDoneLabel();
+
+    document.getElementById("split-ex-picker-done-btn").addEventListener("click", () => {
+      if (selected.size) {
+        splitWizard.customDayExercises[dayName] = Array.from(selected);
+      } else {
+        delete splitWizard.customDayExercises[dayName];
+      }
+      renderSplitStepType();
+    });
+  }
+
+  function renderSplitStepDays() {
+    const t = RepCheckI18n.t;
+    splitModalTitle.textContent = t("workouts.wizard.chooseWeekTitle");
+    splitModalBody.innerHTML = `
+      <div class="split-step-label">${t("workouts.wizard.step2")}</div>
+      <div class="split-days-grid">
+        ${[1, 2, 3, 4, 5, 6, 7].map((n) => `
+          <button type="button" class="split-day-btn ${splitWizard.daysPerWeek === n ? "is-selected" : ""}" data-days="${n}">${n}</button>
+        `).join("")}
+      </div>
+      <button type="button" class="split-primary-btn" id="split-generate-btn" ${splitWizard.daysPerWeek ? "" : "disabled"}>${t("workouts.wizard.generatePlan")}</button>
+    `;
+    splitModalBody.querySelectorAll("[data-days]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        splitWizard.daysPerWeek = parseInt(btn.dataset.days, 10);
+        renderSplitStepDays();
+      });
+    });
+    document.getElementById("split-generate-btn").addEventListener("click", generatePlan);
+  }
+
+  async function generatePlan() {
+    const t = RepCheckI18n.t;
+    splitModalTitle.textContent = t("workouts.wizard.buildingTitle");
+    // A custom split is entirely the user's own design already -- no AI
+    // involved server-side (see generate_split_plan()'s early return for
+    // split_type "custom"), so this shouldn't claim otherwise.
+    splitModalBody.innerHTML = `<div class="split-loading">${
+      splitWizard.type === "custom"
+        ? t("workouts.wizard.buildingBodyCustom")
+        : t("workouts.wizard.buildingBody", { n: splitWizard.daysPerWeek })
+    }</div>`;
+    try {
+      const response = await fetch("{{ url_for('api_generate_split') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          split_type: splitWizard.type,
+          days_per_week: splitWizard.daysPerWeek,
+          custom_days: splitWizard.customDays,
+          goal: splitWizard.goal,
+          custom_days_exercises: splitWizard.customDayExercises,
+          location: splitWizard.location,
+        }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Failed to generate plan");
+      splitWizard.generatedDays = data.days;
+      splitWizard.generatedSchedule = data.schedule;
+      splitWizard.rationale = data.rationale;
+      renderSplitStepReview();
+    } catch (err) {
+      splitModalBody.innerHTML = `<div class="split-loading">${t("workouts.wizard.errorBody")}</div>
+        <button type="button" class="split-primary-btn" id="split-retry-btn">${t("common.back")}</button>`;
+      // Custom splits skip straight from the day-naming step to
+      // generation (no days-per-week step exists for them to return to).
+      document.getElementById("split-retry-btn").addEventListener("click",
+        splitWizard.type === "custom" ? renderSplitStepType : renderSplitStepDays);
+    }
+  }
+
+  function renderSplitStepReview() {
+    const t = RepCheckI18n.t;
+    splitModalTitle.textContent = t("workouts.wizard.assignWeekTitle");
+    const days = splitWizard.generatedDays;
+    const uniqueLabels = [...new Set(days.map((d) => d.label))];
+
+    // The AI already placed training days onto the week while it built the
+    // split, applying the same rest/recovery cadence split_planner.py checks
+    // server-side — that's the default here, not a naive Monday-first fill.
+    const defaultSchedule = splitWizard.generatedSchedule;
+    const mondayFirst = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    const restLabel = t("workouts.wizard.rest");
+
+    splitModalBody.innerHTML = `
+      <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
+      ${days.map((day, i) => `
+        <div class="split-review-day">
+          <div class="split-review-day-title">Day ${i + 1} · ${day.label}</div>
+          <div class="split-review-exercise-chips">
+            ${day.exercises.map((e) => `
+              <button type="button" class="split-review-exercise-chip" data-exercise-detail="${e}">
+                <span class="split-review-exercise-chip-emoji">${exerciseIconHtml(e)}</span>${e}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      `).join("")}
+      ${splitWizard.rationale ? `<div class="split-rationale"><strong>${t("workouts.wizard.whyThisSchedule")}</strong> ${splitWizard.rationale}</div>` : ""}
+      <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
+      ${mondayFirst.map((key, i) => `
+        <div class="split-weekday-row">
+          <label>${WEEKDAY_NAMES[[1,2,3,4,5,6,0][i]].slice(0, 3)}</label>
+          <select data-weekday="${key}">
+            <option value="Rest" ${defaultSchedule[key] === "Rest" ? "selected" : ""}>${restLabel}</option>
+            ${uniqueLabels.map((label) => `<option value="${label}" ${defaultSchedule[key] === label ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+        </div>
+      `).join("")}
+      <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${t("workouts.wizard.savePlan")}</button>
+    `;
+
+    document.getElementById("split-save-btn").addEventListener("click", () => {
+      const schedule = {};
+      splitModalBody.querySelectorAll("[data-weekday]").forEach((select) => {
+        schedule[select.dataset.weekday] = select.value;
+      });
+      const plan = {
+        splitType: splitWizard.type,
+        daysPerWeek: splitWizard.daysPerWeek,
+        goal: splitWizard.goal,
+        days,
+        schedule,
+      };
+      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+      closeSplitModal();
+      renderTodaysPlanCard();
+    });
+  }
+
+  const SPLIT_VIEW_MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  let wholeSplitActiveDay = null; // weekday key (WEEKDAY_KEYS form) currently selected in the tab strip
+
+  function renderWholeSplitView() {
+    const plan = loadSplitPlan();
+    if (!plan) return;
+    wholeSplitActiveDay = WEEKDAY_KEYS[new Date().getDay()];
+    splitModalTitle.textContent = RepCheckI18n.t("workouts.plan.wholeSplitTitle");
+    splitModalOverlay.style.display = "flex";
+    renderWholeSplitBody(plan);
+  }
+
+  function renderWholeSplitBody(plan) {
+    const t = RepCheckI18n.t;
+    const todayKey = WEEKDAY_KEYS[new Date().getDay()];
+    const activeLabel = plan.schedule[wholeSplitActiveDay];
+    const isRest = !activeLabel || activeLabel === "Rest";
+    const activeDay = isRest ? null : plan.days.find((d) => d.label === activeLabel);
+    const activeWeekdayName = WEEKDAY_NAMES[WEEKDAY_KEYS.indexOf(wholeSplitActiveDay)];
+    const isToday = wholeSplitActiveDay === todayKey;
+    const weekdayForLabel = isToday ? t("workouts.plan.today") : activeWeekdayName;
+    const planLabel = isRest
+      ? t("workouts.plan.dayPlanLabelRest", { weekday: weekdayForLabel })
+      : t("workouts.plan.dayPlanLabel", { weekday: weekdayForLabel, label: activeLabel });
+
+    splitModalBody.innerHTML = `
+      <div class="split-week-tabs">
+        ${SPLIT_VIEW_MONDAY_FIRST.map((key) => {
+          const label = plan.schedule[key];
+          const dayIsRest = !label || label === "Rest";
+          return `
+            <button type="button" class="split-week-tab${key === wholeSplitActiveDay ? " is-active" : ""}" data-weekday-tab="${key}">
+              ${WEEKDAY_NAMES[WEEKDAY_KEYS.indexOf(key)].slice(0, 3)}
+              <span class="split-week-tab-dot${dayIsRest ? " is-rest" : ""}"></span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+      <div class="split-day-plan-label">${planLabel}</div>
+      ${isRest
+        ? `<div class="wl-plan-rest">${t("workouts.plan.restText")}</div>`
+        : `<div class="wl-plan-exercise-list">
+            ${activeDay.exercises.map((name, i) => `
+              <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+                <span class="wl-plan-exercise-num">${i + 1}</span>
+                <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
+                <span class="wl-plan-exercise-info">
+                  <span class="wl-plan-exercise-name">${name}</span>
+                  <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+                </span>
+              </div>
+            `).join("")}
+          </div>`
+      }
+      <button type="button" class="split-primary-btn" id="split-edit-from-view-btn" style="margin-top:18px;">${t("workouts.plan.editSplit")}</button>
+    `;
+    splitModalBody.querySelectorAll("[data-weekday-tab]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        wholeSplitActiveDay = tab.dataset.weekdayTab;
+        renderWholeSplitBody(plan);
+      });
+    });
+    document.getElementById("split-edit-from-view-btn").addEventListener("click", openSplitModal);
+  }
+
+  planBtnEl.addEventListener("click", openSplitModal);
+  document.getElementById("wl-plan-title").addEventListener("click", renderWholeSplitView);
+  splitModalClose.addEventListener("click", closeSplitModal);
+  splitModalOverlay.addEventListener("click", (event) => {
+    if (event.target === splitModalOverlay) closeSplitModal();
+  });
+
+  document.getElementById("wl-prev-week").addEventListener("click", () => {
+    weekStart.setDate(weekStart.getDate() - 7);
+    weekStart = new Date(weekStart);
+    renderDateStrip();
+  });
+  document.getElementById("wl-next-week").addEventListener("click", () => {
+    weekStart.setDate(weekStart.getDate() + 7);
+    weekStart = new Date(weekStart);
+    renderDateStrip();
+  });
+
+  renderDateStrip();
+  renderTimeline();
+  renderTodaysPlanCard();
+  document.addEventListener("repcheck:language-changed", () => {
+    renderTimeline();
+    renderTodaysPlanCard();
+  });
+  document.addEventListener("repcheck:units-changed", () => {
+    renderTimeline();
+  });
+
+  // Mobile FAB's "Log a workout" quick action (?quick=log — see
+  // base.html's mt-fab-sheet) opens the add-exercise modal immediately;
+  // pendingHour is already null on load, so it logs at the current time.
+  (function handleQuickAction() {
+    const quick = new URLSearchParams(location.search).get("quick");
+    if (quick !== "log") return;
+    history.replaceState(null, "", location.pathname);
+    openExerciseModal();
+  })();
+</script>
+{% endblock %}

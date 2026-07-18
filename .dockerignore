@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+.git/
+repcheck.db
+uploads/
+progress_photos/
+*.mp4
+*.mov
+*.MOV
+.vscode/
+.idea/

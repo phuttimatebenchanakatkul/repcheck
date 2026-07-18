@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Weight History{% endblock %}
+{% block heading %}Weight History{% endblock %}
+{% block subheading %}Every weigh-in you've logged — browse by month or by year.{% endblock %}
+
+{% block content %}
+<style>
+  .wh-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 20px 22px; margin-bottom: 16px; max-width: 720px;
+  }
+  .wh-back { display: inline-block; margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-decoration: none; }
+  .wh-back:hover { color: var(--text); }
+
+  .wh-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+  .wh-nav-group { display: flex; align-items: center; gap: 10px; }
+  .wh-nav-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .wh-nav-btn:hover { border-color: var(--text-secondary); }
+  .wh-nav-label { font-size: 15px; font-weight: 700; min-width: 120px; text-align: center; }
+  .wh-mode-seg { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .wh-mode-seg button {
+    padding: 7px 14px; border: none; border-radius: 999px; cursor: pointer;
+    background: none; color: var(--text-secondary); font-size: 12px; font-weight: 700; font-family: inherit;
+  }
+  .wh-mode-seg button.is-active { background: var(--text); color: var(--bg); }
+
+  /* Plain label-over-value stat groups, left-aligned and hugging the
+     left edge (not stretched into a full-width grid of boxed cards) --
+     reads as a compact stats readout instead of three separate tiles. */
+  .wh-stats-row { display: flex; gap: 30px; margin-bottom: 20px; flex-wrap: wrap; }
+  .wh-stat { text-align: left; }
+  .wh-stat-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .wh-stat-value { font-size: 20px; font-weight: 700; }
+  .wh-stat-value.is-up { color: var(--red); }
+  .wh-stat-value.is-down { color: var(--green); }
+
+  .wh-chart-wrap { margin-bottom: 20px; }
+  .wh-chart-empty { text-align: center; color: var(--text-secondary); font-size: 12px; padding: 30px 0; }
+
+  /* Flat, divider-separated rows instead of individually boxed pills --
+     reads as one continuous list, matching the stats readout above it. */
+  .wh-list { display: flex; flex-direction: column; }
+  .wh-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 2px; font-size: 14px; border-bottom: 1px solid var(--border);
+  }
+  .wh-list .wh-row:last-child { border-bottom: none; }
+  .wh-row-date { font-weight: 700; }
+  .wh-row-date-sub { color: var(--text-secondary); font-size: 11px; margin-left: 6px; }
+  .wh-row-right { display: flex; align-items: center; gap: 16px; }
+  .wh-row-value { font-weight: 700; }
+  .wh-row-delta { font-size: 12px; font-weight: 700; min-width: 44px; text-align: right; }
+  .wh-row-delta.is-up { color: var(--red); }
+  .wh-row-delta.is-down { color: var(--green); }
+  .wh-row-delta.is-flat { color: var(--text-secondary); }
+  .wh-empty { text-align: center; color: var(--text-secondary); font-size: 13px; padding: 30px 0; }
+
+  .wh-month-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--bg); border-radius: 10px; padding: 12px 14px; margin-bottom: 6px; cursor: pointer;
+  }
+  .wh-month-row:hover { background: var(--sidebar-active); }
+  .wh-month-name { font-weight: 600; font-size: 13px; }
+  .wh-month-empty-label { color: var(--text-secondary); font-size: 12px; }
+  .wh-month-values { text-align: right; }
+  .wh-month-latest { font-weight: 700; font-size: 13px; }
+  .wh-month-avg { color: var(--text-secondary); font-size: 11px; }
+
+  /* ---------- Logging history pictograph ----------
+     Same "lh-" classes/markup as templates/logging_history.html (the
+     nutrition month-of-circles page) reused verbatim for visual
+     consistency ("exact same UI") -- just a plain 2-state version here
+     (logged / not logged) instead of that page's 4 (logged / fasting /
+     incomplete / not logged), since a weigh-in either happened on a given
+     day or it didn't -- there's no equivalent of "fasting" to override it
+     with, so the circles are read-only (no click-to-change popup). */
+  .wh-section-title { font-size: 15px; font-weight: 700; margin: 24px 4px 12px; }
+  .lh-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 20px 22px; margin-bottom: 16px; max-width: 720px;
+  }
+  .lh-toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; }
+  .lh-nav-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .lh-nav-btn:hover { border-color: var(--text-secondary); }
+  .lh-nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .lh-nav-btn:disabled:hover { border-color: var(--border); }
+  .lh-nav-label { font-size: 15px; font-weight: 700; min-width: 140px; text-align: center; }
+
+  .lh-summary-row { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 20px; }
+  .lh-summary-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .lh-summary-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .lh-summary-value { font-weight: 700; color: var(--text); }
+
+  .lh-circle-grid {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .lh-circle {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: none; cursor: default; font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    position: relative;
+  }
+  .lh-circle.is-today { box-shadow: 0 0 0 2px var(--blue); }
+  .lh-circle[data-status="logged"] { background: var(--green); color: #fff; }
+  .lh-circle[data-status="none"] { background: var(--border); color: var(--text); }
+  .lh-circle.is-future { opacity: 0.3; }
+
+  .lh-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; font-size: 11px; color: var(--text-secondary); }
+  .lh-legend-item { display: flex; align-items: center; gap: 5px; }
+  .lh-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .lh-circle:not(:disabled) { cursor: pointer; }
+
+  /* ---------- Weight-on-this-day popup ----------
+     Opens for any past/today circle click; the circle grid above is
+     purely a logged/not-logged view so there's nothing to set here (no
+     options list like logging_history.html's popup) -- just a plain,
+     read-only "here's what was logged" display, blank when nothing was. */
+  .lh-popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 110; padding: 16px; }
+  .lh-popup { background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow); width: 100%; max-width: 300px; padding: 22px; text-align: center; }
+  .lh-popup-date { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 12px; }
+  .lh-popup-weight { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .lh-popup-close {
+    margin-top: 16px; width: 100%; padding: 11px 18px; border-radius: 999px;
+    border: 1px solid var(--border); background: none; color: var(--text);
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .lh-popup-close:hover { border-color: var(--text-secondary); }
+  @media (max-width: 480px) {
+    .lh-popup-overlay { padding: 0; align-items: stretch; }
+    .lh-popup { max-width: none; align-self: flex-end; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  }
+</style>
+
+<a href="{{ url_for('nutrition') }}" class="wh-back" data-i18n="weight.backToNutrition">&larr; Back to Nutrition</a>
+
+<div class="wh-card">
+  <div class="wh-toolbar">
+    <div class="wh-nav-group">
+      <button type="button" class="wh-nav-btn" id="wh-prev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="wh-nav-label" id="wh-nav-label"></div>
+      <button type="button" class="wh-nav-btn" id="wh-next"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+    <div class="wh-mode-seg" id="wh-mode-seg">
+      <button type="button" data-mode="month" data-i18n="weight.month">Month</button>
+      <button type="button" data-mode="year" data-i18n="weight.year">Year</button>
+    </div>
+  </div>
+
+  <div class="wh-stats-row" id="wh-stats"></div>
+  <div class="wh-chart-wrap" id="wh-chart"></div>
+  <div id="wh-list"></div>
+</div>
+
+<div class="wh-section-title" data-i18n="weight.loggingHistoryTitle">Logging History</div>
+<div class="lh-card">
+  <div class="lh-toolbar">
+    <button type="button" class="lh-nav-btn" id="lh-prev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="lh-nav-label" id="lh-nav-label"></div>
+    <button type="button" class="lh-nav-btn" id="lh-next"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+
+  <div class="lh-summary-row" id="lh-summary"></div>
+  <div class="lh-circle-grid" id="lh-circle-grid"></div>
+
+  <div class="lh-legend">
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--green)"></span><span data-i18n="coaching.legend.logged">Logged</span></div>
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--border)"></span><span data-i18n="coaching.legend.notLogged">Not logged</span></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    const WEIGHT_LOG_KEY = "repcheck_weight_log_v1";
+    function loadWeightLog() {
+      try { return JSON.parse(localStorage.getItem(WEIGHT_LOG_KEY)) || {}; }
+      catch (err) { return {}; }
+    }
+    function el(html) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html.trim();
+      return wrap.firstElementChild;
+    }
+
+    const t = RepCheckI18n.t;
+    const weightLog = loadWeightLog();
+    const allDates = Object.keys(weightLog).sort();
+
+    const today = new Date();
+    let mode = "month"; // "month" | "year"
+    let viewYear = today.getFullYear();
+    let viewMonth = today.getMonth(); // 0-11
+
+    function monthName(i) { return t(`common.month.${i}`); }
+
+    function entriesForMonth(year, month) {
+      const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+      return allDates.filter((d) => d.startsWith(prefix)).map((d) => ({ date: d, kg: weightLog[d].kg }));
+    }
+    function entriesForYear(year) {
+      const prefix = `${year}-`;
+      return allDates.filter((d) => d.startsWith(prefix)).map((d) => ({ date: d, kg: weightLog[d].kg }));
+    }
+
+    function renderNavLabel() {
+      const label = document.getElementById("wh-nav-label");
+      label.textContent = mode === "month" ? `${monthName(viewMonth)} ${viewYear}` : String(viewYear);
+    }
+
+    function renderStats(entries) {
+      const statsEl = document.getElementById("wh-stats");
+      statsEl.innerHTML = "";
+      if (!entries.length) {
+        statsEl.appendChild(el(`<div class="wh-stat"><div class="wh-stat-value">—</div><div class="wh-stat-label">${t("weight.noEntries")}</div></div>`));
+        return;
+      }
+      const sorted = entries.slice().sort((a, b) => a.date.localeCompare(b.date));
+      const first = sorted[0].kg;
+      const last = sorted[sorted.length - 1].kg;
+      const avg = sorted.reduce((s, e) => s + e.kg, 0) / sorted.length;
+      const change = last - first;
+      const changeClass = change > 0.05 ? "is-up" : change < -0.05 ? "is-down" : "";
+      const sign = change > 0 ? "+" : "";
+
+      statsEl.appendChild(el(`
+        <div class="wh-stat"><div class="wh-stat-label">${t("weight.latest")}</div><div class="wh-stat-value">${RepCheckUnits.formatWeightKg(last)}</div></div>
+      `));
+      statsEl.appendChild(el(`
+        <div class="wh-stat"><div class="wh-stat-label">${t("weight.average")}</div><div class="wh-stat-value">${RepCheckUnits.formatWeightKg(avg)}</div></div>
+      `));
+      statsEl.appendChild(el(`
+        <div class="wh-stat"><div class="wh-stat-label">${t("weight.change")}</div><div class="wh-stat-value ${changeClass}">${sign}${RepCheckUnits.formatWeightKg(change)}</div></div>
+      `));
+    }
+
+    function renderChart(entries) {
+      const chartEl = document.getElementById("wh-chart");
+      chartEl.innerHTML = "";
+      const sorted = entries.slice().sort((a, b) => a.date.localeCompare(b.date));
+      if (sorted.length < 2) {
+        chartEl.appendChild(el(`<div class="wh-chart-empty">${t("weight.logTwoEntries")}</div>`));
+        return;
+      }
+      const values = sorted.map((e) => e.kg);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const span = max - min || 1;
+      const w = 640, h = 140, pad = 10;
+      const points = sorted.map((e, i) => {
+        const x = pad + (i / (sorted.length - 1)) * (w - pad * 2);
+        const y = pad + (1 - (e.kg - min) / span) * (h - pad * 2);
+        return [x, y];
+      });
+      const lineStr = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+      // Area fill: the same line, closed off along the bottom edge so it
+      // reads as a filled "mountain" under the trend line, not a bare stroke.
+      const areaStr = `${pad.toFixed(1)},${h.toFixed(1)} ${lineStr} ${(w - pad).toFixed(1)},${h.toFixed(1)}`;
+      const titles = sorted.map((e, i) => {
+        const [x, y] = points[i];
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="transparent"><title>${e.date}: ${RepCheckUnits.formatWeightKg(e.kg)}</title></circle>`;
+      }).join("");
+      const gradientId = `wh-area-fill-${Math.round(min * 1000)}`;
+
+      chartEl.appendChild(el(`
+        <svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="overflow:visible;">
+          <defs>
+            <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="var(--blue)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon points="${areaStr}" fill="url(#${gradientId})" stroke="none"/>
+          <polyline points="${lineStr}" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          ${titles}
+        </svg>
+      `));
+    }
+
+    function renderMonthList(entries) {
+      const listEl = document.getElementById("wh-list");
+      listEl.innerHTML = "";
+      if (!entries.length) {
+        listEl.appendChild(el(`<div class="wh-empty">${t("weight.noWeightInMonth", { month: monthName(viewMonth), year: viewYear })}</div>`));
+        return;
+      }
+      const sorted = entries.slice().sort((a, b) => b.date.localeCompare(a.date));
+      const container = el(`<div class="wh-list"></div>`);
+      sorted.forEach((entry, i) => {
+        const next = sorted[i + 1]; // chronologically previous (list is newest-first)
+        const delta = next ? entry.kg - next.kg : null;
+        const deltaClass = delta === null ? "" : delta > 0.05 ? "is-up" : delta < -0.05 ? "is-down" : "is-flat";
+        const deltaText = delta === null ? "—" : `${delta > 0 ? "+" : ""}${RepCheckUnits.formatWeightKg(delta)}`;
+        const d = new Date(entry.date + "T00:00:00");
+        const weekdayShort = d.toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { weekday: "short" });
+        const dateLabel = `${d.getDate()} ${weekdayShort}`;
+        container.appendChild(el(`
+          <div class="wh-row">
+            <div class="wh-row-date">${dateLabel}</div>
+            <div class="wh-row-right">
+              <span class="wh-row-delta ${deltaClass}">${deltaText}</span>
+              <span class="wh-row-value">${RepCheckUnits.formatWeightKg(entry.kg)}</span>
+            </div>
+          </div>
+        `));
+      });
+      listEl.appendChild(container);
+    }
+
+    function renderYearList() {
+      const listEl = document.getElementById("wh-list");
+      listEl.innerHTML = "";
+      const container = el(`<div></div>`);
+      for (let m = 11; m >= 0; m--) {
+        const monthEntries = entriesForMonth(viewYear, m);
+        const row = el(`<div class="wh-month-row" data-month="${m}"></div>`);
+        if (!monthEntries.length) {
+          row.appendChild(el(`<div class="wh-month-name">${monthName(m)}</div>`));
+          row.appendChild(el(`<div class="wh-month-empty-label">${t("weight.noData")}</div>`));
+        } else {
+          const sorted = monthEntries.slice().sort((a, b) => a.date.localeCompare(b.date));
+          const latest = sorted[sorted.length - 1].kg;
+          const avg = sorted.reduce((s, e) => s + e.kg, 0) / sorted.length;
+          row.appendChild(el(`<div class="wh-month-name">${monthName(m)}</div>`));
+          row.appendChild(el(`
+            <div class="wh-month-values">
+              <div class="wh-month-latest">${RepCheckUnits.formatWeightKg(latest)}</div>
+              <div class="wh-month-avg">${t("weight.avgPrefix", { value: RepCheckUnits.formatWeightKg(avg) })}</div>
+            </div>
+          `));
+        }
+        row.addEventListener("click", () => {
+          if (!monthEntries.length) return;
+          mode = "month";
+          viewMonth = m;
+          document.querySelectorAll("#wh-mode-seg button").forEach((b) => b.classList.toggle("is-active", b.dataset.mode === "month"));
+          render();
+        });
+        container.appendChild(row);
+      }
+      listEl.appendChild(container);
+    }
+
+    function render() {
+      renderNavLabel();
+      if (mode === "month") {
+        const entries = entriesForMonth(viewYear, viewMonth);
+        renderStats(entries);
+        renderChart(entries);
+        renderMonthList(entries);
+      } else {
+        const entries = entriesForYear(viewYear);
+        renderStats(entries);
+        renderChart(entries);
+        renderYearList();
+      }
+    }
+
+    document.getElementById("wh-prev").addEventListener("click", () => {
+      if (mode === "month") {
+        viewMonth -= 1;
+        if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+      } else {
+        viewYear -= 1;
+      }
+      render();
+    });
+    document.getElementById("wh-next").addEventListener("click", () => {
+      if (mode === "month") {
+        viewMonth += 1;
+        if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+      } else {
+        viewYear += 1;
+      }
+      render();
+    });
+    document.querySelectorAll("#wh-mode-seg button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        mode = btn.dataset.mode;
+        document.querySelectorAll("#wh-mode-seg button").forEach((b) => b.classList.toggle("is-active", b === btn));
+        render();
+      });
+    });
+    document.querySelector('#wh-mode-seg [data-mode="month"]').classList.add("is-active");
+
+    function renderInitial() {
+      if (!allDates.length) {
+        document.getElementById("wh-stats").innerHTML = "";
+        document.getElementById("wh-chart").innerHTML = "";
+        document.getElementById("wh-list").innerHTML = `<div class="wh-empty">${t("weight.notLoggedYet")}</div>`;
+        document.getElementById("wh-nav-label").textContent = "";
+      } else {
+        render();
+      }
+    }
+
+    // Land on the most recent month/year that actually has data, not
+    // necessarily today's — a new user's last entry might be weeks old.
+    if (allDates.length) {
+      const lastDate = new Date(allDates[allDates.length - 1] + "T00:00:00");
+      viewYear = lastDate.getFullYear();
+      viewMonth = lastDate.getMonth();
+    }
+    renderInitial();
+    document.addEventListener("repcheck:language-changed", renderInitial);
+
+    // ---------- Logging history pictograph ----------
+    // Same month-of-circles idea as templates/logging_history.html (the
+    // nutrition version), but weigh-ins only ever have two states -- a
+    // day either has a weight entry or it doesn't, no "fasting"/
+    // "incomplete" equivalent -- so there's nothing to override and the
+    // circles are purely a read-only view of weightLog, not clickable.
+    // Own month state (lhViewYear/lhViewMonth) rather than reusing the
+    // chart above's viewYear/viewMonth, since that one also has a
+    // Month/Year mode toggle this pictograph doesn't need.
+    function toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    function daysInMonth(year, month) {
+      return new Date(year, month + 1, 0).getDate();
+    }
+
+    const lhToday = new Date();
+    const lhTodayIso = toIsoDate(lhToday);
+    let lhViewYear = lhToday.getFullYear();
+    let lhViewMonth = lhToday.getMonth();
+    if (allDates.length) {
+      const lastDate = new Date(allDates[allDates.length - 1] + "T00:00:00");
+      lhViewYear = lastDate.getFullYear();
+      lhViewMonth = lastDate.getMonth();
+    }
+
+    function lhRenderNavLabel() {
+      document.getElementById("lh-nav-label").textContent = `${monthName(lhViewMonth)} ${lhViewYear}`;
+      document.getElementById("lh-next").disabled = (lhViewYear === lhToday.getFullYear() && lhViewMonth === lhToday.getMonth());
+    }
+
+    function lhRenderGrid() {
+      const total = daysInMonth(lhViewYear, lhViewMonth);
+      const days = Array.from({ length: total }, (_, i) => toIsoDate(new Date(lhViewYear, lhViewMonth, i + 1)));
+
+      let loggedCount = 0;
+      let notLoggedCount = 0;
+      days.forEach((dateIso) => {
+        if (dateIso > lhTodayIso) return; // future days don't count toward the month's summary
+        if (weightLog[dateIso]) loggedCount++;
+        else notLoggedCount++;
+      });
+      document.getElementById("lh-summary").innerHTML = `
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--green)"></span><span class="lh-summary-value">${loggedCount}</span> ${t("loggingHistory.summary.logged")}</div>
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--border)"></span><span class="lh-summary-value">${notLoggedCount}</span> ${t("loggingHistory.summary.notLogged")}</div>
+      `;
+
+      const gridEl = document.getElementById("lh-circle-grid");
+      gridEl.innerHTML = days.map((dateIso, i) => {
+        const isFuture = dateIso > lhTodayIso;
+        const status = weightLog[dateIso] ? "logged" : "none";
+        return `<button type="button" class="lh-circle ${dateIso === lhTodayIso ? "is-today" : ""} ${isFuture ? "is-future" : ""}" data-status="${status}" data-date="${dateIso}" ${isFuture ? "disabled" : ""}>${i + 1}</button>`;
+      }).join("");
+    }
+
+    function lhRender() {
+      lhRenderNavLabel();
+      lhRenderGrid();
+    }
+
+    // ---------- Weight-on-this-day popup ----------
+    function lhDateLabel(dateIso) {
+      const d = new Date(dateIso + "T00:00:00");
+      const weekday = d.toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { weekday: "long" });
+      return `${weekday}, ${monthName(d.getMonth())} ${d.getDate()}`;
+    }
+
+    function closeWeightPopup() {
+      const existing = document.getElementById("lh-weight-popup-overlay");
+      if (existing) existing.remove();
+    }
+
+    function openWeightPopup(dateIso) {
+      closeWeightPopup();
+      const entry = weightLog[dateIso];
+      const overlay = el(`
+        <div class="lh-popup-overlay" id="lh-weight-popup-overlay">
+          <div class="lh-popup">
+            <div class="lh-popup-date">${lhDateLabel(dateIso)}</div>
+            ${entry ? `<div class="lh-popup-weight">${RepCheckUnits.formatWeightKg(entry.kg)}</div>` : ""}
+            <button type="button" class="lh-popup-close">${t("common.close")}</button>
+          </div>
+        </div>
+      `);
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) closeWeightPopup();
+      });
+      overlay.querySelector(".lh-popup-close").addEventListener("click", closeWeightPopup);
+      document.body.appendChild(overlay);
+    }
+
+    document.getElementById("lh-circle-grid").addEventListener("click", (event) => {
+      const circle = event.target.closest(".lh-circle");
+      if (!circle || circle.disabled) return;
+      openWeightPopup(circle.dataset.date);
+    });
+
+    document.getElementById("lh-prev").addEventListener("click", () => {
+      lhViewMonth -= 1;
+      if (lhViewMonth < 0) { lhViewMonth = 11; lhViewYear -= 1; }
+      lhRender();
+    });
+    document.getElementById("lh-next").addEventListener("click", () => {
+      if (document.getElementById("lh-next").disabled) return;
+      lhViewMonth += 1;
+      if (lhViewMonth > 11) { lhViewMonth = 0; lhViewYear += 1; }
+      lhRender();
+    });
+
+    lhRender();
+    document.addEventListener("repcheck:language-changed", lhRender);
+  })();
+</script>
+{% endblock %}

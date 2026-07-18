@@ -1,0 +1,825 @@
+/* Hyrox page — kept in its own stylesheet (rather than an inline <style>
+   block in the template, like every other page) since hyrox.js owns this
+   page's structure entirely and re-renders it wholesale. */
+
+.hx-card {
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  margin-bottom: 18px;
+}
+
+.hx-step-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 14px;
+}
+
+/* ---------- Station guide (new-user reference) ---------- */
+.hx-guide-intro { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: -6px 0 16px; }
+.hx-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.hx-guide-item {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 8px 10px;
+  text-align: center;
+  background: var(--bg);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.hx-guide-item:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(20, 20, 20, 0.07); border-color: var(--blue); }
+.hx-guide-item:active { transform: scale(0.96); }
+.hx-guide-icon { color: var(--blue); display: flex; justify-content: center; margin-bottom: 8px; }
+.hx-guide-index {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.hx-guide-title { font-size: 11px; font-weight: 600; line-height: 1.3; }
+/* Small play badge in the corner so it reads as "tap to watch/learn". */
+.hx-guide-play {
+  position: absolute; top: 6px; right: 6px;
+  width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blue-bg); color: var(--blue);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.hx-guide-item:hover .hx-guide-play { background: var(--blue); color: #fff; }
+
+/* ---------- Modal (station info popup + race detail) ---------- */
+.hx-modal-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(10, 10, 14, 0.55);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 6vh 16px 16px; padding: 6dvh 16px 16px;
+  animation: hx-fade-in 0.15s ease;
+  overflow-y: auto;
+}
+.hx-modal {
+  background: var(--card-bg); color: var(--text);
+  border-radius: 24px; box-shadow: 0 24px 60px rgba(10, 10, 14, 0.28);
+  width: 100%; max-width: 480px;
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: hx-pop-in 0.18s ease;
+}
+.hx-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 18px 18px 12px; flex-shrink: 0;
+}
+.hx-modal-head-title { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; min-width: 0; }
+.hx-modal-head-icon {
+  width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+  box-shadow: 0 5px 12px rgba(47, 102, 232, 0.35);
+}
+.hx-modal-close {
+  width: 30px; height: 30px; border-radius: 50%; border: none; flex-shrink: 0;
+  background: var(--bg); color: var(--text-secondary); font-size: 19px; cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.hx-modal-close:hover { background: var(--sidebar-active); color: var(--text); }
+.hx-modal-body { padding: 4px 18px 20px; overflow-y: auto; }
+
+/* Responsive 16:9 YouTube embed. */
+.hx-video-wrap {
+  position: relative; width: 100%; aspect-ratio: 16 / 9;
+  border-radius: 14px; overflow: hidden; background: #000; margin-bottom: 16px;
+}
+.hx-video-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.hx-howto-summary { font-size: 13.5px; color: var(--text); line-height: 1.55; margin-bottom: 16px; font-weight: 600; }
+.hx-howto-label { font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+.hx-howto-steps { margin: 0 0 16px; padding: 0; list-style: none; counter-reset: hx-step; display: flex; flex-direction: column; gap: 10px; }
+.hx-howto-steps li {
+  counter-increment: hx-step; position: relative; padding-left: 38px;
+  font-size: 13px; line-height: 1.5; color: var(--text);
+}
+.hx-howto-steps li::before {
+  content: counter(hx-step); position: absolute; left: 0; top: -1px;
+  width: 26px; height: 26px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blue-bg); color: var(--blue); font-size: 12px; font-weight: 800;
+}
+.hx-howto-tip {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--amber-bg); border-radius: 14px; padding: 12px 14px;
+  font-size: 12.5px; line-height: 1.5; color: var(--text);
+}
+.hx-howto-tip-icon { color: var(--amber); flex-shrink: 0; display: flex; margin-top: 1px; }
+.hx-howto-tip strong { color: var(--amber); }
+
+@keyframes hx-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hx-pop-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* ---------- Picker grids (category / format / gender) ---------- */
+.hx-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.hx-choice-card {
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  background: var(--bg);
+  text-align: left;
+  font-family: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.hx-choice-card:hover { border-color: var(--blue); }
+.hx-choice-card:active { transform: scale(0.98); }
+.hx-choice-card.is-selected {
+  border-color: var(--blue);
+  background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
+  box-shadow: 0 6px 16px rgba(47, 102, 232, 0.14);
+}
+.hx-choice-title { font-size: 14px; font-weight: 700; color: var(--text); }
+
+.hx-primary-btn {
+  padding: 14px 24px;
+  border-radius: 999px;
+  border: none;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.hx-primary-btn:hover { opacity: 0.88; }
+.hx-primary-btn:active { transform: scale(0.98); }
+.hx-primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.hx-secondary-btn {
+  padding: 11px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.hx-secondary-btn:active { transform: scale(0.98); }
+.hx-secondary-btn:hover { border-color: var(--text-secondary); }
+.hx-danger-link {
+  background: none;
+  border: none;
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 6px 0;
+}
+
+/* ---------- Weight reference list (collapsible rows) ---------- */
+.hx-standards-list { display: flex; flex-direction: column; gap: 8px; }
+.hx-standard-row { background: var(--bg); border-radius: 14px; overflow: hidden; transition: box-shadow 0.15s ease; }
+.hx-standard-row:hover { box-shadow: 0 4px 14px rgba(20, 20, 20, 0.06); }
+.hx-standard-row-head {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text);
+}
+/* Icon + title on the left, chevron pinned top-right -- kept as its own
+   line so the chevron's position never shifts even when the chips below
+   wrap to multiple lines on a narrow screen. */
+.hx-standard-row-top { display: flex; align-items: center; gap: 10px; }
+.hx-standard-icon { color: var(--blue); flex-shrink: 0; display: flex; }
+.hx-standard-title { font-size: 13px; font-weight: 700; flex: 1; }
+.hx-standard-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hx-standard-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  background: var(--card-bg);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.hx-standard-chip-value { font-size: 13px; font-weight: 800; color: var(--text); }
+.hx-standard-chip-label { font-size: 10px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.02em; }
+/* The one fact worth knowing even without expanding the row -- shown
+   plainly under the chips regardless of collapsed/open state, distinct
+   from the fuller .hx-standard-detail paragraph that only appears once
+   the row is expanded. */
+.hx-standard-key-fact { display: block; font-size: 11px; color: var(--blue); line-height: 1.4; }
+.hx-standard-chevron { color: var(--text-secondary); flex-shrink: 0; display: flex; margin-left: auto; transition: transform 0.15s ease; }
+.hx-standard-chevron.is-open { transform: rotate(180deg); }
+.hx-standard-detail {
+  padding: 0 12px 12px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.hx-weights-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.hx-weight-reset {
+  border: none;
+  background: none;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px 0;
+}
+.hx-weight-reset:hover { text-decoration: underline; }
+
+/* ---------- Step 4: Pro weight adjustment ---------- */
+/* Loud on purpose -- amber/warning colors plus an icon, not just a small
+   gray caption -- so it's genuinely hard to miss that this whole step is
+   practice-only and the real race never lets weight trade for extra
+   rounds. */
+.hx-race-fixed-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--amber-bg);
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.hx-race-fixed-banner svg { flex-shrink: 0; margin-top: 1px; }
+
+/* Same loud treatment as the banner above, but blue instead of amber --
+   this one isn't a "practice mode, not real rules" caution, it's a
+   straightforward "here's what to actually do" instruction, so it reads
+   as informational rather than a warning. */
+.hx-doubles-banner {
+  background: var(--blue-bg);
+  color: var(--blue);
+  border-color: var(--blue);
+}
+
+.hx-pro-weight-grid { display: flex; flex-direction: column; gap: 12px; }
+.hx-pro-weight-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 14px;
+}
+.hx-pro-weight-icon { color: var(--blue); flex-shrink: 0; }
+/* Low min-width on purpose -- the only titles that ever land in this row
+   ("Sled Push/Pull", "Farmers Carry", "Sandbag Lunges") are all short, so
+   this can shrink well below the 3 fixed-width stat boxes' combined
+   width instead of competing with them for space. At 160px this was
+   just wide enough to push the longer "Partner (rounds)" label box onto
+   its own line on the Doubles split screen while "Partner (m)" stayed
+   inline -- same row, same 3 boxes, different label length was all it
+   took to break the layout. */
+.hx-pro-weight-info { flex: 1; min-width: 90px; }
+.hx-pro-weight-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+
+/* Generic prominent stat box -- used for both the rounds count and (as of
+   this feature) the weight, side by side, so a station's full commitment
+   ("this much weight, this many rounds") reads with equal visual weight
+   instead of the load being just a small text line while rounds gets the
+   big number. */
+.hx-pro-weight-stat {
+  flex-shrink: 0;
+  text-align: center;
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 8px 16px;
+  min-width: 78px;
+}
+.hx-pro-weight-stat-value { font-size: 26px; font-weight: 800; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.hx-pro-weight-stat-label { font-size: 10px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 3px; }
+.hx-pro-weight-stat-base { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.hx-pro-weight-stat.is-scaled { background: var(--amber-bg); }
+.hx-pro-weight-stat.is-scaled .hx-pro-weight-stat-value { color: var(--amber); }
+
+/* Editable variant of the stat box above -- the big number itself IS the
+   input (Pro Singles' weight, Doubles' "you" round count), instead of a
+   separate small labeled field elsewhere in the row. Same size/weight as
+   .hx-pro-weight-stat-value so editable and read-only stats in the same
+   row look like one consistent set of numbers, not two different UI
+   patterns bolted together. */
+.hx-pro-weight-stat-editable { padding-top: 10px; }
+.hx-pro-weight-stat-input {
+  width: 100%;
+  max-width: 62px;
+  border: none;
+  /* A dotted underline under just the number -- the one thing that
+     still says "editable" even when the box isn't scaled/uneven and so
+     has no amber highlight to lean on (see .is-scaled above), without
+     changing the box's own color or background. */
+  border-bottom: 1.5px dotted var(--text-secondary);
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  padding: 0 0 3px;
+  -moz-appearance: textfield;
+  font-variant-numeric: tabular-nums;
+}
+.hx-pro-weight-stat-input::-webkit-inner-spin-button,
+.hx-pro-weight-stat-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.hx-pro-weight-stat-input:focus { outline: none; color: var(--blue); border-bottom-color: var(--blue); border-bottom-style: solid; }
+.hx-pro-weight-stat-editable.is-scaled .hx-pro-weight-stat-input { color: var(--amber); border-bottom-color: var(--amber); }
+.hx-pro-weight-stat-editable .hx-weight-reset { margin-top: 4px; font-size: 11px; padding: 0; }
+
+/* ---------- Stopwatch / running view ---------- */
+/* ---------- Running (in-progress) race ---------- */
+/* Two calm stat tiles up top (elapsed + how far through) instead of a
+   stark stopwatch, so mid-race the screen feels like a companion, not a
+   clock staring you down. */
+.hx-run-head { display: flex; gap: 10px; margin-bottom: 18px; }
+.hx-run-stat { flex: 1; text-align: center; padding: 14px 8px; border-radius: 18px; background: var(--bg); }
+.hx-run-stat-value {
+  display: block; font-size: 38px; font-weight: 800; letter-spacing: -0.02em;
+  line-height: 1; font-variant-numeric: tabular-nums;
+}
+.hx-run-stat-label {
+  display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.04em; margin-top: 7px;
+}
+.hx-run-count { color: var(--blue); }
+.hx-run-count-total { font-size: 20px; color: var(--text-secondary); font-weight: 700; }
+
+/* The station you're on is the hero: a big friendly gradient badge, its
+   name, what to do, and a one-tap "how to" that opens the demo popup. */
+.hx-now {
+  text-align: center; padding: 26px 22px 24px; border-radius: 24px; margin-bottom: 18px;
+  background: linear-gradient(165deg, var(--blue-bg), var(--card-bg));
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.hx-now-kicker { font-size: 12px; font-weight: 800; color: var(--blue); text-transform: uppercase; letter-spacing: 0.06em; }
+.hx-now-badge {
+  width: 92px; height: 92px; margin: 14px auto 0; border-radius: 26px;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  background: linear-gradient(135deg, #4d7ff5, var(--blue));
+  box-shadow: 0 14px 30px rgba(47, 102, 232, 0.4);
+}
+.hx-now-title { font-size: 27px; font-weight: 800; margin-top: 16px; letter-spacing: -0.02em; }
+.hx-now-detail { font-size: 13.5px; color: var(--text-secondary); margin-top: 8px; line-height: 1.55; }
+.hx-now-info {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 16px;
+  background: var(--card-bg); border: 1px solid var(--border); color: var(--blue);
+  border-radius: 999px; padding: 8px 16px; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.hx-now-info:hover { border-color: var(--blue); }
+.hx-now-info:active { transform: scale(0.94); }
+
+.hx-run-progress { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; margin: 0 0 12px; }
+.hx-run-progress-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+  transition: width 0.4s ease;
+}
+
+.hx-run-cancel { display: block; margin: 14px auto 0; }
+
+.hx-complete-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 18px;
+  border: none;
+  background: linear-gradient(135deg, var(--green), #29b87e);
+  box-shadow: 0 8px 22px rgba(31, 169, 113, 0.3);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.hx-complete-btn:hover { opacity: 0.92; }
+.hx-complete-btn:active { transform: scale(0.98); }
+.hx-complete-btn-icon { display: flex; flex-shrink: 0; }
+
+.hx-splits-list { margin-top: 18px; display: flex; flex-direction: column; gap: 6px; }
+.hx-split-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+.hx-split-row-name { display: flex; align-items: center; color: var(--text); font-weight: 600; }
+.hx-split-row-check {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 18px; height: 18px; margin-right: 8px; border-radius: 50%;
+  background: var(--green-bg); color: var(--green);
+}
+.hx-split-row-check svg { width: 11px; height: 11px; }
+/* Finish-screen splits get the real station pictogram (same ones from the
+   "8 stations" guide grid) instead of a generic checkmark, so each row is
+   recognizable by its icon alone. */
+.hx-split-row-icon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 26px; height: 26px; margin-right: 10px; border-radius: 50%;
+  background: var(--blue-bg); color: var(--blue);
+}
+.hx-split-row-icon svg { width: 15px; height: 15px; }
+
+/* ---------- Progress dots ---------- */
+.hx-progress-dots { display: flex; gap: 4px; justify-content: center; margin: 0 0 14px; flex-wrap: wrap; }
+.hx-progress-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); transition: background 0.2s ease, transform 0.2s ease; }
+.hx-progress-dot.is-done { background: var(--green); }
+.hx-progress-dot.is-current { background: var(--blue); transform: scale(1.3); }
+
+/* ---------- Finish summary ---------- */
+.hx-finish-hero { text-align: center; margin-bottom: 4px; }
+.hx-finish-hero-icon {
+  width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+}
+.hx-finish-hero-icon svg { width: 26px; height: 26px; }
+.hx-finish-hero-icon.is-flagged { background: linear-gradient(135deg, var(--red), #e5695f); box-shadow: 0 8px 20px rgba(209, 69, 59, 0.35); }
+.hx-finish-hero-icon.is-pb { background: linear-gradient(135deg, var(--amber), #d4a13f); box-shadow: 0 8px 20px rgba(185, 131, 42, 0.35); }
+.hx-finish-hero-icon.is-saved { background: linear-gradient(135deg, var(--green), #29b87e); box-shadow: 0 8px 20px rgba(31, 169, 113, 0.35); }
+.hx-finish-time { font-size: 48px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; text-align: center; margin: 0 0 4px; }
+.hx-finish-label { text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 18px; }
+
+.hx-flag-banner, .hx-saved-banner, .hx-pb-new-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+.hx-flag-banner { background: var(--red-bg); color: var(--red); font-weight: 600; }
+.hx-saved-banner { background: var(--green-bg); color: var(--green); font-weight: 600; }
+.hx-pb-new-banner { background: var(--amber-bg); color: var(--amber); font-weight: 700; }
+.hx-banner-icon { flex-shrink: 0; display: flex; margin-top: 1px; }
+.hx-banner-icon svg { width: 18px; height: 18px; }
+
+.hx-finish-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.hx-finish-primary-btn {
+  width: 100%;
+  padding: 18px;
+  border-radius: 18px;
+  border: none;
+  background: linear-gradient(135deg, var(--blue), #5b8def);
+  box-shadow: 0 8px 22px rgba(47, 102, 232, 0.3);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.hx-finish-primary-btn:hover { opacity: 0.92; }
+.hx-finish-primary-btn:active { transform: scale(0.98); }
+.hx-finish-actions-row { display: flex; gap: 10px; }
+.hx-finish-actions-row .hx-secondary-btn { flex: 1; text-align: center; }
+
+/* ---------- Personal best (setup screen banner + history list) ---------- */
+.hx-pb-banner {
+  background: var(--blue-bg);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 4px 0 16px;
+}
+.hx-pb-banner-label { font-size: 12px; font-weight: 600; color: var(--blue); margin-bottom: 4px; }
+.hx-pb-banner-time { font-size: 24px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.hx-pb-banner-date { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-left: 10px; }
+
+.hx-pb-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--blue-bg);
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+.hx-pb-row-time { font-size: 18px; font-weight: 700; min-width: 76px; color: var(--blue); font-variant-numeric: tabular-nums; }
+
+/* ---------- History ---------- */
+.hx-history-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  transition: box-shadow 0.15s ease;
+}
+.hx-history-row:hover { box-shadow: 0 4px 14px rgba(20, 20, 20, 0.06); }
+.hx-history-time { font-size: 18px; font-weight: 700; min-width: 76px; font-variant-numeric: tabular-nums; }
+.hx-history-meta { flex: 1; font-size: 12px; color: var(--text-secondary); }
+.hx-history-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+}
+.hx-history-empty { text-align: center; color: var(--text-secondary); font-size: 13px; padding: 30px 0; }
+
+/* ---------- Leaderboard ---------- */
+.hx-lb-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.hx-lb-caption {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* A direct, always-visible two-way switch instead of a hidden "..." menu
+   -- there are only ever two genders, so a one-tap segmented toggle is
+   both clearer (obviously a switch, not a mystery icon) and faster than
+   opening a dropdown to find the one other option in it. Styled to match
+   the .hx-lb-tab pills just below it for a consistent header language. */
+.hx-lb-gender-toggle {
+  display: flex;
+  flex-shrink: 0;
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.hx-lb-gender-btn {
+  border: none;
+  background: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.hx-lb-gender-btn:hover { color: var(--text); }
+.hx-lb-gender-btn:active { transform: scale(0.96); }
+.hx-lb-gender-btn.is-active {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(47, 102, 232, 0.3);
+}
+
+.hx-lb-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.hx-lb-tab {
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  flex: 1;
+  min-width: 120px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+.hx-lb-tab:hover { border-color: var(--blue); }
+.hx-lb-tab:active { transform: scale(0.97); }
+.hx-lb-tab.is-active { border-color: var(--blue); background: var(--blue); color: #fff; box-shadow: 0 6px 16px rgba(47, 102, 232, 0.28); }
+
+/* Each competitor's row: time + name on the left, rank + total on the
+   right -- bigger and bolder than the plain race-history rows above, so
+   the list reads as "here's the field" at a glance. */
+.hx-lb-entry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 22px;
+  background: var(--bg);
+  border-radius: 18px;
+  margin-bottom: 10px;
+  border: 1px solid transparent;
+  transition: box-shadow 0.15s ease;
+}
+.hx-lb-entry-row:hover { box-shadow: 0 6px 18px rgba(20, 20, 20, 0.07); }
+.hx-lb-entry-row.is-me { background: var(--sidebar-active); }
+.hx-lb-entry-time { font-size: 30px; font-weight: 700; line-height: 1.1; color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.hx-lb-entry-name { font-size: 14px; font-weight: 400; color: var(--text-secondary); margin-top: 4px; }
+.hx-lb-entry-right { text-align: right; flex-shrink: 0; }
+.hx-lb-entry-rank { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.hx-lb-entry-total { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-top: 4px; }
+
+/* Fallback for when "you" aren't among the visible rows above (outside
+   the top 50) -- reuses .hx-lb-entry-row/is-me directly (see
+   renderLeaderboardCard in hyrox.js) so it's not a separate "special"
+   design, just the same plain row shape used everywhere else. */
+
+.hx-lb-me-banner {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.hx-history-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+}
+.hx-history-remove:hover { color: var(--red); }
+
+.hx-history-row.is-clickable { cursor: pointer; }
+.hx-history-row.is-clickable:hover { box-shadow: 0 6px 16px rgba(20, 20, 20, 0.08); transform: translateY(-1px); }
+.hx-history-row.is-clickable:active { transform: scale(0.99); }
+.hx-history-chevron { color: var(--text-secondary); display: flex; flex-shrink: 0; }
+
+/* ---------- Race breakdown: where the time went (time bars) ---------- */
+.hx-breakdown { margin: 20px 0 4px; }
+.hx-bd-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 12px; }
+.hx-bd-totals { display: flex; gap: 10px; margin-bottom: 16px; }
+.hx-bd-total { flex: 1; text-align: center; padding: 13px; border-radius: 16px; }
+.hx-bd-total-run { background: var(--bg); }
+.hx-bd-total-station { background: var(--blue-bg); }
+.hx-bd-total-value { display: block; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.hx-bd-total-station .hx-bd-total-value { color: var(--blue); }
+.hx-bd-total-label { display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+.hx-bd-rows { display: flex; flex-direction: column; gap: 7px; }
+.hx-bd-row { display: flex; align-items: center; gap: 10px; }
+.hx-bd-icon { width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text-secondary); }
+.hx-bd-station .hx-bd-icon { background: var(--blue-bg); color: var(--blue); }
+.hx-bd-name { font-size: 12px; font-weight: 600; width: 82px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hx-bd-track { flex: 1; height: 10px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.hx-bd-fill { display: block; height: 100%; border-radius: 999px; background: var(--border); transition: width 0.5s ease, background 0.3s ease; }
+.hx-bd-station .hx-bd-fill { background: linear-gradient(90deg, #4d7ff5, var(--blue)); }
+.hx-bd-run .hx-bd-fill { background: var(--text-secondary); opacity: 0.45; }
+.hx-bd-time { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; width: 42px; text-align: right; flex-shrink: 0; color: var(--text-secondary); }
+/* Once the AI has rated each station, its bar/icon tint to match. */
+.hx-bd-rate-strong .hx-bd-fill { background: linear-gradient(90deg, #29b87e, var(--green)); }
+.hx-bd-rate-strong .hx-bd-icon { background: var(--green-bg); color: var(--green); }
+.hx-bd-rate-focus .hx-bd-fill { background: linear-gradient(90deg, #e8a33f, var(--amber)); }
+.hx-bd-rate-focus .hx-bd-icon { background: var(--amber-bg); color: var(--amber); }
+
+/* ---------- AI race analysis ---------- */
+.hx-analyze-cta {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  margin: 18px 0 4px; padding: 16px; border-radius: 18px; cursor: pointer; font-family: inherit;
+  border: none; color: #fff;
+  background: linear-gradient(135deg, #9b7bef, var(--purple));
+  box-shadow: 0 10px 24px rgba(124, 79, 224, 0.35);
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.hx-analyze-cta:hover { opacity: 0.94; }
+.hx-analyze-cta:active { transform: scale(0.98); }
+.hx-analyze-cta.is-error { background: var(--bg); color: var(--text); box-shadow: none; border: 1px solid var(--border); }
+.hx-analyze-cta-icon { display: flex; flex-shrink: 0; }
+.hx-analyze-cta.is-error .hx-analyze-cta-icon { color: var(--purple); }
+.hx-analyze-cta-title { display: block; font-size: 14.5px; font-weight: 800; }
+.hx-analyze-cta-sub { display: block; font-size: 12px; opacity: 0.88; margin-top: 2px; }
+
+.hx-analyze-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px; margin: 18px 0 4px; border-radius: 18px; background: var(--purple-bg); color: var(--purple); font-size: 13px; font-weight: 700; }
+.hx-analyze-spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(124, 79, 224, 0.25); border-top-color: var(--purple); animation: hx-spin 0.8s linear infinite; }
+@keyframes hx-spin { to { transform: rotate(360deg); } }
+
+.hx-analysis { margin: 18px 0 4px; }
+.hx-analysis-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; margin-bottom: 12px; }
+.hx-analysis-head-icon { color: var(--purple); display: flex; }
+.hx-analysis-overall-block {
+  background: var(--purple-bg); border-radius: 16px; padding: 14px 16px; margin-bottom: 14px;
+}
+.hx-analysis-overall { font-size: 13px; line-height: 1.6; font-weight: 700; color: var(--text); }
+
+/* Short-by-default / read-more toggle, shared by the overall block and
+   each rating group -- a small text+chevron link, never a heavy button,
+   so it doesn't compete with the short direct copy above it. */
+.hx-detail-toggle {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;
+  background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+  font-size: 11.5px; font-weight: 800; color: var(--purple);
+}
+.hx-tip-group .hx-detail-toggle { color: var(--blue); margin-top: 10px; }
+.hx-detail-toggle-chevron { transition: transform 0.2s ease; }
+.hx-detail-toggle-chevron.is-open { transform: rotate(180deg); }
+
+/* Bullet-point detail, revealed on expand -- short phrases only, tight
+   line-height, a small colored marker instead of default browser bullets. */
+.hx-bullet-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hx-bullet-list li {
+  position: relative; padding-left: 14px; font-size: 12.5px; line-height: 1.5;
+  color: var(--text); opacity: 0.9;
+}
+.hx-bullet-list li::before {
+  content: ""; position: absolute; left: 0; top: 7px;
+  width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+}
+.hx-analysis-overall-block .hx-bullet-list li { color: var(--text); }
+.hx-tip-body .hx-bullet-list { margin-top: 6px; }
+.hx-tip-body .hx-bullet-list li { color: var(--text-secondary); opacity: 1; }
+/* Tips grouped by rating: one soft card per group with a colored label,
+   plain airy rows inside -- reads as a priority list ("gain time here,
+   here's what's working, the rest is fine"), not 8 identical boxes. */
+.hx-tip-group { background: var(--bg); border-radius: 18px; padding: 14px; margin-top: 10px; }
+.hx-tip-group-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.hx-tip-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.hx-tip-group-focus .hx-tip-group-label { color: var(--amber); }
+.hx-tip-group-focus .hx-tip-group-dot { background: var(--amber); }
+.hx-tip-group-strong .hx-tip-group-label { color: var(--green); }
+.hx-tip-group-strong .hx-tip-group-dot { background: var(--green); }
+.hx-tip-group-solid .hx-tip-group-label { color: var(--text-secondary); }
+.hx-tip-group-solid .hx-tip-group-dot { background: var(--text-secondary); }
+
+.hx-tip-row { display: flex; gap: 11px; align-items: flex-start; padding: 10px 0; }
+.hx-tip-row + .hx-tip-row { border-top: 1px solid var(--border); }
+.hx-tip-icon {
+  width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--card-bg); color: var(--text-secondary);
+}
+.hx-tip-group-focus .hx-tip-icon { background: var(--amber-bg); color: var(--amber); }
+.hx-tip-group-strong .hx-tip-icon { background: var(--green-bg); color: var(--green); }
+.hx-tip-body { flex: 1; min-width: 0; }
+.hx-tip-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.hx-tip-text { font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+
+/* Flagged race: analysis deliberately unavailable. */
+.hx-analyze-disabled {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 18px 0 4px; padding: 14px 16px; border-radius: 16px;
+  background: var(--bg); color: var(--text-secondary);
+  font-size: 12.5px; line-height: 1.5;
+}
+.hx-analyze-disabled-icon { display: flex; flex-shrink: 0; opacity: 0.5; margin-top: 1px; }
+
+/* Race detail modal (history) */
+.hx-detail-modal { max-width: 520px; }
+.hx-detail-head-main { min-width: 0; }
+.hx-detail-head-time { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.hx-detail-head-meta { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+
+@media (max-width: 640px) {
+  .hx-run-stat-value { font-size: 32px; }
+  .hx-now-title { font-size: 23px; }
+  .hx-finish-time { font-size: 34px; }
+}

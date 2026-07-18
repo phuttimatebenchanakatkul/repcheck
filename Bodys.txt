@@ -1,0 +1,51 @@
+Create ONLY the body type illustration images for a fitness app.
+
+Do not create website code.
+Do not create UI cards.
+Do not create buttons.
+Do not create a full app screen.
+Do not add text labels.
+Do not add percentages.
+Do not add background decorations.
+
+I only need the body-type illustrations that will be placed inside my existing app UI.
+
+Style:
+- Modern premium app icon style
+- Clean vector / semi-realistic illustration
+- Similar quality to polished iOS-style app illustrations
+- Minimal, smooth, rounded, realistic proportions
+- White or transparent background
+- No logos
+- No copyrighted Apple assets
+- Tasteful and non-sexual
+- Front-facing standing pose
+- Consistent lighting, scale, and pose across all bodies
+- Simple black workout shorts for men
+- Simple black sports bra and shorts for women
+
+Create two separate image sets:
+
+Set 1: Male body types
+1. 7–10% body fat: very lean, narrow waist, visible abs, slim frame
+2. 11–14% body fat: lean, defined torso, slightly more muscle
+3. 15–20% body fat: athletic, broader shoulders, stronger chest/arms/legs
+4. 21–25% body fat: average, balanced body, slight softness around waist
+5. 26–35% body fat: wider waist, softer midsection, fuller torso
+6. 36–45% body fat: larger belly, wider body, fuller arms and legs
+
+Set 2: Female body types
+1. 7–10% body fat: very lean, narrow frame, minimal curves
+2. 11–14% body fat: lean, small waist, slight muscle tone
+3. 15–20% body fat: athletic, toned arms, stronger legs and glutes
+4. 21–25% body fat: average, natural curves, balanced shape
+5. 26–35% body fat: fuller hips and thighs, softer waistline
+6. 36–45% body fat: fuller body, wider waist and hips, larger thighs and arms
+
+Important:
+- Make the differences between each body type very obvious.
+- Keep the pose consistent across all 6 illustrations.
+- Output as separate transparent PNG images or one clean sprite sheet with each figure separated.
+- No text inside the image.
+- No UI mockup.
+- Body illustrations only.

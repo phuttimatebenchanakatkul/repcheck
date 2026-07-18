@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Coach{% endblock %}
+{% block heading %}Coach{% endblock %}
+{% block subheading %}Ask about muscle growth, fat loss, recovery, mobility, strength training, or form — plain language, science-based.{% endblock %}
+
+{% block content %}
+<div class="cc-card">
+  <div class="cc-header">
+    <div class="cc-header-avatar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+    <div>
+      <div class="cc-header-title">RepCheck Coach</div>
+      <div class="cc-header-sub" id="cc-header-sub" data-i18n="coach.headerSub">Online · science-based, jargon-free advice</div>
+    </div>
+    <button type="button" class="cc-clear-btn" id="cc-clear-btn" title="Start a new conversation" data-i18n="coach.newChat">New chat</button>
+  </div>
+
+  <div class="cc-messages" id="cc-messages"></div>
+
+  <div class="cc-suggestions" id="cc-suggestions"></div>
+
+  <form class="cc-input-row" id="cc-form">
+    <input type="text" id="cc-input" data-i18n-placeholder="coach.inputPlaceholder" placeholder="Ask your coach anything..." autocomplete="off" maxlength="600">
+    <button type="submit" class="cc-send-btn" id="cc-send-btn" aria-label="Send message">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+    </button>
+  </form>
+</div>
+
+<style>
+  .cc-card {
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 190px);
+    min-height: 480px;
+    overflow: hidden;
+  }
+
+  .cc-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .cc-header-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-bg);
+    color: var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .cc-header-title { font-size: 15px; font-weight: 700; }
+  .cc-header-sub { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .cc-header-sub::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-right: 5px;
+  }
+  .cc-clear-btn {
+    margin-left: auto;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .cc-clear-btn:hover { border-color: var(--text-secondary); color: var(--text); }
+
+  .cc-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .cc-messages::-webkit-scrollbar { width: 8px; }
+  .cc-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+  .cc-row { display: flex; gap: 10px; max-width: 82%; animation: cc-pop-in 0.18s ease; }
+  .cc-row.cc-row-user { align-self: flex-end; flex-direction: row-reverse; }
+  .cc-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .cc-row-coach .cc-avatar { background: var(--blue-bg); color: var(--blue); }
+  .cc-row-user .cc-avatar { background: var(--sidebar-active); color: var(--text); }
+
+  .cc-bubble {
+    padding: 11px 15px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+  .cc-row-coach .cc-bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 4px; }
+  .cc-row-user .cc-bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+  .cc-bubble strong { font-weight: 700; }
+  .cc-bubble p { margin: 0 0 8px; }
+  .cc-bubble p:last-child { margin-bottom: 0; }
+  .cc-bullet-list { margin: 4px 0 8px; padding-left: 18px; }
+  .cc-bullet-list:last-child { margin-bottom: 0; }
+  .cc-bullet-list li { margin-bottom: 4px; }
+  .cc-bullet-list li:last-child { margin-bottom: 0; }
+
+  .cc-typing-row { align-self: flex-start; }
+  .cc-typing-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 16px;
+    background: var(--bg);
+    border-radius: 16px;
+    border-bottom-left-radius: 4px;
+  }
+  .cc-typing-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    animation: cc-bounce 1.2s ease-in-out infinite;
+  }
+  .cc-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .cc-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  .cc-welcome {
+    text-align: center;
+    padding: 30px 16px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin: auto 0;
+  }
+  .cc-welcome-icon { font-size: 30px; margin-bottom: 10px; }
+  .cc-welcome-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+
+  .cc-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 20px 14px;
+    flex-shrink: 0;
+  }
+  .cc-suggestion-chip {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .cc-suggestion-chip:hover { border-color: var(--blue); color: var(--blue); }
+
+  .cc-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .cc-input-row input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .cc-input-row input:focus { border-color: var(--blue); }
+  .cc-send-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: none;
+    background: var(--blue);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .cc-send-btn:hover { opacity: 0.9; }
+  .cc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  @keyframes cc-pop-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes cc-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  @media (max-width: 720px) {
+    .cc-card { height: calc(100vh - 160px); min-height: 420px; }
+    .cc-header { padding: 12px 14px; }
+    .cc-messages { padding: 14px; }
+    .cc-input-row { padding: 10px 14px; }
+    .cc-row { max-width: 90%; }
+  }
+</style>
+
+<script>
+  (function () {
+    const STORAGE_KEY = "repcheck_coach_chat_v1";
+    const SUGGESTION_KEYS = [
+      "coach.suggestion1",
+      "coach.suggestion2",
+      "coach.suggestion3",
+      "coach.suggestion4",
+      "coach.suggestion5",
+    ];
+
+    const messagesEl = document.getElementById("cc-messages");
+    const suggestionsEl = document.getElementById("cc-suggestions");
+    const formEl = document.getElementById("cc-form");
+    const inputEl = document.getElementById("cc-input");
+    const sendBtn = document.getElementById("cc-send-btn");
+    const clearBtn = document.getElementById("cc-clear-btn");
+
+    function loadHistory() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch (err) { return []; }
+    }
+    function saveHistory(history) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-60)));
+    }
+
+    let history = loadHistory();
+    let isSending = false;
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Minimal, safe formatting: escape everything first, then re-enable just
+    // "- " bullet lines (as a real <ul>) and **bold** — nothing else, so
+    // there's no HTML-injection risk from the model's reply.
+    function formatBubble(text) {
+      const lines = escapeHtml(text).split("\n");
+      let html = "";
+      let inList = false;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        const isBullet = /^[-*]\s+/.test(line);
+        if (isBullet) {
+          if (!inList) { html += "<ul class=\"cc-bullet-list\">"; inList = true; }
+          html += `<li>${line.replace(/^[-*]\s+/, "")}</li>`;
+        } else {
+          if (inList) { html += "</ul>"; inList = false; }
+          if (line) html += `<p>${line}</p>`;
+        }
+      }
+      if (inList) html += "</ul>";
+      return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    }
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function renderMessages() {
+      const t = RepCheckI18n.t;
+      if (!history.length) {
+        messagesEl.innerHTML = `
+          <div class="cc-welcome">
+            <div class="cc-welcome-icon">🏋️</div>
+            <div class="cc-welcome-title">${t("coach.welcomeTitle")}</div>
+            <div>${t("coach.welcomeBody")}</div>
+          </div>
+        `;
+        renderSuggestions();
+        return;
+      }
+      suggestionsEl.innerHTML = "";
+      messagesEl.innerHTML = history.map((turn) => `
+        <div class="cc-row ${turn.role === "user" ? "cc-row-user" : "cc-row-coach"}">
+          <div class="cc-avatar">${turn.role === "user" ? "🙂" : "🏋️"}</div>
+          <div class="cc-bubble">${formatBubble(turn.text)}</div>
+        </div>
+      `).join("");
+      scrollToBottom();
+    }
+
+    function renderSuggestions() {
+      const suggestions = SUGGESTION_KEYS.map((key) => RepCheckI18n.t(key));
+      suggestionsEl.innerHTML = suggestions.map((q) => `<button type="button" class="cc-suggestion-chip" data-suggestion="${escapeHtml(q)}">${q}</button>`).join("");
+      suggestionsEl.querySelectorAll("[data-suggestion]").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          inputEl.value = chip.dataset.suggestion;
+          sendMessage();
+        });
+      });
+    }
+
+    function showTyping() {
+      const row = document.createElement("div");
+      row.className = "cc-row cc-row-coach cc-typing-row";
+      row.id = "cc-typing-row";
+      row.innerHTML = `<div class="cc-avatar">🏋️</div><div class="cc-typing-dots"><span></span><span></span><span></span></div>`;
+      messagesEl.appendChild(row);
+      scrollToBottom();
+    }
+
+    function hideTyping() {
+      const row = document.getElementById("cc-typing-row");
+      if (row) row.remove();
+    }
+
+    // ---------- Session message limit lockout ----------
+    const headerSubEl = document.getElementById("cc-header-sub");
+    let lockoutInterval = null;
+    let lockoutTimeout = null;
+
+    function formatCountdown(seconds) {
+      seconds = Math.max(seconds, 0);
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return hours ? `${hours}h ${minutes}m` : `${Math.max(minutes, 1)}m`;
+    }
+
+    function applyLimitLockout(retryAfterSeconds) {
+      let remaining = retryAfterSeconds;
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+      inputEl.placeholder = RepCheckI18n.t("coach.limitReachedPlaceholder");
+
+      const updateSub = () => { headerSubEl.textContent = RepCheckI18n.t("coach.limitReached", { time: formatCountdown(remaining) }); };
+      updateSub();
+
+      clearInterval(lockoutInterval);
+      clearTimeout(lockoutTimeout);
+      lockoutInterval = setInterval(() => {
+        remaining = Math.max(remaining - 30, 0);
+        updateSub();
+      }, 30000);
+      lockoutTimeout = setTimeout(() => {
+        clearInterval(lockoutInterval);
+        inputEl.disabled = false;
+        sendBtn.disabled = false;
+        inputEl.placeholder = RepCheckI18n.t("coach.inputPlaceholder");
+        headerSubEl.textContent = RepCheckI18n.t("coach.headerSub");
+        inputEl.focus();
+      }, retryAfterSeconds * 1000);
+    }
+
+    async function sendMessage() {
+      const message = inputEl.value.trim();
+      if (!message || isSending) return;
+
+      isSending = true;
+      sendBtn.disabled = true;
+      inputEl.value = "";
+
+      history.push({ role: "user", text: message });
+      saveHistory(history);
+      renderMessages();
+      showTyping();
+
+      try {
+        const response = await fetch("{{ url_for('api_coach_chat') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, history }),
+        });
+        const data = await response.json();
+        hideTyping();
+        const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
+        history.push({ role: "coach", text: reply });
+        saveHistory(history);
+        renderMessages();
+        if (data.ok && data.limited) {
+          applyLimitLockout(data.retry_after_seconds);
+        }
+      } catch (err) {
+        hideTyping();
+        history.push({ role: "coach", text: RepCheckI18n.t("coach.errorReaching") });
+        saveHistory(history);
+        renderMessages();
+      } finally {
+        isSending = false;
+        if (!inputEl.disabled) {
+          sendBtn.disabled = false;
+          inputEl.focus();
+        }
+      }
+    }
+
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sendMessage();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      history = [];
+      saveHistory(history);
+      renderMessages();
+      inputEl.focus();
+    });
+
+    renderMessages();
+    document.addEventListener("repcheck:language-changed", renderMessages);
+  })();
+</script>
+{% endblock %}

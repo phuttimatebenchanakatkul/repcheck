@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Streaks{% endblock %}
+{% block heading %}Streaks{% endblock %}
+{% block subheading %}Every day you've kept your streak alive, at a glance.{% endblock %}
+
+{% block content %}
+<!--
+  Reached only via the "day streak" tile on Home (templates/home.html) --
+  deliberately not linked from any nav/menu, same "its own page, tucked
+  behind one specific tile" pattern as weight_history.html and
+  logging_history.html. Reads repcheck_workout_log_v2 and
+  repcheck_nutrition_log_v1 directly, same "has activity on this day"
+  logic as computeStreak() on the home page, so the current-streak number
+  here always matches what's shown on Home.
+-->
+<style>
+  .st-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 20px 22px; margin-bottom: 16px; max-width: 720px;
+  }
+  .st-back { display: inline-block; margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-decoration: none; }
+  .st-back:hover { color: var(--text); }
+
+  .st-stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .st-stat { background: var(--bg); border-radius: 12px; padding: 16px 12px; text-align: center; }
+  .st-stat-icon { font-size: 22px; line-height: 1; margin-bottom: 6px; }
+  .st-stat-value { font-size: 22px; font-weight: 700; }
+  .st-stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* Same "lh-" pictograph classes/markup as logging_history.html and
+     weight_history.html, reused verbatim for visual consistency -- a
+     plain 2-state read-only version (streak day / no activity), same as
+     weight_history's since there's nothing to override per day here. */
+  .st-section-title { font-size: 15px; font-weight: 700; margin: 24px 4px 12px; }
+  .lh-toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; }
+  .lh-nav-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .lh-nav-btn:hover { border-color: var(--text-secondary); }
+  .lh-nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .lh-nav-btn:disabled:hover { border-color: var(--border); }
+  .lh-nav-label { font-size: 15px; font-weight: 700; min-width: 140px; text-align: center; }
+
+  .lh-summary-row { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 20px; }
+  .lh-summary-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .lh-summary-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .lh-summary-value { font-weight: 700; color: var(--text); }
+
+  .lh-circle-grid {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .lh-circle {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: none; cursor: default; font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    position: relative;
+  }
+  .lh-circle.is-today { box-shadow: 0 0 0 2px var(--blue); }
+  .lh-circle[data-status="logged"] { background: var(--amber); color: #fff; }
+  .lh-circle[data-status="none"] { background: var(--border); color: var(--text); }
+  .lh-circle.is-future { opacity: 0.3; }
+
+  .lh-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; font-size: 11px; color: var(--text-secondary); }
+  .lh-legend-item { display: flex; align-items: center; gap: 5px; }
+  .lh-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+</style>
+
+<a href="{{ url_for('home') }}" class="st-back" data-i18n="streaks.backToHome">&larr; Back to Home</a>
+
+<div class="st-card">
+  <div class="st-stats-row">
+    <div class="st-stat">
+      <div class="st-stat-icon">🔥</div>
+      <div class="st-stat-value" id="st-current-value">0</div>
+      <div class="st-stat-label" data-i18n="streaks.current">Current streak</div>
+    </div>
+    <div class="st-stat">
+      <div class="st-stat-icon">🏆</div>
+      <div class="st-stat-value" id="st-longest-value">0</div>
+      <div class="st-stat-label" data-i18n="streaks.longest">Longest streak ever</div>
+    </div>
+  </div>
+</div>
+
+<div class="st-section-title" data-i18n="streaks.calendarTitle">Streak History</div>
+<div class="lh-card">
+  <div class="lh-toolbar">
+    <button type="button" class="lh-nav-btn" id="lh-prev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="lh-nav-label" id="lh-nav-label"></div>
+    <button type="button" class="lh-nav-btn" id="lh-next"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+
+  <div class="lh-summary-row" id="lh-summary"></div>
+  <div class="lh-circle-grid" id="lh-circle-grid"></div>
+
+  <div class="lh-legend">
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--amber)"></span><span data-i18n="streaks.legend.active">Streak day</span></div>
+    <div class="lh-legend-item"><span class="lh-legend-dot" style="background:var(--border)"></span><span data-i18n="streaks.legend.none">No activity</span></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    const WORKOUT_LOG_KEY = "repcheck_workout_log_v2";
+    const NUTRITION_LOG_KEY = "repcheck_nutrition_log_v1";
+
+    function loadJson(key) {
+      try { return JSON.parse(localStorage.getItem(key)) || {}; }
+      catch (err) { return {}; }
+    }
+    function toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    function daysInMonth(year, month) {
+      return new Date(year, month + 1, 0).getDate();
+    }
+
+    const workoutLog = loadJson(WORKOUT_LOG_KEY);
+    const nutritionLog = loadJson(NUTRITION_LOG_KEY);
+
+    // Same activity rule as computeStreak() on the home page -- a day
+    // counts if it has at least one logged workout or nutrition entry.
+    function hasActivityOn(iso) {
+      const w = workoutLog[iso];
+      const n = nutritionLog[iso];
+      return (Array.isArray(w) && w.length > 0) || (Array.isArray(n) && n.length > 0);
+    }
+
+    function computeCurrentStreak() {
+      const today = new Date();
+      let cursor = new Date(today);
+      // If today has nothing logged yet, check from yesterday instead so
+      // an ongoing streak isn't zeroed out before the day is even over --
+      // mirrors home.html's computeStreak() exactly.
+      if (!hasActivityOn(toIsoDate(cursor))) {
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      let streak = 0;
+      while (hasActivityOn(toIsoDate(cursor))) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      return streak;
+    }
+
+    function computeLongestStreak() {
+      const allIsoDates = new Set([...Object.keys(workoutLog), ...Object.keys(nutritionLog)]);
+      const activeDates = [...allIsoDates].filter(hasActivityOn).sort();
+      let longest = 0;
+      let run = 0;
+      let prevDate = null;
+      activeDates.forEach((iso) => {
+        const d = new Date(iso + "T00:00:00");
+        if (prevDate && Math.round((d - prevDate) / 86400000) === 1) {
+          run++;
+        } else {
+          run = 1;
+        }
+        longest = Math.max(longest, run);
+        prevDate = d;
+      });
+      return longest;
+    }
+
+    const t = RepCheckI18n.t;
+    function monthName(i) { return t(`common.month.${i}`); }
+
+    document.getElementById("st-current-value").textContent = computeCurrentStreak();
+    document.getElementById("st-longest-value").textContent = computeLongestStreak();
+
+    const today = new Date();
+    const todayIso = toIsoDate(today);
+    let viewYear = today.getFullYear();
+    let viewMonth = today.getMonth();
+
+    function renderNavLabel() {
+      document.getElementById("lh-nav-label").textContent = `${monthName(viewMonth)} ${viewYear}`;
+      document.getElementById("lh-next").disabled = (viewYear === today.getFullYear() && viewMonth === today.getMonth());
+    }
+
+    function renderGrid() {
+      const total = daysInMonth(viewYear, viewMonth);
+      const days = Array.from({ length: total }, (_, i) => toIsoDate(new Date(viewYear, viewMonth, i + 1)));
+
+      let activeCount = 0;
+      let inactiveCount = 0;
+      days.forEach((dateIso) => {
+        if (dateIso > todayIso) return; // future days don't count toward the month's summary
+        if (hasActivityOn(dateIso)) activeCount++;
+        else inactiveCount++;
+      });
+      document.getElementById("lh-summary").innerHTML = `
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--amber)"></span><span class="lh-summary-value">${activeCount}</span> ${t("streaks.legend.active")}</div>
+        <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--border)"></span><span class="lh-summary-value">${inactiveCount}</span> ${t("streaks.legend.none")}</div>
+      `;
+
+      const gridEl = document.getElementById("lh-circle-grid");
+      gridEl.innerHTML = days.map((dateIso, i) => {
+        const isFuture = dateIso > todayIso;
+        const status = hasActivityOn(dateIso) ? "logged" : "none";
+        return `<button type="button" class="lh-circle ${dateIso === todayIso ? "is-today" : ""} ${isFuture ? "is-future" : ""}" data-status="${status}" disabled>${i + 1}</button>`;
+      }).join("");
+    }
+
+    function render() {
+      renderNavLabel();
+      renderGrid();
+    }
+
+    document.getElementById("lh-prev").addEventListener("click", () => {
+      viewMonth -= 1;
+      if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+      render();
+    });
+    document.getElementById("lh-next").addEventListener("click", () => {
+      if (document.getElementById("lh-next").disabled) return;
+      viewMonth += 1;
+      if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+      render();
+    });
+
+    render();
+    document.addEventListener("repcheck:language-changed", render);
+  })();
+</script>
+{% endblock %}

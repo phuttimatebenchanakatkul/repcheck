@@ -1,0 +1,1446 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Home{% endblock %}
+{% block heading %}Welcome back{% endblock %}
+{% block subheading %}Let's build strength and consistency.{% endblock %}
+
+{% block content %}
+<!-- Reused for the "Calories & macros" week chart below — same
+     .pc-week-* component as the Personalized Coaching card on the
+     nutrition page; only those classes are used here, not coaching.js. -->
+<link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
+
+{% if current_user %}
+<!--
+  Hero: the one deliberately dark, gradient surface on the page. Leads
+  with today's date, the streak flame (the single most motivating
+  daily-return stat, promoted here from a buried mid-grid tile), a
+  plain-language headline for today ("Push Day" / "Rest day" / "Let's
+  get moving"), the week's activity dots, and ONE clear call to action.
+-->
+<div class="hm-hero">
+  <div class="hm-hero-top">
+    <div class="hm-hero-date" id="hm-hero-date"></div>
+    <a class="hm-streak-chip" id="hm-streak-chip" href="{{ url_for('streaks') }}">
+      <span class="hm-streak-flame">🔥</span><span id="hm-streak-count"></span>
+    </a>
+  </div>
+  <div class="hm-hero-title" id="hm-hero-title"></div>
+  <div class="hm-hero-sub" id="hm-hero-sub"></div>
+  <div class="hm-hero-week" id="hm-hero-week"></div>
+  <a class="hm-hero-cta" id="hm-hero-cta" href="{{ url_for('workouts') }}"></a>
+</div>
+
+<!-- Weekly check-in: shown ONLY when it's actually ready. The old
+     always-visible "Come back in N days" disabled button was pure noise
+     on a page that's meant to stay simple. -->
+<div id="hm-checkin-banner"></div>
+
+{% endif %}
+
+<!-- "Today" glance grid: four simple cards, one plain fact each — how
+     much is left to eat, current weight, fastest race, last form check.
+     The dense weekly macro chart (4 rows + a Consumed/Remaining toggle)
+     was the most jargon-heavy thing on the page; the full chart still
+     lives on the Nutrition page, where it belongs. -->
+<div class="hm-section-title" data-i18n="home.today">Today</div>
+
+<div class="hm-glance-grid">
+  <a class="hm-glance" href="{{ url_for('nutrition') }}">
+    <div class="hm-glance-head">
+      <span class="hm-glance-chip hm-qi-green"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a2 2 0 0 0 4 0V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3Zm0 0v7"/></svg></span>
+      <span class="hm-glance-label" data-i18n="home.food.title">Food today</span>
+    </div>
+    <div id="hm-food-body"></div>
+  </a>
+
+  <a class="hm-glance" href="{{ url_for('weight_history') }}">
+    <div class="hm-glance-head">
+      <span class="hm-glance-chip hm-qi-red"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
+      <span class="hm-glance-label" data-i18n="home.weight.title">Weight</span>
+    </div>
+    <div id="hm-weight-body"></div>
+  </a>
+
+  <a class="hm-glance" href="{{ url_for('hyrox') }}">
+    <div class="hm-glance-head">
+      <span class="hm-glance-chip hm-qi-slate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6M12 2v3"/></svg></span>
+      <span class="hm-glance-label" data-i18n="home.hyrox.title">HYROX</span>
+    </div>
+    <div id="hm-hyrox-body"></div>
+  </a>
+
+  <a class="hm-glance" href="{{ analyze_nav_href }}">
+    <div class="hm-glance-head">
+      <span class="hm-glance-chip hm-qi-purple"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg></span>
+      <span class="hm-glance-label" data-i18n="home.lastFormCheck">Form check</span>
+    </div>
+    <div id="hm-analyze-body"></div>
+  </a>
+</div>
+
+<!-- Calories & macros week chart: the same interactive component as the
+     nutrition page's coaching card (tap a day column to see its numbers,
+     toggle between what you've eaten and what's left), restored here per
+     user request after the redesign initially replaced it with the
+     simpler kcal-left card above — now both live side by side. The card
+     itself links to the Nutrition page; the day-column/toggle buttons
+     inside stop propagation so tapping them doesn't also navigate away. -->
+<a class="hm-chart-card" href="{{ url_for('nutrition') }}">
+  <div class="hm-glance-head">
+    <span class="hm-glance-chip hm-qi-green"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
+    <span class="hm-glance-label" data-i18n="home.macros.title">Calories &amp; macros</span>
+    <span class="hm-workout-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+  </div>
+  <div id="hm-week-chart"></div>
+</a>
+
+{% if current_user %}
+<!--
+  Challenges: same functionality and element IDs as before (the script
+  below and the record/leaderboard modals depend on them) — only the
+  presentation is simplified to match the new page.
+-->
+<div class="ch-card" id="ch-card">
+  <div class="ch-head">
+    <div class="ch-title-row">
+      <div class="ch-title" data-i18n="challenges.title">🏆 Challenges</div>
+      <div class="ch-title-chevron">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+    <div class="ch-today-exercise" id="ch-today-exercise"></div>
+  </div>
+  <div class="ch-lb-preview" id="ch-lb-preview"></div>
+  <div id="ch-lb-me-preview"></div>
+  <div class="ch-actions">
+    <button type="button" class="ch-btn-primary" id="ch-record-btn" data-i18n="challenges.recordAttempt">Record an attempt</button>
+    <button type="button" class="ch-btn-secondary" id="ch-view-full-btn" data-i18n="challenges.viewFullLeaderboard">View full leaderboard →</button>
+  </div>
+</div>
+
+<div class="ch-overlay" id="ch-lb-overlay">
+  <div class="ch-modal">
+    <div class="ch-lb-header">
+      <div class="ch-lb-caption" id="ch-lb-caption"></div>
+      <button type="button" class="ch-close-btn" id="ch-lb-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="ch-lb-scope-tabs" id="ch-lb-scope-tabs">
+      <button type="button" data-scope="friends" data-i18n="challenges.friends">Friends</button>
+      <button type="button" data-scope="global" data-i18n="challenges.global">Global</button>
+    </div>
+    <div class="ch-lb-full-list" id="ch-lb-full-list"></div>
+    <div id="ch-lb-me"></div>
+  </div>
+</div>
+
+<div class="ch-overlay" id="ch-record-overlay">
+  <div class="ch-modal ch-record-modal">
+    <div class="ch-modal-head">
+      <div class="ch-modal-title" id="ch-record-title" data-i18n="challenges.recordTitle">Record your attempt</div>
+      <button type="button" class="ch-close-btn" id="ch-record-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="ch-record-sub" id="ch-record-sub"></div>
+    <video id="ch-record-preview" class="ch-record-video" autoplay playsinline muted style="display:none;"></video>
+
+    <!--
+      Shown while the real submission is in flight: plays back the exact
+      clip the user just recorded/uploaded with a MediaPipe pose skeleton
+      drawn over it, plus a sweeping scan-line. Purely cosmetic — the
+      actual rep count comes from the /api/challenges/.../submit request
+      running in parallel (see submitAttempt()), not from anything
+      MediaPipe detects here. It exists so "analyzing your video" has
+      something concrete to look at instead of a blank spinner.
+    -->
+    <div class="ch-analyze-stage" id="ch-analyze-stage" style="display:none;">
+      <div class="ch-analyze-video-wrap">
+        <video id="ch-analyze-video" class="ch-analyze-video" muted playsinline loop autoplay></video>
+        <canvas id="ch-analyze-canvas" class="ch-analyze-canvas"></canvas>
+        <div class="ch-scan-line"></div>
+        <div class="ch-analyze-badge" data-i18n="challenges.analyzing">Analyzing form...</div>
+      </div>
+    </div>
+
+    <div class="ch-record-actions" id="ch-record-actions">
+      <button type="button" class="ch-btn-primary" id="ch-record-start-btn" data-i18n="challenges.startRecording">Start recording</button>
+      <button type="button" class="ch-btn-secondary" id="ch-record-stop-btn" style="display:none;" data-i18n="challenges.stopSubmit">Stop &amp; submit</button>
+      <button type="button" class="ch-btn-secondary" id="ch-record-upload-btn" data-i18n="challenges.uploadInstead">Upload video instead</button>
+    </div>
+    <input type="file" id="ch-record-file-input" accept="video/*" style="display:none;">
+    <div class="ch-record-status" id="ch-record-status"></div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+  /* ---------- Hero ---------- */
+  .hm-hero {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(145deg, #263356 0%, #17181d 62%);
+    color: #fff;
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    padding: 22px;
+    margin-bottom: 18px;
+  }
+  /* Soft blue glow in the corner so the dark card feels alive, not flat. */
+  .hm-hero::before {
+    content: "";
+    position: absolute;
+    top: -70px; right: -50px;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(77, 127, 245, 0.4), transparent);
+    pointer-events: none;
+  }
+  .hm-hero > * { position: relative; }
+  .hm-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .hm-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+  .hm-streak-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(255, 255, 255, 0.1); color: #fff;
+    border-radius: 999px; padding: 6px 13px;
+    font-size: 13px; font-weight: 800; text-decoration: none;
+    transition: transform 0.1s ease;
+  }
+  .hm-streak-chip:active { transform: scale(0.94); }
+  .hm-streak-chip.is-active {
+    background: linear-gradient(135deg, #f5a94e, #e8832f);
+    box-shadow: 0 6px 14px rgba(232, 131, 47, 0.4);
+  }
+  .hm-hero-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; }
+  .hm-hero-sub { font-size: 13.5px; color: rgba(255, 255, 255, 0.6); margin-top: 5px; }
+  .hm-hero-week { display: flex; justify-content: space-between; gap: 6px; margin-top: 18px; }
+  .hm-hero-day { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; }
+  .hm-hero-day-letter { font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.45); }
+  .hm-hero-day-num {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.85);
+    font-size: 13px; font-weight: 700;
+  }
+  .hm-hero-day.has-activity .hm-hero-day-num { background: linear-gradient(135deg, #29b87e, #1fa971); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.4); }
+  .hm-hero-day.is-today .hm-hero-day-num { background: #fff; color: #101114; box-shadow: 0 4px 12px rgba(255, 255, 255, 0.25); }
+  .hm-hero-cta {
+    display: block; text-align: center; margin-top: 18px;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+    border-radius: 999px; padding: 13px;
+    font-size: 14px; font-weight: 800; text-decoration: none;
+    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.35);
+    transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .hm-hero-cta:hover { opacity: 0.92; }
+  .hm-hero-cta:active { transform: scale(0.98); }
+
+  /* ---------- Weekly check-in banner (only rendered when ready) ---------- */
+  .hm-checkin-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
+    border-radius: 16px; padding: 14px 18px; margin-bottom: 18px;
+    font-size: 13.5px; font-weight: 700; text-decoration: none;
+    box-shadow: 0 8px 18px rgba(185, 131, 42, 0.3);
+    transition: transform 0.12s ease;
+  }
+  .hm-checkin-banner:active { transform: scale(0.98); }
+  .hm-checkin-banner svg { flex-shrink: 0; }
+  .hm-checkin-banner-arrow { margin-left: auto; display: flex; }
+
+  /* ---------- Section titles ---------- */
+  .hm-section-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; margin: 0 4px 10px; }
+
+  /* ---------- Glance-card icon chip colors (also used below by
+     .hm-glance-chip) ---------- */
+  .hm-qi-green { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 5px 12px rgba(31, 169, 113, 0.35); }
+  .hm-qi-red { background: linear-gradient(135deg, #e2685f, var(--red)); box-shadow: 0 5px 12px rgba(209, 69, 59, 0.35); }
+  .hm-qi-purple { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 5px 12px rgba(124, 79, 224, 0.35); }
+  .hm-qi-slate { background: linear-gradient(135deg, #566078, #363c4b); box-shadow: 0 5px 12px rgba(54, 60, 75, 0.4); }
+
+  /* ---------- "Today" glance grid: one simple fact per card ---------- */
+  .hm-glance-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  /* ---------- Calories & macros week chart card (.pc-week-* styles come
+     from coaching.css, same component as the nutrition page) ---------- */
+  .hm-chart-card {
+    display: block;
+    background: var(--card-bg); color: inherit; text-decoration: none;
+    border-radius: 20px; box-shadow: var(--shadow);
+    padding: 16px; margin-bottom: 22px;
+    transition: transform 0.13s ease, box-shadow 0.15s ease;
+  }
+  .hm-chart-card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
+  .hm-chart-card:active { transform: scale(0.99); }
+  .hm-workout-chevron { margin-left: auto; color: var(--text-secondary); display: flex; flex-shrink: 0; }
+  .hm-glance {
+    display: flex; flex-direction: column;
+    background: var(--card-bg); color: inherit; text-decoration: none;
+    border-radius: 20px; box-shadow: var(--shadow);
+    padding: 16px;
+    min-height: 128px;
+    transition: transform 0.13s ease, box-shadow 0.15s ease;
+  }
+  .hm-glance:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
+  .hm-glance:active { transform: scale(0.98); }
+  .hm-glance-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .hm-glance-chip {
+    width: 26px; height: 26px; border-radius: 8px; color: #fff; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hm-glance-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
+  .hm-glance-value { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-top: auto; }
+  .hm-glance-value .hm-glance-unit { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-left: 3px; letter-spacing: 0; }
+  .hm-glance-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 4px; }
+  .hm-glance-value.is-over { color: var(--red); }
+
+  .hm-food-bar { height: 6px; border-radius: 999px; background: var(--bg); overflow: hidden; margin-top: 10px; }
+  .hm-food-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #29b87e, var(--green)); transition: width 0.4s ease; }
+  .hm-food-bar-fill.is-over { background: linear-gradient(90deg, #e2685f, var(--red)); }
+
+  .hm-weight-delta { font-size: 12px; font-weight: 800; margin-left: 6px; }
+  .hm-weight-delta.is-down { color: var(--green); }
+  .hm-weight-delta.is-up { color: var(--red); }
+  .hm-sparkline { width: 100%; height: 30px; margin-top: 10px; }
+
+  .hm-pb-badge {
+    display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+    background: var(--green-bg); color: var(--green); font-size: 11px; font-weight: 800;
+    border-radius: 999px; padding: 3px 9px; margin-top: 6px;
+  }
+
+  .hm-analyze-row { display: flex; align-items: center; gap: 9px; margin-top: auto; }
+  .hm-analyze-thumb {
+    width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+    background: var(--purple-bg); color: var(--purple);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; overflow: hidden;
+  }
+  .hm-analyze-name { font-size: 14px; font-weight: 700; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+  /* Empty state inside a glance card: one soft line + a colored action line. */
+  .hm-glance-empty { margin-top: auto; }
+  .hm-glance-empty-text { font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
+  .hm-glance-empty-cta { display: inline-block; font-size: 12.5px; font-weight: 800; margin-top: 8px; }
+  .hm-cta-green { color: var(--green); }
+  .hm-cta-red { color: var(--red); }
+  .hm-cta-purple { color: var(--purple); }
+  .hm-cta-slate { color: var(--text); }
+
+  /* ---------- Challenges (functionality unchanged; presentation refreshed) ---------- */
+  .ch-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: 20px; box-shadow: var(--shadow);
+    padding: 20px; margin-bottom: 22px; cursor: pointer;
+    transition: transform 0.13s ease, box-shadow 0.15s ease;
+  }
+  .ch-card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
+  .ch-head { margin-bottom: 16px; }
+  .ch-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ch-title { font-size: 16px; font-weight: 800; letter-spacing: -0.015em; flex: 1; min-width: 0; }
+  .ch-title-chevron {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    background: var(--amber-bg); color: var(--amber);
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* One exercise rotates in per day for everybody (push-ups -> sit-ups ->
+     pull-ups -> repeat) instead of the user picking one -- this just
+     shows which exercise today's attempt counts for. */
+  .ch-today-exercise {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
+    border-radius: 999px; padding: 7px 15px;
+    font-size: 12px; font-weight: 800;
+    box-shadow: 0 5px 12px rgba(185, 131, 42, 0.3);
+  }
+
+  .ch-lb-preview { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; min-height: 40px; }
+  .ch-lb-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 14px 0; }
+
+  /* Each competitor's row: reps + name on the left, rank + total on the
+     right -- same layout language as the Hyrox leaderboard, so both
+     leaderboards in the app read as one consistent design. */
+  .ch-lb-entry-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 13px 16px; background: var(--bg); border-radius: 14px;
+    border: 1px solid transparent;
+  }
+  .ch-lb-entry-row.is-me { background: var(--blue-bg); border-color: rgba(52, 104, 224, 0.25); }
+  .ch-lb-entry-value { font-size: 17px; font-weight: 800; line-height: 1.15; }
+  .ch-lb-entry-name { font-size: 12px; color: var(--text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-lb-entry-right { text-align: right; flex-shrink: 0; }
+  .ch-lb-entry-rank { font-size: 14px; font-weight: 800; }
+  .ch-lb-entry-total { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+  /* The current user's own standing -- numbered badge (gold for top 3),
+     reps + name, trophy, plus a plain-language rank caption underneath. */
+  .ch-lb-me-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 13px 16px; margin-top: 8px;
+    background: var(--blue-bg); border-radius: 14px;
+  }
+  .ch-lb-me-badge {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; background: var(--card-bg); color: var(--text);
+  }
+  .ch-lb-me-badge.is-top { background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff; }
+  .ch-lb-me-info { flex: 1; min-width: 0; }
+  .ch-lb-me-value { font-size: 17px; font-weight: 800; line-height: 1.15; }
+  .ch-lb-me-name { font-size: 12px; color: var(--text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-lb-me-trophy { color: var(--blue); flex-shrink: 0; display: flex; }
+  .ch-lb-me-caption { margin-top: 10px; text-align: center; font-size: 11px; font-weight: 700; color: var(--blue); }
+
+  /* flex:1 on both buttons (not flex-wrap) so "View full leaderboard"
+     always stays to the right of "Record an attempt" on one row, even on
+     narrow screens, instead of wrapping underneath it. */
+  .ch-actions { display: flex; align-items: stretch; gap: 10px; margin-top: 16px; }
+  .ch-btn-primary, .ch-btn-secondary {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer; font-family: inherit; border: none;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; line-height: 1.3;
+    transition: opacity 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  }
+  .ch-btn-primary {
+    background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+    box-shadow: 0 6px 14px rgba(47, 102, 232, 0.3);
+  }
+  .ch-btn-primary:hover { opacity: 0.92; }
+  .ch-btn-primary:active { transform: scale(0.97); }
+  .ch-btn-primary:disabled { background: var(--border); color: var(--text-secondary); box-shadow: none; cursor: default; opacity: 1; }
+  .ch-btn-primary:disabled:hover { opacity: 1; }
+  .ch-btn-secondary { background: none; border: 1.5px solid var(--border); color: var(--text); }
+  .ch-btn-secondary:hover { border-color: var(--text-secondary); }
+
+  .ch-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+    display: none; align-items: center; justify-content: center; z-index: 220; padding: 16px;
+  }
+  .ch-overlay.is-open { display: flex; }
+  .ch-modal {
+    background: var(--card-bg); color: var(--text); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding: 20px;
+  }
+  .ch-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .ch-modal-title { font-size: 16px; font-weight: 700; }
+  .ch-close-btn {
+    width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--bg);
+    color: var(--text-secondary); font-size: 18px; cursor: pointer; flex-shrink: 0;
+  }
+  .ch-lb-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .ch-lb-caption {
+    font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .ch-lb-scope-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .ch-lb-scope-tabs button {
+    flex: 1; padding: 10px; border: 1.5px solid var(--border); border-radius: 999px; cursor: pointer;
+    background: none; color: var(--text); font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .ch-lb-scope-tabs button.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
+  .ch-lb-full-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .ch-record-sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  .ch-record-video { width: 100%; border-radius: 12px; background: #000; margin-bottom: 12px; }
+
+  .ch-analyze-stage { margin-bottom: 12px; }
+  .ch-analyze-video-wrap {
+    position: relative; width: 100%; border-radius: 12px; overflow: hidden;
+    background: #000; aspect-ratio: 16 / 9;
+  }
+  .ch-analyze-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .ch-analyze-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ch-scan-line {
+    position: absolute; left: 0; right: 0; top: -25%; height: 25%;
+    background: linear-gradient(to bottom, rgba(52,144,224,0) 0%, rgba(80,180,255,0.65) 50%, rgba(52,144,224,0) 100%);
+    box-shadow: 0 0 14px 3px rgba(80,180,255,0.55);
+    animation: ch-scan-sweep 2.2s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes ch-scan-sweep {
+    0% { top: -25%; }
+    100% { top: 100%; }
+  }
+  .ch-analyze-badge {
+    position: absolute; top: 10px; left: 10px;
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 11px; font-weight: 700;
+    padding: 5px 10px 5px 8px; border-radius: 999px; letter-spacing: 0.02em;
+  }
+  .ch-analyze-badge::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: #4ade80; flex-shrink: 0;
+    animation: ch-pulse-dot 1s ease-in-out infinite;
+  }
+  @keyframes ch-pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .ch-record-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ch-record-status { font-size: 12px; margin-top: 10px; }
+
+  @media (max-width: 720px) {
+    .hm-hero { padding: 18px; }
+    .hm-hero-title { font-size: 23px; }
+    .hm-hero-day-num { width: 30px; height: 30px; font-size: 12px; }
+  }
+  @media (max-width: 330px) {
+    .hm-glance-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+  (function () {
+    const t = RepCheckI18n.t;
+    const EXERCISE_ICONS = {{ exercise_icons | tojson }};
+
+    function exerciseIconHtml(name, fallbackEmoji) {
+      const path = EXERCISE_ICONS[name];
+      if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
+      return fallbackEmoji;
+    }
+    function toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    function loadJson(key, fallback) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        return parsed === null || parsed === undefined ? fallback : parsed;
+      } catch (err) { return fallback; }
+    }
+
+    const workoutLog = loadJson("repcheck_workout_log_v2", {});
+    const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
+    // No "calories" field on purpose -- it's never stored directly (see
+    // nutrition.html/coaching.js), always derived from protein/fat/carbs
+    // below so it can't drift out of sync with the macro targets.
+    const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
+    const weightLog = loadJson("repcheck_weight_log_v1", {});
+    const analyzeLog = loadJson("repcheck_analyze_log_v1", []);
+    const hyroxHistory = (loadJson("repcheck_hyrox_history_v1", []) || [])
+      .filter((r) => !r.flagged && typeof r.totalSeconds === "number");
+
+    function hasActivityOn(iso) {
+      const w = workoutLog[iso];
+      const n = nutritionLog[iso];
+      return (Array.isArray(w) && w.length > 0) || (Array.isArray(n) && n.length > 0);
+    }
+
+    function computeStreak() {
+      const today = new Date();
+      let cursor = new Date(today);
+      // If today has nothing logged yet, check from yesterday instead so
+      // an ongoing streak isn't zeroed out before the day is even over.
+      if (!hasActivityOn(toIsoDate(cursor))) {
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      let streak = 0;
+      while (hasActivityOn(toIsoDate(cursor))) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      return streak;
+    }
+
+    // ---------- Today's planned split (mirrors workouts.html's own logic) ----------
+    const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    function loadSplitPlan() {
+      return loadJson("repcheck_split_plan_v1", null);
+    }
+    function getTodaysSplitInfo() {
+      const plan = loadSplitPlan();
+      if (!plan || !plan.schedule || !plan.days) return null;
+      const weekdayKey = WEEKDAY_KEYS[new Date().getDay()];
+      const label = plan.schedule[weekdayKey];
+      if (!label || label === "Rest") return null;
+      const day = plan.days.find((d) => d.label === label);
+      if (!day) return null;
+      return { label, exercises: day.exercises };
+    }
+
+    function sumMacrosForDay(entries) {
+      const totals = { protein: 0, fat: 0, carbs: 0 };
+      if (!Array.isArray(entries)) return totals;
+      entries.forEach((entry) => {
+        const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
+        items.forEach((item) => {
+          const scale = item.grams / 100;
+          totals.protein += item.baseProtein * scale;
+          totals.fat += item.baseFat * scale;
+          totals.carbs += item.baseCarbs * scale;
+        });
+      });
+      return totals;
+    }
+
+    // ---------- Calories & macros week chart ----------
+    // Ported from static/coaching.js's CoachingApp.renderWeekChart (same
+    // markup/classes, same coaching.css) rather than re-invented, so this
+    // card and the full chart on the nutrition page always look and
+    // behave identically. This copy owns its own tiny bit of UI state
+    // (Consumed/Remaining mode + selected day) since it isn't part of
+    // that class.
+    const WEEKDAY_LETTERS_MON_FIRST = ["M", "T", "W", "T", "F", "S", "S"];
+    let weekChartMode = "remaining";
+    let weekChartSelectedDay = toIsoDate(new Date());
+
+    function startOfWeekMonday(date) {
+      const d = new Date(date);
+      const diff = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - diff);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function weekChartDays() {
+      const todayIso = toIsoDate(new Date());
+      const weekStart = startOfWeekMonday(new Date());
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+        const dateIso = toIsoDate(d);
+        const eaten = sumMacrosForDay(nutritionLog[dateIso]);
+        return {
+          dateIso,
+          letter: WEEKDAY_LETTERS_MON_FIRST[i],
+          isToday: dateIso === todayIso,
+          isSelected: dateIso === weekChartSelectedDay,
+          consumed: {
+            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
+            protein: Math.round(eaten.protein),
+            fat: Math.round(eaten.fat),
+            carbs: Math.round(eaten.carbs),
+          },
+        };
+      });
+    }
+
+    function weekChartMetrics() {
+      const calories = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
+      return [
+        { key: "calories", label: t("common.calories"), target: calories, unit: "kcal" },
+        { key: "protein", label: t("common.protein"), target: nutritionGoals.protein, unit: "g" },
+        { key: "fat", label: t("common.fat"), target: nutritionGoals.fat, unit: "g" },
+        { key: "carbs", label: t("common.carbs"), target: nutritionGoals.carbs, unit: "g" },
+      ];
+    }
+
+    function weekChartFillPct(target, consumed) {
+      if (target <= 0) return consumed > 0 ? 100 : 0;
+      if (weekChartMode === "consumed") return Math.max(0, Math.min(100, (consumed / target) * 100));
+      return Math.max(0, Math.min(100, ((target - consumed) / target) * 100));
+    }
+
+    function renderWeekChart() {
+      const mount = document.getElementById("hm-week-chart");
+      if (!mount) return;
+
+      const isConsumedMode = weekChartMode === "consumed";
+      const days = weekChartDays();
+      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
+      const metrics = weekChartMetrics();
+
+      mount.innerHTML = `
+        <div class="pc-week-card">
+          <div class="pc-week-grid">
+            ${metrics.map((m) => {
+              // Same number the bar's fill represents -- how much has been
+              // eaten in Consumed mode, how much is left toward the target
+              // in Remaining mode (floored at 0, matching the bar itself
+              // never showing negative "over" as more empty space).
+              const selectedValue = isConsumedMode
+                ? selectedDay.consumed[m.key]
+                : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
+              return `
+                <div class="pc-week-row">
+                  <div class="pc-week-row-label">
+                    <span class="pc-week-dot pc-week-dot-${m.key}"></span>${m.label}
+                  </div>
+                  <div class="pc-week-row-bars">
+                    ${days.map((d) => `
+                      <button
+                        type="button"
+                        class="pc-week-bar-col ${d.isSelected ? "is-selected" : ""}"
+                        data-week-action="select-day"
+                        data-date="${d.dateIso}"
+                        aria-label="${d.dateIso}"
+                      >
+                        <span class="pc-week-bar-track">
+                          <span class="pc-week-bar-fill pc-week-bar-${m.key}" data-metric="${m.key}" data-date="${d.dateIso}" style="height:${weekChartFillPct(m.target, d.consumed[m.key])}%;"></span>
+                        </span>
+                      </button>
+                    `).join("")}
+                  </div>
+                  <div class="pc-week-row-total">
+                    <span class="pc-week-row-total-value" data-metric-total="${m.key}">${selectedValue}${m.unit === "g" ? "g" : ""}</span>
+                    <span class="pc-week-row-total-of">${t("coaching.week.of", { n: Math.round(m.target) })}</span>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+            <div class="pc-week-row pc-week-daylabels-row">
+              <div class="pc-week-row-label"></div>
+              <div class="pc-week-row-bars">
+                ${days.map((d) => `
+                  <button type="button" class="pc-week-daylabel ${d.isSelected ? "is-selected" : ""} ${d.isToday ? "is-today" : ""}" data-week-action="select-day" data-date="${d.dateIso}">${d.letter}</button>
+                `).join("")}
+              </div>
+              <div class="pc-week-row-total"></div>
+            </div>
+          </div>
+          <div class="pc-week-toggle">
+            <button type="button" class="pc-week-toggle-btn ${isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="consumed">${t("coaching.week.consumed")}</button>
+            <button type="button" class="pc-week-toggle-btn ${!isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="remaining">${t("coaching.week.remaining")}</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Updates the existing bars/numbers/selection in place instead of
+    // calling renderWeekChart() again (which replaces mount.innerHTML
+    // and rebuilds every bar from scratch) -- a freshly-created <span>
+    // already at its target height has nothing to transition *from*,
+    // even with the CSS `transition: height` already on
+    // .pc-week-bar-fill, so a full re-render can never actually animate.
+    // Mutating the same, still-mounted elements lets that transition
+    // interpolate smoothly. See the identical fix (and this same
+    // reasoning) in static/coaching.js's updateWeekChart().
+    function updateWeekChart() {
+      const mount = document.getElementById("hm-week-chart");
+      if (!mount || !mount.querySelector(".pc-week-card")) {
+        renderWeekChart();
+        return;
+      }
+
+      const isConsumedMode = weekChartMode === "consumed";
+      const days = weekChartDays();
+      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
+
+      weekChartMetrics().forEach((m) => {
+        days.forEach((d) => {
+          const fillEl = mount.querySelector(`.pc-week-bar-fill[data-metric="${m.key}"][data-date="${d.dateIso}"]`);
+          if (fillEl) fillEl.style.height = `${weekChartFillPct(m.target, d.consumed[m.key])}%`;
+        });
+        const selectedValue = isConsumedMode
+          ? selectedDay.consumed[m.key]
+          : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
+        const totalEl = mount.querySelector(`.pc-week-row-total-value[data-metric-total="${m.key}"]`);
+        if (totalEl) totalEl.textContent = `${selectedValue}${m.unit === "g" ? "g" : ""}`;
+      });
+
+      mount.querySelectorAll(".pc-week-bar-col").forEach((btn) => {
+        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
+      });
+      mount.querySelectorAll(".pc-week-daylabel").forEach((btn) => {
+        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
+      });
+      mount.querySelectorAll(".pc-week-toggle-btn").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.mode === weekChartMode);
+      });
+    }
+
+    const weekChartMount = document.getElementById("hm-week-chart");
+    if (weekChartMount) {
+      weekChartMount.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-week-action]");
+        if (!target) return;
+        // The chart card is now a link to Nutrition (per user request) --
+        // without this, tapping a day column or the Consumed/Remaining
+        // toggle would also navigate away instead of just updating the
+        // chart in place.
+        event.preventDefault();
+        event.stopPropagation();
+        if (target.dataset.weekAction === "select-day") weekChartSelectedDay = target.dataset.date;
+        else if (target.dataset.weekAction === "set-mode") weekChartMode = target.dataset.mode;
+        updateWeekChart();
+      });
+    }
+
+    function buildSparkline(values) {
+      if (values.length < 2) return "";
+      const w = 260, h = 34, pad = 4;
+      const min = Math.min(...values), max = Math.max(...values);
+      const range = max - min || 1;
+      const step = (w - pad * 2) / (values.length - 1);
+      const points = values.map((v, i) => {
+        const x = pad + i * step;
+        const y = pad + (1 - (v - min) / range) * (h - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      const [lastX, lastY] = points[points.length - 1].split(",");
+      return `
+        <svg class="hm-sparkline" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+          <polyline points="${points.join(" ")}" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="${lastX}" cy="${lastY}" r="3.5" fill="var(--red)"/>
+        </svg>
+      `;
+    }
+
+    function formatDuration(totalSeconds) {
+      const s = Math.round(totalSeconds);
+      const hrs = Math.floor(s / 3600);
+      const mins = Math.floor((s % 3600) / 60);
+      const secs = s % 60;
+      if (hrs > 0) return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      return `${mins}:${String(secs).padStart(2, "0")}`;
+    }
+
+    // ---------- Hero ----------
+    function renderHero() {
+      const dateEl = document.getElementById("hm-hero-date");
+      if (!dateEl) return; // logged-out visitors have no hero
+
+      const locale = RepCheckI18n.getLang() === "th" ? "th-TH" : undefined;
+      dateEl.textContent = new Date().toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" });
+
+      const streak = computeStreak();
+      document.getElementById("hm-streak-count").textContent = t("home.streakCount", { n: streak });
+      document.getElementById("hm-streak-chip").classList.toggle("is-active", streak > 0);
+
+      const titleEl = document.getElementById("hm-hero-title");
+      const subEl = document.getElementById("hm-hero-sub");
+      const ctaEl = document.getElementById("hm-hero-cta");
+      const splitInfo = getTodaysSplitInfo();
+      if (splitInfo) {
+        titleEl.textContent = /day$/i.test(splitInfo.label.trim())
+          ? splitInfo.label
+          : `${splitInfo.label} ${t("home.workouts.dayLabelSuffix")}`;
+        subEl.textContent = t("home.hero.exercisesPlanned", { n: splitInfo.exercises.length });
+        ctaEl.textContent = t("home.hero.cta");
+      } else if (loadSplitPlan()) {
+        titleEl.textContent = t("home.workouts.restDayTitle");
+        subEl.textContent = t("home.workouts.restDaySub");
+        ctaEl.textContent = t("home.hero.cta");
+      } else {
+        titleEl.textContent = t("home.hero.noPlanTitle");
+        subEl.textContent = t("home.hero.noPlanSub");
+        ctaEl.textContent = t("home.hero.ctaBuild");
+      }
+
+      // Monday-first week strip: today highlighted, past days with any
+      // logged activity filled green.
+      const todayIso = toIsoDate(new Date());
+      const heroLetters = ["M", "T", "W", "T", "F", "S", "S"];
+      const monday = new Date();
+      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      document.getElementById("hm-hero-week").innerHTML = heroLetters.map((letter, i) => {
+        const d = new Date(monday);
+        d.setDate(d.getDate() + i);
+        const iso = toIsoDate(d);
+        const isToday = iso === todayIso;
+        const active = !isToday && iso <= todayIso && hasActivityOn(iso);
+        return `
+          <div class="hm-hero-day ${isToday ? "is-today" : ""} ${active ? "has-activity" : ""}">
+            <div class="hm-hero-day-letter">${letter}</div>
+            <div class="hm-hero-day-num">${d.getDate()}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // ---------- Weekly check-in banner (nutrition coaching) ----------
+    // Mirrors static/coaching.js's checkinDaysRemaining(), read-only.
+    // Only rendered when the check-in is actually READY -- a countdown
+    // ("come back in N days") is noise, not information you can act on.
+    function renderCheckinBanner() {
+      const mount = document.getElementById("hm-checkin-banner");
+      if (!mount) return;
+      const profile = loadJson("repcheck_coaching_profile_v1", null);
+      if (!profile) { mount.innerHTML = ""; return; }
+      const lastCheck = profile.lastAdjustmentDate || profile.createdAt;
+      let daysSince = Infinity;
+      if (lastCheck) {
+        daysSince = Math.floor((new Date() - new Date(lastCheck + "T00:00:00")) / 86400000);
+      }
+      if (daysSince < 7) { mount.innerHTML = ""; return; }
+      mount.innerHTML = `
+        <a class="hm-checkin-banner" href="{{ url_for('nutrition') }}?quick=checkin">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span>${t("home.checkinReady")}</span>
+          <span class="hm-checkin-banner-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+        </a>
+      `;
+    }
+
+    // ---------- Food today: one number -- how much is left to eat ----------
+    function renderFood() {
+      const mount = document.getElementById("hm-food-body");
+      if (!mount) return;
+      const eaten = sumMacrosForDay(nutritionLog[toIsoDate(new Date())]);
+      const eatenKcal = Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4);
+      const goalKcal = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
+      const left = goalKcal - eatenKcal;
+      const isOver = left < 0;
+      const pct = goalKcal > 0 ? Math.max(0, Math.min(100, (eatenKcal / goalKcal) * 100)) : 0;
+      mount.innerHTML = `
+        <div class="hm-glance-value ${isOver ? "is-over" : ""}">${Math.abs(left).toLocaleString()}<span class="hm-glance-unit">${t(isOver ? "home.food.kcalOver" : "home.food.kcalLeft")}</span></div>
+        <div class="hm-food-bar"><div class="hm-food-bar-fill ${isOver ? "is-over" : ""}" style="width:${pct}%;"></div></div>
+        <div class="hm-glance-sub">${t("home.food.ofGoal", { n: goalKcal.toLocaleString() })}</div>
+      `;
+    }
+
+    // ---------- Weight: latest number + trend line ----------
+    function renderWeight() {
+      const mount = document.getElementById("hm-weight-body");
+      if (!mount) return;
+      const entries = Object.keys(weightLog)
+        .map((date) => ({ date, kg: weightLog[date].kg }))
+        .filter((e) => typeof e.kg === "number")
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      if (!entries.length) {
+        mount.innerHTML = `
+          <div class="hm-glance-empty">
+            <div class="hm-glance-empty-text">${t("home.weight.emptyText")}</div>
+            <span class="hm-glance-empty-cta hm-cta-red">${t("home.weight.emptyCta")}</span>
+          </div>
+        `;
+        return;
+      }
+
+      const latest = entries[entries.length - 1];
+      // Compare against the entry closest to (but not after) 7 days
+      // before the latest weigh-in, so the delta reads as "vs a week
+      // ago" rather than "vs whenever logging started".
+      const weekAgoCutoff = new Date(latest.date + "T00:00:00");
+      weekAgoCutoff.setDate(weekAgoCutoff.getDate() - 7);
+      const weekAgoIso = toIsoDate(weekAgoCutoff);
+      const priorCandidates = entries.filter((e) => e.date <= weekAgoIso && e.date !== latest.date);
+      const prior = priorCandidates.length ? priorCandidates[priorCandidates.length - 1] : null;
+      const delta = prior ? latest.kg - prior.kg : 0;
+      const showDelta = prior && Math.abs(delta) >= 0.05;
+      const deltaHtml = showDelta
+        ? `<span class="hm-weight-delta ${delta < 0 ? "is-down" : "is-up"}">${delta > 0 ? "+" : "-"}${RepCheckUnits.formatWeightKg(Math.abs(delta))}</span>`
+        : "";
+      // Human date instead of a raw 2026-07-17: "Today" for today,
+      // otherwise a short localized "Jul 15".
+      const latestIso = latest.date;
+      const dateLabel = latestIso === toIsoDate(new Date())
+        ? t("home.today")
+        : new Date(latestIso + "T00:00:00").toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { month: "short", day: "numeric" });
+      mount.innerHTML = `
+        <div class="hm-glance-value">${RepCheckUnits.kgToDisplay(latest.kg)}<span class="hm-glance-unit">${RepCheckUnits.weightUnitLabel()}</span>${deltaHtml}</div>
+        ${buildSparkline(entries.slice(-10).map((e) => e.kg))}
+        <div class="hm-glance-sub">${t("home.weight.lastLogged", { date: dateLabel })}</div>
+      `;
+    }
+
+    // ---------- HYROX: most recent race time ----------
+    function renderHyrox() {
+      const mount = document.getElementById("hm-hyrox-body");
+      if (!mount) return;
+      if (!hyroxHistory.length) {
+        mount.innerHTML = `
+          <div class="hm-glance-empty">
+            <div class="hm-glance-empty-text">${t("home.hyrox.empty")}</div>
+            <span class="hm-glance-empty-cta hm-cta-slate">${t("home.hyrox.tapToStart")}</span>
+          </div>
+        `;
+        return;
+      }
+      const sorted = hyroxHistory.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+      const mostRecent = sorted[0];
+      const best = hyroxHistory.slice().sort((a, b) => a.totalSeconds - b.totalSeconds)[0];
+      const isPb = mostRecent.id === best.id;
+      const dateLabel = new Date(mostRecent.date).toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { month: "short", day: "numeric" });
+      mount.innerHTML = `
+        <div class="hm-glance-value">${formatDuration(mostRecent.totalSeconds)}</div>
+        ${isPb
+          ? `<span class="hm-pb-badge">${t("home.hyrox.pb")}</span>`
+          : `<div class="hm-glance-sub">${t("home.hyrox.pbPrefix", { time: formatDuration(best.totalSeconds) })}</div>`}
+        <div class="hm-glance-sub">${t("home.hyrox.lastRace", { date: dateLabel })}</div>
+      `;
+    }
+
+    // ---------- Form check: most recently analyzed exercise ----------
+    function renderAnalyze() {
+      const mount = document.getElementById("hm-analyze-body");
+      if (!mount) return;
+      const recent = (Array.isArray(analyzeLog) ? analyzeLog : []).slice().sort((a, b) => b.analyzedAt - a.analyzedAt);
+      if (!recent.length) {
+        mount.innerHTML = `
+          <div class="hm-glance-empty">
+            <div class="hm-glance-empty-text">${t("home.analyze.emptyText")}</div>
+            <span class="hm-glance-empty-cta hm-cta-purple">${t("home.analyze.emptyCta")}</span>
+          </div>
+        `;
+        return;
+      }
+      mount.innerHTML = `
+        <div class="hm-analyze-row">
+          <span class="hm-analyze-thumb">${exerciseIconHtml(recent[0].exercise, "🎯")}</span>
+          <span class="hm-analyze-name">${recent[0].exercise}</span>
+        </div>
+      `;
+    }
+
+    function renderAll() {
+      renderHero();
+      renderCheckinBanner();
+      renderFood();
+      renderWeight();
+      renderHyrox();
+      renderAnalyze();
+      renderWeekChart();
+    }
+
+    renderAll();
+    document.addEventListener("repcheck:language-changed", renderAll);
+    document.addEventListener("repcheck:units-changed", renderAll);
+
+    // ---------- Personalized greeting ----------
+    // "Hey {first name} 👋" instead of the static page heading. The h1
+    // normally carries data-i18n="page.home.heading", which applyI18n()
+    // would stomp right back over this text on every language change --
+    // so the attribute is removed and the greeting re-set through the
+    // same language-changed event instead.
+    const FIRST_NAME = {{ (current_user.name.split(' ')[0] if current_user else '') | tojson }};
+    if (FIRST_NAME) {
+      const headingEl = document.querySelector(".topbar h1");
+      const setGreeting = () => { headingEl.textContent = t("home.greeting", { name: FIRST_NAME }); };
+      headingEl.removeAttribute("data-i18n");
+      setGreeting();
+      document.addEventListener("repcheck:language-changed", setGreeting);
+    }
+  })();
+</script>
+
+{% if current_user %}
+<script>
+  (function () {
+    "use strict";
+
+    function el(html) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html.trim();
+      return wrap.firstElementChild;
+    }
+
+    const t = RepCheckI18n.t;
+    function exerciseTitle(id) {
+      return t(`challenges.${id}`) || id;
+    }
+
+    // ---------- Today's rotating exercise ----------
+    // One exercise is "live" per calendar day, rotating push-ups -> sit-ups
+    // -> pull-ups -> repeat (see get_todays_challenge_exercise() in
+    // app.py, the single source of truth this just mirrors for display).
+    let todaysExercise = "pushups";
+    let friendCount = 0;
+    let myUserId = null;
+    let activeChallengeId = null;
+
+    function renderTodaysExercise() {
+      document.getElementById("ch-today-exercise").textContent =
+        t("challenges.todayIs", { exercise: exerciseTitle(todaysExercise) });
+    }
+
+    // ---------- Friends-scoped leaderboard preview ----------
+    // Fewer than 5 friends -> top 3 (a 5-row list looks sparse/padded with
+    // almost nobody in it); 5 or more friends -> top 5.
+    async function loadFriendCount() {
+      const res = await fetch("/api/friends");
+      const data = await res.json();
+      if (data.ok) {
+        friendCount = data.friends.length;
+        myUserId = data.me || myUserId;
+      }
+    }
+
+    // Row layout: reps + name on the left, rank + total on the right --
+    // same design language as the Hyrox leaderboard (see static/hyrox.js's
+    // renderLeaderboardCard), so both leaderboards in the app look and
+    // read as one consistent system.
+    function renderLeaderboardRows(container, rows, meId, totalEntries) {
+      container.innerHTML = "";
+      if (!rows.length) {
+        container.appendChild(el(`<div class="ch-lb-empty">${t("challenges.empty")}</div>`));
+        return;
+      }
+      rows.forEach((row, i) => {
+        const rank = i + 1;
+        container.appendChild(el(`
+          <div class="ch-lb-entry-row ${row.user_id === meId ? "is-me" : ""}">
+            <div>
+              <div class="ch-lb-entry-value">${row.total_reps} ${t("challenges.reps")}</div>
+              <div class="ch-lb-entry-name">${row.name}${row.user_id === meId ? t("challenges.you") : ""}</div>
+            </div>
+            <div class="ch-lb-entry-right">
+              <div class="ch-lb-entry-rank">#${rank}</div>
+              <div class="ch-lb-entry-total">${t("challenges.of", { n: totalEntries })}</div>
+            </div>
+          </div>
+        `));
+      });
+    }
+
+    // The current user's own standing -- a numbered badge (gold for a
+    // top-3 finish), reps + name, and a trophy, plus a rank caption
+    // underneath. Shown even when "myRank" falls outside whatever rows
+    // are displayed (see api_leaderboard's unlimited rank lookup).
+    function renderMeCard(container, myRank, totalEntries) {
+      container.innerHTML = "";
+      if (!myRank) return;
+      container.appendChild(el(`
+        <div>
+          <div class="ch-lb-me-card">
+            <div class="ch-lb-me-badge ${myRank.rank <= 3 ? "is-top" : ""}">${myRank.rank}</div>
+            <div class="ch-lb-me-info">
+              <div class="ch-lb-me-value">${myRank.total_reps} ${t("challenges.reps")}</div>
+              <div class="ch-lb-me-name">${myRank.name}</div>
+            </div>
+            <div class="ch-lb-me-trophy">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4M7 5H4a2 2 0 0 0-2 2v1a4 4 0 0 0 4 4"/></svg>
+            </div>
+          </div>
+          <div class="ch-lb-me-caption">${t("challenges.rankCaption", { rank: myRank.rank, total: totalEntries })}</div>
+        </div>
+      `));
+    }
+
+    async function loadLeaderboardPreview() {
+      const previewEl = document.getElementById("ch-lb-preview");
+      const mePreviewEl = document.getElementById("ch-lb-me-preview");
+      const limit = friendCount >= 5 ? 5 : 3;
+      const res = await fetch(`/api/leaderboard?scope=friends&limit=${limit}`);
+      const data = await res.json();
+      if (!data.ok) return;
+      myUserId = data.me;
+      renderLeaderboardRows(previewEl, data.leaderboard, data.me, data.totalEntries);
+      renderMeCard(mePreviewEl, data.myRank, data.totalEntries);
+    }
+
+    // ---------- Full leaderboard modal (Friends vs Global) ----------
+    const lbOverlay = document.getElementById("ch-lb-overlay");
+    let lbScope = "friends";
+
+    function paintCaption() {
+      const scopeLabel = t(lbScope === "global" ? "challenges.global" : "challenges.friends");
+      document.getElementById("ch-lb-caption").textContent = `${scopeLabel} · ${exerciseTitle(todaysExercise)}`;
+    }
+    function openLeaderboardModal() {
+      lbScope = "friends";
+      paintCaption();
+      paintScopeTabs();
+      loadFullLeaderboard();
+      lbOverlay.classList.add("is-open");
+    }
+    function closeLeaderboardModal() {
+      lbOverlay.classList.remove("is-open");
+    }
+    function paintScopeTabs() {
+      document.querySelectorAll("#ch-lb-scope-tabs button").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.scope === lbScope);
+      });
+    }
+    async function loadFullLeaderboard() {
+      const listEl = document.getElementById("ch-lb-full-list");
+      const meEl = document.getElementById("ch-lb-me");
+      listEl.innerHTML = `<div class="ch-lb-empty">${t("common.loading")}</div>`;
+      meEl.innerHTML = "";
+      const res = await fetch(`/api/leaderboard?scope=${lbScope}&limit=50`);
+      const data = await res.json();
+      if (!data.ok) return;
+      renderLeaderboardRows(listEl, data.leaderboard, data.me, data.totalEntries);
+      renderMeCard(meEl, data.myRank, data.totalEntries);
+    }
+    document.querySelectorAll("#ch-lb-scope-tabs button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        lbScope = btn.dataset.scope;
+        paintCaption();
+        paintScopeTabs();
+        loadFullLeaderboard();
+      });
+    });
+    document.getElementById("ch-lb-close").addEventListener("click", closeLeaderboardModal);
+    lbOverlay.addEventListener("click", (event) => {
+      if (event.target === lbOverlay) closeLeaderboardModal();
+    });
+    document.getElementById("ch-view-full-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      openLeaderboardModal();
+    });
+    // The whole card is clickable too (matches "make the challenges
+    // section clickable" — not just a small link inside it).
+    document.getElementById("ch-card").addEventListener("click", openLeaderboardModal);
+
+    // ---------- Cosmetic "analyzing" pose overlay (MediaPipe) ----------
+    // Purely visual — draws a live pose skeleton over the user's own
+    // clip while the REAL submission (see submitAttempt) is in flight.
+    // It never feeds anything back into the rep count; that number comes
+    // from the server-side Gemini analysis, same as before. This just
+    // gives the wait something to look at instead of a blank spinner.
+    let poseLandmarker = null;
+    let poseLoadPromise = null;
+    let poseRafId = null;
+
+    // Standard MediaPipe Pose 33-landmark topology (shoulders/arms/torso/
+    // legs) — used purely to know which detected points to connect with a
+    // line when drawing the skeleton.
+    const POSE_CONNECTIONS = [
+      [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+      [11, 23], [12, 24], [23, 24],
+      [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
+      [24, 26], [26, 28], [28, 30], [30, 32], [28, 32],
+    ];
+
+    async function ensurePoseLandmarker() {
+      if (poseLandmarker) return poseLandmarker;
+      if (!poseLoadPromise) {
+        poseLoadPromise = (async () => {
+          const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+          const fileset = await vision.FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+          );
+          poseLandmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numPoses: 1,
+          });
+          return poseLandmarker;
+        })().catch((err) => {
+          poseLoadPromise = null; // allow a retry next time, in case it was a transient network blip
+          throw err;
+        });
+      }
+      return poseLoadPromise;
+    }
+
+    function drawSkeleton(ctx, landmarks, width, height) {
+      ctx.lineWidth = Math.max(2, width * 0.006);
+      ctx.strokeStyle = "rgba(80, 200, 255, 0.9)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      POSE_CONNECTIONS.forEach(([a, b]) => {
+        const pa = landmarks[a], pb = landmarks[b];
+        if (!pa || !pb) return;
+        ctx.beginPath();
+        ctx.moveTo(pa.x * width, pa.y * height);
+        ctx.lineTo(pb.x * width, pb.y * height);
+        ctx.stroke();
+      });
+      const dotRadius = Math.max(2.5, width * 0.007);
+      landmarks.forEach((p) => {
+        ctx.beginPath();
+        ctx.arc(p.x * width, p.y * height, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    async function startPoseOverlay(videoEl, canvasEl) {
+      let landmarker;
+      try {
+        landmarker = await ensurePoseLandmarker();
+      } catch (err) {
+        // No network / blocked / unsupported browser — the scan-line and
+        // the real video playback alone still read as "processing", so
+        // this fails silently rather than showing the user an error for
+        // what is a purely decorative feature.
+        return;
+      }
+      const ctx = canvasEl.getContext("2d");
+      const tick = () => {
+        if (!canvasEl.isConnected) return; // modal was closed/torn down
+        const w = videoEl.videoWidth, h = videoEl.videoHeight;
+        if (w && h && videoEl.readyState >= 2) {
+          if (canvasEl.width !== w) canvasEl.width = w;
+          if (canvasEl.height !== h) canvasEl.height = h;
+          ctx.clearRect(0, 0, w, h);
+          try {
+            const result = landmarker.detectForVideo(videoEl, performance.now());
+            if (result.landmarks && result.landmarks[0]) {
+              drawSkeleton(ctx, result.landmarks[0], w, h);
+            }
+          } catch (err) { /* a dropped frame here and there doesn't matter for a cosmetic overlay */ }
+        }
+        poseRafId = requestAnimationFrame(tick);
+      };
+      poseRafId = requestAnimationFrame(tick);
+    }
+
+    function stopPoseOverlay() {
+      if (poseRafId) cancelAnimationFrame(poseRafId);
+      poseRafId = null;
+      const canvasEl = document.getElementById("ch-analyze-canvas");
+      if (canvasEl) canvasEl.getContext("2d").clearRect(0, 0, canvasEl.width, canvasEl.height);
+    }
+
+    // ---------- Record / upload an attempt ----------
+    const recordOverlay = document.getElementById("ch-record-overlay");
+    let recordingStream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let analyzeVideoUrl = null;
+
+    // ---------- Once-a-day attempt limit ----------
+    const recordBtn = document.getElementById("ch-record-btn");
+    let attemptedToday = false;
+
+    async function refreshTodaysChallenge() {
+      const res = await fetch("/api/challenges/today");
+      const data = await res.json();
+      if (!data.ok) return;
+      todaysExercise = data.exercise;
+      attemptedToday = data.attempted;
+      renderTodaysExercise();
+      recordBtn.disabled = attemptedToday;
+      recordBtn.textContent = attemptedToday ? t("challenges.alreadyAttemptedToday") : t("challenges.recordAttempt");
+    }
+
+    async function openRecordModal() {
+      if (attemptedToday) return;
+      // A fresh challenge instance is created per attempt (same pattern
+      // the old Friends-page flow used) — the leaderboard now sums every
+      // submission's reps into one running total instead of taking a
+      // single exercise's personal best, so this doesn't fragment
+      // anything, it just gives this attempt somewhere to submit to.
+      // The exercise itself isn't sent — the server decides it from
+      // today's rotation, same as refreshTodaysChallenge() above.
+      const res = await fetch("/api/challenges", { method: "POST" });
+      const data = await res.json();
+      if (!data.ok) {
+        if (data.limitReached) await refreshTodaysChallenge();
+        else alert(data.error || t("challenges.couldntProcess"));
+        return;
+      }
+      activeChallengeId = data.id;
+
+      document.getElementById("ch-record-title").textContent = t("challenges.recordTitleFor", { exercise: exerciseTitle(data.exercise) });
+      document.getElementById("ch-record-sub").textContent = t("challenges.recordSub");
+      document.getElementById("ch-record-status").textContent = "";
+      recordOverlay.classList.add("is-open");
+    }
+    function closeRecordModal() {
+      stopRecordingStream();
+      hideAnalyzeStage();
+      recordOverlay.classList.remove("is-open");
+    }
+    function showAnalyzeStage(blobOrFile) {
+      const stage = document.getElementById("ch-analyze-stage");
+      const actions = document.getElementById("ch-record-actions");
+      const preview = document.getElementById("ch-record-preview");
+      const analyzeVideo = document.getElementById("ch-analyze-video");
+      analyzeVideoUrl = URL.createObjectURL(blobOrFile);
+      analyzeVideo.src = analyzeVideoUrl;
+      preview.style.display = "none";
+      actions.style.display = "none";
+      stage.style.display = "block";
+      startPoseOverlay(analyzeVideo, document.getElementById("ch-analyze-canvas"));
+    }
+    function hideAnalyzeStage() {
+      stopPoseOverlay();
+      const stage = document.getElementById("ch-analyze-stage");
+      const actions = document.getElementById("ch-record-actions");
+      const analyzeVideo = document.getElementById("ch-analyze-video");
+      if (stage) stage.style.display = "none";
+      if (actions) actions.style.display = "flex";
+      if (analyzeVideo) analyzeVideo.pause();
+      if (analyzeVideoUrl) {
+        URL.revokeObjectURL(analyzeVideoUrl);
+        analyzeVideoUrl = null;
+      }
+    }
+    function stopRecordingStream() {
+      if (recordingStream) recordingStream.getTracks().forEach((t) => t.stop());
+      recordingStream = null;
+      const video = document.getElementById("ch-record-preview");
+      video.style.display = "none";
+      video.srcObject = null;
+      document.getElementById("ch-record-start-btn").style.display = "inline-block";
+      document.getElementById("ch-record-stop-btn").style.display = "none";
+    }
+    document.getElementById("ch-record-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      openRecordModal();
+    });
+    document.getElementById("ch-record-close").addEventListener("click", closeRecordModal);
+    recordOverlay.addEventListener("click", (event) => {
+      if (event.target === recordOverlay) closeRecordModal();
+    });
+
+    document.getElementById("ch-record-start-btn").addEventListener("click", async () => {
+      const statusEl = document.getElementById("ch-record-status");
+      try {
+        recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (err) {
+        statusEl.textContent = t("challenges.cameraAccessDenied");
+        statusEl.style.color = "var(--red)";
+        return;
+      }
+      const video = document.getElementById("ch-record-preview");
+      video.srcObject = recordingStream;
+      video.style.display = "block";
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(recordingStream);
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        submitAttempt(blob, "attempt.webm");
+      };
+      mediaRecorder.start();
+      document.getElementById("ch-record-start-btn").style.display = "none";
+      document.getElementById("ch-record-stop-btn").style.display = "inline-block";
+    });
+    document.getElementById("ch-record-stop-btn").addEventListener("click", () => {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+      stopRecordingStream();
+    });
+    document.getElementById("ch-record-upload-btn").addEventListener("click", () => {
+      document.getElementById("ch-record-file-input").click();
+    });
+    document.getElementById("ch-record-file-input").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) submitAttempt(file, file.name);
+    });
+
+    async function submitAttempt(blobOrFile, filename) {
+      const statusEl = document.getElementById("ch-record-status");
+      statusEl.textContent = t("challenges.uploadingCounting");
+      statusEl.style.color = "var(--text-secondary)";
+      showAnalyzeStage(blobOrFile);
+      const formData = new FormData();
+      formData.append("video", blobOrFile, filename);
+      try {
+        const res = await fetch(`/api/challenges/${activeChallengeId}/submit`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || t("challenges.couldntProcess"));
+        const rejectedNote = data.rejected ? t("challenges.rejectedNote", { n: data.rejected }) : "";
+        statusEl.textContent = `${t("challenges.countedReps", { reps: data.reps })}${rejectedNote} ✓ ${data.notes || ""}`;
+        statusEl.style.color = "var(--green)";
+        await loadLeaderboardPreview();
+        await refreshTodaysChallenge();
+      } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.style.color = "var(--red)";
+      } finally {
+        hideAnalyzeStage();
+      }
+    }
+
+    renderTodaysExercise();
+    loadFriendCount().then(loadLeaderboardPreview);
+    refreshTodaysChallenge();
+
+    // Re-render whatever's currently visible when the language changes —
+    // the leaderboard rows/today-exercise label are built from JS strings
+    // via t(), not data-i18n, so applyI18n() alone can't reach them.
+    document.addEventListener("repcheck:language-changed", () => {
+      renderTodaysExercise();
+      loadLeaderboardPreview();
+      refreshTodaysChallenge();
+      if (lbOverlay.classList.contains("is-open")) {
+        paintCaption();
+        loadFullLeaderboard();
+      }
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}RepCheck{% endblock %}</title>
+  <script>
+    // Applied before first paint so the page never flashes the wrong theme.
+    (function () {
+      if (localStorage.getItem("repcheck_theme") === "dark") {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- SF Pro TH is an Apple system font — not distributable as a web
+       font, so it only renders on Apple devices that already have it
+       installed. Noto Sans Thai is loaded as the real, always-available
+       fallback everywhere else; the font-family stack in style.css still
+       lists SF Pro TH first so genuine Apple hardware gets the real thing. -->
+  <!-- 800 is loaded because several places (Hyrox leaderboard numbers,
+       macro totals, etc.) set font-weight:800 -- without the real weight
+       loaded, browsers fake it by synthetically thickening 700, which
+       renders visibly different (thinner, uneven strokes) from the real
+       Inter Extra Bold cut. -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset_url('style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='logo-mark.png') }}">
+  <script>
+    window.REPCHECK_LOGGED_IN = {{ 'true' if current_user else 'false' }};
+  </script>
+  <script src="{{ asset_url('account_sync.js') }}"></script>
+  <script src="{{ asset_url('units.js') }}"></script>
+  <script src="{{ asset_url('i18n.js') }}"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="brand-logo" src="{{ url_for('static', filename='logo-full.png') }}" alt="RepCheck">
+      </div>
+      <ul class="nav">
+        <li>
+          <a href="{{ url_for('home') }}" class="{{ 'active' if active_nav == 'home' else '' }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+            <span data-i18n="nav.home">Home</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ analyze_nav_href }}" class="{{ 'active' if active_nav == 'analyze' else '' }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg>
+            <span data-i18n="nav.analyze">Analyze</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('workouts') }}" class="{{ 'active' if active_nav == 'workouts' else '' }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM6 10v4M18 10v4M8 8h8v8H8z"/></svg>
+            <span data-i18n="nav.workouts">Workouts</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('nutrition') }}" class="{{ 'active' if active_nav == 'nutrition' else '' }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4Z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            <span data-i18n="nav.nutrition">Nutrition</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('coach') }}" class="{{ 'active' if active_nav == 'coach' else '' }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span data-i18n="nav.coach">Coach</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('hyrox') }}" class="{{ 'active' if active_nav == 'hyrox' else '' }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6M12 2v3"/></svg>
+            <span data-i18n="nav.hyrox">HYROX</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('friends') }}" class="{{ 'active' if active_nav == 'friends' else '' }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span data-i18n="nav.friends">Friends</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="account-block">
+        {% if current_user %}
+          <div class="account-popup-wrap">
+            <div class="account-popup" id="account-popup">
+              <a href="{{ url_for('settings') }}#account">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span data-i18n="sidebar.account">Account</span>
+              </a>
+              <a href="{{ url_for('settings') }}#appearance">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                <span data-i18n="sidebar.appearance">Appearance</span>
+              </a>
+              <a href="{{ url_for('settings') }}#language">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg>
+                <span data-i18n="sidebar.language">Language</span>
+              </a>
+              <a href="{{ url_for('settings') }}#subscription">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                <span data-i18n="sidebar.subscription">Subscription</span>
+              </a>
+              <a href="{{ url_for('settings') }}#units">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.27 6.96 12 12l8.73-5.04M12 22.08V12"/></svg>
+                <span data-i18n="sidebar.units">Units</span>
+              </a>
+            </div>
+            <button type="button" class="account-info" id="account-toggle-btn" aria-haspopup="true" aria-expanded="false">
+              <div class="account-avatar">{{ current_user.name[0]|upper }}</div>
+              <div class="account-name">{{ current_user.name.split(' ')[0] }}</div>
+            </button>
+          </div>
+          <form method="post" action="{{ url_for('auth.logout') }}">
+            <button type="submit" class="account-logout-btn" data-i18n="sidebar.logout">Log out</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('auth.login_page') }}" class="account-login-btn" data-i18n="sidebar.login">Log in</a>
+        {% endif %}
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1{% if i18n_page and i18n_page != 'result' %} data-i18n="page.{{ i18n_page }}.heading"{% endif %}>{% block heading %}RepCheck{% endblock %}</h1>
+          <p{% if i18n_page %} data-i18n="page.{{ i18n_page }}.subheading"{% endif %}>{% block subheading %}{% endblock %}</p>
+        </div>
+        {% if current_user %}
+        <a href="{{ url_for('settings') }}#account" class="topbar-avatar" aria-label="Account">{{ current_user.name[0]|upper }}</a>
+        {% endif %}
+      </div>
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!--
+    Mobile bottom tab bar: the sidebar's nav list is hidden below 720px
+    (see style.css) in favor of this fixed, thumb-reachable bar — the
+    pattern users already expect from native apps, instead of the old
+    wrapping horizontal nav row. The "+" is deliberately the largest,
+    most saturated element in the bar (raised above the bar line) since
+    it's the fastest path to the app's core actions (scan a meal, analyze
+    a lift, log a workout, log weight) from anywhere, not just one page.
+  -->
+  <nav class="mobile-tabbar" aria-label="Primary">
+    <a href="{{ url_for('home') }}" class="mt-item {{ 'is-active' if active_nav == 'home' else '' }}" aria-label="Home">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+      <span class="mt-label" data-i18n="nav.home">Home</span>
+    </a>
+    <a href="{{ url_for('workouts') }}" class="mt-item {{ 'is-active' if active_nav == 'workouts' else '' }}" aria-label="Workouts">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM6 10v4M18 10v4M8 8h8v8H8z"/></svg>
+      <span class="mt-label" data-i18n="nav.workouts">Workouts</span>
+    </a>
+    <a href="{{ url_for('nutrition') }}" class="mt-item {{ 'is-active' if active_nav == 'nutrition' else '' }}" aria-label="Nutrition">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4Z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      <span class="mt-label" data-i18n="nav.nutrition">Nutrition</span>
+    </a>
+
+    <button type="button" class="mt-fab" id="mt-fab-btn" aria-label="Quick actions" aria-haspopup="true" aria-expanded="false">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+    <a href="{{ url_for('hyrox') }}" class="mt-item {{ 'is-active' if active_nav == 'hyrox' else '' }}" aria-label="HYROX">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6M12 2v3"/></svg>
+      <span class="mt-label">HYROX</span>
+    </a>
+    <a href="{{ analyze_nav_href }}" class="mt-item {{ 'is-active' if active_nav == 'analyze' else '' }}" aria-label="Analyze">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg>
+      <span class="mt-label" data-i18n="nav.analyze">Analyze</span>
+    </a>
+    <button type="button" class="mt-item mt-more-btn" id="mt-more-btn" aria-label="More" aria-haspopup="true" aria-expanded="false">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>
+      <span class="mt-label" data-i18n="mobile.more">More</span>
+    </button>
+  </nav>
+
+  <!-- Quick-actions sheet opened by the "+" — the fast path to the app's
+       core actions from anywhere. Redesigned as a compact grid of gradient
+       "launcher" tiles that pop in with a stagger, so it feels fast and
+       inviting rather than like reading a menu. Its own qa-* classes keep
+       it isolated from the shared "More" sheet below (.mt-sheet-action). -->
+  <div class="mt-sheet-overlay" id="mt-fab-overlay">
+    <div class="mt-sheet qa-sheet" id="mt-fab-sheet">
+      <div class="mt-sheet-handle"></div>
+      <div class="qa-head">
+        <div class="qa-head-title" data-i18n="mobile.quickActions">Quick actions</div>
+        <div class="qa-head-sub" data-i18n="mobile.quickActionsSub">What do you want to do?</div>
+      </div>
+      <div class="qa-grid">
+        <a href="{{ url_for('nutrition') }}?quick=scan" class="qa-tile qa-green">
+          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+          <span class="qa-tile-title" data-i18n="mobile.scanMeal">Scan a meal</span>
+        </a>
+        <a href="{{ url_for('analyze_page') }}?quick=1" class="qa-tile qa-blue">
+          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg></span>
+          <span class="qa-tile-title" data-i18n="mobile.analyzeLift">Analyze a lift</span>
+        </a>
+        <a href="{{ url_for('workouts') }}?quick=log" class="qa-tile qa-amber">
+          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM6 10v4M18 10v4M8 8h8v8H8z"/></svg></span>
+          <span class="qa-tile-title" data-i18n="mobile.logWorkout">Log a workout</span>
+        </a>
+        <button type="button" class="qa-tile qa-red" id="mt-fab-log-weight">
+          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
+          <span class="qa-tile-title" data-i18n="mobile.logWeight">Log today's weight</span>
+        </button>
+        <button type="button" class="qa-tile qa-tile-wide qa-purple" id="mt-fab-scan-barcode" data-nutrition-href="{{ url_for('nutrition') }}?quick=barcode">
+          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
+          <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
+        </button>
+      </div>
+      <button type="button" class="qa-cancel" id="mt-fab-cancel" data-i18n="mobile.cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- "More" sheet: the remaining sidebar items that don't fit in the bar
+       (Analyze/HYROX already have their own slots — this covers Coach,
+       Friends, Settings, language, theme shortcut, and account/logout so
+       nothing from the desktop sidebar becomes unreachable on mobile). -->
+  <div class="mt-sheet-overlay" id="mt-more-overlay">
+    <div class="mt-sheet" id="mt-more-sheet">
+      <div class="mt-sheet-handle"></div>
+      <a href="{{ url_for('coach') }}" class="mt-sheet-action">
+        <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span><span class="mt-sheet-action-title" data-i18n="nav.coach">Coach</span></span>
+      </a>
+      <a href="{{ url_for('friends') }}" class="mt-sheet-action">
+        <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span><span class="mt-sheet-action-title" data-i18n="nav.friends">Friends</span></span>
+      </a>
+      <a href="{{ url_for('settings') }}" class="mt-sheet-action">
+        <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span><span class="mt-sheet-action-title" data-i18n="nav.settings">Settings</span></span>
+      </a>
+      {% if current_user %}
+        <div class="mt-sheet-action" style="cursor:default;">
+          <span class="mt-sheet-action-icon" style="background:var(--blue-bg); color:var(--blue);">{{ current_user.name[0]|upper }}</span>
+          <span><span class="mt-sheet-action-title">{{ current_user.name }}</span><span class="mt-sheet-action-sub">{{ current_user.email }}</span></span>
+        </div>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <button type="submit" class="mt-sheet-action" style="width:100%; border:none; background:none; font:inherit; text-align:left;">
+            <span class="mt-sheet-action-icon" style="background:var(--red-bg); color:var(--red);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+            <span><span class="mt-sheet-action-title" data-i18n="sidebar.logout">Log out</span></span>
+          </button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('auth.login_page') }}" class="mt-sheet-action">
+          <span class="mt-sheet-action-icon" style="background:var(--blue-bg); color:var(--blue);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
+          <span><span class="mt-sheet-action-title" data-i18n="sidebar.login">Log in</span></span>
+        </a>
+      {% endif %}
+      <button type="button" class="mt-sheet-cancel" id="mt-more-cancel" data-i18n="mobile.cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- "Log weight" quick-action popup: type today's weight right here
+       instead of navigating to the Nutrition page. Save logic mirrors
+       coaching.js's logWeight()/persistWeightEntry(), kept standalone
+       here since this popup (and base.html) loads on every page. -->
+  <div class="lw-modal-overlay" id="lw-modal-overlay" style="display:none;">
+    <div class="lw-modal">
+      <div class="lw-modal-header">
+        <div class="lw-modal-title" data-i18n="mobile.logWeight">Log today's weight</div>
+        <button type="button" class="lw-modal-close" id="lw-modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="lw-modal-body">
+        <input type="number" id="lw-weight-input" class="lw-weight-input" min="1" step="0.1" inputmode="decimal">
+        <button type="button" class="lw-save-btn" id="lw-save-btn" data-i18n="common.save">Save</button>
+        <div class="lw-modal-msg" id="lw-modal-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Sidebar account popup ----------
+    (function () {
+      const toggleBtn = document.getElementById("account-toggle-btn");
+      const popup = document.getElementById("account-popup");
+      if (!toggleBtn || !popup) return;
+
+      function open() {
+        popup.classList.add("is-open");
+        toggleBtn.setAttribute("aria-expanded", "true");
+      }
+      function close() {
+        popup.classList.remove("is-open");
+        toggleBtn.setAttribute("aria-expanded", "false");
+      }
+      toggleBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        popup.classList.contains("is-open") ? close() : open();
+      });
+      document.addEventListener("click", (event) => {
+        if (!popup.contains(event.target) && event.target !== toggleBtn) close();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") close();
+      });
+    })();
+
+    // ---------- Mobile bottom bar: FAB + More sheets ----------
+    (function () {
+      function wireSheet(openBtnId, overlayId, cancelId) {
+        const openBtn = document.getElementById(openBtnId);
+        const overlay = document.getElementById(overlayId);
+        const cancelBtn = document.getElementById(cancelId);
+        if (!openBtn || !overlay) return;
+
+        function open() {
+          overlay.classList.add("is-open");
+          openBtn.setAttribute("aria-expanded", "true");
+        }
+        function close() {
+          overlay.classList.remove("is-open");
+          openBtn.setAttribute("aria-expanded", "false");
+        }
+        openBtn.addEventListener("click", open);
+        if (cancelBtn) cancelBtn.addEventListener("click", close);
+        // Only the backdrop itself closes it — clicks on the sheet's own
+        // links/buttons must reach them, not get swallowed by this listener.
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) close();
+        });
+      }
+      wireSheet("mt-fab-btn", "mt-fab-overlay", "mt-fab-cancel");
+      wireSheet("mt-more-btn", "mt-more-overlay", "mt-more-cancel");
+    })();
+
+    // Closes the "+" quick-actions sheet AND resets the FAB's aria-expanded
+    // so the "+" morphs back from "×" (the morph is pure CSS off that
+    // attribute). Actions that dismiss the sheet in place — Log weight,
+    // Scan barcode — must call this instead of only removing "is-open", or
+    // the "×" gets stuck until the next open/close cycle.
+    window.closeFabSheet = function () {
+      const fabOverlay = document.getElementById("mt-fab-overlay");
+      if (fabOverlay) fabOverlay.classList.remove("is-open");
+      const fabBtn = document.getElementById("mt-fab-btn");
+      if (fabBtn) fabBtn.setAttribute("aria-expanded", "false");
+    };
+
+    // ---------- "Log weight" quick-action popup ----------
+    // Standalone (not coaching.js, which isn't loaded on every page): a
+    // fast way to log today's weight from wherever the user is, instead
+    // of navigating to the Nutrition page. Mirrors coaching.js's
+    // logWeight()/persistWeightEntry() save logic.
+    (function () {
+      const overlay = document.getElementById("lw-modal-overlay");
+      const input = document.getElementById("lw-weight-input");
+      const saveBtn = document.getElementById("lw-save-btn");
+      const closeBtn = document.getElementById("lw-modal-close");
+      const msgEl = document.getElementById("lw-modal-msg");
+      const openTriggers = [
+        document.getElementById("mt-fab-log-weight"),
+        document.getElementById("hm-quick-log-weight"),
+      ].filter(Boolean);
+      if (!overlay || !openTriggers.length) return;
+
+      const WEIGHT_LOG_KEY = "repcheck_weight_log_v1";
+      function toIsoDate(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+      function loadWeightLog() {
+        try { return JSON.parse(localStorage.getItem(WEIGHT_LOG_KEY)) || {}; }
+        catch (err) { return {}; }
+      }
+
+      function open() {
+        if (window.closeFabSheet) window.closeFabSheet();
+        const todayIso = toIsoDate(new Date());
+        const todaysEntry = loadWeightLog()[todayIso];
+        input.value = todaysEntry ? RepCheckUnits.kgToDisplay(todaysEntry.kg) : "";
+        msgEl.textContent = "";
+        msgEl.classList.remove("is-error");
+        overlay.style.display = "flex";
+        setTimeout(() => input.focus(), 0);
+      }
+      function close() {
+        overlay.style.display = "none";
+      }
+
+      async function save() {
+        const kg = RepCheckUnits.displayToKg(input.value);
+        if (!kg || kg <= 0 || kg > 400) {
+          msgEl.textContent = RepCheckI18n.t("coaching.weight.invalid") || "Enter a valid weight.";
+          msgEl.classList.add("is-error");
+          return;
+        }
+        const weightLog = loadWeightLog();
+        const todayIso = toIsoDate(new Date());
+        const entry = { kg, loggedAt: Date.now() };
+        weightLog[todayIso] = entry;
+        localStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(weightLog));
+
+        saveBtn.disabled = true;
+        if (window.REPCHECK_LOGGED_IN) {
+          try {
+            const response = await fetch("/api/weight/log-entry", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ date: todayIso, entry }),
+            });
+            const data = await response.json();
+            if (!data.ok) throw new Error(data.error || "Save failed");
+          } catch (err) {
+            saveBtn.disabled = false;
+            msgEl.textContent = RepCheckI18n.t("coaching.weight.saveError") || "Couldn't save. Try again.";
+            msgEl.classList.add("is-error");
+            return;
+          }
+        }
+        saveBtn.disabled = false;
+        close();
+        document.dispatchEvent(new CustomEvent("repcheck:weight-logged"));
+      }
+
+      openTriggers.forEach((btn) => btn.addEventListener("click", open));
+      closeBtn.addEventListener("click", close);
+      overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+      saveBtn.addEventListener("click", save);
+      input.addEventListener("keydown", (event) => { if (event.key === "Enter") save(); });
+    })();
+
+    // ---------- "Scan barcode" quick action ----------
+    // Browsers don't carry "user activation" across a full page
+    // navigation, so a hidden camera <input>'s .click() triggered from a
+    // page-load handler (after navigating here from another page) is
+    // silently blocked -- no camera opens, no error. When we're already
+    // on the Nutrition page, click the camera input directly, right here
+    // in this real click handler, so the gesture is never lost. Only
+    // when a navigation is unavoidable (coming from another page) do we
+    // fall back to nutrition.html's own single-tap "Open camera" prompt.
+    (function () {
+      const btn = document.getElementById("mt-fab-scan-barcode");
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        if (window.closeFabSheet) window.closeFabSheet();
+        const barcodeInput = document.getElementById("af-barcode-input");
+        if (barcodeInput) {
+          barcodeInput.click();
+        } else {
+          location.href = btn.dataset.nutritionHref;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

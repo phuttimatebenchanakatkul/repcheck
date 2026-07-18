@@ -1,0 +1,590 @@
+/* Personalized coaching module (nutrition page). Its own stylesheet,
+   same reasoning as hyrox.css — coaching.js owns this whole subtree and
+   re-renders it wholesale, so it's kept out of nutrition.html's already
+   very large inline <style> block. */
+
+.pc-card {
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+.pc-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.pc-card-title { font-size: 15px; font-weight: 700; }
+.pc-card-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+.pc-card-title-group { display: flex; align-items: center; gap: 10px; }
+.pc-card-icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.pc-card-icon-weight { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 6px 14px rgba(47, 102, 232, 0.35); }
+.pc-card-icon-logging { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 6px 14px rgba(31, 169, 113, 0.35); }
+.pc-card-icon-checkin { background: linear-gradient(135deg, #e8a33f, var(--amber)); box-shadow: 0 6px 14px rgba(185, 131, 42, 0.35); }
+
+/* Weekly check-in entry point. Quiet by default (matches the other
+   pc-card rows); gets a warm amber-tinted treatment only once the
+   check-in is actually due, so it reads as "something to do" rather
+   than permanent background noise. */
+.pc-checkin-card.is-due {
+  background: var(--amber-bg);
+  box-shadow: 0 8px 20px rgba(185, 131, 42, 0.16);
+}
+.pc-checkin-card-sub { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin: 10px 0 14px; }
+.pc-checkin-card.is-due .pc-checkin-card-sub { color: var(--text); }
+.pc-checkin-card:not(.is-due) .pc-card-actions { margin-top: 10px; }
+
+.pc-btn-primary, .pc-btn-secondary, .pc-btn-danger {
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+}
+.pc-btn-primary { background: var(--text); color: var(--bg); }
+.pc-btn-primary:hover { opacity: 0.88; }
+.pc-btn-secondary { background: none; border: 1px solid var(--border); color: var(--text); }
+.pc-btn-secondary:hover { border-color: var(--text-secondary); }
+.pc-btn-danger { background: none; border: 1px solid var(--red-bg); color: var(--red); }
+
+/* ---------- Setup CTA (no profile yet) ---------- */
+.pc-setup-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 0 4px;
+}
+.pc-setup-icon {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  background: var(--blue-bg); color: var(--blue);
+  display: flex; align-items: center; justify-content: center;
+}
+.pc-setup-text { flex: 1; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+.pc-setup-text strong { color: var(--text); }
+
+/* ---------- Profile summary ---------- */
+.pc-target-row { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 14px; }
+.pc-target-calories { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+.pc-target-label { font-size: 12px; color: var(--text-secondary); }
+.pc-macro-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.pc-macro-chip { background: var(--bg); border-radius: 10px; padding: 9px 6px; text-align: center; }
+.pc-macro-chip-value { font-size: 14px; font-weight: 700; }
+.pc-macro-chip-label { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ---------- Weekly nutrition chart ----------
+   Four rows (Calories, Protein, Fat, Carbs), each with 7 small vertical
+   bars (Mon-Sun). Every bar is a real <button> (tap a day to see its
+   numbers on the right) built from a pale "track" (the day's target)
+   with a solid "fill" growing from the bottom (today's progress toward
+   it) -- same track/fill technique the rest of the app already uses for
+   progress, just laid out as a compact week strip instead of one big
+   single-day chart. Colors match the red/amber/green/blue used
+   everywhere else for protein/fat/carbs/calories. */
+.pc-week-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.pc-week-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.pc-week-row { display: flex; align-items: center; gap: 8px; }
+.pc-week-row-label {
+  width: 46px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc-week-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.pc-week-dot-calories { background: var(--blue); }
+.pc-week-dot-protein { background: var(--red); }
+.pc-week-dot-fat { background: var(--amber); }
+.pc-week-dot-carbs { background: var(--green); }
+.pc-week-row-bars { display: flex; flex: 1; gap: 5px; height: 40px; }
+.pc-week-bar-col {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+}
+.pc-week-bar-col.is-selected { border-color: var(--border); }
+.pc-week-bar-track {
+  /* Fixed pixel height (not flex:1 / percentage) on purpose -- the fill
+     inside sizes itself with height:X%, and percentage heights only
+     resolve reliably against an ancestor with an explicit height. A
+     height coming from flex-stretch through nested flex containers
+     (button > col > track) is technically "definite" per spec, but
+     mobile WebKit/Safari has long-standing bugs where it isn't treated
+     that way in practice, so the fill silently collapses to 0 and the
+     bar reads as an empty pale square. 34px = the 40px row height minus
+     .pc-week-bar-col's 3px top+bottom padding. */
+  height: 34px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.pc-week-bar-fill { width: 100%; transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1); border-radius: 999px; }
+.pc-week-bar-calories { background: var(--blue); }
+.pc-week-bar-protein { background: var(--red); }
+.pc-week-bar-fat { background: var(--amber); }
+.pc-week-bar-carbs { background: var(--green); }
+
+.pc-week-row-total { width: 68px; flex-shrink: 0; text-align: right; }
+.pc-week-row-total-value { font-size: 13px; font-weight: 700; }
+.pc-week-row-total-of { display: block; font-size: 10px; color: var(--text-secondary); }
+
+.pc-week-daylabels-row { margin-top: 2px; }
+.pc-week-daylabel {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 0;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 6px;
+}
+.pc-week-daylabel.is-today { color: var(--text); }
+.pc-week-daylabel.is-selected { background: var(--bg); color: var(--text); font-weight: 800; }
+
+.pc-week-toggle {
+  display: flex;
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+.pc-week-toggle-btn {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pc-week-toggle-btn.is-active { background: var(--card-bg); color: var(--text); box-shadow: var(--shadow); }
+
+.pc-adjustment-banner {
+  background: var(--blue-bg); color: var(--text);
+  border-radius: 10px; padding: 11px 13px; font-size: 12px; line-height: 1.5;
+  margin-bottom: 14px;
+}
+.pc-adjustment-banner strong { color: var(--blue); }
+.pc-card-actions { display: flex; gap: 8px; }
+
+/* ---------- Inactivity banner ---------- */
+.pc-inactivity-banner {
+  background: var(--amber-bg); color: var(--amber);
+  border-radius: 12px; padding: 12px 14px; font-size: 13px; font-weight: 600;
+  line-height: 1.5; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+}
+.pc-inactivity-banner svg { flex-shrink: 0; }
+
+/* ---------- Weight tracking ---------- */
+.pc-streak-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg); color: var(--text-secondary);
+  border-radius: 999px; padding: 6px 12px;
+  font-size: 12px; font-weight: 700;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.pc-streak-badge.is-active {
+  background: linear-gradient(135deg, #f5a94e, #e8832f);
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(232, 131, 47, 0.35);
+}
+/* One pill-shaped control instead of a separate input + button sitting
+   side by side -- the border lives on the outer group so it reads as a
+   single unit, and the button keeps its own solid fill inside it. */
+.pc-weight-form {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 14px 0;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+  transition: border-color 0.15s ease;
+}
+.pc-weight-form:focus-within { border-color: var(--blue); }
+.pc-weight-form input {
+  flex: 1; min-width: 0; padding: 8px 12px 8px 14px; border: none;
+  background: none; color: var(--text);
+  font-size: 15px; font-family: inherit;
+}
+.pc-weight-form input:focus { outline: none; }
+.pc-weight-log-btn {
+  flex-shrink: 0;
+  padding: 9px 18px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4d7ff5, var(--blue));
+  box-shadow: 0 4px 10px rgba(47, 102, 232, 0.3);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.pc-weight-log-btn:hover { opacity: 0.92; }
+.pc-weight-log-btn:active { transform: scale(0.97); }
+
+/* Hero number + trend chip -- the latest weight is the headline, the
+   direction (vs. the previous entry) is a small supporting chip next to
+   it rather than something you have to work out by scanning a list. */
+.pc-weight-hero { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; margin-top: 14px; }
+.pc-weight-hero-main { display: flex; align-items: baseline; gap: 5px; }
+.pc-weight-hero-value { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.pc-weight-hero-unit { font-size: 15px; font-weight: 700; color: var(--text-secondary); }
+.pc-weight-hero-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pc-weight-hero-date { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.pc-weight-trend {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+  background: var(--bg); color: var(--text-secondary);
+}
+.pc-weight-trend-good { background: var(--green-bg); color: var(--green); }
+.pc-weight-trend-attention { background: var(--amber-bg); color: var(--amber); }
+
+/* Mini trend sparkline -- a gradient-filled line chart of the last ~14
+   logged entries, scaled to its own min/max so the shape of the trend
+   is legible even when the day-to-day swings are small. */
+.pc-weight-chart { margin-top: 14px; }
+.pc-weight-chart-svg { display: block; width: 100%; height: 64px; }
+.pc-weight-chart-labels {
+  display: flex; justify-content: space-between; margin-top: 4px;
+  font-size: 10px; font-weight: 600; color: var(--text-secondary);
+}
+.pc-weight-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 14px 0; }
+.pc-card-link {
+  display: block; text-align: center; margin-top: 10px;
+  font-size: 12px; font-weight: 700; color: var(--blue); text-decoration: none;
+}
+.pc-card-link:hover { text-decoration: underline; }
+
+/* ---------- Daily logging status ---------- */
+.pc-day-strip { display: flex; justify-content: space-between; gap: 6px; margin-top: 14px; }
+.pc-day-cell {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer; padding: 4px 0; font-family: inherit;
+}
+.pc-day-cell-letter { font-size: 10px; font-weight: 600; color: var(--text-secondary); }
+.pc-day-cell-dot {
+  width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--bg); font-size: 13px; font-weight: 700; color: var(--text-secondary);
+  border: 2px solid transparent;
+  transition: transform 0.15s ease;
+}
+.pc-day-cell:hover .pc-day-cell-dot { transform: translateY(-2px); }
+.pc-day-cell.is-today .pc-day-cell-dot { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+.pc-day-cell[data-status="logged"] .pc-day-cell-dot { background: linear-gradient(135deg, #29b87e, var(--green)); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.3); }
+.pc-day-cell[data-status="fasting"] .pc-day-cell-dot { background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff; box-shadow: 0 4px 10px rgba(185, 131, 42, 0.3); }
+.pc-day-cell[data-status="incomplete"] .pc-day-cell-dot { background: var(--border); color: var(--text-secondary); }
+.pc-day-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 14px; font-size: 11px; color: var(--text-secondary); }
+.pc-day-legend-item { display: flex; align-items: center; gap: 6px; }
+.pc-day-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* ---------- Day status popup ---------- */
+.pc-popup-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 110; padding: 16px;
+}
+.pc-popup {
+  background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  width: 100%; max-width: 320px; padding: 20px;
+}
+.pc-popup-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.pc-popup-sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; }
+.pc-popup-options { display: flex; flex-direction: column; gap: 8px; }
+.pc-popup-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.pc-popup-option.is-selected { border-color: var(--blue); background: var(--blue-bg); color: var(--blue); }
+.pc-popup-close { margin-top: 14px; width: 100%; }
+
+/* ---------- Wizard ---------- */
+.pc-wizard-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 110; padding: 16px;
+}
+.pc-wizard {
+  background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  width: 100%; max-width: 480px; max-height: 86vh; display: flex; flex-direction: column; overflow: hidden;
+}
+.pc-wizard.pc-wizard-wide { max-width: 660px; }
+.pc-wizard-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 8px; flex-shrink: 0; }
+.pc-wizard-title { font-size: 16px; font-weight: 700; }
+.pc-wizard-close { background: var(--bg); border: none; color: var(--text-secondary); width: 30px; height: 30px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+.pc-wizard-body { padding: 8px 20px 20px; overflow-y: auto; }
+.pc-wizard-step-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 14px; }
+.pc-wizard-progress { display: flex; gap: 4px; margin-bottom: 16px; }
+.pc-wizard-progress-dot { flex: 1; height: 4px; border-radius: 999px; background: var(--border); }
+.pc-wizard-progress-dot.is-done { background: var(--blue); }
+
+.pc-choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.pc-choice-card {
+  border: 1px solid var(--border); border-radius: 14px; padding: 14px; cursor: pointer;
+  background: var(--bg); text-align: left; font-family: inherit;
+}
+.pc-choice-card.is-selected { border-color: var(--blue); background: var(--blue-bg); }
+.pc-choice-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.pc-choice-sub { font-size: 11px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
+
+.pc-body-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.pc-body-type-card {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: 14px; padding: 12px 10px; cursor: pointer;
+  background: var(--bg); color: var(--text); text-align: center; font-family: inherit;
+}
+.pc-body-type-card.is-selected { border-color: var(--blue); background: var(--blue-bg); }
+.pc-body-type-check {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--blue); color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+}
+.pc-body-type-icon { display: flex; align-items: center; justify-content: center; }
+.pc-body-type-label { font-size: 13px; font-weight: 800; color: var(--text); }
+
+.pc-field { margin-bottom: 16px; }
+.pc-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.pc-field label span { color: var(--text); font-weight: 700; }
+.pc-field input {
+  width: 100%; padding: 11px 13px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); border-radius: 10px; font-size: 15px; font-family: inherit;
+}
+.pc-field input[type="range"] {
+  width: 100%; padding: 0; border: none; background: none;
+  accent-color: var(--blue); height: 20px; cursor: pointer;
+}
+.pc-field-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; min-height: 14px; }
+
+/* ---------- Vertical height ruler (replaces a horizontal <input type=range>
+   -- scrolling/dragging vertically gives much finer, more natural control
+   over one specific value than dragging a thumb sideways does). Shared by
+   the nutrition wizard (coaching.js) and the combined onboarding wizard
+   (onboarding.js) since both ask the same height question. ---------- */
+.pc-height-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
+.pc-height-ruler-value { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
+.pc-height-ruler-window {
+  position: relative;
+  width: 150px;
+  height: 210px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+}
+.pc-height-ruler-indicator {
+  position: absolute; left: 0; right: 0; top: 98px; height: 14px;
+  border-top: 2px solid var(--blue); border-bottom: 2px solid var(--blue);
+  pointer-events: none; z-index: 2;
+}
+.pc-height-ruler-scroll {
+  height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory;
+  padding: 98px 0; scrollbar-width: none;
+}
+.pc-height-ruler-scroll::-webkit-scrollbar { display: none; }
+.pc-height-ruler-row {
+  height: 14px; display: flex; align-items: center; justify-content: center;
+  gap: 8px; scroll-snap-align: center;
+}
+.pc-height-ruler-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); width: 28px; text-align: right; }
+.pc-height-ruler-mark { height: 2px; width: 14px; background: var(--border); border-radius: 1px; }
+.pc-height-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
+.pc-height-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
+
+.pc-result-calories { font-size: 40px; font-weight: 700; text-align: center; margin: 6px 0 2px; }
+.pc-result-label { text-align: center; color: var(--text-secondary); font-size: 12px; margin-bottom: 18px; }
+.pc-result-detail { font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: -10px; margin-bottom: 18px; }
+
+.pc-wizard-actions { display: flex; gap: 10px; margin-top: 4px; }
+.pc-wizard-actions .pc-btn-primary, .pc-wizard-actions .pc-btn-secondary { flex: 1; padding: 12px; font-size: 13px; }
+
+/* ---------- Weekly check-in modal ----------
+   A warm, sectioned ritual rather than a bare form: amber hero badge up
+   top, then one soft rounded section per step (week review, weight,
+   photos), each led by a small gradient icon chip -- same design
+   language as the rest of the app's cards. */
+.pc-ck-body { padding: 24px 20px 20px; }
+.pc-ck-hero { text-align: center; margin-bottom: 20px; }
+.pc-ck-hero-icon {
+  width: 54px; height: 54px; border-radius: 17px; margin: 0 auto 12px;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  background: linear-gradient(135deg, #e8a33f, var(--amber));
+  box-shadow: 0 10px 24px rgba(185, 131, 42, 0.35);
+}
+.pc-ck-hero-title { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.pc-ck-hero-sub { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin: 6px auto 0; max-width: 300px; }
+
+.pc-ck-section {
+  background: var(--bg); border-radius: 16px; padding: 14px; margin-bottom: 12px;
+}
+.pc-ck-section-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.pc-ck-chip {
+  width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.pc-ck-chip-green { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 5px 12px rgba(31, 169, 113, 0.35); }
+.pc-ck-chip-blue { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 5px 12px rgba(47, 102, 232, 0.35); }
+.pc-ck-chip-purple { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 5px 12px rgba(124, 79, 224, 0.35); }
+.pc-ck-section-text { min-width: 0; }
+.pc-ck-section-title { display: block; font-size: 13.5px; font-weight: 700; padding-top: 1px; }
+.pc-ck-section-sub { display: block; font-size: 11.5px; color: var(--text-secondary); line-height: 1.45; margin-top: 2px; }
+
+/* Day pills: the weekday letter sits inside the status-colored circle. */
+.pc-ck-day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 12px; }
+.pc-ck-day {
+  aspect-ratio: 1; width: 100%; max-width: 40px; margin: 0 auto;
+  border-radius: 50%; border: none; cursor: pointer; font-family: inherit;
+  background: var(--card-bg); color: var(--text-secondary);
+  font-size: 12px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.1s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.pc-ck-day:active { transform: scale(0.88); }
+.pc-ck-day[data-status="logged"] { background: var(--green); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.35); }
+.pc-ck-day[data-status="fasting"] { background: var(--amber); color: #fff; box-shadow: 0 4px 10px rgba(185, 131, 42, 0.35); }
+.pc-ck-day[data-status="incomplete"] { background: var(--text-secondary); color: var(--bg); }
+.pc-checkin-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.pc-checkin-legend-item {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 600; color: var(--text-secondary);
+  background: var(--card-bg); border-radius: 999px; padding: 4px 9px;
+}
+.pc-checkin-legend-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+.pc-checkin-legend-dot[data-status="logged"] { background: var(--green); }
+.pc-checkin-legend-dot[data-status="fasting"] { background: var(--amber); }
+.pc-checkin-legend-dot[data-status="incomplete"] { background: var(--text-secondary); }
+
+/* Weight: one big friendly centered number field. */
+.pc-ck-weight-field {
+  display: flex; align-items: baseline; justify-content: center; gap: 6px;
+  background: var(--card-bg); border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 6px 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pc-ck-weight-field:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+.pc-ck-weight-field input {
+  width: 110px; border: none; background: none; outline: none;
+  color: var(--text); font-family: inherit; text-align: center;
+  font-size: 26px; font-weight: 800; letter-spacing: -0.02em; padding: 4px 0;
+  -moz-appearance: textfield;
+}
+.pc-ck-weight-field input::-webkit-outer-spin-button,
+.pc-ck-weight-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pc-ck-weight-unit { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.pc-checkin-logged-note {
+  background: var(--green-bg); color: var(--green); font-size: 13px; font-weight: 700;
+  border-radius: 12px; padding: 12px 14px; text-align: center;
+}
+
+.pc-checkin-photo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pc-checkin-photo-slot {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; aspect-ratio: 4 / 3; border: 1.5px dashed var(--border); border-radius: 14px;
+  background: var(--card-bg); cursor: pointer; overflow: hidden;
+  color: var(--text-secondary);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.pc-checkin-photo-slot:hover { border-color: var(--purple); color: var(--purple); }
+.pc-checkin-photo-slot.has-photo { border-style: solid; border-color: var(--purple); }
+.pc-checkin-photo-plus { display: flex; }
+.pc-checkin-photo-slot-label { font-size: 11.5px; font-weight: 700; }
+.pc-checkin-photo-preview {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+.pc-checkin-photo-slot:has(.pc-checkin-photo-preview) .pc-checkin-photo-slot-label {
+  position: absolute; bottom: 0; left: 0; right: 0; margin: 0; padding: 6px 0;
+  background: rgba(0,0,0,0.55); color: #fff; text-align: center;
+}
+.pc-checkin-error { color: var(--red); font-size: 12px; text-align: center; margin-bottom: 12px; }
+
+/* Full-width warm CTA -- the one loud element on the screen. */
+.pc-ck-submit {
+  display: block; width: 100%; margin-top: 6px;
+  padding: 14px; border: none; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
+  font-size: 14px; font-weight: 800; font-family: inherit;
+  box-shadow: 0 8px 20px rgba(185, 131, 42, 0.35);
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.pc-ck-submit:hover { opacity: 0.92; }
+.pc-ck-submit:active { transform: scale(0.98); }
+.pc-ck-submit:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+/* Result screen: a small celebration, not a report. */
+.pc-ck-result { text-align: center; }
+.pc-ck-done-badge {
+  width: 62px; height: 62px; border-radius: 50%; margin: 6px auto 14px;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  background: linear-gradient(135deg, #29b87e, var(--green));
+  box-shadow: 0 12px 28px rgba(31, 169, 113, 0.4);
+}
+.pc-ck-delta { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin-top: 14px; line-height: 1; }
+.pc-ck-delta-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+.pc-ck-reason {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.55;
+  background: var(--bg); border-radius: 14px; padding: 14px 16px; margin: 16px 0 18px;
+  text-align: left;
+}
+
+@media (max-width: 480px) {
+  .pc-wizard-overlay, .pc-popup-overlay { padding: 0; align-items: stretch; }
+  .pc-wizard, .pc-wizard.pc-wizard-wide { max-width: none; max-height: none; height: 100%; border-radius: 0; }
+  .pc-popup { max-width: none; align-self: flex-end; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .pc-body-type-grid { grid-template-columns: 1fr; }
+  .pc-target-calories { font-size: 28px; }
+  .pc-field input, .pc-weight-form input { font-size: 16px; } /* prevents iOS auto-zoom */
+}
+
+/* ---------- Save confirmation/error toast ---------- */
+.pc-save-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 90px;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 12px 18px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  z-index: 400;
+  max-width: 90vw;
+  text-align: center;
+  animation: pc-toast-in 0.15s ease;
+}
+.pc-save-toast.is-success { background: var(--green); }
+.pc-save-toast.is-error { background: var(--red); }
+@keyframes pc-toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}

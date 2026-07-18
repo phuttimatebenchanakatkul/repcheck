@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+uploads/
+progress_photos/
+repcheck.db
+*.mp4
+*.mov
+*.MOV
+.vscode/
+.idea/
+.claude/

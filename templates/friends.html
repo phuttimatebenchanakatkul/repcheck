@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Friends{% endblock %}
+{% block heading %}Friends{% endblock %}
+{% block subheading %}Add friends to challenge on the leaderboard — see it on Home.{% endblock %}
+
+{% block content %}
+<style>
+  .fr-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 20px 22px; margin-bottom: 16px; max-width: 720px;
+  }
+  .fr-card-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .fr-card-sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
+
+  .fr-code-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .fr-qr-img { width: 140px; height: 140px; border-radius: 12px; background: var(--bg); border: 1px solid var(--border); }
+  .fr-code-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 20px; font-weight: 700; letter-spacing: 0.04em;
+    background: var(--bg); border-radius: 10px; padding: 10px 14px;
+  }
+  .fr-btn-primary, .fr-btn-secondary {
+    padding: 9px 16px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    cursor: pointer; font-family: inherit; border: none;
+  }
+  .fr-btn-primary { background: var(--text); color: var(--bg); }
+  .fr-btn-primary:hover { opacity: 0.88; }
+  .fr-btn-secondary { background: none; border: 1px solid var(--border); color: var(--text); }
+  .fr-btn-secondary:hover { border-color: var(--text-secondary); }
+  .fr-btn-primary:disabled, .fr-btn-secondary:disabled { opacity: 0.5; cursor: default; }
+
+  .fr-add-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .fr-add-row input {
+    flex: 1; min-width: 160px; padding: 10px 14px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); border-radius: 999px; font-size: 13px; font-family: inherit;
+  }
+  .fr-status { font-size: 12px; margin-top: 8px; }
+
+  .fr-scanner-wrap { margin-top: 12px; display: none; }
+  .fr-scanner-wrap.is-open { display: block; }
+  .fr-scanner-video { width: 100%; max-width: 360px; border-radius: 12px; background: #000; }
+
+  .fr-friend-list { display: flex; flex-direction: column; gap: 8px; }
+  .fr-friend-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600;
+  }
+  .fr-friend-avatar {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--blue-bg); color: var(--blue);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .fr-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 16px 0; }
+
+  .fr-new-challenge { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .fr-exercise-btn {
+    padding: 9px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .fr-exercise-btn.is-selected { border-color: var(--blue); background: var(--blue-bg); color: var(--blue); }
+
+  .fr-challenge {
+    border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-top: 12px;
+  }
+  .fr-challenge-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .fr-challenge-title { font-size: 14px; font-weight: 700; }
+  .fr-challenge-meta { font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; }
+  .fr-leaderboard-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px;
+    border-top: 1px solid var(--border);
+  }
+  .fr-leaderboard-row:first-of-type { border-top: none; }
+  .fr-rank { width: 20px; font-weight: 700; color: var(--text-secondary); }
+  .fr-rank.is-1 { color: #d4a017; }
+  .fr-leaderboard-name { flex: 1; font-weight: 600; }
+  .fr-leaderboard-reps { font-weight: 700; }
+  .fr-submit-row { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .fr-submit-status { font-size: 12px; margin-top: 8px; }
+</style>
+
+{% if not current_user %}
+  {% set next_path = ('/friends?add=' + add_code) if add_code else '' %}
+  <div class="fr-card">
+    <div class="fr-card-title" data-i18n="friends.loginTitle">Log in to see friends</div>
+    <div class="fr-card-sub" data-i18n="friends.loginSub">Friends, leaderboards, and challenges are tied to your account.</div>
+    {% if add_code %}
+      <div class="fr-card-sub" style="margin-top:-6px; color:var(--blue);">You scanned a friend code ({{ add_code }}) — log in and it'll be added automatically.</div>
+    {% endif %}
+    <a href="{{ url_for('auth.login_page', next=next_path) if next_path else url_for('auth.login_page') }}" class="fr-btn-primary" style="display:inline-block; text-decoration:none;" data-i18n="sidebar.login">Log in</a>
+  </div>
+{% else %}
+
+<div class="fr-card">
+  <div class="fr-card-title" data-i18n="friends.yourCode.title">Your friend code</div>
+  <div class="fr-card-sub" data-i18n="friends.yourCode.sub">Share this code or QR so friends can add you.</div>
+  <div class="fr-code-row">
+    <img class="fr-qr-img" id="fr-qr-img" src="{{ url_for('api_friends_qr') }}" alt="Your QR code">
+    <div>
+      <div class="fr-code-value" id="fr-my-code" data-i18n="friends.loading">Loading...</div>
+      <button type="button" class="fr-btn-secondary" id="fr-copy-btn" style="margin-top:10px;" data-i18n="friends.copyCode">Copy code</button>
+    </div>
+  </div>
+</div>
+
+<div class="fr-card">
+  <div class="fr-card-title" data-i18n="friends.addFriend.title">Add a friend</div>
+  <div class="fr-card-sub" data-i18n="friends.addFriend.sub">Enter their code, scan their QR, or check your contacts.</div>
+  <div class="fr-add-row">
+    <input type="text" id="fr-add-input" placeholder="Friend code, e.g. RC-A1B2C3" data-i18n-placeholder="friends.codePlaceholder" autocomplete="off">
+    <button type="button" class="fr-btn-primary" id="fr-add-btn" data-i18n="friends.add">Add</button>
+    <button type="button" class="fr-btn-secondary" id="fr-scan-btn" data-i18n="friends.scanQr">Scan QR</button>
+    <button type="button" class="fr-btn-secondary" id="fr-contacts-btn" data-i18n="friends.suggestFromContacts">Suggest from contacts</button>
+  </div>
+  <div class="fr-status" id="fr-add-status"></div>
+
+  <div class="fr-scanner-wrap" id="fr-scanner-wrap">
+    <video class="fr-scanner-video" id="fr-scanner-video" autoplay playsinline muted></video>
+    <div style="margin-top:8px;">
+      <button type="button" class="fr-btn-secondary" id="fr-scan-stop-btn" data-i18n="friends.stopScanning">Stop scanning</button>
+    </div>
+  </div>
+</div>
+
+<div class="fr-card">
+  <div class="fr-card-title" data-i18n="friends.yourFriends.title">Your friends</div>
+  <div class="fr-friend-list" id="fr-friend-list"></div>
+  <div class="fr-card-sub" style="margin-top:14px; margin-bottom:0;"><span data-i18n="friends.movedPrefix">Challenges and leaderboards moved to </span><a href="{{ url_for('home') }}" data-i18n="friends.home">Home</a><span data-i18n="friends.movedSuffix"> — this page is just for adding people.</span></div>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    const t = RepCheckI18n.t;
+    let myFriends = [];
+
+    // ---------- Friend code / copy ----------
+    async function loadFriends() {
+      const res = await fetch("/api/friends");
+      const data = await res.json();
+      if (!data.ok) return;
+      document.getElementById("fr-my-code").textContent = data.code;
+      myFriends = data.friends;
+      renderFriendList();
+    }
+
+    document.getElementById("fr-copy-btn").addEventListener("click", async () => {
+      const code = document.getElementById("fr-my-code").textContent;
+      try {
+        await navigator.clipboard.writeText(code);
+        document.getElementById("fr-copy-btn").textContent = t("friends.copied");
+        setTimeout(() => { document.getElementById("fr-copy-btn").textContent = t("friends.copyCode"); }, 1500);
+      } catch (err) { /* clipboard permission denied — the code is already visible to copy by hand */ }
+    });
+
+    function renderFriendList() {
+      const listEl = document.getElementById("fr-friend-list");
+      listEl.innerHTML = "";
+      if (!myFriends.length) {
+        listEl.appendChild(el(`<div class="fr-empty">${t("friends.empty")}</div>`));
+        return;
+      }
+      myFriends.forEach((f) => {
+        listEl.appendChild(el(`
+          <div class="fr-friend-row">
+            <div class="fr-friend-avatar">${f.name[0].toUpperCase()}</div>
+            <div>${f.name}</div>
+          </div>
+        `));
+      });
+    }
+
+    function el(html) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html.trim();
+      return wrap.firstElementChild;
+    }
+
+    async function addFriendByCode(code) {
+      const statusEl = document.getElementById("fr-add-status");
+      statusEl.textContent = t("friends.adding");
+      statusEl.style.color = "var(--text-secondary)";
+      try {
+        const res = await fetch("/api/friends/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || t("friends.couldntAdd"));
+        statusEl.textContent = t("friends.added", { name: data.friend.name });
+        statusEl.style.color = "var(--green)";
+        document.getElementById("fr-add-input").value = "";
+        await loadFriends();
+      } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.style.color = "var(--red)";
+      }
+    }
+
+    document.getElementById("fr-add-btn").addEventListener("click", () => {
+      const code = document.getElementById("fr-add-input").value.trim();
+      if (code) addFriendByCode(code);
+    });
+
+    // ---------- QR scanning ----------
+    // DISABLED FOR NOW: getUserMedia (needed for a live camera feed) only
+    // works in a "secure context" (HTTPS, or plain HTTP on localhost
+    // only), and the self-signed HTTPS cert this required on the LAN was
+    // too much friction for now (browser trust warnings on every
+    // device). Commented out rather than deleted so it's easy to
+    // re-enable later -- startScan() below just tells the user to type
+    // the code by hand instead (there's no photo-upload fallback for QR
+    // the way there is for barcodes).
+    /*
+    let scanStream = null;
+    let scanRafId = null;
+
+    async function startScan() {
+      const statusEl = document.getElementById("fr-add-status");
+      if (!("BarcodeDetector" in window)) {
+        statusEl.textContent = t("friends.qrNotSupported");
+        statusEl.style.color = "var(--red)";
+        return;
+      }
+      try {
+        scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      } catch (err) {
+        statusEl.textContent = t("friends.cameraAccessDenied");
+        statusEl.style.color = "var(--red)";
+        return;
+      }
+      const video = document.getElementById("fr-scanner-video");
+      video.srcObject = scanStream;
+      document.getElementById("fr-scanner-wrap").classList.add("is-open");
+
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      const tick = async () => {
+        if (!scanStream) return;
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length) {
+            stopScan();
+            addFriendByCode(codes[0].rawValue);
+            return;
+          }
+        } catch (err) { // transient decode failure — keep scanning
+        }
+        scanRafId = requestAnimationFrame(tick);
+      };
+      scanRafId = requestAnimationFrame(tick);
+    }
+
+    function stopScan() {
+      if (scanRafId) cancelAnimationFrame(scanRafId);
+      scanRafId = null;
+      if (scanStream) scanStream.getTracks().forEach((t) => t.stop());
+      scanStream = null;
+      document.getElementById("fr-scanner-wrap").classList.remove("is-open");
+    }
+    */
+    function startScan() {
+      // Live camera scanning is disabled for now (see comment block
+      // above) -- there's no photo-upload fallback for QR codes, so just
+      // point the user at manual entry instead.
+      const statusEl = document.getElementById("fr-add-status");
+      statusEl.textContent = t("friends.qrNotSupported");
+      statusEl.style.color = "var(--red)";
+    }
+    function stopScan() {} // no-op while live scanning is disabled
+
+    document.getElementById("fr-scan-btn").addEventListener("click", startScan);
+    document.getElementById("fr-scan-stop-btn").addEventListener("click", stopScan);
+
+    // ---------- Contact suggestions ----------
+    // The Contact Picker API is the only web-standard way to read a
+    // device's contacts, and it's Chrome-on-Android only today — there is
+    // no way for a website to list a desktop's contacts. Feature-detected,
+    // with an honest fallback rather than faking a contact list.
+    document.getElementById("fr-contacts-btn").addEventListener("click", async () => {
+      const statusEl = document.getElementById("fr-add-status");
+      if (!("contacts" in navigator && "ContactsManager" in window)) {
+        statusEl.textContent = t("friends.contactsNotAvailable");
+        statusEl.style.color = "var(--text-secondary)";
+        return;
+      }
+      try {
+        const contacts = await navigator.contacts.select(["name", "tel"], { multiple: true });
+        statusEl.textContent = contacts.length
+          ? t("friends.contactsFound", { n: contacts.length })
+          : t("friends.noContactsSelected");
+        statusEl.style.color = "var(--text-secondary)";
+      } catch (err) {
+        statusEl.textContent = t("friends.contactsCancelled");
+        statusEl.style.color = "var(--red)";
+      }
+    });
+
+    loadFriends();
+    document.addEventListener("repcheck:language-changed", renderFriendList);
+
+    // ---------- Deep-linked add (QR code scanned by ANY app, not just
+    // our own in-app scanner) ----------
+    // The QR image now encodes a real URL (/friends?add=<code>), so
+    // scanning it with the phone's own camera app, Google Lens, etc.
+    // opens this page directly instead of showing an inert text string
+    // the user would've had to copy/paste by hand.
+    (function handleDeepLinkedAdd() {
+      const code = new URLSearchParams(location.search).get("add");
+      if (!code) return;
+      history.replaceState(null, "", location.pathname); // don't re-add on refresh
+      addFriendByCode(code);
+    })();
+  })();
+</script>
+
+{% endif %}
+{% endblock %}
