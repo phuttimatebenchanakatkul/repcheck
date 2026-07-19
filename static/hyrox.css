@@ -563,6 +563,12 @@
   transition: box-shadow 0.15s ease;
 }
 .hx-history-row:hover { box-shadow: 0 4px 14px rgba(20, 20, 20, 0.06); }
+/* Flagged (unrealistic) races are still saved, but visually dimmed and
+   marked so they read as "recorded but not a counted result". */
+.hx-history-row.is-flagged .hx-history-time { color: var(--text-secondary); }
+.hx-history-flagged {
+  color: var(--amber); font-weight: 700;
+}
 .hx-history-time { font-size: 18px; font-weight: 700; min-width: 76px; font-variant-numeric: tabular-nums; }
 .hx-history-meta { flex: 1; font-size: 12px; color: var(--text-secondary); }
 .hx-history-tag {

@@ -551,6 +551,7 @@
       }
       const bestByCombo = new Map();
       this.history.forEach((record) => {
+        if (record.flagged) return; // never send unrealistic times to the leaderboard
         const key = this.pbKeyFor(record.category, record.format, record.gender);
         const existing = bestByCombo.get(key);
         if (!existing || record.totalSeconds < existing.totalSeconds) bestByCombo.set(key, record);
@@ -631,6 +632,7 @@
       const key = this.pbKeyFor(category, format, gender);
       let best = null;
       this.history.forEach((r) => {
+        if (r.flagged) return; // flagged (unrealistic) times never count as a PB
         if (this.pbKeyFor(r.category, r.format, r.gender) !== key) return;
         if (!best || r.totalSeconds < best.totalSeconds) best = r;
       });
@@ -638,10 +640,12 @@
     }
 
     // One row per combo the user has ever completed, fastest time (and
-    // the day it happened) for each — used on the history screen.
+    // the day it happened) for each — used on the history screen. Flagged
+    // (unrealistic) times are excluded, same as getPersonalBest above.
     getAllPersonalBests() {
       const bestByKey = new Map();
       this.history.forEach((r) => {
+        if (r.flagged) return;
         const key = this.pbKeyFor(r.category, r.format, r.gender);
         const existing = bestByKey.get(key);
         if (!existing || r.totalSeconds < existing.totalSeconds) bestByKey.set(key, r);
@@ -954,17 +958,29 @@
         splits: this.splits,
         flagged,
         isNewPb,
+        analysis: null, // filled in by loadRaceAnalysis() and persisted
       };
 
+      // EVERY finished race is now saved to history (with its total time and
+      // per-station splits), including flagged ones -- flagged just stay out
+      // of the leaderboard/PB and aren't AI-coached (their splits aren't a
+      // real performance). getPersonalBest/getAllPersonalBests/backfill all
+      // skip flagged, so junk times can't become a "best" or hit the board.
+      this.history.push(record);
+      this.saveHistory();
       if (!flagged) {
-        this.history.push(record);
-        this.saveHistory();
         this.submitHyroxResult(record);
       }
 
       this.finishedResult = record;
       this.screen = "finished";
       this.render();
+
+      // Run the race analysis right away for realistic races so it's shown
+      // on the finish screen without a tap and saved into history for later.
+      if (!flagged) {
+        this.loadRaceAnalysis(record.id, true);
+      }
     }
 
     // Mirrors the record into the server-side hyrox_results table so it
@@ -1527,12 +1543,31 @@
     // Fetches Gemini's per-station coaching for one race, cached by race id
     // so re-opening a race (or re-rendering) never re-hits the API. `force`
     // is the explicit "Analyze"/"try again" tap.
+    // Seeds the in-memory analysis cache from an analysis already saved on
+    // the race record (see loadRaceAnalysis's persistence below), so
+    // reopening a past race from history shows its coaching instantly with
+    // no re-fetch. Also lets the breakdown bars tint by rating right away.
+    hydrateAnalysisFromRecord(race) {
+      if (!race || this.analysisCache[race.id] || !race.analysis) return;
+      const tipsByKey = {};
+      (race.analysis.tips || []).forEach((tip) => { if (tip && tip.key) tipsByKey[tip.key] = tip; });
+      this.analysisCache[race.id] = {
+        data: {
+          overall: race.analysis.overall,
+          overallDetail: race.analysis.overallDetail || [],
+          tips: race.analysis.tips || [],
+          tipsByKey,
+        },
+      };
+    }
+
     loadRaceAnalysis(raceId, force) {
       const race = this.findRace(raceId);
       // Flagged races (total below the physically-realistic threshold)
       // never get analyzed -- coaching on made-up splits is noise, and
       // renderRaceAnalysis shows a disabled note instead of the CTA.
       if (!race || race.flagged) return;
+      this.hydrateAnalysisFromRecord(race);
       const existing = this.analysisCache[raceId];
       if (existing && existing.data && !force) return;
       if (existing && existing.loading) return;
@@ -1558,14 +1593,17 @@
           if (!data.ok) throw new Error("failed");
           const tipsByKey = {};
           (data.tips || []).forEach((tip) => { if (tip && tip.key) tipsByKey[tip.key] = tip; });
-          this.analysisCache[raceId] = {
-            data: {
-              overall: data.overall,
-              overallDetail: data.overall_detail || [],
-              tips: data.tips || [],
-              tipsByKey,
-            },
+          const analysis = {
+            overall: data.overall,
+            overallDetail: data.overall_detail || [],
+            tips: data.tips || [],
           };
+          this.analysisCache[raceId] = { data: { ...analysis, tipsByKey } };
+          // Persist the coaching onto the saved race so it survives page
+          // reloads and shows up when the race is reopened from history,
+          // instead of being re-fetched every time.
+          const saved = this.findRace(raceId);
+          if (saved) { saved.analysis = analysis; this.saveHistory(); }
           this.render();
         })
         .catch(() => {
@@ -1579,6 +1617,7 @@
     // bold, and once the AI has run each station tints by its rating
     // (green = strong, amber = focus). Returns an element.
     renderRaceBreakdown(result) {
+      this.hydrateAnalysisFromRecord(result);
       const segs = this.segmentDurations(result);
       const maxSeconds = Math.max(1, ...segs.map((s) => s.seconds));
       const runTotal = segs.filter((s) => s.type === "run").reduce((a, b) => a + b.seconds, 0);
@@ -1633,18 +1672,16 @@
         `);
       }
 
+      this.hydrateAnalysisFromRecord(result);
       const cache = this.analysisCache[result.id];
 
+      // No analysis yet (e.g. an older saved race from before auto-analysis,
+      // or the finish-screen request hasn't kicked off): start it now so
+      // every real race ends up with coaching, no tap required. Deferred to
+      // a microtask so it doesn't re-enter render() while we're mid-render.
       if (!cache) {
-        return el(`
-          <button type="button" class="hx-analyze-cta" data-action="analyze-race" data-id="${result.id}">
-            <span class="hx-analyze-cta-icon">${SPARKLE_ICON}</span>
-            <span class="hx-analyze-cta-text">
-              <span class="hx-analyze-cta-title">${t("hyrox.analysis.cta")}</span>
-              <span class="hx-analyze-cta-sub">${t("hyrox.analysis.ctaSub")}</span>
-            </span>
-          </button>
-        `);
+        Promise.resolve().then(() => this.loadRaceAnalysis(result.id, true));
+        return el(`<div class="hx-analyze-loading"><span class="hx-analyze-spinner"></span>${t("hyrox.analysis.loading")}</div>`);
       }
       if (cache.loading) {
         return el(`<div class="hx-analyze-loading"><span class="hx-analyze-spinner"></span>${t("hyrox.analysis.loading")}</div>`);
@@ -1939,8 +1976,9 @@
     }
 
     renderHistory() {
-      // Flagged times are never stored (see finishRace()), so this list is
-      // always genuine, counted results only — nothing to filter here.
+      // Every finished race is saved here now, including flagged
+      // (unrealistically fast) ones -- those get a subtle marker below and
+      // are already kept out of the PBs/leaderboard by getPersonalBest etc.
       const wrap = el(`<div></div>`);
       const pbCard = this.renderPersonalBests();
       if (pbCard) wrap.appendChild(pbCard);
@@ -1965,11 +2003,11 @@
           // nested × still removes (closest [data-action] resolves to it
           // first). role/tabindex so it's a real, keyboard-reachable button.
           listEl.appendChild(el(`
-            <div class="hx-history-row is-clickable" data-action="show-race-detail" data-id="${r.id}" role="button" tabindex="0">
+            <div class="hx-history-row is-clickable ${r.flagged ? "is-flagged" : ""}" data-action="show-race-detail" data-id="${r.id}" role="button" tabindex="0">
               <div class="hx-history-time">${formatClock(r.totalSeconds)}</div>
               <div class="hx-history-meta">
                 <span class="hx-history-tag">${comboLabel(r.gender, r.category, r.format)}</span>
-                <div style="margin-top:4px;">${dateLabel}</div>
+                <div style="margin-top:4px;">${dateLabel}${r.flagged ? ` · <span class="hx-history-flagged">${t("hyrox.history.flagged")}</span>` : ""}</div>
               </div>
               <span class="hx-history-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
               <button type="button" class="hx-history-remove" data-action="remove-history" data-id="${r.id}" aria-label="Remove">&times;</button>
