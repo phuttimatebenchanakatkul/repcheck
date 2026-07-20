@@ -297,6 +297,16 @@ EXERCISE_CATEGORIES = {
     ],
 }
 
+# Fold in the ~300 additional muscle-building exercises kept in
+# extra_exercises.py (their own module so this file's literals stay
+# readable). Each extra names an existing EXERCISE_CATEGORIES key, so it
+# slots into the right group; done before WORKOUT_EXERCISES is derived so
+# the flat list, the location check, and exercise_details.py all see them.
+from extra_exercises import EXTRA_EXERCISES as _EXTRA_EXERCISES
+
+for _extra in _EXTRA_EXERCISES:
+    EXERCISE_CATEGORIES.setdefault(_extra["category"], []).append(_extra["name"])
+
 WORKOUT_EXERCISES = [name for names in EXERCISE_CATEGORIES.values() for name in names]
 
 # Exercises that are commonly performed one side at a time, so a lifter may
@@ -340,6 +350,11 @@ UNILATERAL_EXERCISES = {
     "Side-Lying Leg Lift", "Side-Lying Clam Shell",
     "Standing Bicep Curl (Light Dumbbell)",
 }
+
+# Add the one-side-at-a-time exercises from the extra catalog to the same set.
+UNILATERAL_EXERCISES.update(
+    _extra["name"] for _extra in _EXTRA_EXERCISES if _extra["unilateral"]
+)
 
 # Where each exercise can actually be done, used by the split planner
 # wizard's "Where do you usually train?" question (gym / home / hybrid --
@@ -612,6 +627,10 @@ EXERCISE_LOCATIONS = {
     "Seated Leg Extension (Light)": "home",
     "Ankle Pumps": "home",
 }
+
+# Location tags for the extra catalog, from the same module.
+for _extra in _EXTRA_EXERCISES:
+    EXERCISE_LOCATIONS.setdefault(_extra["name"], _extra["location"])
 
 _missing_locations = [name for name in WORKOUT_EXERCISES if name not in EXERCISE_LOCATIONS]
 if _missing_locations:
