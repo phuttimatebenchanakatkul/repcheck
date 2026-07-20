@@ -405,6 +405,63 @@
 }
 .hx-now-title { font-size: 27px; font-weight: 800; margin-top: 16px; letter-spacing: -0.02em; }
 .hx-now-detail { font-size: 13.5px; color: var(--text-secondary); margin-top: 8px; line-height: 1.55; }
+
+/* "What to do right now" as clear stat chips: total distance, laps of the
+   user's gym lane, and the load. The laps chip is emphasised (blue) since
+   it's the number that tells you how many times to go. */
+.hx-now-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.hx-now-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 14px; padding: 9px 14px; min-width: 74px;
+}
+.hx-now-chip-value { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.1; }
+.hx-now-chip-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; text-align: center; }
+.hx-now-chip.is-rounds { background: linear-gradient(135deg, #4d7ff5, var(--blue)); border-color: transparent; box-shadow: 0 6px 16px rgba(47, 102, 232, 0.35); }
+.hx-now-chip.is-rounds .hx-now-chip-value { color: #fff; }
+.hx-now-chip.is-rounds .hx-now-chip-label { color: rgba(255, 255, 255, 0.85); }
+.hx-now-note { font-size: 11.5px; color: var(--text-secondary); margin-top: 10px; line-height: 1.45; }
+
+/* ---------- "Your training space" setup card ---------- */
+.hx-space-tip {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--amber-bg); border-radius: 14px; padding: 12px 14px;
+  font-size: 12px; line-height: 1.5; color: var(--text); margin: 12px 0 16px;
+}
+.hx-space-tip-icon { color: var(--amber); flex-shrink: 0; display: flex; margin-top: 1px; }
+.hx-space-list { display: flex; flex-direction: column; gap: 10px; }
+.hx-space-row { background: var(--bg); border-radius: 16px; padding: 14px; }
+.hx-space-row-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.hx-space-icon {
+  width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blue-bg); color: var(--blue);
+}
+.hx-space-name { font-size: 14px; font-weight: 700; flex: 1; min-width: 0; }
+.hx-space-reset { flex-shrink: 0; }
+.hx-space-row-body { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.hx-space-field { display: flex; flex-direction: column; gap: 5px; }
+.hx-space-field-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
+.hx-space-input-wrap {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+  padding: 4px 12px 4px 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.hx-space-input-wrap:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+.hx-space-input {
+  width: 66px; border: none; background: none; outline: none;
+  color: var(--text); font-family: inherit; text-align: center;
+  font-size: 17px; font-weight: 800; padding: 6px 4px; -moz-appearance: textfield;
+}
+.hx-space-input::-webkit-outer-spin-button, .hx-space-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.hx-space-input-unit { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.hx-space-result { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.hx-space-result-item { text-align: center; }
+.hx-space-result-value { display: block; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.hx-space-result-item.is-rounds .hx-space-result-value { color: var(--blue); }
+.hx-space-result-label { display: block; font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
+.hx-space-times { font-size: 15px; font-weight: 700; color: var(--text-secondary); }
 .hx-now-info {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 16px;
   background: var(--card-bg); border: 1px solid var(--border); color: var(--blue);
