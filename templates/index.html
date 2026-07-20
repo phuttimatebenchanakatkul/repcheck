@@ -227,6 +227,23 @@
   }
   .an-recent-date { font-size: 10px; color: var(--text-secondary); }
 
+  /* History detail: the clip the analysis was run on, leading the page. */
+  .an-replay-card { padding: 12px; }
+  .an-replay-video {
+    display: block;
+    width: 100%;
+    max-height: 420px;
+    border-radius: 14px;
+    background: #000;
+  }
+  .an-replay-meta {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 10px;
+  }
+
   .ex-modal-overlay {
     position: fixed;
     inset: 0;
@@ -618,9 +635,53 @@
     return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
+  // Server-side analysis history (logged-in only). Each entry is a full
+  // stored analysis -- scores, feedback, and the clip it was run on --
+  // reopenable in the results view via openHistoryDetail(). Falls back to
+  // the localStorage activity log (which can only pre-select the
+  // exercise) when logged out or if the fetch fails.
+  let serverHistory = null;
+
+  async function loadServerHistory() {
+    if (!window.REPCHECK_LOGGED_IN) {
+      renderRecentAnalyses();
+      return;
+    }
+    try {
+      const response = await fetch("{{ url_for('api_analyze_history') }}");
+      const data = await response.json();
+      if (data.ok) serverHistory = data.entries;
+    } catch (err) {
+      // strip just falls back to the local log
+    }
+    renderRecentAnalyses();
+  }
+
+  // SQLite's created_at is "YYYY-MM-DD HH:MM:SS" in UTC — make that
+  // explicit so the relative label reflects the user's local time.
+  function historyTimestamp(createdAt) {
+    return new Date(createdAt.replace(" ", "T") + "Z").getTime();
+  }
+
   function renderRecentAnalyses() {
     const wrap = document.getElementById("an-recent");
     const strip = document.getElementById("an-recent-strip");
+
+    if (serverHistory && serverHistory.length) {
+      wrap.style.display = "block";
+      strip.innerHTML = serverHistory.map((entry) => `
+        <button type="button" class="an-recent-card" data-history-id="${entry.id}">
+          <div class="an-recent-icon">${exerciseIconHtml(entry.exercise_label)}</div>
+          <div class="an-recent-name">${entry.exercise_label}</div>
+          <div class="an-recent-date">${relativeDateLabel(historyTimestamp(entry.created_at))}${entry.overall_score !== null && entry.overall_score !== undefined ? ` · ${entry.overall_score}/100` : ""}</div>
+        </button>
+      `).join("");
+      strip.querySelectorAll("[data-history-id]").forEach((card) => {
+        card.addEventListener("click", () => openHistoryDetail(card.dataset.historyId));
+      });
+      return;
+    }
+
     const entries = getRecentAnalysisEntries(8);
     if (!entries.length) {
       wrap.style.display = "none";
@@ -640,6 +701,22 @@
         fileDrop.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
+  }
+
+  // Reopen a stored analysis: the clip it was run on up top, then the
+  // exact same result layout a fresh analysis gets (showResult handles
+  // both -- the video card only renders when video_url is present).
+  async function openHistoryDetail(id) {
+    try {
+      const response = await fetch(`/api/analyze/history/${id}`);
+      const data = await response.json();
+      if (!data.ok) return;
+      uploadView.style.display = "none";
+      showResult(data);
+      window.scrollTo({ top: 0 });
+    } catch (err) {
+      // leave the upload view as-is
+    }
   }
 
   function selectExercise(name) {
@@ -757,7 +834,7 @@
   }
   document.addEventListener("repcheck:language-changed", updateFileDropDisplay);
 
-  renderRecentAnalyses();
+  loadServerHistory();
   document.addEventListener("repcheck:language-changed", renderRecentAnalyses);
 
   videoInput.addEventListener("change", updateFileDropDisplay);
@@ -857,7 +934,18 @@
       favorNoteHtml = `<div class="favor-note">${t("analyze.favorsNote", { favored: `<strong>${favoredLabel}</strong>`, other })}</div>`;
     }
 
+    // History entries carry the clip the analysis was run on -- it leads,
+    // with the stored feedback reading top-to-bottom right after it.
+    // Fresh analyses have no video_url, so this card simply isn't there.
+    const videoCard = data.video_url ? `
+      <div class="card an-replay-card">
+        <video class="an-replay-video" src="${data.video_url}" controls playsinline preload="metadata"></video>
+        <div class="an-replay-meta">${data.exercise_label}${data.created_at ? ` · ${relativeDateLabel(historyTimestamp(data.created_at))}` : ""}</div>
+      </div>
+    ` : "";
+
     return `
+      ${videoCard}
       <div class="card">
         <div class="an-result-hero">
           <div class="an-result-hero-icon">${ANALYZE_ICONS.check}</div>
@@ -932,7 +1020,32 @@
     form.reset();
     updateFileDropDisplay();
     clearSelectedExercise();
-    renderRecentAnalyses();
+    // Re-fetch so a just-finished analysis shows up in the strip (the
+    // server saved it during the analyze request).
+    loadServerHistory();
+  }
+
+  // Renders one analysis (fresh or from history) into the results view
+  // and wires everything inside it -- shared by the submit handler and
+  // openHistoryDetail so both always look and behave identically.
+  function showResult(data) {
+    analyzingView.style.display = "none";
+    resultView.innerHTML = sectionsHtml(data);
+    resultView.style.display = "block";
+    document.getElementById("reset-btn").addEventListener("click", resetToUpload);
+    resultView.querySelectorAll(".fb-item.is-expandable .fb-item-main").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        btn.closest(".fb-item").classList.toggle("is-expanded");
+      });
+    });
+    AnalyzeChatWidget.init({
+      exercise_label: data.exercise_label,
+      overall_score: data.overall_score,
+      stretch_score: data.stretch_score,
+      squeeze_score: data.squeeze_score,
+      reps: data.reps,
+      feedback_text: data.feedback_text,
+    });
   }
 
   form.addEventListener("submit", async (event) => {
@@ -977,24 +1090,8 @@
         return;
       }
 
-      analyzingView.style.display = "none";
-      resultView.innerHTML = sectionsHtml(data);
-      resultView.style.display = "block";
+      showResult(data);
       logAnalyzedExercise(data.exercise_label);
-      document.getElementById("reset-btn").addEventListener("click", resetToUpload);
-      resultView.querySelectorAll(".fb-item.is-expandable .fb-item-main").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          btn.closest(".fb-item").classList.toggle("is-expanded");
-        });
-      });
-      AnalyzeChatWidget.init({
-        exercise_label: data.exercise_label,
-        overall_score: data.overall_score,
-        stretch_score: data.stretch_score,
-        squeeze_score: data.squeeze_score,
-        reps: data.reps,
-        feedback_text: data.feedback_text,
-      });
     } catch (err) {
       stopCycleStatus();
       stopPoseLoop();
