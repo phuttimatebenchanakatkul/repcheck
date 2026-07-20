@@ -406,21 +406,28 @@
 .hx-now-title { font-size: 27px; font-weight: 800; margin-top: 16px; letter-spacing: -0.02em; }
 .hx-now-detail { font-size: 13.5px; color: var(--text-secondary); margin-top: 8px; line-height: 1.55; }
 
-/* "What to do right now" as clear stat chips: total distance, laps of the
-   user's gym lane, and the load. The laps chip is emphasised (blue) since
-   it's the number that tells you how many times to go. */
-.hx-now-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.hx-now-chip {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: 14px; padding: 9px 14px; min-width: 74px;
+/* "What to do right now" with a clear hierarchy: one huge hero number (the
+   action -- laps / reps / distance), a small support line under it, then a
+   single weight pill. One glance tells you the count; no scanning boxes. */
+.hx-now-target { margin-top: 18px; }
+.hx-now-hero { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+.hx-now-hero-value {
+  font-size: 60px; font-weight: 900; line-height: 0.95; letter-spacing: -0.03em;
+  color: var(--blue);
 }
-.hx-now-chip-value { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.1; }
-.hx-now-chip-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; text-align: center; }
-.hx-now-chip.is-rounds { background: linear-gradient(135deg, #4d7ff5, var(--blue)); border-color: transparent; box-shadow: 0 6px 16px rgba(47, 102, 232, 0.35); }
-.hx-now-chip.is-rounds .hx-now-chip-value { color: #fff; }
-.hx-now-chip.is-rounds .hx-now-chip-label { color: rgba(255, 255, 255, 0.85); }
-.hx-now-note { font-size: 11.5px; color: var(--text-secondary); margin-top: 10px; line-height: 1.45; }
+.hx-now-hero-unit {
+  font-size: 20px; font-weight: 800; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.hx-now-sub { margin-top: 8px; font-size: 13.5px; font-weight: 600; color: var(--text-secondary); }
+.hx-now-load {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 16px;
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 999px; padding: 9px 18px;
+}
+.hx-now-load-icon { color: var(--blue); display: flex; }
+.hx-now-load-value { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.hx-now-load-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------- "Your training space" setup card ---------- */
 /* Embedded inside the setup card (right after Step 3), so it gets a top
@@ -917,5 +924,6 @@
 @media (max-width: 640px) {
   .hx-run-stat-value { font-size: 32px; }
   .hx-now-title { font-size: 23px; }
+  .hx-now-hero-value { font-size: 52px; }
   .hx-finish-time { font-size: 34px; }
 }
