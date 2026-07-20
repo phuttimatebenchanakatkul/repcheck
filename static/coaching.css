@@ -21,21 +21,7 @@
   display: flex; align-items: center; justify-content: center;
   color: #fff;
 }
-.pc-card-icon-weight { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 6px 14px rgba(47, 102, 232, 0.35); }
 .pc-card-icon-logging { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 6px 14px rgba(31, 169, 113, 0.35); }
-.pc-card-icon-checkin { background: linear-gradient(135deg, #e8a33f, var(--amber)); box-shadow: 0 6px 14px rgba(185, 131, 42, 0.35); }
-
-/* Weekly check-in entry point. Quiet by default (matches the other
-   pc-card rows); gets a warm amber-tinted treatment only once the
-   check-in is actually due, so it reads as "something to do" rather
-   than permanent background noise. */
-.pc-checkin-card.is-due {
-  background: var(--amber-bg);
-  box-shadow: 0 8px 20px rgba(185, 131, 42, 0.16);
-}
-.pc-checkin-card-sub { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin: 10px 0 14px; }
-.pc-checkin-card.is-due .pc-checkin-card-sub { color: var(--text); }
-.pc-checkin-card:not(.is-due) .pc-card-actions { margin-top: 10px; }
 
 .pc-btn-primary, .pc-btn-secondary, .pc-btn-danger {
   padding: 9px 16px;
@@ -216,73 +202,6 @@
   color: #fff;
   box-shadow: 0 4px 10px rgba(232, 131, 47, 0.35);
 }
-/* One pill-shaped control instead of a separate input + button sitting
-   side by side -- the border lives on the outer group so it reads as a
-   single unit, and the button keeps its own solid fill inside it. */
-.pc-weight-form {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin: 14px 0;
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 999px;
-  padding: 4px;
-  transition: border-color 0.15s ease;
-}
-.pc-weight-form:focus-within { border-color: var(--blue); }
-.pc-weight-form input {
-  flex: 1; min-width: 0; padding: 8px 12px 8px 14px; border: none;
-  background: none; color: var(--text);
-  font-size: 15px; font-family: inherit;
-}
-.pc-weight-form input:focus { outline: none; }
-.pc-weight-log-btn {
-  flex-shrink: 0;
-  padding: 9px 18px;
-  border: none;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #4d7ff5, var(--blue));
-  box-shadow: 0 4px 10px rgba(47, 102, 232, 0.3);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  transition: opacity 0.15s ease, transform 0.1s ease;
-}
-.pc-weight-log-btn:hover { opacity: 0.92; }
-.pc-weight-log-btn:active { transform: scale(0.97); }
-
-/* Hero number + trend chip -- the latest weight is the headline, the
-   direction (vs. the previous entry) is a small supporting chip next to
-   it rather than something you have to work out by scanning a list. */
-.pc-weight-hero { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; margin-top: 14px; }
-.pc-weight-hero-main { display: flex; align-items: baseline; gap: 5px; }
-.pc-weight-hero-value { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-.pc-weight-hero-unit { font-size: 15px; font-weight: 700; color: var(--text-secondary); }
-.pc-weight-hero-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.pc-weight-hero-date { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-.pc-weight-trend {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 9px; border-radius: 999px;
-  font-size: 11px; font-weight: 700;
-  background: var(--bg); color: var(--text-secondary);
-}
-.pc-weight-trend-good { background: var(--green-bg); color: var(--green); }
-.pc-weight-trend-attention { background: var(--amber-bg); color: var(--amber); }
-
-/* Mini trend sparkline -- a gradient-filled line chart of the last ~14
-   logged entries, scaled to its own min/max so the shape of the trend
-   is legible even when the day-to-day swings are small. */
-.pc-weight-chart { margin-top: 14px; }
-.pc-weight-chart-svg { display: block; width: 100%; height: 64px; }
-.pc-weight-chart-labels {
-  display: flex; justify-content: space-between; margin-top: 4px;
-  font-size: 10px; font-weight: 600; color: var(--text-secondary);
-}
-.pc-weight-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 14px 0; }
 .pc-card-link {
   display: block; text-align: center; margin-top: 10px;
   font-size: 12px; font-weight: 700; color: var(--blue); text-decoration: none;
@@ -562,7 +481,7 @@
   .pc-popup { max-width: none; align-self: flex-end; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .pc-body-type-grid { grid-template-columns: 1fr; }
   .pc-target-calories { font-size: 28px; }
-  .pc-field input, .pc-weight-form input { font-size: 16px; } /* prevents iOS auto-zoom */
+  .pc-field input { font-size: 16px; } /* prevents iOS auto-zoom */
 }
 
 /* ---------- Save confirmation/error toast ---------- */
