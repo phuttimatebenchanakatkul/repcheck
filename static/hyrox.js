@@ -1486,11 +1486,15 @@
       const card = el(`
         <div class="hx-space-section">
           <div class="hx-step-label">${t("hyrox.space.title")}</div>
-          <div class="hx-guide-intro">${t("hyrox.space.intro")}</div>
-          <div class="hx-space-tip">
-            <span class="hx-space-tip-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg></span>
-            <span>${t("hyrox.space.tip")}</span>
-          </div>
+          <div class="hx-space-lead">${t("hyrox.space.intro")}</div>
+          <details class="hx-space-hint">
+            <summary class="hx-space-hint-summary">
+              <span class="hx-space-hint-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg></span>
+              <span>${t("hyrox.space.hintToggle")}</span>
+              <span class="hx-space-hint-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </summary>
+            <div class="hx-space-hint-body">${t("hyrox.space.tip")}</div>
+          </details>
           <div class="hx-space-list" data-space-list></div>
         </div>
       `);
