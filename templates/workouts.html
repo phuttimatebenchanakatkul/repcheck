@@ -24,7 +24,10 @@
     </button>
   </div>
 
-  <div class="wl-timeline" id="wl-timeline"></div>
+  <!-- One calm day at a time: a friendly day header, a single obvious
+       "log" button, and the day's exercises as a simple list — no
+       hour-by-hour grid to scroll through. -->
+  <div class="wl-day" id="wl-day"></div>
 </div>
 
 <div class="ex-modal-overlay" id="ex-modal-overlay" style="display:none;">
@@ -158,9 +161,18 @@
     box-shadow: inset 0 0 0 2px var(--blue);
   }
   .wl-date-cell.is-selected .wl-date-number {
-    background: var(--text);
-    color: var(--card-bg);
+    background: var(--blue);
+    color: #fff;
   }
+  /* A soft green dot marks days that already have something logged —
+     a quiet streak cue that rewards showing up, without any numbers. */
+  .wl-date-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .wl-date-dot.is-empty { background: transparent; }
 
   /* ---------- Today's plan card ---------- */
   .wl-plan-card {
@@ -782,80 +794,106 @@
   .split-week-tab.is-active .split-week-tab-dot { background: #fff; }
   .split-day-plan-label { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
 
-  .wl-timeline {
-    margin-top: 14px;
-    max-height: 640px;
-    overflow-y: auto;
-    padding-right: 10px;
-    scroll-behavior: smooth;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
-  .wl-timeline::-webkit-scrollbar { width: 8px; }
-  .wl-timeline::-webkit-scrollbar-track { background: transparent; }
-  .wl-timeline::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 999px;
-  }
-  .wl-timeline::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
-  .wl-hour-row {
+  /* ---------- The day view: header, one log button, entry list ---------- */
+  .wl-day { margin-top: 18px; }
+  .wl-day-head {
     display: flex;
-    gap: 14px;
-    padding: 14px 0;
-    border-top: 1px solid var(--border);
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
   }
-  .wl-hour-label {
-    width: 56px;
-    flex-shrink: 0;
-    font-size: 12px;
-    color: var(--text-secondary);
-    padding-top: 6px;
-  }
-  .wl-hour-body { flex: 1; min-width: 0; }
-  .wl-hour-add-btn {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: none;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
+  .wl-day-title { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
+  .wl-day-sub { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+
+  .wl-log-btn {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
+    gap: 8px;
+    padding: 15px;
+    border: none;
+    border-radius: 16px;
+    background: var(--blue);
+    color: #fff;
+    font-size: 14.5px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.25);
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
   }
-  .wl-hour-add-btn:hover { background: var(--sidebar-active); }
+  .wl-log-btn:hover { box-shadow: 0 10px 24px rgba(47, 102, 232, 0.32); }
+  .wl-log-btn:active { transform: scale(0.98); }
+  .wl-log-btn svg { flex-shrink: 0; }
+
+  .wl-day-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+
+  .wl-empty {
+    text-align: center;
+    padding: 34px 16px 26px;
+  }
+  .wl-empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    background: var(--blue-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+  }
+  .wl-empty-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .wl-empty-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; }
 
   .wl-entry-card {
     display: flex;
     align-items: center;
     gap: 12px;
     background: var(--bg);
-    border-radius: 16px;
-    padding: 10px 12px;
-    margin-top: 10px;
+    border-radius: 18px;
+    padding: 13px 14px;
     cursor: pointer;
     animation: wl-pop-in 0.18s ease;
   }
   .wl-entry-card:active { transform: scale(0.985); }
   .wl-entry-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
     background: var(--card-bg);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 20px;
     flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
   }
+  /* Quiet reward: once every set on the card has reps filled in, the
+     icon's corner gets a small green check. No noise, just "done". */
+  .wl-entry-check {
+    display: none;
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--green);
+    color: #fff;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 2px var(--bg);
+  }
+  .wl-entry-check svg { width: 9px; height: 9px; }
+  .wl-entry-card.is-complete .wl-entry-check { display: flex; }
   .wl-entry-info { flex: 1; min-width: 0; }
   .wl-entry-name {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 14.5px;
+    font-weight: 700;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -864,7 +902,7 @@
   .wl-entry-sub {
     font-size: 12px;
     color: var(--text-secondary);
-    margin-top: 2px;
+    margin-top: 3px;
   }
   .wl-entry-toggle {
     background: none;
@@ -882,60 +920,90 @@
   .wl-entry-detail {
     background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px 14px;
-    margin: -4px 0 10px;
+    border-radius: 16px;
+    padding: 14px;
+    margin-top: -2px;
     animation: wl-slide-down 0.18s ease;
   }
   .wl-set-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 0;
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
   }
-  .wl-set-row span {
-    width: 50px;
-    font-size: 12px;
+  .wl-set-num {
+    width: 46px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 800;
     color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
   .wl-set-row input {
-    width: 90px;
-    padding: 8px 10px;
+    flex: 1;
+    min-width: 0;
+    max-width: 110px;
+    padding: 9px 10px;
     border: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--card-bg);
     color: var(--text);
     border-radius: 10px;
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 700;
     font-family: inherit;
+    text-align: center;
   }
-  .wl-set-row button {
+  .wl-set-row input:focus { outline: none; border-color: var(--blue); }
+  .wl-set-reps-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .wl-set-remove {
+    margin-left: auto;
     background: none;
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 15px;
+    font-size: 16px;
+    padding: 4px 6px;
+    flex-shrink: 0;
   }
-  .wl-set-row button:hover { color: var(--red); }
+  .wl-set-remove:hover { color: var(--red); }
+
+  .wl-add-set-btn {
+    width: 100%;
+    padding: 11px;
+    border-radius: 12px;
+    border: 1.5px dashed var(--border);
+    background: none;
+    color: var(--blue);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .wl-add-set-btn:hover { border-color: var(--blue); }
+
   .wl-detail-actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 6px;
+    margin-top: 12px;
     gap: 10px;
   }
-
-  .wl-add-set-btn, .wl-remove-exercise-btn {
-    padding: 8px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
+  .wl-remove-exercise-btn {
+    padding: 8px 4px;
+    border: none;
     background: none;
-    color: var(--text);
+    color: var(--red);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    opacity: 0.85;
   }
-  .wl-remove-exercise-btn { color: var(--red); border-color: var(--red-bg); margin-left: 8px; }
+  .wl-remove-exercise-btn:hover { opacity: 1; }
 
   .wl-done-btn {
     padding: 8px 20px;
@@ -952,13 +1020,6 @@
   .wl-done-btn:hover { opacity: 0.85; }
   .wl-done-btn:active { transform: scale(0.95); }
 
-  .wl-empty-hint {
-    color: var(--text-secondary);
-    font-size: 13px;
-    padding: 30px 0;
-    text-align: center;
-  }
-
   @media (max-width: 480px) {
     .wl-page { padding: 14px; }
     .wl-date-number { width: 28px; height: 28px; font-size: 12px; }
@@ -967,18 +1028,14 @@
     .wl-week-nav { padding: 2px; }
     .wl-plan-card { padding: 16px; }
     .split-type-grid { grid-template-columns: 1fr; }
-    .wl-hour-label { width: 42px; font-size: 11px; }
-    .wl-hour-row { gap: 8px; padding: 10px 0; }
-    .wl-entry-card { padding: 8px 10px; gap: 8px; }
-    .wl-entry-icon { width: 32px; height: 32px; font-size: 15px; }
-    .wl-entry-name { font-size: 13px; }
+    .wl-day-title { font-size: 17px; }
+    .wl-entry-card { padding: 11px 12px; gap: 10px; }
+    .wl-entry-icon { width: 40px; height: 40px; font-size: 17px; }
+    .wl-entry-name { font-size: 13.5px; }
     .wl-entry-sub { font-size: 11px; }
-    .wl-set-row input { width: 70px; }
-    .wl-add-set-btn, .wl-remove-exercise-btn { padding: 7px 10px; font-size: 11px; }
   }
 
   .wl-date-cell:active .wl-date-number { transform: scale(0.9); }
-  .wl-hour-add-btn:active { transform: scale(0.85); }
   .wl-week-nav:active { transform: scale(0.88); }
 
   @keyframes wl-pop-in {
@@ -998,10 +1055,11 @@
   const EXERCISE_ICONS = {{ exercise_icons | tojson }};
   const STORAGE_KEY = "repcheck_workout_log_v2";
   const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
-  const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0 -> 23 (midnight to 11 PM)
   const EXPANDED = new Set();
 
   const CHEVRON_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  const SMALL_CHECK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const PLUS_ICON = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
 
   // ---------- Exercise detail modal (emoji + video + description) ----------
   function exerciseDetail(name) {
@@ -1071,7 +1129,6 @@
   }
 
   let log = loadLog();
-  let pendingHour = null; // set when a specific hour row's "+" is clicked
 
   // ---------- Dates ----------
   function toIsoDate(date) {
@@ -1094,7 +1151,7 @@
   let weekStart = startOfWeek(today);
 
   const dateStripEl = document.getElementById("wl-date-strip");
-  const timelineEl = document.getElementById("wl-timeline");
+  const dayEl = document.getElementById("wl-day");
 
   function renderDateStrip() {
     const todayIso = toIsoDate(today);
@@ -1106,10 +1163,12 @@
       const classes = ["wl-date-cell"];
       if (iso === todayIso) classes.push("is-today");
       if (iso === selectedDate) classes.push("is-selected");
+      const hasEntries = (log[iso] || []).length > 0;
       cells.push(`
         <button type="button" class="${classes.join(" ")}" data-date="${iso}">
           <span class="wl-date-weekday">${WEEKDAY_LETTERS[i]}</span>
           <span class="wl-date-number">${d.getDate()}</span>
+          <span class="wl-date-dot ${hasEntries ? "" : "is-empty"}"></span>
         </button>
       `);
     }
@@ -1117,8 +1176,7 @@
     dateStripEl.querySelectorAll("[data-date]").forEach((btn) => {
       btn.addEventListener("click", () => {
         selectedDate = btn.dataset.date;
-        renderDateStrip();
-        renderTimeline();
+        renderTimeline(); // re-renders the date strip too
       });
     });
   }
@@ -1127,13 +1185,15 @@
     return RepCheckUnits.formatTime(timestamp);
   }
 
-  function hourLabel(hour) {
-    return RepCheckUnits.formatHourLabel(hour);
-  }
-
-  function entriesForHour(hour) {
-    const dayEntries = log[selectedDate] || [];
-    return dayEntries.filter((e) => new Date(e.addedAt).getHours() === hour);
+  // "Today" / "Yesterday" / a friendly localized date for anything else.
+  function dayTitle() {
+    const t = RepCheckI18n.t;
+    const todayIso = toIsoDate(new Date());
+    if (selectedDate === todayIso) return t("workouts.plan.today");
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (selectedDate === toIsoDate(yesterday)) return t("workouts.day.yesterday");
+    return new Date(selectedDate + "T00:00:00").toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
   }
 
   function repsSummary(sets) {
@@ -1143,36 +1203,48 @@
     return t("workouts.exercise.setsReps", { n: sets.length, s: sets.length === 1 ? "" : "s", reps: reps.map((r) => (r === null ? "-" : r)).join(", ") });
   }
 
+  // A set counts as "filled in" once it has a rep number.
+  function entryIsComplete(entry) {
+    return entry.sets.length > 0 && entry.sets.every((s) => s.reps !== "" && s.reps !== null && s.reps !== undefined);
+  }
+
   function renderTimeline() {
-    const dayEntries = log[selectedDate] || [];
+    const t = RepCheckI18n.t;
+    const dayEntries = (log[selectedDate] || []).slice().sort((a, b) => a.addedAt - b.addedAt);
 
-    timelineEl.innerHTML = HOURS.map((hour) => {
-      const entries = entriesForHour(hour);
-      return `
-        <div class="wl-hour-row">
-          <div class="wl-hour-label">${hourLabel(hour)}</div>
-          <div class="wl-hour-body">
-            <button type="button" class="wl-hour-add-btn" data-hour-add="${hour}">+</button>
-            <div class="wl-hour-entries" data-hour-entries="${hour}">
-              ${entries.map((entry) => renderEntry(entry)).join("")}
-            </div>
+    const totalSets = dayEntries.reduce((sum, e) => sum + e.sets.length, 0);
+    const summary = dayEntries.length
+      ? `${t("workouts.day.exercises", { n: dayEntries.length, s: dayEntries.length === 1 ? "" : "s" })} · ${t("workouts.day.sets", { n: totalSets, s: totalSets === 1 ? "" : "s" })}`
+      : "";
+
+    dayEl.innerHTML = `
+      <div class="wl-day-head">
+        <div class="wl-day-title">${dayTitle()}</div>
+        ${summary ? `<div class="wl-day-sub">${summary}</div>` : ""}
+      </div>
+      <button type="button" class="wl-log-btn" id="wl-log-btn">${PLUS_ICON}<span>${t("workouts.logExercise")}</span></button>
+      ${dayEntries.length
+        ? `<div class="wl-day-list">${dayEntries.map((entry) => renderEntry(entry)).join("")}</div>`
+        : `
+          <div class="wl-empty">
+            <div class="wl-empty-icon">\u{1F331}</div>
+            <div class="wl-empty-title">${t("workouts.empty.title")}</div>
+            <div class="wl-empty-sub">${t("workouts.empty.sub")}</div>
           </div>
-        </div>
-      `;
-    }).join("");
+        `}
+    `;
 
-    if (!dayEntries.length) {
-      timelineEl.insertAdjacentHTML("afterbegin", `<div class="wl-empty-hint">${RepCheckI18n.t("workouts.empty.day")}</div>`);
-    }
-
+    document.getElementById("wl-log-btn").addEventListener("click", openExerciseModal);
     wireTimelineEvents();
+    renderDateStrip(); // keep the "logged that day" dots in sync
   }
 
   function renderEntry(entry) {
     const expanded = EXPANDED.has(entry.id);
+    const complete = entryIsComplete(entry);
     return `
-      <div class="wl-entry-card" data-toggle-entry="${entry.id}">
-        <div class="wl-entry-icon">\u{1F4AA}</div>
+      <div class="wl-entry-card ${complete ? "is-complete" : ""}" data-toggle-entry="${entry.id}">
+        <div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}<span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
         <div class="wl-entry-info">
           <div class="wl-entry-name">${entry.exercise}</div>
           <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${repsSummary(entry.sets)}</div>
@@ -1191,17 +1263,16 @@
       <div class="wl-entry-detail">
         ${entry.sets.map((set, i) => `
           <div class="wl-set-row">
-            <span>Set ${i + 1}</span>
-            <input type="number" min="0" inputmode="numeric" value="${set.reps ?? ""}" placeholder="reps"
+            <span class="wl-set-num">${t("workouts.exercise.setN", { n: i + 1 })}</span>
+            <input type="number" min="0" inputmode="numeric" value="${set.reps ?? ""}" placeholder="0"
                    data-reps-entry="${entry.id}" data-reps-index="${i}">
-            <button type="button" data-remove-set-entry="${entry.id}" data-remove-set-index="${i}">&times;</button>
+            <span class="wl-set-reps-label">${t("workouts.exercise.repsLabel")}</span>
+            <button type="button" class="wl-set-remove" data-remove-set-entry="${entry.id}" data-remove-set-index="${i}" aria-label="${t("common.remove")}">&times;</button>
           </div>
         `).join("")}
+        <button type="button" class="wl-add-set-btn" data-add-set="${entry.id}">${t("workouts.exercise.addSet")}</button>
         <div class="wl-detail-actions">
-          <div>
-            <button type="button" class="wl-add-set-btn" data-add-set="${entry.id}">${t("workouts.exercise.addSet")}</button>
-            <button type="button" class="wl-remove-exercise-btn" data-remove-entry="${entry.id}">${t("workouts.exercise.removeExercise")}</button>
-          </div>
+          <button type="button" class="wl-remove-exercise-btn" data-remove-entry="${entry.id}">${t("workouts.exercise.removeExercise")}</button>
           <button type="button" class="wl-done-btn" data-toggle-entry="${entry.id}">${t("common.done")}</button>
         </div>
       </div>
@@ -1213,16 +1284,9 @@
   }
 
   function wireTimelineEvents() {
-    timelineEl.querySelectorAll("[data-hour-add]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        pendingHour = parseInt(btn.dataset.hourAdd, 10);
-        openExerciseModal();
-      });
-    });
-
     // Clicking anywhere on the card (except the inputs/buttons inside the
     // expanded detail) minimizes/expands that exercise.
-    timelineEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
+    dayEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
       el.addEventListener("click", (event) => {
         event.stopPropagation();
         const id = el.dataset.toggleEntry;
@@ -1231,7 +1295,7 @@
       });
     });
 
-    timelineEl.querySelectorAll("[data-add-set]").forEach((btn) => {
+    dayEl.querySelectorAll("[data-add-set]").forEach((btn) => {
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
         const entry = findEntry(btn.dataset.addSet);
@@ -1243,7 +1307,7 @@
       });
     });
 
-    timelineEl.querySelectorAll("[data-remove-set-entry]").forEach((btn) => {
+    dayEl.querySelectorAll("[data-remove-set-entry]").forEach((btn) => {
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
         const entry = findEntry(btn.dataset.removeSetEntry);
@@ -1256,7 +1320,7 @@
       });
     });
 
-    timelineEl.querySelectorAll("[data-remove-entry]").forEach((btn) => {
+    dayEl.querySelectorAll("[data-remove-entry]").forEach((btn) => {
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
         const id = btn.dataset.removeEntry;
@@ -1267,7 +1331,7 @@
       });
     });
 
-    timelineEl.querySelectorAll("[data-reps-entry]").forEach((input) => {
+    dayEl.querySelectorAll("[data-reps-entry]").forEach((input) => {
       input.addEventListener("click", (event) => event.stopPropagation());
       input.addEventListener("input", () => {
         const entry = findEntry(input.dataset.repsEntry);
@@ -1283,16 +1347,10 @@
   function addExerciseToSelectedDay(name) {
     if (!log[selectedDate]) log[selectedDate] = [];
     const now = new Date();
-    // If logged via a specific hour row's "+" button, put it at that hour.
-    // Otherwise (e.g. typed straight into the search bar) stamp the exact
-    // real moment, on the selected calendar date.
+    // Stamp the current wall-clock time onto the selected calendar date,
+    // so backfilling a past day still keeps a sensible time of day.
     const addedAt = new Date(selectedDate + "T00:00:00");
-    if (pendingHour !== null) {
-      addedAt.setHours(pendingHour, 0, 0, 0);
-    } else {
-      addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
-    }
-    pendingHour = null;
+    addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
 
     const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
     log[selectedDate].push({
@@ -1491,7 +1549,6 @@
 
   function closeExerciseModal() {
     exModalOverlay.style.display = "none";
-    pendingHour = null;
   }
 
   exModalClose.addEventListener("click", closeExerciseModal);
@@ -2168,8 +2225,7 @@
     renderDateStrip();
   });
 
-  renderDateStrip();
-  renderTimeline();
+  renderTimeline(); // also renders the date strip
   renderTodaysPlanCard();
   document.addEventListener("repcheck:language-changed", () => {
     renderTimeline();
@@ -2180,8 +2236,8 @@
   });
 
   // Mobile FAB's "Log a workout" quick action (?quick=log — see
-  // base.html's mt-fab-sheet) opens the add-exercise modal immediately;
-  // pendingHour is already null on load, so it logs at the current time.
+  // base.html's mt-fab-sheet) opens the add-exercise modal immediately,
+  // logging at the current time on today's date.
   (function handleQuickAction() {
     const quick = new URLSearchParams(location.search).get("quick");
     if (quick !== "log") return;
