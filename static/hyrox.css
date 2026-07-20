@@ -543,33 +543,35 @@
 .hx-complete-btn:active { transform: scale(0.98); }
 .hx-complete-btn-icon { display: flex; flex-shrink: 0; }
 
-.hx-splits-list { margin-top: 18px; display: flex; flex-direction: column; gap: 6px; }
+/* The "completed so far" log on the running screen. Each row is led by the
+   station's own pictogram (the running figure for runs) in a green "done"
+   circle, so you recognise it by its character at a glance, with the time
+   for that segment big and the total race clock small beneath it. */
+.hx-splits-head {
+  margin-top: 22px; margin-bottom: 10px;
+  font-size: 12px; font-weight: 800; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.hx-splits-list { display: flex; flex-direction: column; gap: 8px; }
 .hx-split-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 8px 12px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
   background: var(--bg);
-  border-radius: 12px;
+  border-radius: 14px;
 }
-.hx-split-row-name { display: flex; align-items: center; color: var(--text); font-weight: 600; }
-.hx-split-row-check {
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 18px; height: 18px; margin-right: 8px; border-radius: 50%;
-  background: var(--green-bg); color: var(--green);
-}
-.hx-split-row-check svg { width: 11px; height: 11px; }
-/* Finish-screen splits get the real station pictogram (same ones from the
-   "8 stations" guide grid) instead of a generic checkmark, so each row is
-   recognizable by its icon alone. */
 .hx-split-row-icon {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 26px; height: 26px; margin-right: 10px; border-radius: 50%;
-  background: var(--blue-bg); color: var(--blue);
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--green-bg); color: var(--green);
 }
-.hx-split-row-icon svg { width: 15px; height: 15px; }
+.hx-split-row-icon svg { width: 19px; height: 19px; }
+.hx-split-row-name {
+  flex: 1; min-width: 0; color: var(--text); font-weight: 700; font-size: 14px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hx-split-row-times { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; flex-shrink: 0; }
+.hx-split-row-delta { font-size: 15px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.hx-split-row-total { font-size: 11px; font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
 /* ---------- Progress dots ---------- */
 .hx-progress-dots { display: flex; gap: 4px; justify-content: center; margin: 0 0 14px; flex-wrap: wrap; }
