@@ -107,8 +107,6 @@
       "page.workouts.subheading": "Log sets and reps as you go. Saved on this browser.",
       "page.nutrition.heading": "Nutrition Log",
       "page.nutrition.subheading": "Log what you eat and track calories, carbs, fat, and protein. Saved on this browser.",
-      "page.coach.heading": "Coach",
-      "page.coach.subheading": "Ask about muscle growth, fat loss, recovery, mobility, strength training, or form — plain language, science-based.",
       "page.result.subheading": "Form analysis for your set",
       "page.weightHistory.heading": "Weight History",
       "page.weightHistory.subheading": "Every weigh-in you've logged — browse by month or by year.",
@@ -398,7 +396,6 @@
       "settings.units.12h": "12-hour",
       "settings.units.24h": "24-hour",
 
-      "coach.headerSub": "Online · science-based, jargon-free advice",
       "coach.newChat": "New chat",
       "coach.inputPlaceholder": "Ask your coach anything...",
       "coach.welcomeTitle": "Ask me anything about training",
@@ -789,8 +786,6 @@
       "page.workouts.subheading": "บันทึกเซตและจำนวนครั้งได้ทันที ข้อมูลถูกบันทึกไว้ในเบราว์เซอร์นี้",
       "page.nutrition.heading": "บันทึกโภชนาการ",
       "page.nutrition.subheading": "บันทึกสิ่งที่คุณกินและติดตามแคลอรี่ คาร์บ ไขมัน และโปรตีน ข้อมูลถูกบันทึกไว้ในเบราว์เซอร์นี้",
-      "page.coach.heading": "โค้ช",
-      "page.coach.subheading": "ถามเกี่ยวกับการเพิ่มกล้ามเนื้อ การลดไขมัน การฟื้นตัว การเคลื่อนไหวร่างกาย การฝึกความแข็งแรง หรือท่าทาง — ภาษาเข้าใจง่าย อ้างอิงหลักวิทยาศาสตร์",
       "page.result.subheading": "ผลวิเคราะห์ท่าของคุณ",
       "page.weightHistory.heading": "ประวัติน้ำหนัก",
       "page.weightHistory.subheading": "ทุกการชั่งน้ำหนักที่คุณบันทึกไว้ — ดูตามเดือนหรือปี",
@@ -1083,7 +1078,6 @@
       "settings.units.12h": "12 ชั่วโมง",
       "settings.units.24h": "24 ชั่วโมง",
 
-      "coach.headerSub": "ออนไลน์ · คำแนะนำอ้างอิงวิทยาศาสตร์ ไม่ใช้ศัพท์เทคนิค",
       "coach.newChat": "แชทใหม่",
       "coach.inputPlaceholder": "ถามโค้ชของคุณได้ทุกเรื่อง...",
       "coach.welcomeTitle": "ถามอะไรก็ได้เกี่ยวกับการฝึกซ้อม",
