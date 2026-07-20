@@ -291,6 +291,7 @@
   background: var(--blue); color: #fff; font-size: 11px; line-height: 18px; text-align: center;
 }
 .pc-body-type-icon { display: flex; align-items: center; justify-content: center; }
+.pc-body-type-img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; display: block; background: #ececef; }
 .pc-body-type-label { font-size: 13px; font-weight: 800; color: var(--text); }
 
 .pc-field { margin-bottom: 16px; }

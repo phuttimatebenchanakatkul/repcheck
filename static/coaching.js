@@ -130,89 +130,13 @@
     return gender === "female" ? FEMALE_BODY_FAT_RANGES : MALE_BODY_FAT_RANGES;
   }
 
-  // A full front-view body illustration (skin tone, hair, clothing) that
-  // gets visibly wider/rounder as body fat increases — generated from one
-  // formula per gender rather than hand-drawn per range, so the
-  // progression stays consistent while still reading as an actual body
-  // (not an abstract badge).
-  function bodyTypeIconSvg(gender, index, total) {
-    const t = total > 1 ? index / (total - 1) : 0;
-    const isFemale = gender === "female";
-    const skin = "#e3ad82";
-    const hair = "#3a2a1d";
-    const garment = "#2b2c31";
-
-    const headR = 7 + t * 0.6;
-    const neckW = 5 + t * 2;
-    const shoulderX = isFemale ? 14 + t * 2.5 : 18 + t * 3;
-    const chestX = isFemale ? shoulderX + 4 : shoulderX + 1;
-    const waistX = isFemale ? 6 + t * 12 : 8 + t * 15;
-    const hipX = isFemale ? waistX + 7 + t * 2 : waistX + 3.5;
-    const armBulge = 3 + t * 5;
-    const legX = isFemale ? 9 + t * 6 : 10 + t * 6.5;
-
-    const abLineCount = Math.max(0, Math.round(4 - t * 4));
-    let abLines = "";
-    for (let i = 0; i < abLineCount; i++) {
-      const y = 33 + i * 5.5;
-      const hw = (waistX - 1) * (1 - i * 0.08);
-      abLines += `<line x1="${30 - hw}" y1="${y}" x2="${30 + hw}" y2="${y}"/>`;
-    }
-
-    // Right-half-only paths, mirrored with a scale(-1,1) copy — avoids
-    // needing hand-symmetric bezier math for the left side.
-    const torsoHalf = isFemale
-      ? `M30,19
-        L${30 + shoulderX},22
-        C${30 + chestX},26 ${30 + chestX},31 ${30 + waistX + 2},40
-        C${30 + waistX - 1},46 ${30 + hipX - 1},50 ${30 + hipX},59
-        L30,59 Z`
-      : `M30,19
-        L${30 + shoulderX},22
-        C${30 + shoulderX + 1},29 ${30 + waistX + 2},33 ${30 + waistX},47
-        C${30 + waistX - 1},53 ${30 + hipX - 1},53 ${30 + hipX},59
-        L30,59 Z`;
-    const armHalf = `M${30 + shoulderX - 3},22
-      C${30 + shoulderX + armBulge},29 ${30 + shoulderX + armBulge - 1},46 ${30 + waistX + 3},60
-      L${30 + waistX - 0.5},60
-      C${30 + waistX - 2},46 ${30 + shoulderX - 2},29 ${30 + shoulderX - 7},24 Z`;
-    const legHalf = `M${30 + hipX - 4},59
-      L${30 + legX + 1},92
-      L${30 + legX - 5},92
-      L31,61 Z`;
-
-    const hairShape = isFemale
-      ? `<path d="M${30 - headR - 1},7 C${30 - headR - 2},22 ${30 - headR + 1},34 ${30 - headR + 4},38
-           L${30 - headR + 7},36 C${30 - headR + 4},26 ${30 - headR + 3},14 30,${9 - headR}
-           C${30 + headR - 3},14 ${30 + headR - 4},26 ${30 + headR - 7},36
-           L${30 + headR - 4},38 C${30 + headR - 1},34 ${30 + headR + 2},22 ${30 + headR + 1},7
-           C${30 + headR - 1},2 ${30 - headR + 1},2 ${30 - headR - 1},7 Z"/>`
-      : `<path d="M${30 - headR},9 C${30 - headR},3.5 ${30 - headR + 3},1.5 30,1.5
-           C${30 + headR - 3},1.5 ${30 + headR},3.5 ${30 + headR},9
-           C${30 + headR - 2},6.5 ${30 - headR + 2},6.5 ${30 - headR},9 Z"/>`;
-
-    const garmentShapes = isFemale
-      ? `<path d="M${30 - chestX + 1},23 C${30 - chestX + 3},27 ${30 - waistX - 3},30 ${30 - waistX - 2},34
-           L${30 + waistX + 2},34 C${30 + waistX + 3},30 ${30 + chestX - 3},27 ${30 + chestX - 1},23
-           C${30 + shoulderX - 2},21.5 ${30 - shoulderX + 2},21.5 ${30 - chestX + 1},23 Z"/>
-         <path d="M${30 - waistX - 1},48 L${30 + waistX + 1},48 L${30 + hipX - 1},59 L${30 - hipX + 1},59 Z"/>`
-      : `<path d="M${30 - hipX + 1},44 L${30 + hipX - 1},44 L${30 + hipX - 3},60 L${30 - hipX + 3},60 Z"/>`;
-
-    return `
-      <svg width="42" height="54" viewBox="0 0 60 96" stroke="none">
-        <circle cx="30" cy="9" r="${headR}" fill="${skin}"/>
-        <rect x="${30 - neckW / 2}" y="14" width="${neckW}" height="7" rx="2" fill="${skin}"/>
-        <path d="${torsoHalf}" fill="${skin}"/>
-        <path d="${torsoHalf}" transform="scale(-1,1) translate(-60,0)" fill="${skin}"/>
-        <path d="${armHalf}" fill="${skin}"/>
-        <path d="${armHalf}" transform="scale(-1,1) translate(-60,0)" fill="${skin}"/>
-        <path d="${legHalf}" fill="${skin}"/>
-        <path d="${legHalf}" transform="scale(-1,1) translate(-60,0)" fill="${skin}"/>
-        ${abLineCount ? `<g stroke="#00000030" stroke-width="1" stroke-linecap="round">${abLines}</g>` : ""}
-        <g fill="${garment}">${garmentShapes}</g>
-        <g fill="${hair}">${hairShape}</g>
-      </svg>
-    `;
+  // Realistic 3D-render body-fat reference images (static/bodyfat/*.webp,
+  // one per range id m1..m6 / f1..f6) so users can actually compare
+  // themselves to the figure, like the reference charts fitness apps use.
+  // Generated once with the app's own Gemini image model -- no third-party
+  // copyright baggage -- and shipped as ordinary static assets.
+  function bodyTypeImageHtml(rangeId) {
+    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="pc-body-type-img">`;
   }
 
   function loadWeightLog() { return loadJson(WEIGHT_LOG_KEY, {}); }
@@ -1423,7 +1347,7 @@
         grid.appendChild(el(`
           <button type="button" class="pc-body-type-card ${isSelected ? "is-selected" : ""}" data-action="wizard-set-body-type" data-value="${r.id}">
             ${isSelected ? `<span class="pc-body-type-check">✓</span>` : ""}
-            <div class="pc-body-type-icon">${bodyTypeIconSvg(gender, i, ranges.length)}</div>
+            <div class="pc-body-type-icon">${bodyTypeImageHtml(r.id)}</div>
             <div class="pc-body-type-label">${r.label}</div>
           </button>
         `));
