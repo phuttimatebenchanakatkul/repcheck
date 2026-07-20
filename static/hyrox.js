@@ -1581,61 +1581,49 @@
     // Structured "what to do right now" for the running screen: clear
     // stat chips (total distance in meters, how many laps of the user's
     // gym lane, and the load) instead of one run-on sentence.
-    // The "do this now" panel for the current station: one big hero number
-    // (the action that matters -- laps, reps, or distance), a short support
-    // line, and a single weight pill. Built to be read at a glance mid-race,
-    // not studied like a spec sheet.
-    stationNowTargetHtml(key) {
+    stationNowChipsHtml(key) {
       const spec = STATION_SPECS[key];
-      const hero = (value, unit) => `<div class="hx-now-hero"><span class="hx-now-hero-value">${value}</span>${unit ? `<span class="hx-now-hero-unit">${unit}</span>` : ""}</div>`;
-      const sub = (text) => `<div class="hx-now-sub">${text}</div>`;
-      const dumbbell = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/></svg>`;
-      const load = (value, label) => `<div class="hx-now-load"><span class="hx-now-load-icon">${dumbbell}</span><span class="hx-now-load-value">${value}</span><span class="hx-now-load-label">${label}</span></div>`;
+      const chip = (value, label, cls) => `<div class="hx-now-chip ${cls || ""}"><span class="hx-now-chip-value">${value}</span><span class="hx-now-chip-label">${label}</span></div>`;
 
       if (key === "wallBalls") {
-        return `<div class="hx-now-target">
-          ${hero(spec.reps[this.gender], t("hyrox.space.chip.reps"))}
-          ${sub(t("hyrox.running.target.wallTarget", { target: spec.targetFt[this.gender] }))}
-        </div>${load(formatWeight(spec.ballKg[this.gender]), t("hyrox.space.chip.ball"))}`;
+        return `<div class="hx-now-chips">
+          ${chip(spec.reps[this.gender], t("hyrox.space.chip.reps"))}
+          ${chip(formatWeight(spec.ballKg[this.gender]), t("hyrox.space.chip.ball"))}
+          ${chip(`${spec.targetFt[this.gender]}ft`, t("hyrox.space.chip.target"))}
+        </div>`;
       }
       if (key === "skierg" || key === "row") {
-        return `<div class="hx-now-target">
-          ${hero(formatStationMeters(spec.distanceM), t("hyrox.space.chip.distance"))}
+        return `<div class="hx-now-chips">
+          ${chip(formatStationMeters(spec.distanceM), t("hyrox.space.chip.distance"))}
+          ${chip(t("hyrox.space.chip.machineVal"), t("hyrox.space.chip.resistance"))}
         </div>`;
       }
 
-      // Travelling stations: laps of the gym lane is the actionable number.
+      // Travelling stations: total distance + laps of the gym lane + load.
       const totalM = Math.round(this.effectiveDistanceM(key));
       const lane = this.getFacilityLane(key);
       const rounds = this.roundsFor(key);
-      let targetHtml;
-      if (rounds > 1) {
-        targetHtml = `<div class="hx-now-target">
-          ${hero(rounds, t("hyrox.space.laps"))}
-          ${sub(t("hyrox.running.target.laneTotal", { lane: formatStationMeters(lane), total: formatStationMeters(totalM) }))}
-        </div>`;
-      } else {
-        targetHtml = `<div class="hx-now-target">
-          ${hero(formatStationMeters(totalM), t("hyrox.space.chip.distance"))}
-        </div>`;
-      }
-      let loadHtml = "";
+      const chips = [
+        chip(formatStationMeters(totalM), t("hyrox.space.chip.distance")),
+        chip(`${rounds}×`, t("hyrox.space.chip.lapsOf", { lane: formatStationMeters(lane) }), "is-rounds"),
+      ];
       const w = this.getStationWeight(key);
       if (w) {
         let label = t("hyrox.space.chip.load");
         if (key === "sledPush" || key === "sledPull") label = t("hyrox.space.chip.sled");
         else if (key === "farmersCarry") label = t("hyrox.space.chip.perHand");
         else if (key === "lunges") label = t("hyrox.space.chip.sandbag");
-        loadHtml = load(formatWeight(w), label);
+        chips.push(chip(formatWeight(w), label));
       }
-      return targetHtml + loadHtml;
+      const note = rounds > 1 ? `<div class="hx-now-note">${t("hyrox.space.lapNote")}</div>` : "";
+      return `<div class="hx-now-chips">${chips.join("")}</div>${note}`;
     }
 
     renderRunning() {
       const segment = STATIONS[this.stationIndex];
       const isLast = this.stationIndex >= STATIONS.length - 1;
       const detailHtml = segment.type === "station"
-        ? this.stationNowTargetHtml(segment.key)
+        ? this.stationNowChipsHtml(segment.key)
         : `<div class="hx-now-detail">${t("hyrox.running.runDetail")}</div>`;
       const iconKey = segment.type === "station" ? segment.key : "run";
       const progressPct = Math.round((this.stationIndex / STATIONS.length) * 100);
