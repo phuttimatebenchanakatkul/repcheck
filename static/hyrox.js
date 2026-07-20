@@ -1676,6 +1676,7 @@
 
           <button type="button" class="hx-danger-link hx-run-cancel" data-action="cancel-race">${t("hyrox.cancelThisRace")}</button>
 
+          <div class="hx-splits-head" data-splits-head hidden></div>
           <div class="hx-splits-list" data-splits></div>
         </div>
       `);
@@ -1686,6 +1687,12 @@
         dotsEl.appendChild(el(`<div class="hx-progress-dot ${cls}" title="${stationTitle(s)}"></div>`));
       });
 
+      const headEl = card.querySelector("[data-splits-head]");
+      if (this.splits.length) {
+        headEl.hidden = false;
+        headEl.textContent = t("hyrox.running.doneLabel", { count: this.splits.length });
+      }
+
       const splitsEl = card.querySelector("[data-splits]");
       this.splits.slice().reverse().forEach((s, i) => {
         const idx = this.splits.length - i;
@@ -1693,8 +1700,12 @@
         const delta = prev ? s.atSeconds - prev.atSeconds : s.atSeconds;
         splitsEl.appendChild(el(`
           <div class="hx-split-row">
-            <span class="hx-split-row-name"><span class="hx-split-row-check">${CHECK_ICON}</span>${s.title}</span>
-            <span>+${formatClockPrecise(delta)} · ${formatClock(s.atSeconds)}</span>
+            <span class="hx-split-row-icon">${stationIconSvg(splitIconKey(s.key), 18)}</span>
+            <span class="hx-split-row-name">${s.title}</span>
+            <span class="hx-split-row-times">
+              <span class="hx-split-row-delta">${formatClockPrecise(delta)}</span>
+              <span class="hx-split-row-total">${formatClock(s.atSeconds)}</span>
+            </span>
           </div>
         `));
       });
