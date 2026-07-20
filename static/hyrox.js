@@ -1224,13 +1224,14 @@
       // standard, and what a Doubles pair actually controls is how they
       // split the (also fixed) rounds between themselves, not the load.
       // That split gets its own step instead, for either category.
+      // Open Singles has no adjustable step -- its standards are already
+      // shown by the Weight Standards card up top, so we don't repeat them
+      // here after Step 3.
       const proAdjustBlock = card.querySelector("#hx-pro-adjust-block");
       if (this.gender && this.format === "singles" && this.category === "pro") {
         proAdjustBlock.appendChild(this.renderProAdjustStep());
       } else if (this.gender && this.format === "doubles") {
         proAdjustBlock.appendChild(this.renderDoublesSplitStep());
-      } else if (this.gender && this.format === "singles" && this.category === "open") {
-        proAdjustBlock.appendChild(this.renderOpenStandardsStep());
       }
 
       const startRow = card.querySelector('[data-action="start-race"]').parentElement;
