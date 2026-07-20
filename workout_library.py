@@ -299,6 +299,48 @@ EXERCISE_CATEGORIES = {
 
 WORKOUT_EXERCISES = [name for names in EXERCISE_CATEGORIES.values() for name in names]
 
+# Exercises that are commonly performed one side at a time, so a lifter may
+# want to log an independent weight AND rep count per side (e.g. one-arm
+# cable lateral raise, single-leg press). The workout log shows a "Both
+# sides / Each side" toggle only for these; everything else stays a single
+# weight+reps entry. Criterion: worked with a dumbbell / cable / kettlebell
+# / band / single limb where the two sides can carry different loads --
+# NOT barbell or fixed-bar movements (both hands/feet locked to one
+# implement), both-limb machines (leg press pad, pec deck, lat pulldown
+# bar), or bodyweight moves that load both sides together.
+UNILATERAL_EXERCISES = {
+    # Chest
+    "Cable Crossover", "Landmine Press",
+    # Back
+    "Dumbbell Row", "Single-Arm Dumbbell Row", "Seated Cable Row",
+    "Resistance Band Row", "Renegade Row",
+    # Shoulders
+    "Lateral Raise", "Cable Lateral Raise", "Front Raise",
+    # Arms
+    "Bicep Curl", "Resistance Band Bicep Curl", "Hammer Curl",
+    "Concentration Curl", "Cable Curl", "Tricep Extension",
+    "Overhead Tricep Extension", "Cable Kickback",
+    # Legs (single-leg variations are standard for these)
+    "Pistol Squat", "Leg Press", "Leg Extension", "Lying Leg Curl Machine",
+    "Seated Leg Curl", "Walking Lunge", "Reverse Lunge",
+    "Bulgarian Split Squat", "Step-Up", "Calf Raise", "Seated Calf Raise",
+    # Full body / conditioning
+    "Kettlebell Swing",
+    # Athletic / speed & agility
+    "Single-Leg Bound",
+    # Functional / real-world strength
+    "Suitcase Carry", "Overhead Carry", "Turkish Get-Up",
+    "Suitcase Deadlift", "Single-Arm Farmer's Carry",
+    # Balance & stability
+    "Single-Leg Balance Hold", "Single-Leg Romanian Deadlift",
+    "Single-Leg Box Step-Down", "Single-Leg Deadlift Reach",
+    "Single-Leg Glute Bridge", "Single-Leg Hop and Stick",
+    "Standing Y-Balance Reach",
+    # Prenatal / low-impact
+    "Side-Lying Leg Lift", "Side-Lying Clam Shell",
+    "Standing Bicep Curl (Light Dumbbell)",
+}
+
 # Where each exercise can actually be done, used by the split planner
 # wizard's "Where do you usually train?" question (gym / home / hybrid --
 # see split_planner.py) to only offer exercises the user can realistically

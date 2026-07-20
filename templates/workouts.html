@@ -966,13 +966,14 @@
     letter-spacing: 0.04em;
   }
   .wl-set-line { display: flex; align-items: center; gap: 10px; }
-  .wl-set-sides { display: flex; gap: 8px; margin-bottom: 8px; }
-  .wl-set-side { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+  /* Each-side mode: one row per side — tag, weight × reps. */
+  .wl-set-uni-row { display: flex; align-items: center; gap: 8px; }
+  .wl-set-uni-row + .wl-set-uni-row { margin-top: 8px; }
   .wl-set-side-tag {
-    width: 18px; flex-shrink: 0; text-align: center;
-    font-size: 12px; font-weight: 800; color: var(--text-secondary);
+    width: 22px; flex-shrink: 0; text-align: center;
+    font-size: 11px; font-weight: 800; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.03em;
   }
-  .wl-set-repsline { display: flex; align-items: center; gap: 10px; }
   .wl-set-x { color: var(--text-secondary); font-weight: 800; font-size: 14px; flex-shrink: 0; }
   .wl-set-field {
     display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
@@ -1085,6 +1086,11 @@
   const EXERCISE_DETAILS = {{ exercise_details | tojson }};
   const EXERCISE_CATEGORIES = {{ exercise_categories | tojson }};
   const EXERCISE_ICONS = {{ exercise_icons | tojson }};
+  // Exercises that can be logged one side at a time (see UNILATERAL_EXERCISES
+  // in workout_library.py) -- only these get the "Both sides / Each side"
+  // toggle. Custom user exercises aren't in the set, so they stay both-sides.
+  const UNILATERAL_EXERCISES = new Set({{ unilateral_exercises | tojson }});
+  function canBeUnilateral(name) { return UNILATERAL_EXERCISES.has(name); }
   const STORAGE_KEY = "repcheck_workout_log_v2";
   const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
   const EXPANDED = new Set();
@@ -1228,11 +1234,25 @@
     return new Date(selectedDate + "T00:00:00").toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
   }
 
-  function repsSummary(sets) {
+  // One set's reps for the summary line: a single number in both-sides
+  // mode, "L/R" (or one number if equal) in each-side mode.
+  function setRepsDisplay(entry, s) {
+    if (entry.unilateral) {
+      const l = isBlank(s.leftReps) ? null : s.leftReps;
+      const r = isBlank(s.rightReps) ? null : s.rightReps;
+      if (l === null && r === null) return null;
+      if (l === r) return String(l);
+      return `${l === null ? "-" : l}/${r === null ? "-" : r}`;
+    }
+    return isBlank(s.reps) ? null : String(s.reps);
+  }
+
+  function repsSummary(entry) {
     const t = RepCheckI18n.t;
-    const reps = sets.map((s) => (s.reps === "" || s.reps === null || s.reps === undefined ? null : s.reps));
-    if (reps.every((r) => r === null)) return t("workouts.exercise.setsLogged", { n: sets.length, s: sets.length === 1 ? "" : "s" });
-    return t("workouts.exercise.setsReps", { n: sets.length, s: sets.length === 1 ? "" : "s", reps: reps.map((r) => (r === null ? "-" : r)).join(", ") });
+    const sets = entry.sets;
+    const disp = sets.map((s) => setRepsDisplay(entry, s));
+    if (disp.every((d) => d === null)) return t("workouts.exercise.setsLogged", { n: sets.length, s: sets.length === 1 ? "" : "s" });
+    return t("workouts.exercise.setsReps", { n: sets.length, s: sets.length === 1 ? "" : "s", reps: disp.map((d) => (d === null ? "-" : d)).join(", ") });
   }
 
   // Weights are stored normalized to kg (weightKg for both-sides, leftKg /
@@ -1252,9 +1272,13 @@
     return top;
   }
 
-  // A set counts as "filled in" once it has a rep number.
+  // A set counts as "filled in" once it has a rep number -- in each-side
+  // mode that means both the left and right rep counts.
   function entryIsComplete(entry) {
-    return entry.sets.length > 0 && entry.sets.every((s) => s.reps !== "" && s.reps !== null && s.reps !== undefined);
+    if (entry.sets.length === 0) return false;
+    return entry.sets.every((s) => entry.unilateral
+      ? (!isBlank(s.leftReps) && !isBlank(s.rightReps))
+      : !isBlank(s.reps));
   }
 
   function renderTimeline() {
@@ -1289,6 +1313,17 @@
   }
 
   function renderEntry(entry) {
+    // An exercise that can't be done one-sided must not stay in each-side
+    // mode (e.g. left over from before this exercise was excluded) --
+    // collapse it back to a single weight/reps so it reads correctly.
+    if (entry.unilateral && !canBeUnilateral(entry.exercise)) {
+      entry.sets.forEach((s) => {
+        if (isBlank(s.weightKg)) s.weightKg = !isBlank(s.leftKg) ? s.leftKg : s.rightKg;
+        if (isBlank(s.reps)) s.reps = !isBlank(s.leftReps) ? s.leftReps : s.rightReps;
+      });
+      entry.unilateral = false;
+      saveLog();
+    }
     const expanded = EXPANDED.has(entry.id);
     const complete = entryIsComplete(entry);
     const top = topWeightKg(entry);
@@ -1298,7 +1333,7 @@
         <div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}<span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
         <div class="wl-entry-info">
           <div class="wl-entry-name">${entry.exercise}</div>
-          <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry.sets)}</div>
+          <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry)}</div>
         </div>
         <button type="button" class="wl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? RepCheckI18n.t("common.minimize") : "Expand"}">
           ${CHEVRON_ICON}
@@ -1311,7 +1346,8 @@
   function renderEntryDetail(entry) {
     const t = RepCheckI18n.t;
     const unit = RepCheckUnits.weightUnitLabel();
-    const uni = !!entry.unilateral;
+    const canUni = canBeUnilateral(entry.exercise);
+    const uni = canUni && !!entry.unilateral;
 
     const weightField = (kg, side, i) => `
       <span class="wl-set-field">
@@ -1320,13 +1356,18 @@
                data-weight-entry="${entry.id}" data-weight-index="${i}" data-side="${side}">
         <span class="wl-set-unit">${unit}</span>
       </span>`;
-    const repsField = (reps, i) => `
+    const repsField = (reps, side, i) => `
       <span class="wl-set-field wl-set-field-reps">
         <input type="number" min="0" inputmode="numeric" class="wl-set-input"
-               value="${reps ?? ""}" placeholder="0"
-               data-reps-entry="${entry.id}" data-reps-index="${i}">
+               value="${isBlank(reps) ? "" : reps}" placeholder="0"
+               data-reps-entry="${entry.id}" data-reps-index="${i}" data-reps-side="${side}">
         <span class="wl-set-unit">${t("workouts.exercise.repsLabel")}</span>
       </span>`;
+    const sideRow = (tag, kg, reps, side, i) => `
+      <div class="wl-set-uni-row">
+        <span class="wl-set-side-tag">${tag}</span>
+        ${weightField(kg, side, i)}<span class="wl-set-x">×</span>${repsField(reps, side, i)}
+      </div>`;
 
     const setCards = entry.sets.map((set, i) => {
       const head = `
@@ -1338,26 +1379,26 @@
         return `
           <div class="wl-set-card">
             ${head}
-            <div class="wl-set-sides">
-              <label class="wl-set-side"><span class="wl-set-side-tag">${t("workouts.exercise.left")}</span>${weightField(set.leftKg, "left", i)}</label>
-              <label class="wl-set-side"><span class="wl-set-side-tag">${t("workouts.exercise.right")}</span>${weightField(set.rightKg, "right", i)}</label>
-            </div>
-            <div class="wl-set-repsline"><span class="wl-set-x">×</span>${repsField(set.reps, i)}</div>
+            ${sideRow(t("workouts.exercise.left"), set.leftKg, set.leftReps, "left", i)}
+            ${sideRow(t("workouts.exercise.right"), set.rightKg, set.rightReps, "right", i)}
           </div>`;
       }
       return `
         <div class="wl-set-card">
           ${head}
-          <div class="wl-set-line">${weightField(set.weightKg, "both", i)}<span class="wl-set-x">×</span>${repsField(set.reps, i)}</div>
+          <div class="wl-set-line">${weightField(set.weightKg, "both", i)}<span class="wl-set-x">×</span>${repsField(set.reps, "both", i)}</div>
         </div>`;
     }).join("");
 
+    const toggle = canUni ? `
+      <div class="wl-mode-toggle" role="group">
+        <button type="button" class="wl-mode-btn ${!uni ? "is-active" : ""}" data-set-mode="both" data-entry="${entry.id}">${t("workouts.exercise.bothSides")}</button>
+        <button type="button" class="wl-mode-btn ${uni ? "is-active" : ""}" data-set-mode="each" data-entry="${entry.id}">${t("workouts.exercise.eachSide")}</button>
+      </div>` : "";
+
     return `
       <div class="wl-entry-detail">
-        <div class="wl-mode-toggle" role="group">
-          <button type="button" class="wl-mode-btn ${!uni ? "is-active" : ""}" data-set-mode="both" data-entry="${entry.id}">${t("workouts.exercise.bothSides")}</button>
-          <button type="button" class="wl-mode-btn ${uni ? "is-active" : ""}" data-set-mode="each" data-entry="${entry.id}">${t("workouts.exercise.eachSide")}</button>
-        </div>
+        ${toggle}
         ${setCards}
         <button type="button" class="wl-add-set-btn" data-add-set="${entry.id}">${t("workouts.exercise.addSet")}</button>
         <div class="wl-detail-actions">
@@ -1424,11 +1465,14 @@
       input.addEventListener("click", (event) => event.stopPropagation());
       input.addEventListener("input", () => {
         const entry = findEntry(input.dataset.repsEntry);
-        const index = parseInt(input.dataset.repsIndex, 10);
-        if (entry) {
-          entry.sets[index].reps = input.value === "" ? "" : parseInt(input.value, 10);
-          saveLog();
-        }
+        if (!entry) return;
+        const set = entry.sets[parseInt(input.dataset.repsIndex, 10)];
+        const v = input.value === "" ? "" : parseInt(input.value, 10);
+        const side = input.dataset.repsSide;
+        if (side === "left") set.leftReps = v;
+        else if (side === "right") set.rightReps = v;
+        else set.reps = v;
+        saveLog();
       });
     });
 
@@ -1461,10 +1505,14 @@
         entry.unilateral = wantUni;
         entry.sets.forEach((s) => {
           if (wantUni) {
+            // Seed each side from the shared weight/reps so nothing is lost.
             if (isBlank(s.leftKg) && !isBlank(s.weightKg)) s.leftKg = s.weightKg;
             if (isBlank(s.rightKg) && !isBlank(s.weightKg)) s.rightKg = s.weightKg;
-          } else if (isBlank(s.weightKg)) {
-            s.weightKg = !isBlank(s.leftKg) ? s.leftKg : (!isBlank(s.rightKg) ? s.rightKg : "");
+            if (isBlank(s.leftReps) && !isBlank(s.reps)) s.leftReps = s.reps;
+            if (isBlank(s.rightReps) && !isBlank(s.reps)) s.rightReps = s.reps;
+          } else {
+            if (isBlank(s.weightKg)) s.weightKg = !isBlank(s.leftKg) ? s.leftKg : (!isBlank(s.rightKg) ? s.rightKg : "");
+            if (isBlank(s.reps)) s.reps = !isBlank(s.leftReps) ? s.leftReps : (!isBlank(s.rightReps) ? s.rightReps : "");
           }
         });
         saveLog();
