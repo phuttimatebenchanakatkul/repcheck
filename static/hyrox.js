@@ -1165,6 +1165,13 @@
       wrap.appendChild(this.renderLeaderboardCard(false));
       wrap.appendChild(this.renderStationGuide());
 
+      // Weight standards sits right under the intro -- it's the "what the
+      // race asks of you" reference. Needs category + gender to show the
+      // correct weights, so it only appears once those are picked below.
+      if (this.category && this.gender) {
+        wrap.appendChild(this.renderWeightsCard());
+      }
+
       const card = el(`
         <div class="hx-card">
           <div class="hx-step-label">${t("hyrox.step.category")}</div>
@@ -1241,10 +1248,10 @@
       }
 
       wrap.appendChild(card);
+      // "Your training space" comes after the steps (it personalises the
+      // laps to the user's own gym). Weight standards already rendered up
+      // top under the intro.
       if (this.category && this.gender) {
-        // Standards summary first (what the race asks of you), then the
-        // adjustable "your gym" card that personalises the laps.
-        wrap.appendChild(this.renderWeightsCard());
         wrap.appendChild(this.renderTrainingSpaceCard());
       }
       return wrap;
