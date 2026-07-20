@@ -925,48 +925,80 @@
     margin-top: -2px;
     animation: wl-slide-down 0.18s ease;
   }
-  .wl-set-row {
+  /* Both-sides / each-side segmented toggle at the top of the editor. */
+  .wl-mode-toggle {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    gap: 4px;
+    background: var(--bg);
+    border-radius: 999px;
+    padding: 4px;
+    margin-bottom: 12px;
+  }
+  .wl-mode-btn {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 999px;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .wl-mode-btn.is-active { background: var(--card-bg); color: var(--text); box-shadow: 0 1px 3px rgba(20, 20, 20, 0.08); }
+
+  /* One card per set — roomy enough for a weight and a rep count (and two
+     weights in each-side mode) without cramping on a phone. */
+  .wl-set-card {
     background: var(--bg);
     border-radius: 12px;
-    padding: 8px 10px;
+    padding: 10px 12px;
     margin-bottom: 8px;
   }
+  .wl-set-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .wl-set-num {
-    width: 46px;
-    flex-shrink: 0;
     font-size: 11px;
     font-weight: 800;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .wl-set-row input {
-    flex: 1;
-    min-width: 0;
-    max-width: 110px;
-    padding: 9px 10px;
-    border: 1px solid var(--border);
-    background: var(--card-bg);
-    color: var(--text);
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 700;
-    font-family: inherit;
-    text-align: center;
+  .wl-set-line { display: flex; align-items: center; gap: 10px; }
+  .wl-set-sides { display: flex; gap: 8px; margin-bottom: 8px; }
+  .wl-set-side { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+  .wl-set-side-tag {
+    width: 18px; flex-shrink: 0; text-align: center;
+    font-size: 12px; font-weight: 800; color: var(--text-secondary);
   }
-  .wl-set-row input:focus { outline: none; border-color: var(--blue); }
-  .wl-set-reps-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .wl-set-repsline { display: flex; align-items: center; gap: 10px; }
+  .wl-set-x { color: var(--text-secondary); font-weight: 800; font-size: 14px; flex-shrink: 0; }
+  .wl-set-field {
+    display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0 12px 0 0;
+    transition: border-color 0.15s ease;
+  }
+  .wl-set-field:focus-within { border-color: var(--blue); }
+  .wl-set-field-reps { max-width: 130px; }
+  .wl-set-input {
+    flex: 1; min-width: 0; width: 100%;
+    padding: 9px 6px 9px 12px;
+    border: none; background: none; color: var(--text);
+    font-size: 15px; font-weight: 700; font-family: inherit; text-align: center;
+    -moz-appearance: textfield;
+  }
+  .wl-set-input:focus { outline: none; }
+  .wl-set-input::-webkit-outer-spin-button, .wl-set-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .wl-set-unit { font-size: 12px; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; }
   .wl-set-remove {
-    margin-left: auto;
     background: none;
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
     font-size: 16px;
-    padding: 4px 6px;
+    padding: 2px 4px;
     flex-shrink: 0;
   }
   .wl-set-remove:hover { color: var(--red); }
@@ -1203,6 +1235,23 @@
     return t("workouts.exercise.setsReps", { n: sets.length, s: sets.length === 1 ? "" : "s", reps: reps.map((r) => (r === null ? "-" : r)).join(", ") });
   }
 
+  // Weights are stored normalized to kg (weightKg for both-sides, leftKg /
+  // rightKg for each-side) so switching the kg/lb unit re-displays every
+  // logged number correctly, same as the rest of the app.
+  function isBlank(v) { return v === "" || v === null || v === undefined; }
+  function weightInputValue(kg) { return isBlank(kg) ? "" : RepCheckUnits.kgToDisplay(kg); }
+
+  // The heaviest weight logged on any set of this exercise, for the
+  // at-a-glance line on the collapsed card ("what did I lift").
+  function topWeightKg(entry) {
+    let top = null;
+    entry.sets.forEach((s) => {
+      const vals = entry.unilateral ? [s.leftKg, s.rightKg] : [s.weightKg];
+      vals.forEach((w) => { if (!isBlank(w) && (top === null || w > top)) top = w; });
+    });
+    return top;
+  }
+
   // A set counts as "filled in" once it has a rep number.
   function entryIsComplete(entry) {
     return entry.sets.length > 0 && entry.sets.every((s) => s.reps !== "" && s.reps !== null && s.reps !== undefined);
@@ -1242,12 +1291,14 @@
   function renderEntry(entry) {
     const expanded = EXPANDED.has(entry.id);
     const complete = entryIsComplete(entry);
+    const top = topWeightKg(entry);
+    const weightPart = top !== null ? `${RepCheckUnits.kgToDisplay(top)} ${RepCheckUnits.weightUnitLabel()} • ` : "";
     return `
       <div class="wl-entry-card ${complete ? "is-complete" : ""}" data-toggle-entry="${entry.id}">
         <div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}<span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
         <div class="wl-entry-info">
           <div class="wl-entry-name">${entry.exercise}</div>
-          <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${repsSummary(entry.sets)}</div>
+          <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry.sets)}</div>
         </div>
         <button type="button" class="wl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? RepCheckI18n.t("common.minimize") : "Expand"}">
           ${CHEVRON_ICON}
@@ -1259,17 +1310,55 @@
 
   function renderEntryDetail(entry) {
     const t = RepCheckI18n.t;
+    const unit = RepCheckUnits.weightUnitLabel();
+    const uni = !!entry.unilateral;
+
+    const weightField = (kg, side, i) => `
+      <span class="wl-set-field">
+        <input type="number" min="0" step="0.5" inputmode="decimal" class="wl-set-input"
+               value="${weightInputValue(kg)}" placeholder="0"
+               data-weight-entry="${entry.id}" data-weight-index="${i}" data-side="${side}">
+        <span class="wl-set-unit">${unit}</span>
+      </span>`;
+    const repsField = (reps, i) => `
+      <span class="wl-set-field wl-set-field-reps">
+        <input type="number" min="0" inputmode="numeric" class="wl-set-input"
+               value="${reps ?? ""}" placeholder="0"
+               data-reps-entry="${entry.id}" data-reps-index="${i}">
+        <span class="wl-set-unit">${t("workouts.exercise.repsLabel")}</span>
+      </span>`;
+
+    const setCards = entry.sets.map((set, i) => {
+      const head = `
+        <div class="wl-set-card-head">
+          <span class="wl-set-num">${t("workouts.exercise.setN", { n: i + 1 })}</span>
+          <button type="button" class="wl-set-remove" data-remove-set-entry="${entry.id}" data-remove-set-index="${i}" aria-label="${t("common.remove")}">&times;</button>
+        </div>`;
+      if (uni) {
+        return `
+          <div class="wl-set-card">
+            ${head}
+            <div class="wl-set-sides">
+              <label class="wl-set-side"><span class="wl-set-side-tag">${t("workouts.exercise.left")}</span>${weightField(set.leftKg, "left", i)}</label>
+              <label class="wl-set-side"><span class="wl-set-side-tag">${t("workouts.exercise.right")}</span>${weightField(set.rightKg, "right", i)}</label>
+            </div>
+            <div class="wl-set-repsline"><span class="wl-set-x">×</span>${repsField(set.reps, i)}</div>
+          </div>`;
+      }
+      return `
+        <div class="wl-set-card">
+          ${head}
+          <div class="wl-set-line">${weightField(set.weightKg, "both", i)}<span class="wl-set-x">×</span>${repsField(set.reps, i)}</div>
+        </div>`;
+    }).join("");
+
     return `
       <div class="wl-entry-detail">
-        ${entry.sets.map((set, i) => `
-          <div class="wl-set-row">
-            <span class="wl-set-num">${t("workouts.exercise.setN", { n: i + 1 })}</span>
-            <input type="number" min="0" inputmode="numeric" value="${set.reps ?? ""}" placeholder="0"
-                   data-reps-entry="${entry.id}" data-reps-index="${i}">
-            <span class="wl-set-reps-label">${t("workouts.exercise.repsLabel")}</span>
-            <button type="button" class="wl-set-remove" data-remove-set-entry="${entry.id}" data-remove-set-index="${i}" aria-label="${t("common.remove")}">&times;</button>
-          </div>
-        `).join("")}
+        <div class="wl-mode-toggle" role="group">
+          <button type="button" class="wl-mode-btn ${!uni ? "is-active" : ""}" data-set-mode="both" data-entry="${entry.id}">${t("workouts.exercise.bothSides")}</button>
+          <button type="button" class="wl-mode-btn ${uni ? "is-active" : ""}" data-set-mode="each" data-entry="${entry.id}">${t("workouts.exercise.eachSide")}</button>
+        </div>
+        ${setCards}
         <button type="button" class="wl-add-set-btn" data-add-set="${entry.id}">${t("workouts.exercise.addSet")}</button>
         <div class="wl-detail-actions">
           <button type="button" class="wl-remove-exercise-btn" data-remove-entry="${entry.id}">${t("workouts.exercise.removeExercise")}</button>
@@ -1340,6 +1429,46 @@
           entry.sets[index].reps = input.value === "" ? "" : parseInt(input.value, 10);
           saveLog();
         }
+      });
+    });
+
+    // Per-set weight (stored in kg from whatever unit the user is in).
+    dayEl.querySelectorAll("[data-weight-entry]").forEach((input) => {
+      input.addEventListener("click", (event) => event.stopPropagation());
+      input.addEventListener("input", () => {
+        const entry = findEntry(input.dataset.weightEntry);
+        if (!entry) return;
+        const set = entry.sets[parseInt(input.dataset.weightIndex, 10)];
+        const kg = input.value === "" ? "" : RepCheckUnits.displayToKg(input.value);
+        const val = input.value === "" ? "" : (isFinite(kg) ? kg : "");
+        if (input.dataset.side === "left") set.leftKg = val;
+        else if (input.dataset.side === "right") set.rightKg = val;
+        else set.weightKg = val;
+        saveLog();
+        // No re-render: keep focus in the field the user is typing in.
+      });
+    });
+
+    // Both-sides <-> each-side toggle. Seeds the newly-active side/both
+    // fields from the other mode so switching never wipes a logged weight.
+    dayEl.querySelectorAll("[data-set-mode]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const entry = findEntry(btn.dataset.entry);
+        if (!entry) return;
+        const wantUni = btn.dataset.setMode === "each";
+        if (!!entry.unilateral === wantUni) return;
+        entry.unilateral = wantUni;
+        entry.sets.forEach((s) => {
+          if (wantUni) {
+            if (isBlank(s.leftKg) && !isBlank(s.weightKg)) s.leftKg = s.weightKg;
+            if (isBlank(s.rightKg) && !isBlank(s.weightKg)) s.rightKg = s.weightKg;
+          } else if (isBlank(s.weightKg)) {
+            s.weightKg = !isBlank(s.leftKg) ? s.leftKg : (!isBlank(s.rightKg) ? s.rightKg : "");
+          }
+        });
+        saveLog();
+        renderTimeline();
       });
     });
   }
