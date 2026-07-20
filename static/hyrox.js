@@ -1483,18 +1483,41 @@
     renderTrainingSpaceCard() {
       // Rendered inside the setup card (right after Step 3), so this is a
       // plain section -- not its own .hx-card box.
+      // Photo credit: Unsplash (https://unsplash.com/license) -- free for
+      // commercial use, no permission needed. Hotlinking their CDN is
+      // supported; the card degrades gracefully (steps still readable) if
+      // the image ever fails to load. A subtle credit sits bottom-right.
+      const MEASURE_PHOTO = "https://images.unsplash.com/photo-1646656130703-8f95eed6a79b?w=1000&h=280&fit=crop&q=75&auto=format";
       const card = el(`
         <div class="hx-space-section">
           <div class="hx-step-label">${t("hyrox.space.title")}</div>
           <div class="hx-space-lead">${t("hyrox.space.intro")}</div>
-          <details class="hx-space-hint">
-            <summary class="hx-space-hint-summary">
-              <span class="hx-space-hint-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg></span>
-              <span>${t("hyrox.space.hintToggle")}</span>
-              <span class="hx-space-hint-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            </summary>
-            <div class="hx-space-hint-body">${t("hyrox.space.tip")}</div>
-          </details>
+
+          <div class="hx-measure-card">
+            <div class="hx-measure-photo">
+              <img class="hx-measure-img" src="${MEASURE_PHOTO}" alt="" loading="lazy">
+              <div class="hx-measure-overlay">
+                <span class="hx-measure-badge">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+                  ${t("hyrox.space.measureTitle")}
+                </span>
+              </div>
+              <a class="hx-measure-credit" href="https://unsplash.com/license" target="_blank" rel="noopener noreferrer">${t("hyrox.space.photoCredit")}</a>
+            </div>
+            <div class="hx-measure-steps">
+              <div class="hx-measure-step">
+                <span class="hx-measure-step-num">1</span>
+                <span class="hx-measure-step-text"><strong>${t("hyrox.space.measureStep1Title")}</strong> ${t("hyrox.space.measureStep1Body")}</span>
+              </div>
+              <div class="hx-measure-step">
+                <span class="hx-measure-step-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1v-5a9 9 0 0 1 18 0v5a1 1 0 0 1-1 1h-2a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/><path d="M21 16v2a4 4 0 0 1-4 4h-5"/></svg>
+                </span>
+                <span class="hx-measure-step-text"><strong>${t("hyrox.space.measureStep2Title")}</strong> ${t("hyrox.space.measureStep2Body")}</span>
+              </div>
+            </div>
+          </div>
+
           <div class="hx-space-list" data-space-list></div>
         </div>
       `);
