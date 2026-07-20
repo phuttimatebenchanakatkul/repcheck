@@ -1179,6 +1179,7 @@
           <div class="hx-step-label">${t("hyrox.step.format")}</div>
           <div class="hx-choice-grid" data-group="format"></div>
           <div id="hx-gender-block"></div>
+          <div id="hx-training-space-block"></div>
           <div id="hx-pro-adjust-block"></div>
           <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-top:6px;">
             <button type="button" class="hx-primary-btn" data-action="start-race" ${this.canStart() ? "" : "disabled"}>${t("hyrox.startRace")}</button>
@@ -1227,6 +1228,13 @@
       // Open Singles has no adjustable step -- its standards are already
       // shown by the Weight Standards card up top, so we don't repeat them
       // here after Step 3.
+      // "Your training space" sits right after Step 3 (gender), inside
+      // this same card, once category + gender are chosen.
+      const trainingSpaceBlock = card.querySelector("#hx-training-space-block");
+      if (this.category && this.gender) {
+        trainingSpaceBlock.appendChild(this.renderTrainingSpaceCard());
+      }
+
       const proAdjustBlock = card.querySelector("#hx-pro-adjust-block");
       if (this.gender && this.format === "singles" && this.category === "pro") {
         proAdjustBlock.appendChild(this.renderProAdjustStep());
@@ -1249,12 +1257,6 @@
       }
 
       wrap.appendChild(card);
-      // "Your training space" comes after the steps (it personalises the
-      // laps to the user's own gym). Weight standards already rendered up
-      // top under the intro.
-      if (this.category && this.gender) {
-        wrap.appendChild(this.renderTrainingSpaceCard());
-      }
       return wrap;
     }
 
@@ -1458,8 +1460,10 @@
     // laps that means to cover the HYROX distance. Distances shown in
     // meters (HYROX's own unit), not the km/mi Settings preference.
     renderTrainingSpaceCard() {
+      // Rendered inside the setup card (right after Step 3), so this is a
+      // plain section -- not its own .hx-card box.
       const card = el(`
-        <div class="hx-card">
+        <div class="hx-space-section">
           <div class="hx-step-label">${t("hyrox.space.title")}</div>
           <div class="hx-guide-intro">${t("hyrox.space.intro")}</div>
           <div class="hx-space-tip">
