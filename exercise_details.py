@@ -942,6 +942,18 @@ EXERCISE_DETAILS = {
     },
 }
 
+# Fold in the emoji + how-to for the ~300 extra muscle-building exercises
+# (extra_exercises.py). Each reuses an emoji already in the palette above,
+# or an empty string where nothing genuinely fits, keeping the invariant
+# that every WORKOUT_EXERCISES name has an entry here.
+from extra_exercises import EXTRA_EXERCISES as _EXTRA_EXERCISES
+
+for _extra in _EXTRA_EXERCISES:
+    EXERCISE_DETAILS.setdefault(_extra["name"], {
+        "emoji": _extra["emoji"],
+        "description": _extra["description"],
+    })
+
 
 def get_exercise_detail(name):
     """Returns {emoji, description} for a known exercise, or a sensible
