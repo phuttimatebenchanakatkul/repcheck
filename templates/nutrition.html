@@ -9,7 +9,19 @@
   <div class="nl-summary">
     <div class="nl-summary-head">
       <div class="nl-summary-title" data-i18n="nutrition.totals.title">Today's Totals</div>
-      <button type="button" class="nl-goals-toggle" id="nl-goals-toggle" data-i18n="nutrition.totals.editGoals">Edit goals</button>
+      <div class="nl-summary-head-actions">
+        <!--
+          Weekly check-in entry point. Starts grey and inert (matches the
+          "no profile yet" and "not due yet" states) — static/coaching.js's
+          syncCheckinButton() adds .is-ready and enables it the moment the
+          check-in is actually due, and disables it again right after.
+        -->
+        <button type="button" class="nl-checkin-btn" id="nl-checkin-btn" data-action="open-checkin" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span data-i18n="coaching.checkin.button">Check in</span>
+        </button>
+        <button type="button" class="nl-goals-toggle" id="nl-goals-toggle" data-i18n="nutrition.totals.editGoals">Edit goals</button>
+      </div>
     </div>
 
     <div class="nl-goals-form" id="nl-goals-form" style="display:none;">
@@ -185,9 +197,43 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
     margin-bottom: 14px;
   }
   .nl-summary-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+  .nl-summary-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  /* Grey and inert by default (not due yet, or no coaching profile);
+     static/coaching.js's syncCheckinButton() adds .is-ready and lifts
+     `disabled` the moment the weekly check-in is actually available, so
+     tapping it never feels like an ask until it's genuinely ready. */
+  .nl-checkin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: not-allowed;
+    opacity: 0.6;
+    transition: opacity 0.15s ease, border-color 0.15s ease, transform 0.1s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+  .nl-checkin-btn svg { flex-shrink: 0; }
+  .nl-checkin-btn.is-ready {
+    cursor: pointer;
+    opacity: 1;
+    border-color: transparent;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(47, 102, 232, 0.32);
+  }
+  .nl-checkin-btn.is-ready:active { transform: scale(0.94); }
   .nl-goals-toggle {
     padding: 7px 15px;
     border-radius: 999px;
@@ -1348,6 +1394,7 @@
     .nl-page { padding: 14px; border-radius: var(--radius-md); }
     .nl-summary-title { font-size: 14px; }
     .nl-goals-toggle { padding: 8px 14px; }
+    .nl-checkin-btn { padding: 8px 12px; font-size: 11px; }
     .nl-cal-ring-wrap { width: 128px; height: 128px; }
     .nl-cal-ring-value { font-size: 25px; }
     .nl-macro-pills { gap: 8px; }
@@ -3733,14 +3780,15 @@
       return;
     }
     if (quick === "checkin") {
-      // Deep link from the home page's Nutrition tile "Check in" button
-      // (see templates/home.html) — coaching.js (loaded after this
-      // script) owns the actual button/modal, so poll briefly for it
-      // rather than assuming it's already rendered.
+      // Deep link from the home page's "ready to check in" banner (see
+      // templates/home.html). The "Check in" button in Today's Totals
+      // always exists in the DOM but starts disabled until coaching.js
+      // (loaded after this script) mounts and confirms it's actually due
+      // — poll briefly for it to become enabled rather than assuming.
       let attempts = 0;
       const tryOpenCheckin = () => {
         const btn = document.querySelector('[data-action="open-checkin"]');
-        if (btn) {
+        if (btn && !btn.disabled) {
           btn.click();
         } else if (attempts++ < 20) {
           setTimeout(tryOpenCheckin, 100);

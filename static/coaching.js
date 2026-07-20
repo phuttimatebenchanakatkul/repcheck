@@ -112,7 +112,7 @@
 
   // Small fixed-position confirmation/error toast, shared by anything in
   // this file that does an awaited server write (currently just
-  // logWeight/persistWeightEntry) and wants to make the save result
+  // persistWeightEntry) and wants to make the save result
   // visible rather than silent -- mirrors nutrition.html's own
   // .nl-save-error-toast pattern for the same reason (that page confirmed
   // this was needed after "logged food that then vanished" bug reports).
@@ -269,17 +269,6 @@
     return streak;
   }
 
-  function computeWeightStreak(weightLog) {
-    let cursor = new Date();
-    if (!weightLog[toIsoDate(cursor)]) cursor.setDate(cursor.getDate() - 1);
-    let streak = 0;
-    while (weightLog[toIsoDate(cursor)]) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-    return streak;
-  }
-
   function getTrainingDaysFromSplitPlan() {
     const plan = loadJson(SPLIT_PLAN_KEY, null);
     if (!plan || !plan.schedule) return [];
@@ -314,7 +303,11 @@
       // -- defaults to today, changeable by tapping any day column.
       this.selectedChartDay = toIsoDate(new Date());
 
-      this.root.addEventListener("click", (event) => this.handleClick(event));
+      // Delegated on document rather than this.root: the weekly check-in
+      // button now lives in nutrition.html's static "Today's Totals"
+      // header, outside this module's own subtree (see syncCheckinButton()),
+      // so the listener has to reach it too.
+      document.addEventListener("click", (event) => this.handleClick(event));
       // Re-render the whole module (keeping wizard/popup state) when the
       // language changes, so all its dynamically-built text switches too.
       document.addEventListener("repcheck:language-changed", () => this.render());
@@ -350,7 +343,6 @@
       if (action === "wizard-next") return this.wizardNext();
       if (action === "wizard-back") return this.wizardBack();
       if (action === "wizard-save") return this.wizardSave();
-      if (action === "log-weight") return this.logWeight();
       if (action === "set-chart-mode") return this.setChartMode(target.dataset.mode);
       if (action === "select-chart-day") return this.selectChartDay(target.dataset.date);
       if (action === "open-day-popup") return this.openDayPopup(target.dataset.date);
@@ -625,19 +617,6 @@
     }
 
     // ---------- Weight logging ----------
-    async logWeight() {
-      const input = document.getElementById("pc-weight-input");
-      const kg = RepCheckUnits.displayToKg(input.value);
-      if (!kg || kg <= 0 || kg > 400) return;
-      const weightLog = loadWeightLog();
-      const todayIso = toIsoDate(new Date());
-      const entry = { kg, loggedAt: Date.now() };
-      weightLog[todayIso] = entry;
-      saveJson(WEIGHT_LOG_KEY, weightLog);
-      this.render();
-      await this.persistWeightEntry(todayIso, entry);
-    }
-
     // Authoritative server write for a weigh-in, same reasoning as
     // nutrition.html's persistLogEntry(): the generic localStorage-blob
     // sync (static/account_sync.js) is fire-and-forget and was letting a
@@ -837,13 +816,13 @@
       // The "Personalized coaching" goal/target card is intentionally not
       // rendered on the nutrition page anymore -- "Today's Totals" (the
       // ring + macro pills at the top of the main log card) is the primary
-      // daily view now. Weight tracking and daily-logging are kept.
-      // renderCoachingCard() is left defined so it can be re-enabled by
-      // adding it back here if the coaching dashboard is ever wanted again.
+      // daily view now, and it's also where the weekly check-in button
+      // lives (see syncCheckinButton()). Weight tracking has its own full
+      // page at /weight-history, linked from the home page. Daily-logging
+      // streak is kept. renderCoachingCard() is left defined so it can be
+      // re-enabled by adding it back here if the coaching dashboard is
+      // ever wanted again.
       if (this.profile) {
-        const checkinCard = this.renderCheckinCard();
-        if (checkinCard) frag.appendChild(checkinCard);
-        frag.appendChild(this.renderWeightCard());
         frag.appendChild(this.renderLoggingCard());
       }
 
@@ -852,6 +831,26 @@
       if (this.wizard) this.root.appendChild(this.renderWizard());
       if (this.dayPopup) this.root.appendChild(this.renderDayPopup());
       if (this.checkin) this.root.appendChild(this.renderCheckinModal());
+
+      this.syncCheckinButton();
+    }
+
+    // The weekly check-in's entry point lives in "Today's Totals" at the
+    // top of the page (static markup in nutrition.html, outside this
+    // module's own subtree) rather than as its own pc-card here -- see
+    // checkinDaysRemaining() for the due/not-due logic this mirrors.
+    // Grey and inert until it's actually due, so it never asks for
+    // attention it hasn't earned yet.
+    syncCheckinButton() {
+      const btn = document.getElementById("nl-checkin-btn");
+      if (!btn) return;
+      const daysLeft = this.checkinDaysRemaining();
+      const isReady = daysLeft === 0;
+      btn.classList.toggle("is-ready", isReady);
+      btn.disabled = !isReady;
+      btn.title = isReady || daysLeft === null
+        ? ""
+        : t("coaching.checkin.comeBackIn", { n: daysLeft, s: daysLeft === 1 ? "" : "s" });
     }
 
     renderInactivityBanner() {
@@ -1110,34 +1109,10 @@
       return card;
     }
 
-    // Compact standalone entry point for the weekly check-in, shown on the
-    // nutrition page now that the full "Personalized coaching" dashboard
-    // (which used to carry this button) no longer renders there. When due,
-    // it's an inviting amber card; once submitted it quietly steps back to
-    // a plain "come back in N days" row so it doesn't compete for
-    // attention with "Today's Totals" for the rest of the week.
-    renderCheckinCard() {
-      const isDue = this.checkinDaysRemaining() === 0;
-      return el(`
-        <div class="pc-card pc-checkin-card ${isDue ? "is-due" : ""}">
-          <div class="pc-card-head">
-            <div class="pc-card-title-group">
-              <div class="pc-card-icon pc-card-icon-checkin">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              </div>
-              <div class="pc-card-title">${t("coaching.checkin.title")}</div>
-            </div>
-          </div>
-          ${isDue ? `<div class="pc-checkin-card-sub">${t("coaching.checkin.sub")}</div>` : ""}
-          <div class="pc-card-actions">${this.renderCheckinButtonHtml()}</div>
-        </div>
-      `);
-    }
-
-    // Shared by renderCoachingCard() above -- home.html's own Nutrition
-    // tile shows the same button/countdown by reading repcheck_coaching_
-    // profile_v1 directly (see that template), since it's a separate page
-    // script and doesn't load this class.
+    // Shared by renderCoachingCard() above and syncCheckinButton() --
+    // home.html's own Nutrition tile shows the same button/countdown by
+    // reading repcheck_coaching_profile_v1 directly (see that template),
+    // since it's a separate page script and doesn't load this class.
     renderCheckinButtonHtml() {
       const daysLeft = this.checkinDaysRemaining();
       if (daysLeft > 0) {
@@ -1145,136 +1120,6 @@
         return `<button type="button" class="pc-btn-secondary" disabled title="${label}">${label}</button>`;
       }
       return `<button type="button" class="pc-btn-primary" data-action="open-checkin">${t("coaching.checkin.button")}</button>`;
-    }
-
-    // A hero number + trend chip + mini sparkline instead of a plain list
-    // of rows -- the shape of the trend is the thing a "weight tracking"
-    // card should lead with, not a stack of individual numbers (those
-    // still live in full on the dedicated /weight-history calendar page,
-    // linked at the bottom). Direction is only ever colored good/attention
-    // when the profile's aspiration gives it real meaning (losing vs.
-    // gaining) -- "maintain" (or no profile signal) stays neutral, since
-    // an unqualified up/down arrow can't honestly claim to be good or bad.
-    renderWeightCard() {
-      const weightLog = loadWeightLog();
-      const streak = computeWeightStreak(weightLog);
-      const todayIso = toIsoDate(new Date());
-      const todaysEntry = weightLog[todayIso];
-      const aspiration = this.profile && this.profile.aspiration;
-
-      const entries = Object.keys(weightLog).sort().map((iso) => ({ iso, kg: weightLog[iso].kg }));
-      const latest = entries[entries.length - 1];
-      const previous = entries.length > 1 ? entries[entries.length - 2] : null;
-      const chartEntries = entries.slice(-14);
-
-      const card = el(`
-        <div class="pc-card">
-          <div class="pc-card-head">
-            <div class="pc-card-title-group">
-              <div class="pc-card-icon pc-card-icon-weight">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v4l2.5 1.5"/></svg>
-              </div>
-              <div class="pc-card-title">${t("coaching.weight.title")}</div>
-            </div>
-            <div class="pc-streak-badge ${streak > 0 ? "is-active" : ""}">🔥 ${t("coaching.streak", { n: streak, s: streak === 1 ? "" : "s" })}</div>
-          </div>
-          <div id="pc-weight-body"></div>
-          <div class="pc-weight-form">
-            <input type="number" id="pc-weight-input" min="1" step="0.1" placeholder="${t("coaching.weight.logToday", { unit: RepCheckUnits.weightUnitLabel() })}" value="${todaysEntry ? RepCheckUnits.kgToDisplay(todaysEntry.kg) : ""}">
-            <button type="button" class="pc-weight-log-btn" data-action="log-weight">${todaysEntry ? t("coaching.weight.update") : t("coaching.weight.log")}</button>
-          </div>
-          <a href="/weight-history" class="pc-card-link">${t("coaching.weight.viewHistory")}</a>
-        </div>
-      `);
-
-      const bodyEl = card.querySelector("#pc-weight-body");
-      if (!latest) {
-        bodyEl.appendChild(el(`<div class="pc-weight-empty">${t("coaching.weight.empty")}</div>`));
-        return card;
-      }
-
-      bodyEl.appendChild(this.renderWeightHero(latest, previous, aspiration));
-      if (chartEntries.length > 1) {
-        bodyEl.appendChild(this.renderWeightSparkline(chartEntries));
-      }
-
-      return card;
-    }
-
-    renderWeightHero(latest, previous, aspiration) {
-      const isToday = latest.iso === toIsoDate(new Date());
-      const dateLabel = isToday
-        ? t("coaching.weight.today")
-        : new Date(latest.iso + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" });
-
-      let trendHtml = "";
-      if (previous) {
-        const deltaKg = latest.kg - previous.kg;
-        const deltaDisplay = Math.abs(RepCheckUnits.kgToDisplay(deltaKg));
-        let tone = "neutral";
-        if (aspiration === "lose") tone = deltaKg < 0 ? "good" : deltaKg > 0 ? "attention" : "neutral";
-        else if (aspiration === "gain") tone = deltaKg > 0 ? "good" : deltaKg < 0 ? "attention" : "neutral";
-        const arrow = deltaKg > 0
-          ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`
-          : deltaKg < 0
-          ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>`
-          : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-        trendHtml = `
-          <span class="pc-weight-trend pc-weight-trend-${tone}">
-            ${arrow}${deltaDisplay} ${RepCheckUnits.weightUnitLabel()} ${t("coaching.weight.sinceLastEntry")}
-          </span>
-        `;
-      }
-
-      return el(`
-        <div class="pc-weight-hero">
-          <div class="pc-weight-hero-main">
-            <span class="pc-weight-hero-value">${RepCheckUnits.kgToDisplay(latest.kg)}</span>
-            <span class="pc-weight-hero-unit">${RepCheckUnits.weightUnitLabel()}</span>
-          </div>
-          <div class="pc-weight-hero-sub">
-            <span class="pc-weight-hero-date">${dateLabel}</span>
-            ${trendHtml}
-          </div>
-        </div>
-      `);
-    }
-
-    renderWeightSparkline(entries) {
-      const W = 280, H = 64, PAD = 6;
-      const values = entries.map((e) => e.kg);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const range = max - min || 1;
-      const stepX = entries.length > 1 ? (W - PAD * 2) / (entries.length - 1) : 0;
-      const points = entries.map((e, i) => ({
-        x: PAD + stepX * i,
-        y: PAD + (H - PAD * 2) * (1 - (e.kg - min) / range),
-      }));
-      const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-      const areaPath = `${linePath} L${points[points.length - 1].x.toFixed(1)},${H} L${points[0].x.toFixed(1)},${H} Z`;
-      const last = points[points.length - 1];
-      const gradId = `pc-weight-grad-${Math.round(last.x + last.y)}`;
-
-      return el(`
-        <div class="pc-weight-chart">
-          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="pc-weight-chart-svg">
-            <defs>
-              <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.3"/>
-                <stop offset="100%" stop-color="var(--blue)" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <path d="${areaPath}" fill="url(#${gradId})" stroke="none"/>
-            <path d="${linePath}" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="${last.x}" cy="${last.y}" r="4" fill="var(--blue)" stroke="var(--card-bg)" stroke-width="2"/>
-          </svg>
-          <div class="pc-weight-chart-labels">
-            <span>${new Date(entries[0].iso + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-            <span>${new Date(entries[entries.length - 1].iso + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-          </div>
-        </div>
-      `);
     }
 
     renderLoggingCard() {
