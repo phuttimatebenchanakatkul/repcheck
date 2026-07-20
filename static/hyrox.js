@@ -1164,7 +1164,6 @@
       // button since it's already sitting on the setup page.
       wrap.appendChild(this.renderLeaderboardCard(false));
       wrap.appendChild(this.renderStationGuide());
-      wrap.appendChild(this.renderTrainingSpaceCard());
 
       const card = el(`
         <div class="hx-card">
@@ -1243,7 +1242,10 @@
 
       wrap.appendChild(card);
       if (this.category && this.gender) {
+        // Standards summary first (what the race asks of you), then the
+        // adjustable "your gym" card that personalises the laps.
         wrap.appendChild(this.renderWeightsCard());
+        wrap.appendChild(this.renderTrainingSpaceCard());
       }
       return wrap;
     }
@@ -1464,14 +1466,13 @@
       TRAVERSAL_STATIONS.forEach((key) => {
         const title = STATIONS.find((s) => s.key === key).title;
         const lane = this.getFacilityLane(key);
-        const totalM = Math.round(this.effectiveDistanceM(key));
         const rounds = this.roundsFor(key);
         const isCustom = typeof this.facilityLanes[key] === "number" && this.facilityLanes[key] > 0;
 
         listEl.appendChild(el(`
           <div class="hx-space-row">
             <div class="hx-space-row-head">
-              <span class="hx-space-icon">${stationIconSvg(key, 26)}</span>
+              <span class="hx-space-icon">${stationIconSvg(key, 24)}</span>
               <span class="hx-space-name">${title}</span>
               ${isCustom ? `<button type="button" class="hx-weight-reset hx-space-reset" data-action="reset-facility-lane" data-station="${key}">${t("hyrox.weightAdjust.reset")}</button>` : ""}
             </div>
@@ -1483,16 +1484,10 @@
                   <span class="hx-space-input-unit">m</span>
                 </span>
               </label>
-              <div class="hx-space-result">
-                <div class="hx-space-result-item">
-                  <span class="hx-space-result-value">${totalM}m</span>
-                  <span class="hx-space-result-label">${t("hyrox.space.total")}</span>
-                </div>
-                <span class="hx-space-times">×</span>
-                <div class="hx-space-result-item is-rounds">
-                  <span class="hx-space-result-value">${rounds}</span>
-                  <span class="hx-space-result-label">${t("hyrox.space.laps", { n: rounds })}</span>
-                </div>
+              <span class="hx-space-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+              <div class="hx-space-laps">
+                <span class="hx-space-laps-value">${rounds}</span>
+                <span class="hx-space-laps-label">${t("hyrox.space.laps")}</span>
               </div>
             </div>
           </div>
@@ -1514,25 +1509,50 @@
     // appears once expanded, so the list reads as a scannable set of
     // numbers first, not a wall of prose, while still surfacing the
     // single most useful fact before anyone taps anything.
+    // The at-a-glance numbers for one station on the standards card:
+    // rounds (how many laps of the user's gym lane), total distance, and
+    // the weight -- or reps/ball/target for Wall Balls, distance/machine
+    // for SkiErg & Row. Always visible, no tapping needed.
+    stationStandardChipsHtml(key) {
+      const spec = STATION_SPECS[key];
+      const chip = (value, label, cls) => `<div class="hx-std-chip ${cls || ""}"><span class="hx-std-chip-value">${value}</span><span class="hx-std-chip-label">${label}</span></div>`;
+
+      if (key === "wallBalls") {
+        return chip(spec.reps[this.gender], t("hyrox.space.chip.reps"))
+          + chip(formatWeight(spec.ballKg[this.gender]), t("hyrox.space.chip.ball"))
+          + chip(`${spec.targetFt[this.gender]}ft`, t("hyrox.space.chip.target"));
+      }
+      if (key === "skierg" || key === "row") {
+        return chip(formatStationMeters(spec.distanceM), t("hyrox.space.chip.distance"))
+          + chip(t("hyrox.space.chip.machineVal"), t("hyrox.space.chip.resistance"));
+      }
+      // Travelling stations: rounds (laps of the gym lane) + distance + weight.
+      const rounds = Math.max(1, Math.ceil(spec.distanceM / this.getFacilityLane(key)));
+      const parts = [
+        chip(`${rounds}×`, t("hyrox.space.chip.rounds"), "is-rounds"),
+        chip(formatStationMeters(spec.distanceM), t("hyrox.space.chip.distance")),
+      ];
+      const w = getDefaultStationWeightKg(key, this.gender, this.category);
+      if (w) {
+        let label = t("hyrox.space.chip.load");
+        if (key === "sledPush" || key === "sledPull") label = t("hyrox.space.chip.sled");
+        else if (key === "farmersCarry") label = t("hyrox.space.chip.perHand");
+        else if (key === "lunges") label = t("hyrox.space.chip.sandbag");
+        parts.push(chip(formatWeight(w), label));
+      }
+      return parts.join("");
+    }
+
     renderWeightsCard() {
       const rows = STATION_ORDER.map((key) => {
         const title = STATIONS.find((s) => s.key === key).title;
-        const summary = stationStandardsSummary(key, this.gender, this.category);
-        const isOpen = !!this.expandedStandards[key];
         return `
-          <div class="hx-standard-row">
-            <button type="button" class="hx-standard-row-head" data-action="toggle-standard-detail" data-station="${key}" aria-expanded="${isOpen}">
-              <span class="hx-standard-row-top">
-                <span class="hx-standard-icon">${stationIconSvg(key, 26)}</span>
-                <span class="hx-standard-title">${title}</span>
-                <span class="hx-standard-chevron ${isOpen ? "is-open" : ""}">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-                </span>
-              </span>
-              <span class="hx-standard-chips">${summary.chips}</span>
-              ${summary.keyFact ? `<span class="hx-standard-key-fact">${summary.keyFact}</span>` : ""}
-            </button>
-            <div class="hx-standard-detail" ${isOpen ? "" : 'style="display:none;"'}>${summary.detail}</div>
+          <div class="hx-std-row">
+            <div class="hx-std-row-head">
+              <span class="hx-std-icon">${stationIconSvg(key, 24)}</span>
+              <span class="hx-std-name">${title}</span>
+            </div>
+            <div class="hx-std-chips">${this.stationStandardChipsHtml(key)}</div>
           </div>
         `;
       }).join("");
@@ -1540,7 +1560,7 @@
       return el(`
         <div class="hx-card">
           <div class="hx-step-label">${t("hyrox.weightsTitle", { category: categoryTitle(this.category), gender: genderTitle(this.gender) })}</div>
-          <div class="hx-standards-list">${rows}</div>
+          <div class="hx-std-list">${rows}</div>
           <div class="hx-weights-note">${t("hyrox.weightsNote.default")}</div>
         </div>
       `);
