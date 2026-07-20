@@ -203,9 +203,16 @@ def init_db():
                 favored TEXT,
                 reps INTEGER,
                 feedback_text TEXT NOT NULL,
+                video_filename TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        # The analyzed (trimmed) clip is now kept on disk per result so the
+        # history view can replay it -- rows from before this column simply
+        # have no video. Probe-then-ALTER, same reasoning as friend_code.
+        ar_cols = {row["name"] for row in conn.execute("PRAGMA table_info(analyze_results)")}
+        if "video_filename" not in ar_cols:
+            conn.execute("ALTER TABLE analyze_results ADD COLUMN video_filename TEXT")
 
 
 def _row_to_dict(row):
@@ -600,13 +607,13 @@ def get_hyrox_leaderboard(gender, category, format_):
     return [dict(r) for r in rows]
 
 
-def save_analyze_result(user_id, exercise_label, overall_score, stretch_score, squeeze_score, favored, reps, feedback_text):
+def save_analyze_result(user_id, exercise_label, overall_score, stretch_score, squeeze_score, favored, reps, feedback_text, video_filename=None):
     with get_db() as conn:
         cursor = conn.execute(
             """INSERT INTO analyze_results
-               (user_id, exercise_label, overall_score, stretch_score, squeeze_score, favored, reps, feedback_text)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, exercise_label, overall_score, stretch_score, squeeze_score, favored, reps, feedback_text),
+               (user_id, exercise_label, overall_score, stretch_score, squeeze_score, favored, reps, feedback_text, video_filename)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, exercise_label, overall_score, stretch_score, squeeze_score, favored, reps, feedback_text, video_filename),
         )
         return cursor.lastrowid
 
@@ -618,6 +625,43 @@ def get_latest_analyze_result(user_id):
             (user_id,),
         ).fetchone()
     return dict(row) if row else None
+
+
+def get_analyze_results(user_id, limit=20):
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM analyze_results WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_analyze_result(user_id, result_id):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM analyze_results WHERE user_id = ? AND id = ?",
+            (user_id, result_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def prune_analyze_results(user_id, keep=20):
+    """Delete this user's oldest analyze results beyond the newest `keep`,
+    returning the deleted rows' video filenames so the caller can remove
+    the clips from disk too (the DB doesn't own those files)."""
+    with get_db() as conn:
+        stale = conn.execute(
+            """SELECT id, video_filename FROM analyze_results
+               WHERE user_id = ?
+               ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?""",
+            (user_id, keep),
+        ).fetchall()
+        if stale:
+            conn.executemany(
+                "DELETE FROM analyze_results WHERE id = ?",
+                [(row["id"],) for row in stale],
+            )
+    return [row["video_filename"] for row in stale if row["video_filename"]]
 
 
 def update_preferences(user_id, theme=None, language=None):

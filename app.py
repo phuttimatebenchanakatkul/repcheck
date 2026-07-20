@@ -64,6 +64,8 @@ from database import (
     get_custom_exercises,
     get_custom_foods,
     get_exercise_leaderboard,
+    get_analyze_result,
+    get_analyze_results,
     get_friends,
     get_hyrox_leaderboard,
     get_latest_analyze_result,
@@ -76,6 +78,7 @@ from database import (
     has_submitted_today,
     init_db,
     mark_onboarding_completed,
+    prune_analyze_results,
     save_analyze_result,
     save_submission,
     set_user_data,
@@ -103,6 +106,15 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PROGRESS_PHOTOS_DIR = DATA_DIR / "progress_photos"
 PROGRESS_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+# The trimmed clip each analysis was actually run on, kept so the history
+# view can replay it alongside the stored feedback. Same access rule as
+# progress photos: never a public static route, always /analyze/video/<id>
+# with an owner check. Capped per user (see ANALYZE_HISTORY_KEEP) so disk
+# use stays bounded on the small persistent volume.
+ANALYZE_VIDEOS_DIR = DATA_DIR / "analyze_videos"
+ANALYZE_VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+ANALYZE_HISTORY_KEEP = 20
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
 ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -1309,17 +1321,31 @@ def analyze():
             result["duration_seconds"], result["reps"],
         )
 
-        # The uploaded video is always deleted (see the `finally` below) —
-        # this is the only thing that survives an analysis. Only for a
-        # logged-in user (anonymous/local-only use has no account to store
-        # it against); see /analyze/latest for where this gets read back.
+        # For a logged-in user the analysis (and the trimmed clip it was
+        # run on) is kept so the history view can replay it -- the raw
+        # upload is still always deleted (see the `finally` below).
+        # Anonymous/local-only use has no account to store against, so
+        # everything is deleted as before.
         user = current_user()
         if user:
+            video_filename = None
+            try:
+                video_filename = f"{user['id']}_{job_id}{suffix}"
+                trimmed_path.replace(ANALYZE_VIDEOS_DIR / video_filename)
+            except OSError:
+                video_filename = None  # analysis still saves, just without a replayable clip
             save_analyze_result(
                 user["id"], result["exercise_label"], result["overall_score"],
                 result["stretch_score"], result["squeeze_score"], result["favored"],
-                result["reps"], result["feedback"],
+                result["reps"], result["feedback"], video_filename,
             )
+            # Bound disk use: drop this user's oldest history entries (and
+            # their clips) beyond the newest ANALYZE_HISTORY_KEEP.
+            for stale_name in prune_analyze_results(user["id"], keep=ANALYZE_HISTORY_KEEP):
+                try:
+                    (ANALYZE_VIDEOS_DIR / stale_name).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
         if wants_json:
             return jsonify({
@@ -1383,6 +1409,78 @@ def analyze_latest():
         active_nav="analyze",
         i18n_page="result",
     )
+
+
+def _analyze_video_available(row):
+    return bool(row.get("video_filename")) and (ANALYZE_VIDEOS_DIR / row["video_filename"]).exists()
+
+
+@app.route("/api/analyze/history", methods=["GET"])
+def api_analyze_history():
+    # The Analyze page's "Recent analyses" strip for logged-in users:
+    # every stored analysis, newest first, each openable in full via
+    # /api/analyze/history/<id> below.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    entries = [
+        {
+            "id": row["id"],
+            "exercise_label": row["exercise_label"],
+            "overall_score": row["overall_score"],
+            "reps": row["reps"],
+            "created_at": row["created_at"],
+            "has_video": _analyze_video_available(row),
+        }
+        for row in get_analyze_results(user["id"], limit=ANALYZE_HISTORY_KEEP)
+    ]
+    return jsonify({"ok": True, "entries": entries})
+
+
+@app.route("/api/analyze/history/<int:result_id>", methods=["GET"])
+def api_analyze_history_detail(result_id):
+    # One stored analysis in the exact shape the fresh-analysis JSON uses
+    # (scores + pre-split sections + raw feedback), plus a video_url when
+    # the clip it was run on is still on disk, so the client can render it
+    # with the same result view.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    row = get_analyze_result(user["id"], result_id)
+    if not row:
+        return jsonify({"ok": False, "error": "Not found."}), 404
+    return jsonify({
+        "ok": True,
+        "id": row["id"],
+        "exercise_label": row["exercise_label"],
+        "overall_score": row["overall_score"],
+        "stretch_score": row["stretch_score"],
+        "squeeze_score": row["squeeze_score"],
+        "favored": row["favored"],
+        "reps": row["reps"],
+        "sections": split_feedback_sections(row["feedback_text"]),
+        "feedback_text": row["feedback_text"],
+        "created_at": row["created_at"],
+        "video_url": url_for("analyze_video", result_id=row["id"]) if _analyze_video_available(row) else None,
+    })
+
+
+@app.route("/analyze/video/<int:result_id>", methods=["GET"])
+def analyze_video(result_id):
+    # Serves the trimmed clip an analysis was run on. Owner-checked, same
+    # rule as /api/checkin/photo/<id> -- these files are never exposed via
+    # a public static route. conditional=True enables HTTP Range requests,
+    # which video elements need for seeking.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    row = get_analyze_result(user["id"], result_id)
+    if not row or not row.get("video_filename"):
+        return jsonify({"ok": False, "error": "Not found."}), 404
+    path = ANALYZE_VIDEOS_DIR / row["video_filename"]
+    if not path.exists():
+        return jsonify({"ok": False, "error": "Not found."}), 404
+    return send_file(path, conditional=True)
 
 
 if __name__ == "__main__":
