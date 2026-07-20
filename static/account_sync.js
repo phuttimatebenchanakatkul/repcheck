@@ -200,6 +200,93 @@
   // local write is trusted outright (see the merge branch below).
   var MERGE_UNION_KEYS = new Set(["repcheck_nutrition_favorites_v1"]);
 
+  // Append-only LOG keys: collections of dated user entries (workouts,
+  // meals, races, analyses, weigh-ins, day statuses). These had the same
+  // data-loss failure the favorites list did, but far worse consequences:
+  // if the server copy is stale or empty (a dropped push, an in-app
+  // browser that doesn't deliver background requests, or an account whose
+  // server blob simply hasn't been populated yet), the plain "server wins"
+  // hydration below would overwrite the local log with it the moment the
+  // 20-second recent-write window elapsed -- silently wiping a whole day
+  // of freshly-logged entries. Instead these are reconciled by a
+  // structural merge (see mergeLog) that unions entries by id and unions
+  // dates, so a log entry present on EITHER side is always kept and the
+  // server being behind can never delete local data. Same removal
+  // trade-off as favorites: a delete whose push was dropped can briefly
+  // reappear, which is vastly preferable to losing everything -- and a
+  // fresh removal still sticks via the recent-write trust window.
+  var MERGE_LOG_KEYS = new Set([
+    "repcheck_workout_log_v2",
+    "repcheck_nutrition_log_v1",
+    "repcheck_hyrox_history_v1",
+    "repcheck_analyze_log_v1",
+    "repcheck_weight_log_v1",
+    "repcheck_day_status_v1",
+  ]);
+
+  // Union an array of entries by id (falling back to a full-value key for
+  // entries without one, e.g. the analyze log), local taking precedence on
+  // an id collision so this device's edits to an existing entry win.
+  function mergeById(localArr, serverArr) {
+    var out = [];
+    var seen = {};
+    localArr.concat(serverArr).forEach(function (item) {
+      var k = (item && typeof item === "object" && item.id != null)
+        ? "id:" + String(item.id)
+        : "j:" + JSON.stringify(item);
+      if (!Object.prototype.hasOwnProperty.call(seen, k)) {
+        seen[k] = true;
+        out.push(item);
+      }
+    });
+    return out;
+  }
+
+  // Union a date-keyed object (workout/nutrition = date -> entry array;
+  // weight/day-status = date -> scalar). Every date on either side is kept;
+  // arrays are id-merged, scalars prefer the local value on a conflict.
+  function mergeDateKeyed(localObj, serverObj) {
+    var lo = isPlainObject(localObj) ? localObj : {};
+    var se = isPlainObject(serverObj) ? serverObj : {};
+    var out = {};
+    var keys = {};
+    Object.keys(lo).forEach(function (k) { keys[k] = true; });
+    Object.keys(se).forEach(function (k) { keys[k] = true; });
+    Object.keys(keys).forEach(function (k) {
+      var lv = lo[k], sv = se[k];
+      if (Array.isArray(lv) || Array.isArray(sv)) {
+        out[k] = mergeById(Array.isArray(lv) ? lv : [], Array.isArray(sv) ? sv : []);
+      } else if (lv !== undefined) {
+        out[k] = lv;
+      } else {
+        out[k] = sv;
+      }
+    });
+    return out;
+  }
+
+  function isPlainObject(v) {
+    return v !== null && typeof v === "object" && !Array.isArray(v);
+  }
+
+  function mergeLog(localVal, serverVal) {
+    if (Array.isArray(localVal) || Array.isArray(serverVal)) {
+      return mergeById(Array.isArray(localVal) ? localVal : [], Array.isArray(serverVal) ? serverVal : []);
+    }
+    return mergeDateKeyed(localVal, serverVal);
+  }
+
+  // Does a merged log actually contain any entries? Used to decide whether
+  // a hydration merge is worth a page reload (empty normalization isn't).
+  function logHasEntries(val) {
+    if (Array.isArray(val)) return val.length > 0;
+    if (isPlainObject(val)) return Object.keys(val).some(function (k) {
+      var v = val[k];
+      return Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null;
+    });
+    return false;
+  }
+
   function applyLive(key) {
     if (key === "repcheck_language" && window.RepCheckI18n) {
       RepCheckI18n.setLang(RepCheckI18n.getLang());
@@ -337,6 +424,35 @@
           }
           if (!hasServer || encodeForStorage(serverValues[key]) !== mergedRaw) {
             pushToServer(key, mergedRaw); // server was missing some -> bring it up to the union
+          }
+          return;
+        }
+
+        // Append-only log keys: structural merge so a stale/empty server
+        // copy can never wipe locally-logged entries (see MERGE_LOG_KEYS).
+        if (MERGE_LOG_KEYS.has(key)) {
+          if (recentlyWrittenLocally) {
+            // A just-made change (including a deletion) is authoritative;
+            // make sure the server has it, don't merge the old copy back in.
+            if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
+              pushToServer(key, localRaw);
+            }
+            return;
+          }
+          var localLog = null, serverLog = null;
+          try { localLog = localRaw !== null ? JSON.parse(localRaw) : null; } catch (e) { localLog = null; }
+          serverLog = hasServer ? serverValues[key] : null;
+          var mergedLog = mergeLog(localLog, serverLog);
+          var mergedLogRaw = JSON.stringify(mergedLog);
+          if (mergedLogRaw !== localRaw) {
+            nativeSetItem(key, mergedLogRaw);
+            // Reload only when the merge actually surfaced entries (e.g.
+            // another device's logs, or adopting the account's data on a
+            // fresh browser) -- not for an empty normalization.
+            if (logHasEntries(mergedLog)) needsReload = true;
+          }
+          if (!hasServer || encodeForStorage(serverValues[key]) !== mergedLogRaw) {
+            pushToServer(key, mergedLogRaw); // bring the server up to the merged log
           }
           return;
         }
