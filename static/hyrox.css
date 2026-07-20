@@ -785,18 +785,18 @@
   box-shadow: 0 4px 10px rgba(47, 102, 232, 0.3);
 }
 
-/* One horizontally-scrollable row of small combo chips instead of the
-   old 2x2 button grid -- less chrome before the actual standings. */
+/* Small combo chips that wrap onto a second row on narrow screens,
+   instead of the old 2x2 button grid -- less chrome before the actual
+   standings, and all 4 combos stay visible at once (no swipe-to-see-more
+   scroll strip, which on a `flex-shrink:0` row like this could also blow
+   out the whole mobile page's layout width if the chips didn't all fit
+   in one line -- see body's overflow-x note in style.css). */
 .hx-lb-tabs {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 14px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: none;
 }
-.hx-lb-tabs::-webkit-scrollbar { display: none; }
 .hx-lb-tab {
   padding: 8px 14px;
   border-radius: 999px;
@@ -808,7 +808,6 @@
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
-  flex-shrink: 0;
   transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .hx-lb-tab:hover { border-color: var(--blue); }

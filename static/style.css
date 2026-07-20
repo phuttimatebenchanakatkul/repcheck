@@ -70,6 +70,15 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  /* Safety net: a `flex-wrap: nowrap` row with `overflow-x: auto` and
+     non-shrinking children (a horizontal-scroll pattern used in a few
+     places) can, if its content ever doesn't fit, expand the whole
+     mobile layout viewport instead of scrolling internally -- shrinking
+     every bit of UI and making fixed-size elements look oversized. Once
+     that happens mobile browsers don't reliably shrink back on their
+     own. This clips any such runaway overflow at the page root so one
+     misbehaving component can't blow up the entire page's zoom level. */
+  overflow-x: hidden;
 }
 
 /* When Thai is selected, prefer SF Pro TH (Apple's Thai system face) with
