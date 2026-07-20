@@ -454,12 +454,22 @@
   padding-top: 20px;
   border-top: 1px solid var(--border);
 }
-.hx-space-tip {
-  display: flex; align-items: flex-start; gap: 10px;
-  background: var(--amber-bg); border-radius: 14px; padding: 12px 14px;
-  font-size: 12px; line-height: 1.5; color: var(--text); margin: 12px 0 16px;
+/* One short lead line instead of a paragraph, then a calm tap-to-open
+   "how to measure" hint (native <details>) so the default view stays
+   quiet -- the help is one tap away for anyone who wants it, not a wall
+   of amber text everyone has to read past. */
+.hx-space-lead { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: -4px 0 14px; }
+.hx-space-hint { border-radius: 12px; background: var(--bg); margin-bottom: 16px; overflow: hidden; }
+.hx-space-hint-summary {
+  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  padding: 11px 14px; font-size: 12.5px; font-weight: 700; color: var(--text);
+  list-style: none;
 }
-.hx-space-tip-icon { color: var(--amber); flex-shrink: 0; display: flex; margin-top: 1px; }
+.hx-space-hint-summary::-webkit-details-marker { display: none; }
+.hx-space-hint-icon { color: var(--amber); flex-shrink: 0; display: flex; }
+.hx-space-hint-chevron { margin-left: auto; color: var(--text-secondary); display: flex; flex-shrink: 0; transition: transform 0.18s ease; }
+.hx-space-hint[open] .hx-space-hint-chevron { transform: rotate(180deg); }
+.hx-space-hint-body { padding: 0 14px 13px 39px; font-size: 12px; line-height: 1.55; color: var(--text-secondary); }
 .hx-space-list { display: flex; flex-direction: column; gap: 10px; }
 .hx-space-row { background: var(--bg); border-radius: 16px; padding: 14px; }
 .hx-space-row-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
