@@ -667,6 +667,14 @@
       if (action === "analyze-race") return this.loadRaceAnalysis(target.dataset.id, true);
       if (action === "toggle-analysis-detail") return this.toggleAnalysisDetail(target.dataset.id, target.dataset.section);
       if (action === "reset-facility-lane") return this.resetFacilityLane(target.dataset.station);
+      if (action === "hero-start") return this.scrollToSetup();
+    }
+
+    // Hero CTA: glide down to the setup steps instead of jumping into a
+    // race unconfigured -- category/format/gender still need choosing.
+    scrollToSetup() {
+      const cardEl = this.root.querySelector("[data-setup-card]");
+      if (cardEl) cardEl.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     // ---------- AI analysis: short/detail toggle ----------
@@ -1158,12 +1166,13 @@
 
     renderSetup() {
       const wrap = el(`<div></div>`);
-      // Leaderboard first thing on the page -- no click needed to see
-      // where you stand, same content as the standalone "Leaderboard"
-      // screen (see renderLeaderboardCard) just without its own back
-      // button since it's already sitting on the setup page.
+      // The hero opens the page (same design language as the home page's
+      // dark gradient hero): your fastest time, the 8 stations as tappable
+      // icon chips, one CTA down to the setup steps. The leaderboard
+      // follows -- same content as the standalone "Leaderboard" screen
+      // (see renderLeaderboardCard) minus its back button.
+      wrap.appendChild(this.renderHeroCard());
       wrap.appendChild(this.renderLeaderboardCard(false));
-      wrap.appendChild(this.renderStationGuide());
 
       // Weight standards sits right under the intro -- it's the "what the
       // race asks of you" reference. Needs category + gender to show the
@@ -1173,7 +1182,7 @@
       }
 
       const card = el(`
-        <div class="hx-card">
+        <div class="hx-card" data-setup-card>
           <div class="hx-step-label">${t("hyrox.step.category")}</div>
           <div class="hx-choice-grid" data-group="category"></div>
           <div class="hx-step-label">${t("hyrox.step.format")}</div>
@@ -1424,30 +1433,42 @@
       return wrap;
     }
 
-    renderStationGuide() {
-      // A first-look reference for anyone new to Hyrox: what the race
-      // actually consists of, before they've even picked a category.
+    // The page opener, in the home page's hero language: a dark gradient
+    // card leading with the user's fastest time (or a warm first-race
+    // invite), the 8 stations as tappable icon chips in race order (each
+    // opens the existing how-to popup, so the old "New to Hyrox?" guide
+    // card's job lives on here), and one clear CTA down to the steps.
+    renderHeroCard() {
+      const bests = this.getAllPersonalBests();
+      const best = bests[0] || null;
+      const raceCount = this.history.length;
+
       const card = el(`
-        <div class="hx-card">
-          <div class="hx-step-label">${t("hyrox.stationGuide.title")}</div>
-          <div class="hx-guide-intro">
-            ${t("hyrox.stationGuide.intro")}
+        <div class="hx-hero">
+          <div class="hx-hero-top">
+            <div class="hx-hero-kicker">${t("hyrox.hero.kicker")}</div>
+            ${raceCount ? `<div class="hx-hero-chip">\u{1F3C1} ${t("hyrox.hero.races", { n: raceCount, s: raceCount === 1 ? "" : "s" })}</div>` : ""}
           </div>
-          <div class="hx-guide-grid" data-guide-grid></div>
+          ${best ? `
+            <div class="hx-hero-title">${formatClock(best.totalSeconds)}</div>
+            <div class="hx-hero-sub">${t("hyrox.hero.pbSub", { combo: comboLabel(best.gender, best.category, best.format) })}</div>
+          ` : `
+            <div class="hx-hero-title">${t("hyrox.hero.emptyTitle")}</div>
+            <div class="hx-hero-sub">${t("hyrox.hero.emptySub")}</div>
+          `}
+          <div class="hx-hero-stations" data-hero-stations></div>
+          <div class="hx-hero-hint">${t("hyrox.hero.tapHint")}</div>
+          <button type="button" class="hx-hero-cta" data-action="hero-start">${t("hyrox.startRace")}</button>
         </div>
       `);
 
-      const grid = card.querySelector("[data-guide-grid]");
+      const stationsEl = card.querySelector("[data-hero-stations]");
       STATION_ORDER.forEach((key, i) => {
         const title = STATIONS.find((s) => s.key === key).title;
-        grid.appendChild(el(`
-          <button type="button" class="hx-guide-item" data-action="show-station-info" data-station="${key}">
-            <div class="hx-guide-icon">${stationIconSvg(key, 40)}</div>
-            <div class="hx-guide-index">${i + 1}</div>
-            <div class="hx-guide-title">${title}</div>
-            <div class="hx-guide-play">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </div>
+        stationsEl.appendChild(el(`
+          <button type="button" class="hx-hero-station" data-action="show-station-info" data-station="${key}" title="${title}" aria-label="${title}">
+            <span class="hx-hero-station-num">${i + 1}</span>
+            <span class="hx-hero-station-icon">${stationIconSvg(key, 20)}</span>
           </button>
         `));
       });
@@ -2063,11 +2084,16 @@
       const card = el(`
         <div class="hx-card">
           <div class="hx-lb-header">
-            <div class="hx-lb-caption">${t("hyrox.leaderboard.headerCaption", { gender: genderTitle(gender) })}</div>
+            <div class="hx-lb-title-group">
+              <div class="hx-lb-trophy">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+              </div>
+              <div class="hx-lb-title">${t("hyrox.leaderboard.button")}</div>
+            </div>
             <div class="hx-lb-gender-toggle" data-lb-gender-toggle></div>
           </div>
           <div class="hx-lb-tabs" data-lb-tabs></div>
-          <div data-lb-list></div>
+          <div class="hx-lb-list" data-lb-list></div>
           <div data-lb-me></div>
           ${backBtnHtml}
         </div>
@@ -2102,46 +2128,32 @@
       } else {
         const rows = cache.data.leaderboard;
         const totalEntries = cache.data.totalEntries;
+        // One row per athlete: rank badge (gold/silver/bronze tint for the
+        // podium), name -- with a quiet "You" tag on your own row -- and
+        // the time on the right. Much less to read than the old
+        // time-vs-rank double stack.
+        const rowHtml = (rank, name, seconds, isMe) => `
+          <div class="hx-lb-row ${isMe ? "is-me" : ""}">
+            <span class="hx-lb-rank ${rank <= 3 ? `is-top is-top-${rank}` : ""}">${rank}</span>
+            <span class="hx-lb-name">${name}${isMe ? `<span class="hx-lb-you">${t("hyrox.leaderboard.you")}</span>` : ""}</span>
+            <span class="hx-lb-time">${formatClock(seconds)}</span>
+          </div>
+        `;
         if (!rows.length) {
           listEl.appendChild(el(`<div class="hx-history-empty">${t("hyrox.leaderboard.empty")}</div>`));
         } else {
           const myRank = cache.data.me ? cache.data.me.rank : null;
           rows.forEach((r, i) => {
-            const rank = i + 1;
-            listEl.appendChild(el(`
-              <div class="hx-lb-entry-row ${rank === myRank ? "is-me" : ""}">
-                <div class="hx-lb-entry-left">
-                  <div class="hx-lb-entry-time">${formatClock(r.best_seconds)}</div>
-                  <div class="hx-lb-entry-name">${r.name}</div>
-                </div>
-                <div class="hx-lb-entry-right">
-                  <div class="hx-lb-entry-rank">#${rank}</div>
-                  <div class="hx-lb-entry-total">${t("hyrox.leaderboard.of", { n: totalEntries })}</div>
-                </div>
-              </div>
-            `));
+            listEl.appendChild(el(rowHtml(i + 1, r.name, r.best_seconds, i + 1 === myRank)));
           });
+          listEl.appendChild(el(`<div class="hx-lb-total">${t("hyrox.leaderboard.totalAthletes", { n: totalEntries, s: totalEntries === 1 ? "" : "s" })}</div>`));
         }
 
         if (cache.data.me && !rows.some((r, i) => i + 1 === cache.data.me.rank)) {
-          // Only needed as a fallback for when "you" aren't in the visible
-          // rows above (outside the top 50) -- otherwise your own row
-          // already appears in the list itself, styled identically via
-          // .is-me, so this stays a plain, no-decoration row, not a
-          // separate "special" card design.
+          // Fallback for when "you" are outside the visible top rows --
+          // same row shape, just appended below the list.
           const me = cache.data.me;
-          meEl.appendChild(el(`
-            <div class="hx-lb-entry-row is-me">
-              <div class="hx-lb-entry-left">
-                <div class="hx-lb-entry-time">${formatClock(me.best_seconds)}</div>
-                <div class="hx-lb-entry-name">${me.name}</div>
-              </div>
-              <div class="hx-lb-entry-right">
-                <div class="hx-lb-entry-rank">#${me.rank}</div>
-                <div class="hx-lb-entry-total">${t("hyrox.leaderboard.of", { n: totalEntries })}</div>
-              </div>
-            </div>
-          `));
+          meEl.appendChild(el(rowHtml(me.rank, me.name, me.best_seconds, true)));
         } else if (!cache.data.me) {
           meEl.appendChild(el(`<div class="hx-lb-me-banner is-empty">${t("hyrox.leaderboard.notCompeted")}</div>`));
         }

@@ -20,46 +20,70 @@
   margin-bottom: 14px;
 }
 
-/* ---------- Station guide (new-user reference) ---------- */
+/* Shared intro-paragraph style (used by the training-space section). */
 .hx-guide-intro { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: -6px 0 16px; }
-.hx-guide-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 10px;
-}
-.hx-guide-item {
+
+/* ---------- Hero (same design language as the home page's hm-hero:
+   one dark gradient surface with a soft blue glow, leading with your
+   fastest time, the 8 stations as tappable icon chips, and one CTA) */
+.hx-hero {
   position: relative;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px 8px 10px;
-  text-align: center;
-  background: var(--bg);
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--text);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  overflow: hidden;
+  background: linear-gradient(145deg, #263356 0%, #17181d 62%);
+  color: #fff;
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 22px;
+  margin-bottom: 16px;
 }
-.hx-guide-item:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(20, 20, 20, 0.07); border-color: var(--blue); }
-.hx-guide-item:active { transform: scale(0.96); }
-.hx-guide-icon { color: var(--blue); display: flex; justify-content: center; margin-bottom: 8px; }
-.hx-guide-index {
+.hx-hero::before {
+  content: "";
   position: absolute;
-  top: 6px;
-  left: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-secondary);
+  top: -70px; right: -50px;
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(77, 127, 245, 0.4), transparent);
+  pointer-events: none;
 }
-.hx-guide-title { font-size: 11px; font-weight: 600; line-height: 1.3; }
-/* Small play badge in the corner so it reads as "tap to watch/learn". */
-.hx-guide-play {
-  position: absolute; top: 6px; right: 6px;
-  width: 18px; height: 18px; border-radius: 50%;
+.hx-hero > * { position: relative; }
+.hx-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hx-hero-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+.hx-hero-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(255, 255, 255, 0.1); color: #fff;
+  border-radius: 999px; padding: 6px 13px;
+  font-size: 13px; font-weight: 800;
+}
+.hx-hero-title { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.hx-hero-sub { font-size: 13.5px; color: rgba(255, 255, 255, 0.6); margin-top: 5px; }
+.hx-hero-stations { display: flex; justify-content: space-between; gap: 5px; margin-top: 18px; }
+.hx-hero-station {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  flex: 1; min-width: 0;
+  background: none; border: none; padding: 0;
+  cursor: pointer; font-family: inherit;
+  transition: transform 0.1s ease;
+}
+.hx-hero-station:active { transform: scale(0.9); }
+.hx-hero-station-num { font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.45); }
+.hx-hero-station-icon {
+  width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--blue-bg); color: var(--blue);
+  background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.85);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-.hx-guide-item:hover .hx-guide-play { background: var(--blue); color: #fff; }
+.hx-hero-station:hover .hx-hero-station-icon { background: rgba(77, 127, 245, 0.5); color: #fff; }
+.hx-hero-hint { font-size: 11px; color: rgba(255, 255, 255, 0.45); text-align: center; margin-top: 10px; }
+.hx-hero-cta {
+  display: block; width: 100%; text-align: center; margin-top: 16px;
+  background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+  border: none; border-radius: 999px; padding: 13px;
+  font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;
+  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.35);
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.hx-hero-cta:hover { opacity: 0.92; }
+.hx-hero-cta:active { transform: scale(0.98); }
 
 /* ---------- Modal (station info popup + race detail) ---------- */
 .hx-modal-overlay {
@@ -677,13 +701,14 @@
 
 /* ---------- Leaderboard ---------- */
 .hx-lb-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-.hx-lb-caption {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.hx-lb-title-group { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.hx-lb-trophy {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
+  box-shadow: 0 6px 14px rgba(185, 131, 42, 0.35);
 }
+.hx-lb-title { font-size: 15px; font-weight: 700; }
 /* A direct, always-visible two-way switch instead of a hidden "..." menu
    -- there are only ever two genders, so a one-tap segmented toggle is
    both clearer (obviously a switch, not a mystery icon) and faster than
@@ -718,52 +743,84 @@
   box-shadow: 0 4px 10px rgba(47, 102, 232, 0.3);
 }
 
-.hx-lb-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+/* One horizontally-scrollable row of small combo chips instead of the
+   old 2x2 button grid -- less chrome before the actual standings. */
+.hx-lb-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.hx-lb-tabs::-webkit-scrollbar { display: none; }
 .hx-lb-tab {
-  padding: 11px 14px;
-  border-radius: 12px;
-  border: 1.5px solid var(--border);
-  background: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
   color: var(--text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  flex: 1;
-  min-width: 120px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .hx-lb-tab:hover { border-color: var(--blue); }
 .hx-lb-tab:active { transform: scale(0.97); }
-.hx-lb-tab.is-active { border-color: var(--blue); background: var(--blue); color: #fff; box-shadow: 0 6px 16px rgba(47, 102, 232, 0.28); }
+.hx-lb-tab.is-active { border-color: transparent; background: var(--blue); color: #fff; box-shadow: 0 4px 12px rgba(47, 102, 232, 0.28); }
 
-/* Each competitor's row: time + name on the left, rank + total on the
-   right -- bigger and bolder than the plain race-history rows above, so
-   the list reads as "here's the field" at a glance. */
-.hx-lb-entry-row {
+/* One clean row per athlete: rank badge (podium tints for the top 3),
+   name, and the time on the right. Your own row gets a soft blue tint
+   and a quiet "You" tag. */
+.hx-lb-list { display: flex; flex-direction: column; gap: 8px; }
+.hx-lb-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 20px 22px;
+  gap: 12px;
+  padding: 12px 14px;
   background: var(--bg);
-  border-radius: 18px;
-  margin-bottom: 10px;
-  border: 1px solid transparent;
-  transition: box-shadow 0.15s ease;
+  border-radius: 14px;
 }
-.hx-lb-entry-row:hover { box-shadow: 0 6px 18px rgba(20, 20, 20, 0.07); }
-.hx-lb-entry-row.is-me { background: var(--sidebar-active); }
-.hx-lb-entry-time { font-size: 30px; font-weight: 700; line-height: 1.1; color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
-.hx-lb-entry-name { font-size: 14px; font-weight: 400; color: var(--text-secondary); margin-top: 4px; }
-.hx-lb-entry-right { text-align: right; flex-shrink: 0; }
-.hx-lb-entry-rank { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
-.hx-lb-entry-total { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-top: 4px; }
+.hx-lb-row.is-me { background: var(--blue-bg); }
+.hx-lb-rank {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--card-bg); color: var(--text-secondary);
+  font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.hx-lb-rank.is-top { color: #fff; }
+.hx-lb-rank.is-top-1 { background: linear-gradient(135deg, #f2c14e, #d99a2b); box-shadow: 0 4px 10px rgba(217, 154, 43, 0.35); }
+.hx-lb-rank.is-top-2 { background: linear-gradient(135deg, #b9c2cf, #8e99a8); box-shadow: 0 4px 10px rgba(142, 153, 168, 0.35); }
+.hx-lb-rank.is-top-3 { background: linear-gradient(135deg, #d69b6b, #b0713f); box-shadow: 0 4px 10px rgba(176, 113, 63, 0.35); }
+.hx-lb-name {
+  flex: 1; min-width: 0;
+  font-size: 14px; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hx-lb-you {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: 1px;
+}
+.hx-lb-time { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.hx-lb-total { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); text-align: center; padding-top: 6px; }
 
-/* Fallback for when "you" aren't among the visible rows above (outside
-   the top 50) -- reuses .hx-lb-entry-row/is-me directly (see
-   renderLeaderboardCard in hyrox.js) so it's not a separate "special"
-   design, just the same plain row shape used everywhere else. */
+/* Fallback "you" row for when you're outside the visible top rows --
+   same .hx-lb-row shape, appended below the list. */
+
+[data-lb-me] .hx-lb-row { margin-top: 8px; }
 
 .hx-lb-me-banner {
   margin-top: 10px;
@@ -920,4 +977,7 @@
   .hx-run-stat-value { font-size: 32px; }
   .hx-now-title { font-size: 23px; }
   .hx-finish-time { font-size: 34px; }
+  .hx-hero { padding: 18px; }
+  .hx-hero-title { font-size: 26px; }
+  .hx-hero-station-icon { width: 30px; height: 30px; }
 }
