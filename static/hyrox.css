@@ -456,12 +456,38 @@
 }
 .hx-space-input::-webkit-outer-spin-button, .hx-space-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .hx-space-input-unit { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
-.hx-space-result { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-.hx-space-result-item { text-align: center; }
-.hx-space-result-value { display: block; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
-.hx-space-result-item.is-rounds .hx-space-result-value { color: var(--blue); }
-.hx-space-result-label { display: block; font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
-.hx-space-times { font-size: 15px; font-weight: 700; color: var(--text-secondary); }
+/* Simple "your lane → N laps" so the whole card reads as one easy
+   sentence per station, not a table of numbers. */
+.hx-space-arrow { color: var(--text-secondary); display: flex; flex-shrink: 0; }
+.hx-space-laps {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  margin-left: auto; min-width: 56px;
+  background: var(--blue-bg); border-radius: 12px; padding: 8px 12px;
+}
+.hx-space-laps-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--blue); }
+.hx-space-laps-label { font-size: 10px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 3px; }
+
+/* ---------- Redesigned "standards" card: clear rounds / distance /
+   weight chips per station, always visible (no tap to expand). ---------- */
+.hx-std-list { display: flex; flex-direction: column; gap: 8px; }
+.hx-std-row { background: var(--bg); border-radius: 16px; padding: 12px 14px; }
+.hx-std-row-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.hx-std-icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blue-bg); color: var(--blue);
+}
+.hx-std-name { font-size: 14px; font-weight: 700; }
+.hx-std-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.hx-std-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  background: var(--card-bg); border-radius: 11px; padding: 7px 12px; min-width: 62px;
+}
+.hx-std-chip-value { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.1; }
+.hx-std-chip-label { font-size: 9.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; text-align: center; }
+.hx-std-chip.is-rounds { background: var(--blue-bg); }
+.hx-std-chip.is-rounds .hx-std-chip-value { color: var(--blue); }
+.hx-std-chip.is-rounds .hx-std-chip-label { color: var(--blue); }
 .hx-now-info {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 16px;
   background: var(--card-bg); border: 1px solid var(--border); color: var(--blue);
