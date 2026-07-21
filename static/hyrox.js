@@ -1659,6 +1659,14 @@
         chip(formatStationMeters(totalM), t("hyrox.space.chip.distance")),
         chip(`${rounds}×`, t("hyrox.space.chip.lapsOf", { lane: formatStationMeters(lane) }), "is-rounds"),
       ];
+      // In a Doubles race the four splittable stations are shared between
+      // partners -- lead with the user's own configured share (the rounds/
+      // meters they set at setup, see getDoublesSplit) so the race reflects
+      // the Doubles selection instead of showing the full Singles total.
+      const split = this.format === "doubles" ? this.getDoublesSplit(key) : null;
+      if (split) {
+        chips.unshift(chip(`${split.mine}`, t("hyrox.running.yourShare", { unit: roundUnitLabel(key) }), "is-share"));
+      }
       const w = this.getStationWeight(key);
       if (w) {
         let label = t("hyrox.space.chip.load");
@@ -1674,11 +1682,25 @@
     renderRunning() {
       const segment = STATIONS[this.stationIndex];
       const isLast = this.stationIndex >= STATIONS.length - 1;
+      const isDoubles = this.format === "doubles";
+      // On a run, doubles changes nothing about the distance (both partners
+      // run the full 1km together), so say that explicitly instead of leaving
+      // the screen looking identical to Singles. On a station, the chips
+      // themselves carry the doubles split (see stationNowChipsHtml).
+      const runDetail = isDoubles
+        ? `<div class="hx-now-detail">${t("hyrox.running.runDetail")}</div><div class="hx-now-note">${t("hyrox.running.doublesRunNote")}</div>`
+        : `<div class="hx-now-detail">${t("hyrox.running.runDetail")}</div>`;
       const detailHtml = segment.type === "station"
         ? this.stationNowChipsHtml(segment.key)
-        : `<div class="hx-now-detail">${t("hyrox.running.runDetail")}</div>`;
+        : runDetail;
       const iconKey = segment.type === "station" ? segment.key : "run";
       const progressPct = Math.round((this.stationIndex / STATIONS.length) * 100);
+      // A persistent badge so the chosen format is visible on every segment,
+      // not just at setup -- the reported bug was that a Doubles race looked
+      // exactly like a Singles one once started.
+      const formatBadge = isDoubles
+        ? `<span class="hx-run-format-badge">${t("hyrox.running.doublesBadge")}</span>`
+        : "";
 
       const card = el(`
         <div class="hx-card hx-run-card">
@@ -1689,7 +1711,7 @@
             </div>
             <div class="hx-run-stat">
               <span class="hx-run-stat-value hx-run-count">${this.stationIndex + 1}<span class="hx-run-count-total">/${STATIONS.length}</span></span>
-              <span class="hx-run-stat-label">${t("hyrox.running.segmentLabel")}</span>
+              <span class="hx-run-stat-label">${t("hyrox.running.segmentLabel")}${formatBadge}</span>
             </div>
           </div>
 
