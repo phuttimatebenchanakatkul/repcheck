@@ -36,18 +36,22 @@
     done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>'
   };
 
-  // key -> candidate target selectors (first visible one wins). null = centre.
+  // key -> candidate target selectors (first visible one wins), plus a two-
+  // colour accent so every step reads distinctly (drives the icon gradient,
+  // spotlight ring, progress bar, dots, and button). null targets = centre.
   var STEPS = [
-    { key: "welcome", targets: null },
-    { key: "home", targets: ['.mt-item[aria-label="Home"]', '.sidebar .nav a[href="/"]'] },
-    { key: "workouts", targets: ['.mt-item[aria-label="Workouts"]', '.sidebar .nav a[href$="/workouts"]'] },
-    { key: "nutrition", targets: ['.mt-item[aria-label="Nutrition"]', '.sidebar .nav a[href$="/nutrition"]'] },
-    { key: "analyze", targets: ['.mt-item[aria-label="Analyze"]', '.sidebar .nav a[href$="/analyze"]'] },
-    { key: "hyrox", targets: ['.mt-item[aria-label="HYROX"]', '.sidebar .nav a[href$="/hyrox"]'] },
-    { key: "quickadd", targets: ['#mt-fab-btn'] },
-    { key: "more", targets: ['#mt-more-btn', '.sidebar .nav a[href$="/coach"]'] },
-    { key: "done", targets: null }
+    { key: "welcome", targets: null, accent: ["#2f66e8", "#4d7ff5"] },
+    { key: "home", targets: ['.mt-item[aria-label="Home"]', '.sidebar .nav a[href="/"]'], accent: ["#2f66e8", "#4d7ff5"] },
+    { key: "workouts", targets: ['.mt-item[aria-label="Workouts"]', '.sidebar .nav a[href$="/workouts"]'], accent: ["#6366f1", "#8b5cf6"] },
+    { key: "nutrition", targets: ['.mt-item[aria-label="Nutrition"]', '.sidebar .nav a[href$="/nutrition"]'], accent: ["#16a34a", "#22c55e"] },
+    { key: "analyze", targets: ['.mt-item[aria-label="Analyze"]', '.sidebar .nav a[href$="/analyze"]'], accent: ["#f59e0b", "#fb923c"] },
+    { key: "hyrox", targets: ['.mt-item[aria-label="HYROX"]', '.sidebar .nav a[href$="/hyrox"]'], accent: ["#ef4444", "#f87171"] },
+    { key: "quickadd", targets: ['#mt-fab-btn'], accent: ["#0ea5e9", "#22d3ee"] },
+    { key: "more", targets: ['#mt-more-btn', '.sidebar .nav a[href$="/coach"]'], accent: ["#8b5cf6", "#a78bfa"] },
+    { key: "done", targets: null, accent: ["#16a34a", "#22c55e"] }
   ];
+
+  var CONFETTI_COLORS = ["#2f66e8", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#0ea5e9", "#fb923c"];
 
   ready(function () {
     var t = (window.RepCheckI18n && RepCheckI18n.t)
@@ -55,7 +59,7 @@
       : function (k) { return k; };
 
     var idx = 0;
-    var overlay, spotlight, card, iconEl, countEl, titleEl, bodyEl, dotsEl, backBtn, nextBtn;
+    var overlay, spotlight, caret, card, progressFill, iconEl, countEl, titleEl, bodyEl, dotsEl, backBtn, nextBtn;
 
     function isVisible(el) {
       if (!el) return false;
@@ -83,22 +87,28 @@
       overlay.setAttribute("aria-modal", "true");
       overlay.innerHTML =
         '<div class="tour-spotlight"></div>' +
+        '<div class="tour-caret"></div>' +
         '<div class="tour-card">' +
+          '<div class="tour-progress"><div class="tour-progress-fill"></div></div>' +
           '<button type="button" class="tour-skip"></button>' +
-          '<div class="tour-icon"></div>' +
-          '<div class="tour-step-count"></div>' +
-          '<div class="tour-title"></div>' +
-          '<div class="tour-body"></div>' +
-          '<div class="tour-dots"></div>' +
-          '<div class="tour-actions">' +
-            '<button type="button" class="tour-back"></button>' +
-            '<button type="button" class="tour-next"></button>' +
+          '<div class="tour-inner">' +
+            '<div class="tour-icon"></div>' +
+            '<div class="tour-step-count"></div>' +
+            '<div class="tour-title"></div>' +
+            '<div class="tour-body"></div>' +
+            '<div class="tour-dots"></div>' +
+            '<div class="tour-actions">' +
+              '<button type="button" class="tour-back"></button>' +
+              '<button type="button" class="tour-next"></button>' +
+            '</div>' +
           '</div>' +
         '</div>';
       document.body.appendChild(overlay);
 
       spotlight = overlay.querySelector(".tour-spotlight");
+      caret = overlay.querySelector(".tour-caret");
       card = overlay.querySelector(".tour-card");
+      progressFill = overlay.querySelector(".tour-progress-fill");
       iconEl = overlay.querySelector(".tour-icon");
       countEl = overlay.querySelector(".tour-step-count");
       titleEl = overlay.querySelector(".tour-title");
@@ -148,22 +158,34 @@
       var vw = window.innerWidth, vh = window.innerHeight;
       var cardH = card.offsetHeight, cardW = card.offsetWidth;
       var margin = 14;
-      var top, left;
+      var top, left, above = true;
       if (target) {
         var r = target.getBoundingClientRect();
         left = Math.min(Math.max(margin, r.left + r.width / 2 - cardW / 2), vw - cardW - margin);
         // Place above the target if there's room (bottom-nav case), else below.
-        if (r.top > cardH + margin + 10) {
-          top = r.top - cardH - margin;
-        } else {
-          top = Math.min(r.bottom + margin, vh - cardH - margin);
-        }
+        if (r.top > cardH + margin + 10) { top = r.top - cardH - margin; above = true; }
+        else { top = Math.min(r.bottom + margin, vh - cardH - margin); above = false; }
       } else {
         left = (vw - cardW) / 2;
         top = (vh - cardH) / 2;
       }
-      card.style.left = Math.max(margin, left) + "px";
-      card.style.top = Math.max(margin, top) + "px";
+      left = Math.max(margin, left);
+      top = Math.max(margin, top);
+      card.style.left = left + "px";
+      card.style.top = top + "px";
+
+      // Point the caret at the target, clamped to the card's width.
+      if (target) {
+        var tr = target.getBoundingClientRect();
+        var tcx = tr.left + tr.width / 2;
+        var caretX = Math.min(Math.max(left + 22, tcx), left + cardW - 22) - 9;
+        var caretY = above ? (top + cardH - 9) : (top - 9);
+        caret.style.left = caretX + "px";
+        caret.style.top = caretY + "px";
+        caret.classList.add("is-shown");
+      } else {
+        caret.classList.remove("is-shown");
+      }
     }
 
     function reposition() {
@@ -171,12 +193,43 @@
       positionCard(currentTarget);
     }
 
+    function clearConfetti() {
+      var c = overlay.querySelector(".tour-confetti");
+      if (c) c.parentNode.removeChild(c);
+    }
+
+    function spawnConfetti() {
+      clearConfetti();
+      var wrap = document.createElement("div");
+      wrap.className = "tour-confetti";
+      var html = "";
+      for (var i = 0; i < 44; i++) {
+        var x = Math.round(Math.random() * 100);
+        var col = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+        var dur = (1.9 + Math.random() * 1.8).toFixed(2);
+        var delay = (Math.random() * 0.5).toFixed(2);
+        var w = 5 + Math.round(Math.random() * 5);
+        html += '<i style="--x:' + x + '%;--c:' + col + ';--d:' + dur + 's;--delay:' + delay + 's;width:' + w + 'px;"></i>';
+      }
+      wrap.innerHTML = html;
+      overlay.appendChild(wrap);
+    }
+
     function render(i) {
       idx = i;
       var step = STEPS[i];
       currentTarget = findTarget(step);
 
+      // Per-step accent drives the icon, ring, progress bar, dots, button.
+      overlay.style.setProperty("--tour-accent", step.accent[0]);
+      overlay.style.setProperty("--tour-accent-2", step.accent[1]);
+
       iconEl.innerHTML = ICONS[step.key] || "";
+      // Restart the icon's pop animation on every step so it re-lands.
+      iconEl.style.animation = "none";
+      void iconEl.offsetWidth;
+      iconEl.style.animation = "";
+
       countEl.textContent = t("tour.stepCount").replace("{n}", i + 1).replace("{total}", STEPS.length);
       titleEl.textContent = t("tour." + step.key + ".title");
       bodyEl.textContent = t("tour." + step.key + ".body");
@@ -185,8 +238,13 @@
       backBtn.classList.toggle("is-hidden", i === 0);
       nextBtn.textContent = (i === STEPS.length - 1) ? t("tour.finish") : t("tour.next");
 
+      progressFill.style.width = ((i + 1) / STEPS.length * 100) + "%";
+
       var dots = dotsEl.children;
       for (var d = 0; d < dots.length; d++) dots[d].classList.toggle("is-active", d === i);
+
+      // A little celebration on the final step.
+      if (step.key === "done") spawnConfetti(); else clearConfetti();
 
       // Position immediately, then again after a tick so the card is placed
       // against its final height (the icon/text swap changes it). setTimeout

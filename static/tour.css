@@ -1,15 +1,20 @@
 /* First-run guided tour. Shown once, right after a brand-new user finishes
    onboarding (onboarding.js sets repcheck_pending_tour before landing on
-   home; tour.js reads + clears it). A dim backdrop with a moving spotlight
-   ring highlights each function's nav entry while a card explains, in plain
-   language, what it does and how to use it. Fully skippable. */
+   home; tour.js reads + clears it). A dim backdrop with a moving, pulsing
+   spotlight highlights each function's nav entry while a colourful card
+   explains, in plain language, what it does and how to use it. Every step
+   carries its own accent colour (set as --tour-accent / --tour-accent-2 on
+   the overlay by tour.js) so the tour feels lively, not one flat blue.
+   Fully skippable. */
 
 .tour-overlay {
   position: fixed;
   inset: 0;
   z-index: 240; /* above the mobile tabbar (which sits below modals) */
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.25s ease;
+  --tour-accent: #2f66e8;
+  --tour-accent-2: #4d7ff5;
 }
 .tour-overlay.is-visible { opacity: 1; }
 
@@ -18,18 +23,32 @@
    it collapses to nothing at screen-centre so the whole screen just dims. */
 .tour-spotlight {
   position: absolute;
-  border-radius: 16px;
-  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.74);
-  transition: top 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              height 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 15px;
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.78);
+  transition: top 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
+              left 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
+              width 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
+              height 0.34s cubic-bezier(0.34, 1.2, 0.4, 1);
   pointer-events: none;
 }
 .tour-spotlight.has-target {
-  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.74), 0 0 0 3px var(--blue) inset;
-  outline: 3px solid var(--blue);
-  outline-offset: 2px;
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.78);
+  outline: 3px solid var(--tour-accent);
+  outline-offset: 3px;
+}
+/* A soft ring that keeps pulsing outward from the highlighted element to
+   pull the eye straight to the real button. */
+.tour-spotlight.has-target::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  animation: tour-pulse 1.7s ease-out infinite;
+}
+@keyframes tour-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 55%, transparent); }
+  70% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--tour-accent) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 0%, transparent); }
 }
 
 .tour-card {
@@ -38,54 +57,80 @@
   width: min(360px, calc(100vw - 28px));
   background: var(--card-bg);
   color: var(--text);
-  border-radius: 22px;
-  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.4);
-  padding: 22px 22px 18px;
-  animation: tour-card-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45),
+              0 0 0 1px color-mix(in srgb, var(--tour-accent) 22%, transparent);
+  padding: 0 0 18px;
+  overflow: hidden;
+  animation: tour-card-in 0.42s cubic-bezier(0.34, 1.56, 0.5, 1);
 }
 @keyframes tour-card-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Thin accent progress bar hugging the top edge of the card. */
+.tour-progress {
+  height: 4px;
+  background: color-mix(in srgb, var(--tour-accent) 16%, transparent);
+}
+.tour-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(90deg, var(--tour-accent), var(--tour-accent-2));
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tour-inner { padding: 20px 22px 0; }
+
 .tour-skip {
   position: absolute;
-  top: 15px;
-  right: 16px;
-  background: none;
+  top: 14px;
+  right: 14px;
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
   border: none;
+  border-radius: 999px;
   color: var(--text-secondary);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 6px 12px;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.tour-skip:hover { color: var(--text); }
+.tour-skip:hover { background: color-mix(in srgb, var(--text-secondary) 20%, transparent); color: var(--text); }
 
 .tour-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  background: var(--blue-bg);
-  color: var(--blue);
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--tour-accent), var(--tour-accent-2));
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
+  margin-bottom: 15px;
+  box-shadow: 0 10px 22px -6px var(--tour-accent);
+  animation: tour-icon-pop 0.45s cubic-bezier(0.34, 1.56, 0.5, 1);
 }
-.tour-icon svg { width: 26px; height: 26px; }
-.tour-step-count { font-size: 11px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-.tour-title { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
+.tour-icon svg { width: 28px; height: 28px; }
+@keyframes tour-icon-pop {
+  0% { opacity: 0; transform: scale(0.4) rotate(-12deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+.tour-step-count { font-size: 11px; font-weight: 800; color: var(--tour-accent); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.tour-title { font-size: 20px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.2; }
 .tour-body { font-size: 13.5px; color: var(--text-secondary); line-height: 1.55; margin-top: 8px; }
 
 .tour-dots { display: flex; gap: 5px; margin-top: 18px; }
 .tour-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--border);
-  transition: width 0.22s ease, background 0.22s ease, border-radius 0.22s ease;
+  transition: width 0.25s ease, background 0.25s ease, border-radius 0.25s ease;
 }
-.tour-dot.is-active { background: var(--blue); width: 18px; border-radius: 3px; }
+.tour-dot.is-active { background: var(--tour-accent); width: 20px; border-radius: 3px; }
 
 .tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
 .tour-back {
@@ -104,19 +149,53 @@
   flex-shrink: 0;
   border: none;
   border-radius: 14px;
-  background: var(--blue);
+  background: linear-gradient(135deg, var(--tour-accent), var(--tour-accent-2));
   color: #fff;
   font-size: 14px;
   font-weight: 700;
   font-family: inherit;
   padding: 12px 22px;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.28);
-  transition: transform 0.1s ease;
+  box-shadow: 0 10px 22px -6px var(--tour-accent);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
 }
-.tour-next:active { transform: scale(0.97); }
+.tour-next:hover { box-shadow: 0 12px 26px -6px var(--tour-accent); }
+.tour-next:active { transform: scale(0.96); }
+
+/* Little caret joining the card to the element it's describing. Sits over
+   the card's edge so only the outer half reads as a pointer triangle. */
+.tour-caret {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: var(--card-bg);
+  transform: rotate(45deg);
+  z-index: 241;
+  display: none;
+}
+.tour-caret.is-shown { display: block; }
+
+/* Celebration confetti on the final step. */
+.tour-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 242; }
+.tour-confetti i {
+  position: absolute;
+  top: -14px;
+  width: 8px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--c);
+  left: var(--x);
+  opacity: 0;
+  animation: tour-confetti-fall var(--d) linear var(--delay) forwards;
+}
+@keyframes tour-confetti-fall {
+  0% { transform: translateY(0) rotate(0); opacity: 1; }
+  100% { transform: translateY(112vh) rotate(720deg); opacity: 0.9; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .tour-spotlight { transition: none; }
-  .tour-card { animation: none; }
+  .tour-spotlight.has-target::after { animation: none; }
+  .tour-card, .tour-icon { animation: none; }
+  .tour-confetti { display: none; }
 }
