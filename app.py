@@ -21,6 +21,7 @@ Requires:
 import mimetypes
 import os
 import re
+import traceback
 import uuid
 from datetime import date
 from pathlib import Path
@@ -910,6 +911,13 @@ def api_challenge_submit(challenge_id):
         result = analyze_reps(raw_path, challenge["exercise"], trimmed_path=trimmed_path)
     except RepCountError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception:
+        # Anything else here is an internal failure (e.g. a raw Gemini SDK
+        # error) whose message is developer jargon, not something a user
+        # can act on -- log it for debugging but never surface it raw, same
+        # reasoning as RepCountError's use in video_trimmer.py.
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "Something went wrong while analyzing your video. Please try again."}), 500
     finally:
         # The clips only exist to be counted — don't hoard user videos.
         for p in (raw_path, trimmed_path):
