@@ -461,6 +461,7 @@
         const photoIds = [c.frontPhotoId, c.backPhotoId].filter((id) => id != null);
 
         let adjustment = null;
+        let previousTargets = null;
         let requestFailed = false;
         if (currentGoals) {
           // GOALS_KEY only ever stores {protein, fat, carbs} -- calories is
@@ -472,6 +473,10 @@
             ...currentGoals,
             calories: Math.round(currentGoals.protein * 4 + currentGoals.fat * 9 + currentGoals.carbs * 4),
           };
+          // Kept for the result screen, which shows each macro's old -> new
+          // value -- after this block runs, GOALS_KEY already holds the NEW
+          // targets, so this is the only copy of what they changed from.
+          previousTargets = currentTargets;
           const response = await fetch("/api/coaching/weekly-adjustment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -522,6 +527,7 @@
         saveJson(PROFILE_KEY, this.profile);
 
         c.result = adjustment;
+        c.resultPrevious = previousTargets;
         c.step = "result";
         c.submitting = false;
         this.render();
@@ -1579,8 +1585,29 @@
       return wrap;
     }
 
+    // One row per macro on the result screen: name on the left, old -> new
+    // on the right with a signed +/-g chip, so the user can see exactly
+    // which macros the adjustment touched (and that untouched ones stayed
+    // put) instead of only being told a calorie delta.
+    renderCheckinMacroRows(adj, prev) {
+      return ["protein", "fat", "carbs"].map((key) => {
+        const after = Math.round(adj[key]);
+        const before = prev ? Math.round(prev[key]) : after;
+        const diff = after - before;
+        const chipClass = diff > 0 ? "is-up" : diff < 0 ? "is-down" : "is-same";
+        const chip = diff === 0 ? t("coaching.checkin.sameChip") : `${diff > 0 ? "+" : ""}${diff}g`;
+        const values = diff === 0 ? `${after}g` : `${before}g <span class="pc-ck-macro-arrow">→</span> <strong>${after}g</strong>`;
+        return `
+          <div class="pc-ck-macro-row">
+            <span class="pc-ck-macro-name">${t("common." + key)}</span>
+            <span class="pc-ck-macro-vals">${values}<span class="pc-ck-macro-diff ${chipClass}">${chip}</span></span>
+          </div>`;
+      }).join("");
+    }
+
     renderCheckinResult() {
       const adj = this.checkin.result;
+      const prev = this.checkin.resultPrevious;
       return el(`
         <div class="pc-ck">
           <div class="pc-wizard-body pc-ck-body pc-ck-result">
@@ -1591,9 +1618,13 @@
             ${adj ? `
               <div class="pc-ck-delta">${adj.delta > 0 ? "+" : ""}${adj.delta}</div>
               <div class="pc-ck-delta-label">${t("coaching.wizard.kcalPerDay")}</div>
+              <div class="pc-ck-new-target">${t("coaching.checkin.newTarget", { n: adj.calories })}</div>
+              <div class="pc-ck-macros-title">${t("coaching.checkin.macrosTitle")}</div>
+              <div class="pc-ck-macros">${this.renderCheckinMacroRows(adj, prev)}</div>
               <div class="pc-ck-reason">${adj.reason}</div>
             ` : `
-              <div class="pc-ck-reason">${t("coaching.checkin.noChange")}</div>
+              <div class="pc-ck-ontrack-title">${t("coaching.checkin.onTrack")}</div>
+              <div class="pc-ck-ontrack-sub">${t("coaching.checkin.onTrackSub")}</div>
             `}
             <button type="button" class="pc-ck-submit" data-action="checkin-done">${t("common.done")}</button>
           </div>
