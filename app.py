@@ -919,10 +919,13 @@ def api_challenge_submit(challenge_id):
                 pass
 
     save_submission(challenge_id, user["id"], result["reps"], result["notes"])
+    rejected = result.get("rejected", 0)
     return jsonify({
         "ok": True,
-        "reps": result["reps"],
-        "rejected": result.get("rejected", 0),
+        "exercise": challenge["exercise"],   # so the result screen names the movement
+        "reps": result["reps"],              # valid reps, counted toward the leaderboard
+        "rejected": rejected,
+        "total": result["reps"] + rejected,  # every attempt detected, valid or not
         "notes": result["notes"],
     })
 

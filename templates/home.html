@@ -139,7 +139,13 @@
       <div class="ch-modal-title" id="ch-record-title" data-i18n="challenges.recordTitle">Record your attempt</div>
       <button type="button" class="ch-close-btn" id="ch-record-close" aria-label="Close">&times;</button>
     </div>
-    <video id="ch-record-preview" class="ch-record-video" autoplay playsinline muted style="display:none;"></video>
+    <div class="ch-preview-wrap" id="ch-preview-wrap" style="display:none;">
+      <video id="ch-record-preview" class="ch-record-video" autoplay playsinline muted></video>
+      <div class="ch-countdown" id="ch-countdown" style="display:none;">
+        <div class="ch-countdown-num" id="ch-countdown-num">3</div>
+        <div class="ch-countdown-label" data-i18n="challenges.getReady">Get in position!</div>
+      </div>
+    </div>
 
     <!--
       Shown while the real submission is in flight: plays back the exact
@@ -164,6 +170,32 @@
       <button type="button" class="ch-btn-secondary" id="ch-record-stop-btn" style="display:none;" data-i18n="challenges.stopSubmit">Stop &amp; submit</button>
     </div>
     <div class="ch-record-status" id="ch-record-status"></div>
+  </div>
+</div>
+
+<!-- Shown after the AI finishes counting: the recorded clip to review, the
+     total reps attempted vs how many were counted (full range of motion),
+     and which exercise it was. -->
+<div class="ch-overlay" id="ch-result-overlay">
+  <div class="ch-modal ch-result-modal">
+    <div class="ch-modal-head">
+      <div class="ch-modal-title" id="ch-result-title"></div>
+      <button type="button" class="ch-close-btn" id="ch-result-close" aria-label="Close">&times;</button>
+    </div>
+    <video id="ch-result-video" class="ch-record-video ch-result-video" playsinline controls muted></video>
+    <div class="ch-result-stats">
+      <div class="ch-result-stat">
+        <div class="ch-result-stat-value" id="ch-result-total">0</div>
+        <div class="ch-result-stat-label" data-i18n="challenges.repsDone">Reps done</div>
+      </div>
+      <div class="ch-result-stat is-counted">
+        <div class="ch-result-stat-value" id="ch-result-counted">0</div>
+        <div class="ch-result-stat-label" data-i18n="challenges.repsCounted">Counted</div>
+        <div class="ch-result-stat-sub" data-i18n="challenges.repsCountedSub">full range of motion</div>
+      </div>
+    </div>
+    <div class="ch-result-note" id="ch-result-note"></div>
+    <button type="button" class="ch-btn-primary ch-result-done-btn" id="ch-result-done" data-i18n="challenges.done">Done</button>
   </div>
 </div>
 {% endif %}
@@ -445,6 +477,40 @@
   .ch-lb-full-list { display: flex; flex-direction: column; gap: 8px; }
 
   .ch-record-video { width: 100%; border-radius: 12px; background: #000; margin-bottom: 12px; }
+
+  .ch-preview-wrap { position: relative; margin-bottom: 12px; }
+  .ch-preview-wrap .ch-record-video { margin-bottom: 0; display: block; }
+  .ch-countdown {
+    position: absolute; inset: 0; border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .ch-countdown-num {
+    font-size: 84px; font-weight: 900; color: #fff; line-height: 1;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+    animation: ch-count-pop 1s ease-out;
+  }
+  .ch-countdown-label { font-size: 14px; font-weight: 700; color: #fff; opacity: 0.9; }
+  @keyframes ch-count-pop {
+    0% { transform: scale(1.6); opacity: 0; }
+    30% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Result screen shown once the AI has counted the attempt. */
+  .ch-result-video { max-height: 46vh; object-fit: contain; }
+  .ch-result-stats { display: flex; gap: 10px; margin-bottom: 14px; }
+  .ch-result-stat {
+    flex: 1; text-align: center; padding: 14px 8px;
+    border-radius: 14px; background: var(--bg); border: 1px solid var(--border);
+  }
+  .ch-result-stat.is-counted { border-color: var(--green); background: var(--green-bg, rgba(34,197,94,0.10)); }
+  .ch-result-stat-value { font-size: 30px; font-weight: 900; letter-spacing: -0.02em; line-height: 1; }
+  .ch-result-stat.is-counted .ch-result-stat-value { color: var(--green); }
+  .ch-result-stat-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-top: 5px; }
+  .ch-result-stat-sub { font-size: 10.5px; color: var(--text-secondary); margin-top: 1px; }
+  .ch-result-note { font-size: 13px; color: var(--text-secondary); text-align: center; line-height: 1.5; margin-bottom: 14px; }
+  .ch-result-done-btn { width: 100%; flex: none; }
 
   .ch-analyze-stage { margin-bottom: 12px; }
   .ch-analyze-video-wrap {
@@ -1288,6 +1354,20 @@
     // mid-recording) so the onstop handler below knows not to submit the
     // partial clip it was about to produce.
     let recordCancelled = false;
+    let countdownTimer = null;
+    let resultBlobUrl = null;
+
+    // Pick a container/codec the browser can BOTH record and play back --
+    // notably iOS Safari records mp4, not webm, and can't play a webm blob,
+    // so hardcoding "video/webm" left the review/analyze video a black
+    // screen there (and handed the server a mis-labelled file). Preferring
+    // mp4 where supported fixes both.
+    function pickRecorderMime() {
+      if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+      const candidates = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+      for (const c of candidates) { if (MediaRecorder.isTypeSupported(c)) return c; }
+      return "";
+    }
 
     // ---------- Once-a-day attempt limit ----------
     const recordBtn = document.getElementById("ch-record-btn");
@@ -1327,11 +1407,13 @@
       recordOverlay.classList.add("is-open");
     }
     function closeRecordModal() {
-      // Closing mid-recording must discard the clip, not submit it --
-      // otherwise a recording abandoned seconds after Start would still
-      // fire off a submission (and very likely the same ffmpeg failure
-      // the cooldown above exists to avoid) after the modal is already
-      // gone from view.
+      // Closing mid-recording (or mid-countdown) must discard the clip, not
+      // submit it -- otherwise a recording abandoned seconds after Start
+      // would still fire off a submission (and very likely the same ffmpeg
+      // failure the cooldown above exists to avoid) after the modal is
+      // already gone from view.
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+      document.getElementById("ch-countdown").style.display = "none";
       if (mediaRecorder && mediaRecorder.state !== "inactive") {
         recordCancelled = true;
         mediaRecorder.stop();
@@ -1344,13 +1426,13 @@
     function showAnalyzeStage(blobOrFile) {
       const stage = document.getElementById("ch-analyze-stage");
       const actions = document.getElementById("ch-record-actions");
-      const preview = document.getElementById("ch-record-preview");
       const analyzeVideo = document.getElementById("ch-analyze-video");
       analyzeVideoUrl = URL.createObjectURL(blobOrFile);
       analyzeVideo.src = analyzeVideoUrl;
-      preview.style.display = "none";
+      document.getElementById("ch-preview-wrap").style.display = "none";
       actions.style.display = "none";
       stage.style.display = "block";
+      analyzeVideo.play().catch(() => {}); // autoplay+muted should already play; be explicit
       startPoseOverlay(analyzeVideo, document.getElementById("ch-analyze-canvas"));
     }
     function hideAnalyzeStage() {
@@ -1369,9 +1451,9 @@
     function stopRecordingStream() {
       if (recordingStream) recordingStream.getTracks().forEach((t) => t.stop());
       recordingStream = null;
-      const video = document.getElementById("ch-record-preview");
-      video.style.display = "none";
-      video.srcObject = null;
+      document.getElementById("ch-preview-wrap").style.display = "none";
+      document.getElementById("ch-record-preview").srcObject = null;
+      document.getElementById("ch-countdown").style.display = "none";
       document.getElementById("ch-record-start-btn").style.display = "inline-block";
       const stopBtn = document.getElementById("ch-record-stop-btn");
       stopBtn.style.display = "none";
@@ -1386,8 +1468,13 @@
       if (event.target === recordOverlay) closeRecordModal();
     });
 
+    // "Start recording" turns the camera on and shows a live preview with a
+    // 3-2-1 countdown so the user can get into position -- recording only
+    // actually begins after the countdown, instead of the instant, no-
+    // warning start it used to have.
     document.getElementById("ch-record-start-btn").addEventListener("click", async () => {
       const statusEl = document.getElementById("ch-record-status");
+      statusEl.textContent = "";
       try {
         recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       } catch (err) {
@@ -1397,53 +1484,120 @@
       }
       const video = document.getElementById("ch-record-preview");
       video.srcObject = recordingStream;
-      video.style.display = "block";
+      document.getElementById("ch-preview-wrap").style.display = "block";
+      document.getElementById("ch-record-start-btn").style.display = "none";
+      runCountdown(3, beginRecording);
+    });
+
+    function runCountdown(seconds, done) {
+      const cd = document.getElementById("ch-countdown");
+      const numEl = document.getElementById("ch-countdown-num");
+      let remaining = seconds;
+      cd.style.display = "flex";
+      numEl.textContent = remaining;
+      // Re-trigger the pop animation on each tick.
+      numEl.style.animation = "none"; void numEl.offsetWidth; numEl.style.animation = "";
+      countdownTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(countdownTimer); countdownTimer = null;
+          cd.style.display = "none";
+          done();
+        } else {
+          numEl.textContent = remaining;
+          numEl.style.animation = "none"; void numEl.offsetWidth; numEl.style.animation = "";
+        }
+      }, 1000);
+    }
+
+    function beginRecording() {
+      if (!recordingStream) return; // modal was closed during the countdown
       recordedChunks = [];
       recordCancelled = false;
-      mediaRecorder = new MediaRecorder(recordingStream);
+      const mime = pickRecorderMime();
+      mediaRecorder = new MediaRecorder(recordingStream, mime ? { mimeType: mime } : {});
       mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
       mediaRecorder.onstop = () => {
         if (recordCancelled) return; // discarded via closeRecordModal(), not a real attempt
-        const blob = new Blob(recordedChunks, { type: "video/webm" });
-        submitAttempt(blob, "attempt.webm");
+        const type = (mediaRecorder && mediaRecorder.mimeType) || mime || "video/webm";
+        const blob = new Blob(recordedChunks, { type });
+        submitAttempt(blob, "attempt." + (type.indexOf("mp4") !== -1 ? "mp4" : "webm"));
       };
       mediaRecorder.start();
-      document.getElementById("ch-record-start-btn").style.display = "none";
       const stopBtn = document.getElementById("ch-record-stop-btn");
       stopBtn.style.display = "inline-block";
       // Briefly disabled: stopping within the first couple of seconds tends
-      // to hand ffmpeg a webm with no valid container data yet to trim.
+      // to hand ffmpeg a clip with no valid container data yet to trim.
       stopBtn.disabled = true;
       recordStopTimer = setTimeout(() => { stopBtn.disabled = false; }, MIN_RECORDING_MS);
-    });
+    }
+
     document.getElementById("ch-record-stop-btn").addEventListener("click", () => {
       if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
       stopRecordingStream();
     });
 
-    async function submitAttempt(blobOrFile, filename) {
+    async function submitAttempt(blob, filename) {
       const statusEl = document.getElementById("ch-record-status");
       statusEl.textContent = t("challenges.uploadingCounting");
       statusEl.style.color = "var(--text-secondary)";
-      showAnalyzeStage(blobOrFile);
+      showAnalyzeStage(blob);
       const formData = new FormData();
-      formData.append("video", blobOrFile, filename);
+      formData.append("video", blob, filename);
       try {
         const res = await fetch(`/api/challenges/${activeChallengeId}/submit`, { method: "POST", body: formData });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || t("challenges.couldntProcess"));
-        const rejectedNote = data.rejected ? t("challenges.rejectedNote", { n: data.rejected }) : "";
-        statusEl.textContent = `${t("challenges.countedReps", { reps: data.reps })}${rejectedNote} ✓ ${data.notes || ""}`;
-        statusEl.style.color = "var(--green)";
         await loadLeaderboardPreview();
         await refreshTodaysChallenge();
+        openResultPopup(data, blob);
       } catch (err) {
         statusEl.textContent = err.message;
         statusEl.style.color = "var(--red)";
-      } finally {
         hideAnalyzeStage();
       }
     }
+
+    // ---------- Result screen ----------
+    function openResultPopup(data, blob) {
+      // Tear the recording modal down (stops the stream, hides the analyze
+      // stage) before showing the result so nothing keeps playing behind it.
+      closeRecordModal();
+
+      const counted = data.reps || 0;
+      const total = (data.total != null) ? data.total : counted + (data.rejected || 0);
+      const rejected = Math.max(0, total - counted);
+      const exId = data.exercise || todaysExercise;
+
+      document.getElementById("ch-result-title").textContent =
+        t("challenges.resultTitle", { exercise: exerciseTitle(exId) });
+      document.getElementById("ch-result-total").textContent = total;
+      document.getElementById("ch-result-counted").textContent = counted;
+      document.getElementById("ch-result-note").textContent = rejected > 0
+        ? t("challenges.resultRejected", { n: rejected, s: rejected === 1 ? "" : "s" })
+        : t("challenges.resultAllCounted");
+
+      if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
+      resultBlobUrl = URL.createObjectURL(blob);
+      const rv = document.getElementById("ch-result-video");
+      rv.src = resultBlobUrl;
+      rv.load();
+
+      document.getElementById("ch-result-overlay").classList.add("is-open");
+    }
+    function closeResultPopup() {
+      document.getElementById("ch-result-overlay").classList.remove("is-open");
+      const rv = document.getElementById("ch-result-video");
+      rv.pause();
+      rv.removeAttribute("src");
+      rv.load();
+      if (resultBlobUrl) { URL.revokeObjectURL(resultBlobUrl); resultBlobUrl = null; }
+    }
+    document.getElementById("ch-result-close").addEventListener("click", closeResultPopup);
+    document.getElementById("ch-result-done").addEventListener("click", closeResultPopup);
+    document.getElementById("ch-result-overlay").addEventListener("click", (event) => {
+      if (event.target === document.getElementById("ch-result-overlay")) closeResultPopup();
+    });
 
     renderTodaysExercise();
     loadFriendCount().then(loadLeaderboardPreview);
