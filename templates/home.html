@@ -1482,12 +1482,32 @@
         statusEl.style.color = "var(--red)";
         return;
       }
+      await normalizeCameraZoom(recordingStream);
       const video = document.getElementById("ch-record-preview");
       video.srcObject = recordingStream;
       document.getElementById("ch-preview-wrap").style.display = "block";
       document.getElementById("ch-record-start-btn").style.display = "none";
-      runCountdown(3, beginRecording);
+      runCountdown(10, beginRecording);
     });
+
+    // Some phones (notably iPhones with multiple rear lenses) hand back the
+    // 0.5x ultra-wide camera by default, which frames the lifter far too wide
+    // for rep counting. A zoom of 1.0 is the standard "1x" wide framing, so
+    // pull the track to 1x where the browser exposes zoom control. This is
+    // best-effort: many desktop webcams don't support zoom at all, in which
+    // case we just leave the stream as-is.
+    async function normalizeCameraZoom(stream) {
+      try {
+        const track = stream.getVideoTracks()[0];
+        if (!track || !track.getCapabilities) return;
+        const caps = track.getCapabilities();
+        if (!caps || typeof caps.zoom === "undefined") return;
+        let target = 1;
+        if (caps.zoom.min != null) target = Math.max(target, caps.zoom.min);
+        if (caps.zoom.max != null) target = Math.min(target, caps.zoom.max);
+        await track.applyConstraints({ advanced: [{ zoom: target }] });
+      } catch (e) { /* zoom control is best-effort; ignore if unsupported */ }
+    }
 
     function runCountdown(seconds, done) {
       const cd = document.getElementById("ch-countdown");

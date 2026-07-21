@@ -25,6 +25,7 @@ Requires:
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -167,10 +168,19 @@ GEMINI_VIDEO_SAMPLE_FPS = 15
 MAX_SAFETY_BLOCK_RETRIES = 2
 
 
+def _is_transient(exc):
+    """True for API errors that are worth retrying: the server was
+    momentarily overloaded/unavailable (503, 500) or we hit a short-lived
+    rate-limit spike (429). A missing/invalid code attribute is treated as
+    non-transient so we don't retry genuine bad-request/auth failures."""
+    code = getattr(exc, "code", None)
+    return code in (429, 500, 503)
+
+
 def _call_gemini_with_form_check(video_bytes, exercise):
     try:
         from google import genai
-        from google.genai import types
+        from google.genai import errors, types
     except ImportError:
         raise RepCountError("google-genai package not installed. Run: pip install google-genai")
 
@@ -217,18 +227,41 @@ NOTES: <why>"""
     )
 
     for attempt in range(MAX_SAFETY_BLOCK_RETRIES + 1):
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[video_part, prompt],
-            # This is a judgment task that should give the same answer every
-            # time given the same footage, not a creative one -- the default
-            # temperature was observed to produce noticeably different rep
-            # counts (attempt count and pass/fail verdicts both varied) across
-            # repeated calls on the exact same video. temperature=0 makes the
-            # model consistently pick its most likely/confident answer instead
-            # of sampling across plausible ones.
-            config=types.GenerateContentConfig(temperature=0),
-        )
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[video_part, prompt],
+                # This is a judgment task that should give the same answer every
+                # time given the same footage, not a creative one -- the default
+                # temperature was observed to produce noticeably different rep
+                # counts (attempt count and pass/fail verdicts both varied) across
+                # repeated calls on the exact same video. temperature=0 makes the
+                # model consistently pick its most likely/confident answer instead
+                # of sampling across plausible ones.
+                config=types.GenerateContentConfig(temperature=0),
+            )
+        except errors.APIError as exc:
+            # A transient server-side hiccup -- most commonly a 503 "model is
+            # experiencing high demand" or a 429 rate-limit spike -- is not the
+            # user's fault and usually clears within a second or two. Without
+            # this the whole submission failed on a single overloaded response
+            # (the model's load fluctuates minute to minute), which was the
+            # main cause of recordings "failing" on submit. Back off and retry;
+            # only give up (with a friendly, actionable message) once the
+            # service is still down after every attempt.
+            if _is_transient(exc) and attempt < MAX_SAFETY_BLOCK_RETRIES:
+                time.sleep(2 * (attempt + 1))
+                continue
+            if _is_transient(exc):
+                raise RepCountError(
+                    "The rep counter is busy right now (high demand). "
+                    "Please wait a moment and record again."
+                )
+            # A non-transient API error (bad request, auth, etc.) won't fix
+            # itself on retry -- surface a generic friendly message rather
+            # than the raw SDK error text.
+            print(f"Gemini APIError during rep count: {exc}", file=sys.stderr)
+            raise RepCountError("An error has occurred. Please record again.")
         if response.text:
             return response.text
         # Empty text + a set block_reason means the safety classifier
@@ -237,6 +270,8 @@ NOTES: <why>"""
         # footage (retrying the identical request succeeded), so retry a
         # couple of times before giving up rather than failing the user's
         # submission outright on what's very likely a false positive.
+        if attempt < MAX_SAFETY_BLOCK_RETRIES:
+            time.sleep(2)
     return ""
 
 
