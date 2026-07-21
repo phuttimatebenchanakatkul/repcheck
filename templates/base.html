@@ -425,6 +425,11 @@
         document.dispatchEvent(new CustomEvent("repcheck:weight-logged"));
       }
 
+      // Exposed so other pages can open the same today-only weight logger
+      // (e.g. the Weight History pictograph's "today" circle) instead of
+      // re-implementing the input + validation + sync flow.
+      window.openLogWeightModal = open;
+
       openTriggers.forEach((btn) => btn.addEventListener("click", open));
       closeBtn.addEventListener("click", close);
       overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
