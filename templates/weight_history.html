@@ -123,14 +123,15 @@
   .lh-circle:not(:disabled) { cursor: pointer; }
 
   /* ---------- Weight-on-this-day popup ----------
-     Opens for any past/today circle click; the circle grid above is
-     purely a logged/not-logged view so there's nothing to set here (no
-     options list like logging_history.html's popup) -- just a plain,
-     read-only "here's what was logged" display, blank when nothing was. */
+     Opens for a PAST circle click (today opens the editable "Log today's
+     weight" modal instead). Read-only: just shows what was logged that
+     day, or a "not logged" note when the day is blank -- past weigh-ins
+     can't be edited. */
   .lh-popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 110; padding: 16px; }
   .lh-popup { background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow); width: 100%; max-width: 300px; padding: 22px; text-align: center; }
   .lh-popup-date { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 12px; }
   .lh-popup-weight { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .lh-popup-empty { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
   .lh-popup-close {
     margin-top: 16px; width: 100%; padding: 11px 18px; border-radius: 999px;
     border: 1px solid var(--border); background: none; color: var(--text);
@@ -196,8 +197,8 @@
     }
 
     const t = RepCheckI18n.t;
-    const weightLog = loadWeightLog();
-    const allDates = Object.keys(weightLog).sort();
+    let weightLog = loadWeightLog();
+    let allDates = Object.keys(weightLog).sort();
 
     const today = new Date();
     let mode = "month"; // "month" | "year"
@@ -420,8 +421,10 @@
     // Same month-of-circles idea as templates/logging_history.html (the
     // nutrition version), but weigh-ins only ever have two states -- a
     // day either has a weight entry or it doesn't, no "fasting"/
-    // "incomplete" equivalent -- so there's nothing to override and the
-    // circles are purely a read-only view of weightLog, not clickable.
+    // "incomplete" equivalent. Tapping today's circle opens the editable
+    // "Log today's weight" modal; past circles open a read-only view
+    // (past weigh-ins can't be changed), and future days are disabled --
+    // so weight is only ever loggable for the present day.
     // Own month state (lhViewYear/lhViewMonth) rather than reusing the
     // chart above's viewYear/viewMonth, since that one also has a
     // Month/Year mode toggle this pictograph doesn't need.
@@ -491,6 +494,9 @@
       if (existing) existing.remove();
     }
 
+    // Read-only view of a PAST day's weigh-in (today is handled by the
+    // editable "Log today's weight" modal instead). Shows the weight that
+    // was logged, or a plain "not logged" note when the day is blank.
     function openWeightPopup(dateIso) {
       closeWeightPopup();
       const entry = weightLog[dateIso];
@@ -498,7 +504,9 @@
         <div class="lh-popup-overlay" id="lh-weight-popup-overlay">
           <div class="lh-popup">
             <div class="lh-popup-date">${lhDateLabel(dateIso)}</div>
-            ${entry ? `<div class="lh-popup-weight">${RepCheckUnits.formatWeightKg(entry.kg)}</div>` : ""}
+            ${entry
+              ? `<div class="lh-popup-weight">${RepCheckUnits.formatWeightKg(entry.kg)}</div>`
+              : `<div class="lh-popup-empty">${t("loggingHistory.summary.notLogged")}</div>`}
             <button type="button" class="lh-popup-close">${t("common.close")}</button>
           </div>
         </div>
@@ -513,7 +521,26 @@
     document.getElementById("lh-circle-grid").addEventListener("click", (event) => {
       const circle = event.target.closest(".lh-circle");
       if (!circle || circle.disabled) return;
-      openWeightPopup(circle.dataset.date);
+      // Only today's weight can be logged/edited -- tapping today opens the
+      // shared "Log today's weight" modal. Past days stay read-only (you
+      // can't backfill or change a past weigh-in), and future days are
+      // disabled above, so weight can only ever be logged for the present
+      // day.
+      if (circle.dataset.date === lhTodayIso && typeof window.openLogWeightModal === "function") {
+        window.openLogWeightModal();
+      } else {
+        openWeightPopup(circle.dataset.date);
+      }
+    });
+
+    // When today's weight is saved (from the modal above, or anywhere else
+    // in the app), pull the fresh log back in and re-render both the chart
+    // and the pictograph so the new entry shows immediately.
+    document.addEventListener("repcheck:weight-logged", () => {
+      weightLog = loadWeightLog();
+      allDates = Object.keys(weightLog).sort();
+      renderInitial();
+      lhRender();
     });
 
     document.getElementById("lh-prev").addEventListener("click", () => {
