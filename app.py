@@ -88,6 +88,7 @@ from database import (
 from rep_form_analyzer import CHALLENGE_EXERCISES, RepCountError, analyze_reps
 from exercise_details import EXERCISE_DETAILS
 from exercise_icons import EXERCISE_ICONS
+from exercise_videos import EXERCISE_VIDEOS, get_exercise_video
 from food_library import FOOD_LIBRARY
 from pipeline import run_pipeline
 from sort_food_images import build_food_image_map
@@ -497,6 +498,7 @@ def analyze_page():
         active_nav="analyze",
         i18n_page="analyze",
         exercise_icons=EXERCISE_ICONS,
+        exercise_videos=EXERCISE_VIDEOS,
     )
 
 
@@ -1287,7 +1289,8 @@ def analyze():
         if wants_json:
             return jsonify({"ok": False, "error": message}), 400
         return render_template(
-            "index.html", exercise_library=EXERCISE_LIBRARY, active_nav="analyze", i18n_page="analyze", error=message
+            "index.html", exercise_library=EXERCISE_LIBRARY, active_nav="analyze", i18n_page="analyze",
+            exercise_videos=EXERCISE_VIDEOS, error=message
         )
 
     video_file = request.files.get("video")
@@ -1371,6 +1374,7 @@ def analyze():
             reps=result["reps"],
             sections=sections,
             feedback_text=result["feedback"],
+            tutorial_video_id=get_exercise_video(result["exercise_label"]),
             active_nav="analyze",
             i18n_page="result",
         )
@@ -1407,6 +1411,7 @@ def analyze_latest():
         reps=row["reps"],
         sections=sections,
         feedback_text=row["feedback_text"],
+        tutorial_video_id=get_exercise_video(row["exercise_label"]),
         active_nav="analyze",
         i18n_page="result",
     )

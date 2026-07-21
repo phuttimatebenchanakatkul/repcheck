@@ -446,6 +446,7 @@
 
   const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
   const EXERCISE_ICONS = {{ exercise_icons | tojson }};
+  const EXERCISE_VIDEOS = {{ exercise_videos | tojson }};
   const ANALYZE_LOG_KEY = "repcheck_analyze_log_v1";
 
   // Small stroke-based glyphs (viewBox 0 0 24 24, stroke=currentColor) for
@@ -889,6 +890,44 @@
     }
   }
 
+  function youtubeSearchUrl(name) {
+    return `https://www.youtube.com/results?search_query=${encodeURIComponent(name + " proper form tutorial")}`;
+  }
+
+  // "How to perform it right" demo, shown at the very top of the results so
+  // the lifter can watch a proper-form tutorial right after their grade.
+  // Curated exercises get an in-app embed; anything else links out to a
+  // live YouTube search (which can't be iframed).
+  const PLAY_ICON = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+  function tutorialCardHtml(exerciseLabel) {
+    const t = RepCheckI18n.t;
+    const vid = EXERCISE_VIDEOS[exerciseLabel];
+    const head = `
+      <div class="an-tutorial-head">
+        <div class="an-tutorial-head-icon">${PLAY_ICON}</div>
+        <div class="an-tutorial-head-text">
+          <div class="an-tutorial-title">${t("analyze.howToTitle")}</div>
+          <div class="an-tutorial-sub">${exerciseLabel}</div>
+        </div>
+      </div>`;
+    if (vid) {
+      return `
+        <div class="card an-tutorial-card">
+          ${head}
+          <div class="an-tutorial-frame">
+            <iframe src="https://www.youtube-nocookie.com/embed/${vid}?rel=0&modestbranding=1" title="${exerciseLabel} form tutorial" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="card an-tutorial-card">
+        ${head}
+        <a class="an-tutorial-search" href="${youtubeSearchUrl(exerciseLabel)}" target="_blank" rel="noopener">
+          ${PLAY_ICON}${t("analyze.watchOnYoutube")}
+        </a>
+      </div>`;
+  }
+
   function sectionsHtml(data) {
     const t = RepCheckI18n.t;
     const sections = data.sections.map((s) => {
@@ -944,8 +983,10 @@
       </div>
     ` : "";
 
+    const tutorialCard = tutorialCardHtml(data.exercise_label);
+
     return `
-      ${videoCard}
+      ${data.video_url ? videoCard + tutorialCard : tutorialCard}
       <div class="card">
         <div class="an-result-hero">
           <div class="an-result-hero-icon">${ANALYZE_ICONS.check}</div>

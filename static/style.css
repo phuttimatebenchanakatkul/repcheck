@@ -355,6 +355,36 @@ body {
    Shared between templates/index.html (AJAX result view) and
    templates/result.html (server-rendered fallback) -- same reason the
    .ac-* chat widget CSS lives here instead of duplicated in both. */
+/* "How to perform it right" tutorial video, at the top of the results.
+   Shared by the AJAX result view and the server-rendered result.html. */
+.an-tutorial-card { padding: 12px; }
+.an-tutorial-head {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 11px; padding: 0 2px;
+}
+.an-tutorial-head-icon {
+  width: 30px; height: 30px; border-radius: 9px;
+  background: rgba(255, 0, 0, 0.10); color: #ff0000;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.an-tutorial-head-icon svg { width: 17px; height: 17px; }
+.an-tutorial-head-text { min-width: 0; }
+.an-tutorial-title { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.25; }
+.an-tutorial-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+.an-tutorial-frame {
+  position: relative; width: 100%; aspect-ratio: 16 / 9;
+  border-radius: 14px; overflow: hidden; background: #000;
+}
+.an-tutorial-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.an-tutorial-search {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px; border-radius: 14px;
+  background: var(--card-bg); border: 1px solid var(--border);
+  color: var(--text); font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.an-tutorial-search:hover { border-color: var(--text-secondary); }
+.an-tutorial-search svg { width: 16px; height: 16px; color: #ff0000; flex-shrink: 0; }
+
 .an-result-hero { text-align: center; margin-bottom: 18px; }
 .an-result-hero-icon {
   width: 48px; height: 48px; margin: 0 auto 10px; border-radius: 50%;
