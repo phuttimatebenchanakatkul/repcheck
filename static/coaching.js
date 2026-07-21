@@ -461,7 +461,17 @@
         const photoIds = [c.frontPhotoId, c.backPhotoId].filter((id) => id != null);
 
         let adjustment = null;
+        let requestFailed = false;
         if (currentGoals) {
+          // GOALS_KEY only ever stores {protein, fat, carbs} -- calories is
+          // always derived for display (see renderWeekChart/renderGoalsCard)
+          // and was never included here, so the backend's "calories"
+          // required-field check on current_targets failed on every single
+          // check-in submission. Compute it the same way display does.
+          const currentTargets = {
+            ...currentGoals,
+            calories: Math.round(currentGoals.protein * 4 + currentGoals.fat * 9 + currentGoals.carbs * 4),
+          };
           const response = await fetch("/api/coaching/weekly-adjustment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -474,20 +484,38 @@
               protein_preference: this.profile.proteinPreference,
               diet_preference: this.profile.dietPreference,
               loss_rate_pct: this.profile.lossRatePct,
-              current_targets: currentGoals,
+              current_targets: currentTargets,
               week_weight_entries: weekWeightEntries,
               week_calorie_days: weekCalorieDays,
               photo_ids: photoIds,
             }),
           });
           const data = await response.json();
-          if (data.ok) adjustment = data.adjustment;
+          if (data.ok) {
+            adjustment = data.adjustment;
+          } else {
+            // A real failure (bad profile data, server error) is NOT the
+            // same as "no adjustment needed" -- surface it instead of
+            // silently completing the check-in with a false "on track"
+            // message and burning the user's weekly attempt.
+            requestFailed = true;
+          }
           if (adjustment) {
             saveJson(GOALS_KEY, { protein: adjustment.protein, fat: adjustment.fat, carbs: adjustment.carbs });
             this.lastAdjustment = { reason: adjustment.reason, delta: adjustment.delta, at: Date.now() };
             saveJson(LAST_ADJUSTMENT_KEY, this.lastAdjustment);
             document.dispatchEvent(new CustomEvent("repcheck:goals-updated"));
           }
+        }
+
+        if (requestFailed) {
+          // Don't mark the check-in as done -- lastAdjustmentDate stays put
+          // so the user's weekly attempt isn't spent on a request that never
+          // actually ran, and they can just retry the button.
+          c.submitting = false;
+          c.error = t("coaching.checkin.error");
+          this.render();
+          return;
         }
 
         this.profile.lastAdjustmentDate = c.todayIso;
