@@ -100,22 +100,21 @@
     </button>
   </div>
 
-  <div class="nl-timeline" id="nl-timeline"></div>
-
   <!--
-    Quick-add bar: stays pinned to the bottom of the page. Clicking/
-    focusing it opens the same search popup as the "+" on an hour row
-    (favorites, recent, and top picks for the current hour), except it
-    never sets pendingHour, so addFoodToSelectedDay() always logs at the
-    real current wall-clock time — see that function's `pendingHour !==
-    null` branch — rather than pinning to the top-of-hour like the
-    hour-row "+" does.
+    Food log, styled to match the workout log's "Log an exercise" card: a
+    prominent primary button on top (opens the same search popup and logs
+    at the current wall-clock time — pendingHour stays null, so
+    addFoodToSelectedDay() uses `new Date()`; the modal's own "Log at"
+    selector still lets a user backdate an entry), then either a flat,
+    time-ordered list of entry cards or a calm empty state. Same layout
+    whether or not anything is logged yet.
   -->
-  <div class="nl-quickadd-bar">
-    <div class="nl-quickadd-input-wrap">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="text" id="nl-quickadd-input" placeholder="Log a food now — search and tap to add..." autocomplete="off" readonly>
-    </div>
+  <div class="card nl-log-card">
+    <button type="button" class="nl-log-btn" id="nl-log-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span data-i18n="nutrition.logFood">Log a food</span>
+    </button>
+    <div class="nl-timeline" id="nl-timeline"></div>
   </div>
 </div>
 
@@ -1057,54 +1056,46 @@
 
   /* ---------- Timeline ---------- */
 
-  .nl-timeline {
-    margin-top: 14px; max-height: 640px; overflow-y: auto; padding-right: 10px;
-    scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
-  }
-  .nl-timeline::-webkit-scrollbar { width: 8px; }
-  .nl-timeline::-webkit-scrollbar-track { background: transparent; }
-  .nl-timeline::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
-  .nl-timeline::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
-
-  /* Quick-add bar: pinned to the bottom of the page (not the internally-
-     scrolling .nl-timeline), so it's always reachable without scrolling
-     back up to the hour rows or opening the modal. */
-  .nl-quickadd-bar {
-    position: sticky; bottom: 0; z-index: 5;
-    margin-top: 14px;
-    background: var(--card-bg);
-    background: color-mix(in srgb, var(--card-bg) 88%, transparent);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    box-shadow: var(--shadow);
-    padding: 10px;
-  }
-  .nl-quickadd-input-wrap {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
-    padding: 12px 16px; color: var(--text-secondary);
+  /* Primary "Log a food" button + entry list, mirroring the workout log's
+     .wl-log-btn / .wl-day-list / .wl-empty so both pages read the same. */
+  .nl-log-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 15px;
+    border: none;
+    border-radius: 16px;
+    background: var(--blue);
+    color: #fff;
+    font-size: 14.5px;
+    font-weight: 700;
+    font-family: inherit;
     cursor: pointer;
-    transition: border-color 0.15s ease;
+    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.25);
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
   }
-  .nl-quickadd-input-wrap:hover { border-color: var(--blue); }
-  .nl-quickadd-input-wrap input {
-    flex: 1; min-width: 0; background: none; border: none; color: var(--text);
-    font-size: 14px; font-family: inherit; outline: none;
-    cursor: pointer; /* readonly -- clicking/focusing it opens the search popup instead of typing inline */
-  }
-  .nl-quickadd-input-wrap input::placeholder { color: var(--text-secondary); }
+  .nl-log-btn:hover { box-shadow: 0 10px 24px rgba(47, 102, 232, 0.32); }
+  .nl-log-btn:active { transform: scale(0.98); }
+  .nl-log-btn svg { flex-shrink: 0; }
 
-  .nl-hour-row { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--border); }
-  .nl-hour-label { width: 56px; flex-shrink: 0; font-size: 12px; color: var(--text-secondary); padding-top: 6px; }
-  .nl-hour-body { flex: 1; min-width: 0; }
-  .nl-hour-add-btn {
-    width: 26px; height: 26px; border-radius: 50%; border: none; background: var(--bg);
-    color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; display: flex;
-    align-items: center; justify-content: center; flex-shrink: 0;
+  .nl-timeline { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+
+  .nl-empty { text-align: center; padding: 34px 16px 26px; }
+  .nl-empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    background: var(--blue-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
   }
-  .nl-hour-add-btn:hover { background: var(--sidebar-active); }
-  .nl-hour-add-btn:active { transform: scale(0.85); }
+  .nl-empty-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .nl-empty-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; }
 
   .nl-entry-card {
     display: flex; align-items: center; gap: 12px; background: var(--bg);
@@ -1372,8 +1363,6 @@
   .nl-done-btn:hover { opacity: 0.85; }
   .nl-done-btn:active { transform: scale(0.95); }
 
-  .nl-empty-hint { color: var(--text-secondary); font-size: 13px; padding: 30px 0; text-align: center; }
-
   @keyframes nl-pop-in {
     from { opacity: 0; transform: translateY(-4px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1403,9 +1392,6 @@
     .nl-date-number { width: 32px; height: 32px; font-size: 13px; }
     .nl-date-weekday { font-size: 10px; }
     .nl-week-nav { padding: 8px; }
-    .nl-hour-label { width: 40px; font-size: 11px; }
-    .nl-hour-row { gap: 8px; padding: 10px 0; }
-    .nl-hour-add-btn { width: 30px; height: 30px; }
     .nl-entry-card { padding: 10px; gap: 8px; }
     .nl-entry-icon { width: 34px; height: 34px; font-size: 16px; }
     .nl-hero { gap: 14px; }
@@ -3025,8 +3011,6 @@
   // always logs at the real current time (see that function's
   // `pendingHour !== null` branch) instead of pinning to the top of
   // whatever hour is passed in for the "top picks" section.
-  const quickaddInput = document.getElementById("nl-quickadd-input");
-
   function openQuickaddModal() {
     pendingHour = null;
     modalMode = { type: "quickadd", topPicksHour: new Date().getHours() };
@@ -3034,8 +3018,7 @@
     showModal();
   }
 
-  quickaddInput.addEventListener("click", openQuickaddModal);
-  quickaddInput.addEventListener("focus", openQuickaddModal);
+  document.getElementById("nl-log-btn").addEventListener("click", openQuickaddModal);
 
   function renderDateStrip() {
     const todayIso = toIsoDate(today);
@@ -3073,32 +3056,23 @@
     return RepCheckUnits.formatHourLabel(hour);
   }
 
-  function entriesForHour(hour) {
-    const dayEntries = log[selectedDate] || [];
-    return dayEntries.filter((e) => new Date(e.addedAt).getHours() === hour);
-  }
-
   function renderTimeline() {
-    const dayEntries = log[selectedDate] || [];
+    const t = RepCheckI18n.t;
+    // Flat, time-ordered list of the day's foods (each card already shows
+    // its own logged time), matching the workout log's entry list instead
+    // of the old 24-row hour grid. Same card whether or not the day has
+    // anything logged.
+    const dayEntries = (log[selectedDate] || []).slice().sort((a, b) => a.addedAt - b.addedAt);
 
-    timelineEl.innerHTML = HOURS.map((hour) => {
-      const entries = entriesForHour(hour);
-      return `
-        <div class="nl-hour-row">
-          <div class="nl-hour-label">${hourLabel(hour)}</div>
-          <div class="nl-hour-body">
-            <button type="button" class="nl-hour-add-btn" data-hour-add="${hour}">+</button>
-            <div class="nl-hour-entries">
-              ${entries.map((entry) => renderEntry(entry)).join("")}
-            </div>
-          </div>
+    timelineEl.innerHTML = dayEntries.length
+      ? dayEntries.map((entry) => renderEntry(entry)).join("")
+      : `
+        <div class="nl-empty">
+          <div class="nl-empty-icon">\u{1F957}</div>
+          <div class="nl-empty-title">${t("nutrition.empty.title")}</div>
+          <div class="nl-empty-sub">${t("nutrition.empty.sub")}</div>
         </div>
       `;
-    }).join("");
-
-    if (!dayEntries.length) {
-      timelineEl.insertAdjacentHTML("afterbegin", `<div class="nl-empty-hint">${RepCheckI18n.t("nutrition.empty.day")}</div>`);
-    }
 
     wireTimelineEvents();
   }
@@ -3406,12 +3380,6 @@
   }
 
   function wireTimelineEvents() {
-    timelineEl.querySelectorAll("[data-hour-add]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        openAddFoodModal(parseInt(btn.dataset.hourAdd, 10));
-      });
-    });
-
     timelineEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
       el.addEventListener("click", (event) => {
         event.stopPropagation();
