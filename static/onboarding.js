@@ -973,6 +973,9 @@
     await Promise.all(syncPromises);
 
     await fetch("/api/onboarding/complete", { method: "POST" }).catch(function () {});
+    // Queue the first-run app tour so home page's tour.js runs it once the
+    // brand-new user lands there (it reads + clears this flag).
+    try { localStorage.setItem("repcheck_pending_tour", "1"); } catch (e) {}
     window.location.href = "/";
   }
 

@@ -131,6 +131,12 @@
   </div>
 </div>
 
+<div class="st-card" id="help">
+  <div class="st-card-title" data-i18n="settings.help.title">Help &amp; tutorial</div>
+  <div class="st-card-sub" data-i18n="settings.help.sub">New to RepCheck, or want a refresher? Replay the quick guided tour of every feature.</div>
+  <button type="button" class="st-save-btn" id="st-replay-tour" data-i18n="settings.help.replay">Replay the tour</button>
+</div>
+
 <div class="st-card" id="subscription">
   <div class="st-card-title" data-i18n="settings.subscription.title">Subscription</div>
   <div class="st-card-sub" data-i18n="settings.subscription.sub">Compare your current plan with RepCheck Pro.</div>
@@ -220,6 +226,15 @@
     "use strict";
 
     const t = RepCheckI18n.t;
+
+    // ---------- Replay the first-run tour ----------
+    const replayBtn = document.getElementById("st-replay-tour");
+    if (replayBtn) {
+      replayBtn.addEventListener("click", () => {
+        try { localStorage.setItem("repcheck_pending_tour", "1"); } catch (e) {}
+        window.location.href = "/"; // home page's tour.js picks up the flag
+      });
+    }
 
     // ---------- Account ----------
     const saveBtn = document.getElementById("st-account-save");
