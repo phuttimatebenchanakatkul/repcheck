@@ -60,6 +60,9 @@
     .ob-loading { text-align: center; padding: 60px 0; color: var(--text-secondary); font-size: 14px; }
     .ob-error { text-align: center; padding: 18px 0; color: var(--red); font-size: 14px; }
 
+    /* Test-only: sits above the card, out of the wizard's own flow. */
+    .ob-logout-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+
     /* ---------- Question heading shown at the top of every step ---------- */
     .ob-wizard-step-label {
       font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.01em;
@@ -345,6 +348,13 @@
 </head>
 <body class="ob-body">
   <div class="ob-wrap">
+    {% if current_user and current_user.name.split(' ')[0]|lower == 'joe' %}
+      <div class="ob-logout-row">
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <button type="submit" class="account-logout-btn" data-i18n="sidebar.logout">Log out</button>
+        </form>
+      </div>
+    {% endif %}
     <img class="ob-logo" src="{{ url_for('static', filename='logo-full.png') }}" alt="RepCheck">
     <div class="ob-card">
       <div class="ob-progress" id="ob-progress"></div>
