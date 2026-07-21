@@ -54,7 +54,7 @@
     // Resume on the right page if the tour was interrupted elsewhere.
     if (pathOf() !== STEPS[idx].path) { location.replace(STEPS[idx].path); return; }
 
-    var overlay, spotlight, hotspot, card, stepCountEl, titleEl, bodyEl, tapHint, backBtn, nextBtn;
+    var overlay, spotlight, hotspot, card, stepCountEl, titleEl, bodyEl, tapHint, backBtn, nextBtn, resumeBtn;
     var currentTarget = null;
     var pollTimer = null;
 
@@ -82,7 +82,7 @@
       overlay.setAttribute("aria-modal", "true");
       overlay.innerHTML =
         '<div class="tour-spotlight"></div>' +
-        '<div class="tour-hotspot" role="button" tabindex="0" aria-label="Continue"></div>' +
+        '<div class="tour-hotspot" role="button" tabindex="0" aria-label="Try it"></div>' +
         '<div class="tour-card">' +
           '<div class="tour-top">' +
             '<span class="tour-step-count"></span>' +
@@ -96,7 +96,8 @@
             '<div class="tour-tap-hint">' + TAP_ICON + '<span></span></div>' +
             '<button type="button" class="tour-next"></button>' +
           '</div>' +
-        '</div>';
+        '</div>' +
+        '<button type="button" class="tour-resume"></button>';
       document.body.appendChild(overlay);
 
       spotlight = overlay.querySelector(".tour-spotlight");
@@ -108,17 +109,36 @@
       tapHint = overlay.querySelector(".tour-tap-hint");
       backBtn = overlay.querySelector(".tour-back");
       nextBtn = overlay.querySelector(".tour-next");
+      resumeBtn = overlay.querySelector(".tour-resume");
 
       overlay.querySelector(".tour-skip").addEventListener("click", finish);
       backBtn.addEventListener("click", function () { goToStep(idx - 1); });
       nextBtn.addEventListener("click", function () { goToStep(idx + 1); });
-      hotspot.addEventListener("click", function () { goToStep(idx + 1); });
+      // Tapping the highlighted control TRIES IT for real: the tour steps
+      // aside (dim + card hidden, a small "Continue tour" pill stays) and
+      // the actual control is clicked, so the user sees the real feature
+      // instead of being whisked to the next page.
+      hotspot.addEventListener("click", tryIt);
       hotspot.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToStep(idx + 1); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tryIt(); }
       });
+      resumeBtn.addEventListener("click", function () { goToStep(idx + 1); });
       window.addEventListener("resize", reposition);
       // Keep the highlight glued to the control as the page scrolls/reflows.
       window.addEventListener("scroll", reposition, true);
+    }
+
+    // Let the user use the real feature: hide the tour chrome, then click
+    // the actual control so its modal/picker/input opens. A floating
+    // "Continue tour" pill remains for moving on when they're done looking.
+    function tryIt() {
+      if (!currentTarget) { goToStep(idx + 1); return; }
+      var tgt = currentTarget;
+      overlay.classList.add("is-minimized");
+      clearPoll();
+      setTimeout(function () {
+        try { tgt.click(); if (tgt.focus) tgt.focus(); } catch (e) {}
+      }, 30);
     }
 
     function placeCard(target) {
@@ -189,19 +209,19 @@
 
     function clearPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
-    // "tap" -> advance by tapping the highlighted control (Next hidden);
-    // "button" -> a Next/Start button (welcome, finish, or a fallback when a
-    // control never renders so the user is never stranded).
+    // "tap" -> the highlighted control can be tried for real; Next stays
+    // available too so moving on never depends on trying it.
+    // "button" -> just a Next/Start button (welcome, finish, or a fallback
+    // when a control never renders so the user is never stranded).
     function setControls(mode, i) {
+      nextBtn.style.display = "";
+      nextBtn.textContent = (i === STEPS.length - 1) ? t("tour.finish")
+        : (i === 0 ? t("tour.begin") : t("tour.next"));
       if (mode === "tap") {
-        nextBtn.style.display = "none";
         tapHint.classList.add("is-shown");
         tapHint.querySelector("span").textContent = t("tour.tapHint");
       } else {
-        nextBtn.style.display = "";
         tapHint.classList.remove("is-shown");
-        nextBtn.textContent = (i === STEPS.length - 1) ? t("tour.finish")
-          : (i === 0 ? t("tour.begin") : t("tour.next"));
       }
     }
 
@@ -230,6 +250,9 @@
       idx = i;
       var step = STEPS[i];
 
+      // Coming back from a "try it" detour restores the full tour chrome.
+      overlay.classList.remove("is-minimized");
+
       overlay.style.setProperty("--tour-accent", step.accent[0]);
       overlay.style.setProperty("--tour-accent-2", step.accent[1]);
 
@@ -237,6 +260,7 @@
       titleEl.textContent = t("tour." + step.key + ".title");
       bodyEl.textContent = t("tour." + step.key + ".body");
       overlay.querySelector(".tour-skip").textContent = t("tour.skip");
+      resumeBtn.textContent = t("tour.resume") + " ▸";
       backBtn.textContent = t("tour.back");
       backBtn.classList.toggle("is-hidden", i === 0);
 

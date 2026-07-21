@@ -122,6 +122,37 @@
 }
 .tour-next:active { transform: scale(0.96); }
 
+/* "Try it" mode: tapping the highlighted control hides the tour chrome and
+   clicks the real control, so the user can see and use the actual feature.
+   Only this floating pill remains, to continue the tour when they're done.
+   The overlay stops intercepting clicks so the page is fully usable. */
+.tour-overlay.is-minimized { pointer-events: none; }
+.tour-overlay.is-minimized .tour-spotlight,
+.tour-overlay.is-minimized .tour-hotspot,
+.tour-overlay.is-minimized .tour-card { display: none; }
+.tour-resume {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 14px;
+  z-index: 244;
+  display: none;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--tour-accent), var(--tour-accent-2));
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 11px 20px;
+  border-radius: 999px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  animation: tour-card-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tour-overlay.is-minimized .tour-resume { display: block; }
+.tour-resume:active { transform: translateX(-50%) scale(0.96); }
+
 /* Celebration confetti on the final step. */
 .tour-confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 243; }
 .tour-confetti i {
