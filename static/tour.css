@@ -24,9 +24,9 @@
 .tour-spotlight {
   position: absolute;
   border-radius: 15px;
-  /* A lighter dim than a normal modal so the page the tour just walked into
-     stays clearly visible behind the card. */
-  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.55);
+  /* Only a gentle dim -- the page the tour walked into must stay clearly
+     visible and the highlighted control easy to see. */
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.30);
   transition: top 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
               left 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
               width 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
@@ -34,10 +34,23 @@
   pointer-events: none;
 }
 .tour-spotlight.has-target {
-  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.55);
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.30);
   outline: 3px solid var(--tour-accent);
   outline-offset: 3px;
 }
+
+/* Transparent click-catcher sitting exactly over the highlighted control.
+   Tapping it advances the tour -- so the user progresses by clicking the
+   thing being pointed at, not a separate Next button. (The rest of the
+   overlay swallows clicks so nothing else on the page fires mid-tour.) */
+.tour-hotspot {
+  position: absolute;
+  z-index: 242;
+  border-radius: 15px;
+  cursor: pointer;
+  display: none;
+}
+.tour-hotspot.is-active { display: block; }
 /* A soft ring that keeps pulsing outward from the highlighted element to
    pull the eye straight to the real button. */
 .tour-spotlight.has-target::after {
@@ -56,13 +69,13 @@
 .tour-card {
   position: absolute;
   z-index: 241;
-  width: min(360px, calc(100vw - 28px));
+  width: min(310px, calc(100vw - 28px));
   background: var(--card-bg);
   color: var(--text);
-  border-radius: 24px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45),
+  border-radius: 20px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4),
               0 0 0 1px color-mix(in srgb, var(--tour-accent) 22%, transparent);
-  padding: 0 0 18px;
+  padding: 0 0 14px;
   overflow: hidden;
   animation: tour-card-in 0.42s cubic-bezier(0.34, 1.56, 0.5, 1);
 }
@@ -84,7 +97,7 @@
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.tour-inner { padding: 20px 22px 0; }
+.tour-inner { padding: 16px 18px 0; }
 
 .tour-skip {
   position: absolute;
@@ -104,29 +117,50 @@
 .tour-skip:hover { background: color-mix(in srgb, var(--text-secondary) 20%, transparent); color: var(--text); }
 
 .tour-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
   background: linear-gradient(135deg, var(--tour-accent), var(--tour-accent-2));
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 15px;
-  box-shadow: 0 10px 22px -6px var(--tour-accent);
+  margin-bottom: 11px;
+  box-shadow: 0 8px 18px -6px var(--tour-accent);
   animation: tour-icon-pop 0.45s cubic-bezier(0.34, 1.56, 0.5, 1);
 }
-.tour-icon svg { width: 28px; height: 28px; }
+.tour-icon svg { width: 23px; height: 23px; }
 @keyframes tour-icon-pop {
   0% { opacity: 0; transform: scale(0.4) rotate(-12deg); }
   100% { opacity: 1; transform: scale(1) rotate(0); }
 }
 
-.tour-step-count { font-size: 11px; font-weight: 800; color: var(--tour-accent); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-.tour-title { font-size: 20px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.2; }
-.tour-body { font-size: 13.5px; color: var(--text-secondary); line-height: 1.55; margin-top: 8px; }
+.tour-step-count { font-size: 10.5px; font-weight: 800; color: var(--tour-accent); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+.tour-title { font-size: 17px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.2; }
+.tour-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 6px; }
 
-.tour-dots { display: flex; gap: 5px; margin-top: 18px; }
+/* "Tap the highlight to continue" prompt shown on steps that advance by
+   clicking the spotlighted control (instead of a Next button). */
+.tour-tap-hint {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--tour-accent) 12%, transparent);
+  color: var(--tour-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.tour-tap-hint.is-shown { display: flex; }
+.tour-tap-hint svg { width: 15px; height: 15px; flex-shrink: 0; animation: tour-tap-nudge 1.3s ease-in-out infinite; }
+@keyframes tour-tap-nudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+
+.tour-dots { display: flex; gap: 5px; margin-top: 14px; }
 .tour-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--border);
