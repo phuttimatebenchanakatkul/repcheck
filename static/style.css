@@ -99,6 +99,14 @@ body {
   gap: 20px;
   padding: 20px;
   align-items: flex-start;
+  /* Guard against any single over-wide child (a chart, a long unbreakable
+     string, a non-wrapping flex row) forcing the whole page wider than the
+     screen. Without this, such overflow makes iOS Safari zoom the entire
+     page out to fit -- the "screen suddenly shrinks and shifts left" bug.
+     `clip` (not `hidden`) so it never becomes a scroll container and
+     position:sticky descendants keep working. Wide content that genuinely
+     needs scrolling must use its own overflow-x:auto container. */
+  overflow-x: clip;
 }
 
 /* ---------- Sidebar ---------- */
@@ -778,7 +786,12 @@ input[type="file"], select {
 .mobile-tabbar, .mt-sheet-overlay { display: none; }
 
 @media (max-width: 720px) {
-  .app { flex-direction: column; padding: 12px; gap: 12px; padding-bottom: 12px; }
+  /* align-items: stretch (not the base rule's flex-start) so `main` fills
+     the column's full width. With flex-start in a column flex, main is
+     sized to its content's max-content width instead of the screen, which
+     is what let a wide inner element push main past the viewport edge and
+     trigger the iOS zoom-out. */
+  .app { flex-direction: column; align-items: stretch; padding: 12px; gap: 12px; padding-bottom: 12px; }
   /* Primary nav now lives in the fixed bottom tab bar instead -- the
      sidebar (brand logo + nav + account block) is the old mobile nav and
      is fully replaced by it. Previously only .nav/.account-block were
