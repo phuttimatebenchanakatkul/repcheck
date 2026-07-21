@@ -1100,6 +1100,12 @@
   // toggle. Custom user exercises aren't in the set, so they stay both-sides.
   const UNILATERAL_EXERCISES = new Set({{ unilateral_exercises | tojson }});
   function canBeUnilateral(name) { return UNILATERAL_EXERCISES.has(name); }
+
+  // Bodyweight-only movements (pull-ups, sit-ups, planks, ...) have no
+  // external load to record, so their set editor asks for reps only — no
+  // weight field (see workout_library.BODYWEIGHT_EXERCISES).
+  const BODYWEIGHT_EXERCISES = new Set({{ bodyweight_exercises | tojson }});
+  function isBodyweight(name) { return BODYWEIGHT_EXERCISES.has(name); }
   const STORAGE_KEY = "repcheck_workout_log_v2";
   const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
   const EXPANDED = new Set();
@@ -1357,6 +1363,8 @@
     const unit = RepCheckUnits.weightUnitLabel();
     const canUni = canBeUnilateral(entry.exercise);
     const uni = canUni && !!entry.unilateral;
+    // Bodyweight movements have no load to record: reps-only set rows.
+    const bw = isBodyweight(entry.exercise);
 
     const weightField = (kg, side, i) => `
       <span class="wl-set-field">
@@ -1372,10 +1380,12 @@
                data-reps-entry="${entry.id}" data-reps-index="${i}" data-reps-side="${side}">
         <span class="wl-set-unit">${t("workouts.exercise.repsLabel")}</span>
       </span>`;
+    const weightTimes = (kg, side, i) =>
+      bw ? "" : `${weightField(kg, side, i)}<span class="wl-set-x">×</span>`;
     const sideRow = (tag, kg, reps, side, i) => `
       <div class="wl-set-uni-row">
         <span class="wl-set-side-tag">${tag}</span>
-        ${weightField(kg, side, i)}<span class="wl-set-x">×</span>${repsField(reps, side, i)}
+        ${weightTimes(kg, side, i)}${repsField(reps, side, i)}
       </div>`;
 
     const setCards = entry.sets.map((set, i) => {
@@ -1395,7 +1405,7 @@
       return `
         <div class="wl-set-card">
           ${head}
-          <div class="wl-set-line">${weightField(set.weightKg, "both", i)}<span class="wl-set-x">×</span>${repsField(set.reps, "both", i)}</div>
+          <div class="wl-set-line">${weightTimes(set.weightKg, "both", i)}${repsField(set.reps, "both", i)}</div>
         </div>`;
     }).join("");
 
