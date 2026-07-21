@@ -74,7 +74,7 @@
       return;
     }
 
-    var overlay, spotlight, caret, card, progressFill, iconEl, countEl, titleEl, bodyEl, dotsEl, backBtn, nextBtn;
+    var overlay, spotlight, hotspot, tapHint, caret, card, progressFill, iconEl, countEl, titleEl, bodyEl, dotsEl, backBtn, nextBtn;
     var currentTarget = null;
     var pollTimer = null;
 
@@ -102,6 +102,7 @@
       overlay.setAttribute("aria-modal", "true");
       overlay.innerHTML =
         '<div class="tour-spotlight"></div>' +
+        '<div class="tour-hotspot" role="button" tabindex="0" aria-label="Continue"></div>' +
         '<div class="tour-caret"></div>' +
         '<div class="tour-card">' +
           '<div class="tour-progress"><div class="tour-progress-fill"></div></div>' +
@@ -111,6 +112,7 @@
             '<div class="tour-step-count"></div>' +
             '<div class="tour-title"></div>' +
             '<div class="tour-body"></div>' +
+            '<div class="tour-tap-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg><span></span></div>' +
             '<div class="tour-dots"></div>' +
             '<div class="tour-actions">' +
               '<button type="button" class="tour-back"></button>' +
@@ -121,6 +123,8 @@
       document.body.appendChild(overlay);
 
       spotlight = overlay.querySelector(".tour-spotlight");
+      hotspot = overlay.querySelector(".tour-hotspot");
+      tapHint = overlay.querySelector(".tour-tap-hint");
       caret = overlay.querySelector(".tour-caret");
       card = overlay.querySelector(".tour-card");
       progressFill = overlay.querySelector(".tour-progress-fill");
@@ -137,6 +141,11 @@
       overlay.querySelector(".tour-skip").addEventListener("click", finish);
       backBtn.addEventListener("click", function () { goToStep(idx - 1); });
       nextBtn.addEventListener("click", function () { goToStep(idx + 1); });
+      // Tapping the highlighted control (via its hotspot) advances the tour.
+      hotspot.addEventListener("click", function () { goToStep(idx + 1); });
+      hotspot.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToStep(idx + 1); }
+      });
       window.addEventListener("resize", reposition);
     }
 
@@ -149,12 +158,19 @@
         spotlight.style.left = (r.left - pad) + "px";
         spotlight.style.width = (r.width + pad * 2) + "px";
         spotlight.style.height = (r.height + pad * 2) + "px";
+        // The clickable hotspot sits exactly over the highlighted control.
+        hotspot.style.top = (r.top - pad) + "px";
+        hotspot.style.left = (r.left - pad) + "px";
+        hotspot.style.width = (r.width + pad * 2) + "px";
+        hotspot.style.height = (r.height + pad * 2) + "px";
+        hotspot.classList.add("is-active");
       } else {
         spotlight.classList.remove("has-target");
         spotlight.style.top = "50%";
         spotlight.style.left = "50%";
         spotlight.style.width = "0px";
         spotlight.style.height = "0px";
+        hotspot.classList.remove("is-active");
       }
     }
 
@@ -231,8 +247,30 @@
         tries++;
         var tgt = findTarget(step);
         if (tgt) { currentTarget = tgt; reposition(); clearPoll(); }
-        else if (tries > 50) { clearPoll(); } // ~3s, then just leave it centred
+        else if (tries > 50) {
+          // The control never rendered -- fall back to a Next button so the
+          // user can still move on (the card is then just centred).
+          clearPoll();
+          setControls("button", idx);
+          reposition();
+        }
       }, 60);
+    }
+
+    // "tap" -> advance by tapping the highlighted control (Next hidden);
+    // "button" -> a Next/Start button (welcome, finish, or a fallback when a
+    // highlighted control never renders so the user is never stranded).
+    function setControls(mode, i) {
+      if (mode === "tap") {
+        nextBtn.style.display = "none";
+        tapHint.classList.add("is-shown");
+        tapHint.querySelector("span").textContent = t("tour.tapHint");
+      } else {
+        nextBtn.style.display = "";
+        tapHint.classList.remove("is-shown");
+        nextBtn.textContent = (i === STEPS.length - 1) ? t("tour.finish")
+          : (i === 0 ? t("tour.begin") : t("tour.next"));
+      }
     }
 
     function render(i) {
@@ -254,7 +292,11 @@
       overlay.querySelector(".tour-skip").textContent = t("tour.skip");
       backBtn.textContent = t("tour.back");
       backBtn.classList.toggle("is-hidden", i === 0);
-      nextBtn.textContent = (i === STEPS.length - 1) ? t("tour.finish") : t("tour.next");
+
+      // Steps that point at a control advance by tapping it (the hotspot) --
+      // no Next button. Centred steps (welcome/finish) keep a button since
+      // there's nothing to tap.
+      setControls(step.targets ? "tap" : "button", i);
 
       progressFill.style.width = ((i + 1) / STEPS.length * 100) + "%";
 
