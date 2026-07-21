@@ -742,13 +742,10 @@
       // ring + macro pills at the top of the main log card) is the primary
       // daily view now, and it's also where the weekly check-in button
       // lives (see syncCheckinButton()). Weight tracking has its own full
-      // page at /weight-history, linked from the home page. Daily-logging
-      // streak is kept. renderCoachingCard() is left defined so it can be
-      // re-enabled by adding it back here if the coaching dashboard is
-      // ever wanted again.
-      if (this.profile) {
-        frag.appendChild(this.renderLoggingCard());
-      }
+      // page at /weight-history, linked from the home page. The "Daily
+      // logging" streak card is hidden too now (removed by request);
+      // renderCoachingCard() and renderLoggingCard() are left defined so
+      // either can be re-enabled by appending it here again if wanted.
 
       this.root.appendChild(frag);
 

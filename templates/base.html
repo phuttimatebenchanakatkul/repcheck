@@ -136,7 +136,6 @@
       <div class="topbar">
         <div>
           <h1{% if i18n_page and i18n_page != 'result' %} data-i18n="page.{{ i18n_page }}.heading"{% endif %}>{% block heading %}RepCheck{% endblock %}</h1>
-          <p{% if i18n_page %} data-i18n="page.{{ i18n_page }}.subheading"{% endif %}>{% block subheading %}{% endblock %}</p>
         </div>
         {% if current_user %}
         <a href="{{ url_for('settings') }}#account" class="topbar-avatar" aria-label="Account">{{ current_user.name[0]|upper }}</a>
