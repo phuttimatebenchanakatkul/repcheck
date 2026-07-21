@@ -63,9 +63,18 @@
     <div class="fb-head-title" id="fb-title">{{ exercise_label }} — Form breakdown</div>
     <div class="fb-head-sub" data-i18n="analyze.breakdownHint">Tap a card to see the details</div>
   </div>
+  {% if overall_score is not none %}
+    {% if overall_score < 50 %}
+      <div class="fb-verdict fb-verdict-bad" data-i18n="analyze.verdictBad">This score is low because the form issues and injury risks outweigh what went well — focus on the fixes and safety points below.</div>
+    {% elif overall_score >= 80 %}
+      <div class="fb-verdict fb-verdict-good" data-i18n="analyze.verdictGood">Strong set! Your form's strengths clearly outweigh any issues — here's what you nailed and how to push further.</div>
+    {% else %}
+      <div class="fb-verdict fb-verdict-ok" data-i18n="analyze.verdictOk">A mixed set — here's the full breakdown of what worked and what to tighten up.</div>
+    {% endif %}
+  {% endif %}
   <div class="fb-list">
     {% for section in sections %}
-      <div class="fb-item fb-{{ section.css_class }}{% if section.detail_html %} is-expandable{% endif %}">
+      <div class="fb-item fb-{{ section.css_class }}{% if section.emphasis == 'muted' %} fb-item-muted{% endif %}{% if section.detail_html %} is-expandable{% endif %}">
         <button type="button" class="fb-item-main"{% if not section.detail_html %} disabled{% endif %}>
           <span class="fb-item-icon">{{ section.icon | safe }}</span>
           <span class="fb-item-text">

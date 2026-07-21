@@ -430,20 +430,55 @@ def split_summary_and_detail(html):
     return summary, f"<ul>{''.join(items[1:])}</ul>"
 
 
-def split_feedback_sections(feedback_markdown):
+def section_emphasis(css_class, overall_score):
+    """How prominently to show a feedback section, driven by the overall
+    score. A poor set (<50) should confront the lifter with what went wrong
+    and how to avoid injury rather than flatter them with positives, so the
+    positives are shown only in a limited/muted form and the neutral
+    sections (summary/improvements/progress) are dropped entirely. A strong
+    set (>=80) should lead with what they nailed and how to progress, with
+    everything else kept as secondary. A middling set (50-79) shows every
+    section evenly. Returns "featured", "muted", or "hidden".
+
+    Note: the full, unfiltered feedback text is still sent to the client for
+    the AI chatbot's context (see the analyze route), so hiding a section
+    here only changes what's rendered, not what the user can ask about."""
+    if overall_score is None:
+        return "featured"
+    if overall_score < 50:
+        if css_class in ("negatives", "injury"):
+            return "featured"
+        if css_class == "positives":
+            return "muted"
+        return "hidden"
+    if overall_score >= 80:
+        if css_class in ("positives", "progress"):
+            return "featured"
+        return "muted"
+    return "featured"
+
+
+def split_feedback_sections(feedback_markdown, overall_score=None):
     """Split Gemini's "## Heading" markdown into section dicts: a friendly
     display title, a plain-language summary (first bullet), and the extra
-    detail revealed on expand."""
+    detail revealed on expand. When overall_score is given, each section is
+    tagged with an "emphasis" (see section_emphasis) and hidden sections are
+    dropped; featured sections are ordered before muted ones so the result
+    reads in priority order regardless of Gemini's heading order."""
     parts = re.split(r"^##\s+(.+)$", feedback_markdown, flags=re.MULTILINE)
     sections = []
     # parts[0] is any preamble before the first heading; skip it
     for heading, body in zip(parts[1::2], parts[2::2]):
         css_class = SECTION_STYLES.get(heading.strip().lower(), "improvements")
+        emphasis = section_emphasis(css_class, overall_score)
+        if emphasis == "hidden":
+            continue
         html = markdown_lib.markdown(body.strip())
         summary_html, detail_html = split_summary_and_detail(html)
         sections.append({
             "heading": heading.strip(),
             "css_class": css_class,
+            "emphasis": emphasis,
             # Friendlier, less-clinical display title than Gemini's raw
             # "## Movement Summary"/"## Negatives" headings -- localized via
             # i18n (see analyze.section.* keys); the raw heading is kept for
@@ -453,6 +488,8 @@ def split_feedback_sections(feedback_markdown):
             "summary_html": summary_html,
             "detail_html": detail_html,
         })
+    # Stable sort keeps Gemini's within-bucket order; featured floats up.
+    sections.sort(key=lambda s: 0 if s["emphasis"] == "featured" else 1)
     return sections
 
 
@@ -1327,7 +1364,7 @@ def analyze():
 
     try:
         result = run_pipeline(raw_path, exercise, trimmed_path=trimmed_path)
-        sections = split_feedback_sections(result["feedback"])
+        sections = split_feedback_sections(result["feedback"], result["overall_score"])
 
         # Model name / clip duration are useful for debugging but not
         # shown to the user — keep them in the server log only.
@@ -1412,7 +1449,7 @@ def analyze_latest():
     row = get_latest_analyze_result(user["id"])
     if not row:
         return redirect(url_for("analyze_page"))
-    sections = split_feedback_sections(row["feedback_text"])
+    sections = split_feedback_sections(row["feedback_text"], row["overall_score"])
     return render_template(
         "result.html",
         exercise_label=row["exercise_label"],
@@ -1476,7 +1513,7 @@ def api_analyze_history_detail(result_id):
         "squeeze_score": row["squeeze_score"],
         "favored": row["favored"],
         "reps": row["reps"],
-        "sections": split_feedback_sections(row["feedback_text"]),
+        "sections": split_feedback_sections(row["feedback_text"], row["overall_score"]),
         "feedback_text": row["feedback_text"],
         "created_at": row["created_at"],
         "video_url": url_for("analyze_video", result_id=row["id"]) if _analyze_video_available(row) else None,
