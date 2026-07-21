@@ -356,6 +356,79 @@ UNILATERAL_EXERCISES.update(
     _extra["name"] for _extra in _EXTRA_EXERCISES if _extra["unilateral"]
 )
 
+# Exercises performed with just your body -- no external load to record --
+# so the workout log hides the weight field for them and asks for reps only.
+# Criterion: nothing measurable in kg/lb is involved (bodyweight, a wall, a
+# bar you hang from, a slider/stability ball, plain ground). Deliberately
+# NOT in this set: anything with a band / plate / dumbbell / machine stack /
+# assist stack (band tension and assist weight are worth recording), and
+# movements that are commonly loaded (lunges, step-ups, back extensions,
+# carries) -- their explicitly-loaded siblings like "Weighted Pull-Up" or
+# "Weighted Plank" exist as separate entries precisely so the base version
+# here can stay bodyweight-only.
+BODYWEIGHT_EXERCISES = {
+    # Chest / pressing
+    "Push-Up", "Incline Push-Up", "Decline Push-Up", "Wide-Grip Push-Up",
+    "Close-Grip Push-Up", "Archer Push-Up", "Deficit Push-Up", "Ring Push-Up",
+    "Clap Push-Up", "Feet-Elevated Push-Up", "Diamond Push-Up", "Plyo Push-Up",
+    "Wall Push-Up", "Dips", "Ring Dip", "Bench Dip",
+    # Back / pulling
+    "Pull-Up", "Chin-Up", "Wide-Grip Pull-Up", "Neutral-Grip Pull-Up",
+    "Commando Pull-Up", "Inverted Row", "Inverted Row (Feet Elevated)",
+    "Ring Row", "TRX Row", "Superman", "Superman Hold", "Dead Hang",
+    "Towel Pull-Up Hold",
+    # Shoulders
+    "Pike Push-Up", "Handstand Push-Up", "Wall Handstand Hold",
+    "Pike Press (Deficit)",
+    # Legs / glutes
+    "Pistol Squat", "Sissy Squat", "Wall Sit", "Glute Bridge",
+    "Single-Leg Glute Bridge", "Frog Pump", "Nordic Hamstring Curl",
+    "Eccentric Nordic Curl", "Reverse Nordic Curl", "Slider Leg Curl",
+    "Swiss Ball Leg Curl", "Copenhagen Plank",
+    # Core
+    "Plank", "Side Plank", "Crunch", "Bicycle Crunch", "Sit-Up",
+    "Decline Sit-Up", "V-Up", "Russian Twist", "Dead Bug", "Mountain Climber",
+    "Hanging Leg Raise", "Hanging Knee Raise", "Hanging Windshield Wiper",
+    "Toes-to-Bar", "Captain's Chair Leg Raise", "Lying Leg Raise",
+    "Reverse Crunch", "Plank Shoulder Tap", "RKC Plank", "Long-Lever Plank",
+    "Side Plank with Reach-Through", "Star Plank", "Hollow Body Hold",
+    "Hollow Body Rock", "Flutter Kick", "Scissor Kick", "Toe Touch Crunch",
+    "Heel Tap", "L-Sit Hold", "Dragon Flag", "Hanging Oblique Raise",
+    "Ab Wheel Rollout", "Standing Ab Wheel Rollout", "Stir-the-Pot",
+    # Full body / conditioning
+    "Burpee", "Wall Walk", "Box Jump Over",
+    # Mobility & flexibility
+    "World's Greatest Stretch", "Cat-Cow Stretch", "Thoracic Spine Rotation",
+    "90/90 Hip Stretch", "Deep Squat Hold", "Cossack Squat",
+    "Hip Flexor Stretch", "Pigeon Pose", "Downward Dog", "Shoulder Dislocates",
+    "Arm Circles", "Wall Slides", "Leg Swings", "Walking Knee Hug",
+    "Spiderman Lunge with Reach", "Standing Quad Stretch",
+    "Ankle Mobility Drill", "Scorpion Stretch", "Foam Rolling",
+    # Athletic / speed & agility
+    "Sprint Starts", "Flying Sprints", "Hill Sprints", "Box Jump",
+    "Depth Jump", "Broad Jump", "Lateral Bound", "Single-Leg Bound",
+    "Agility Ladder Drills", "Cone Shuttle Run", "5-10-5 Pro Agility Drill",
+    "T-Drill", "Reactive Ball Drop Drill", "Jump Rope", "High Knees",
+    "Butt Kicks", "A-Skip", "B-Skip", "Bounding", "Squat Jump", "Tuck Jump",
+    "Lateral Skater Jump",
+    # Functional / real-world
+    "Bear Crawl", "Crawling Drill", "Sit-to-Stand", "Floor-to-Stand Get-Up",
+    # Balance & stability
+    "Single-Leg Balance Hold", "Bosu Ball Squat", "Bosu Ball Balance Hold",
+    "Single-Leg Box Step-Down", "Tandem Stance Hold", "Heel-to-Toe Walk",
+    "Single-Leg Deadlift Reach", "Stability Ball Plank",
+    "Stability Ball Hamstring Curl", "Balance Beam Walk", "Slackline Balance",
+    "Single-Leg Hop and Stick", "Wobble Board Balance",
+    "Standing Y-Balance Reach",
+    # Prenatal / low-impact
+    "Prenatal Cat-Cow Stretch", "Pelvic Tilt", "Kegel Exercise", "Bird Dog",
+    "Side-Lying Leg Lift", "Side-Lying Clam Shell",
+    "Prenatal Squat (Supported)", "Chair Squat", "Wall Sit (Light)",
+    "Prenatal Walking", "Water Aerobics", "Prenatal Yoga Flow",
+    "Standing Pelvic Circles", "Modified Side Plank (Knee Down)",
+    "Ankle Pumps",
+}
+
 # Where each exercise can actually be done, used by the split planner
 # wizard's "Where do you usually train?" question (gym / home / hybrid --
 # see split_planner.py) to only offer exercises the user can realistically
@@ -631,6 +704,13 @@ EXERCISE_LOCATIONS = {
 # Location tags for the extra catalog, from the same module.
 for _extra in _EXTRA_EXERCISES:
     EXERCISE_LOCATIONS.setdefault(_extra["name"], _extra["location"])
+
+# Same idea as the locations check below: a typo'd name in the bodyweight
+# set would silently leave a weight field on (or fall off a real exercise),
+# so catch it at import time.
+_unknown_bodyweight = [name for name in BODYWEIGHT_EXERCISES if name not in WORKOUT_EXERCISES]
+if _unknown_bodyweight:
+    raise AssertionError(f"BODYWEIGHT_EXERCISES has names not in WORKOUT_EXERCISES: {_unknown_bodyweight}")
 
 _missing_locations = [name for name in WORKOUT_EXERCISES if name not in EXERCISE_LOCATIONS]
 if _missing_locations:

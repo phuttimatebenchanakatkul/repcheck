@@ -93,7 +93,7 @@ from food_library import FOOD_LIBRARY
 from pipeline import run_pipeline
 from sort_food_images import build_food_image_map
 from split_planner import generate_split_plan
-from workout_library import EXERCISE_CATEGORIES, UNILATERAL_EXERCISES, WORKOUT_EXERCISES
+from workout_library import BODYWEIGHT_EXERCISES, EXERCISE_CATEGORIES, UNILATERAL_EXERCISES, WORKOUT_EXERCISES
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
 UPLOAD_DIR = DATA_DIR / "uploads"
@@ -512,6 +512,7 @@ def workouts():
         exercise_categories=EXERCISE_CATEGORIES,
         exercise_icons=EXERCISE_ICONS,
         unilateral_exercises=sorted(UNILATERAL_EXERCISES),
+        bodyweight_exercises=sorted(BODYWEIGHT_EXERCISES),
         i18n_page="workouts",
     )
 
