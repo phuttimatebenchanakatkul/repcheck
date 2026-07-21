@@ -264,13 +264,6 @@ body {
   margin: 0;
 }
 
-.topbar p {
-  margin: 4px 0 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-.topbar p:empty { display: none; }
-
 /* Circular initial avatar shown on the right of the topbar (reference
    design's greeting row) -- same visual as the sidebar's account avatar,
    just bigger and page-level. */
@@ -974,7 +967,6 @@ input[type="file"], select {
   .app { padding: 8px; }
   .card { padding: 14px; border-radius: var(--radius-md); }
   .topbar h1 { font-size: 19px; }
-  .topbar p { font-size: 13px; }
   .mt-item { min-width: 44px; height: 48px; }
   .mt-fab { width: 54px; height: 54px; margin-top: -24px; }
 }
