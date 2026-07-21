@@ -973,9 +973,12 @@
     await Promise.all(syncPromises);
 
     await fetch("/api/onboarding/complete", { method: "POST" }).catch(function () {});
-    // Queue the first-run app tour so home page's tour.js runs it once the
-    // brand-new user lands there (it reads + clears this flag).
-    try { localStorage.setItem("repcheck_pending_tour", "1"); } catch (e) {}
+    // Queue the first-run app tour from step 0 so tour.js walks the new user
+    // through the app once they land on home (it reads + clears these keys).
+    try {
+      localStorage.setItem("repcheck_pending_tour", "1");
+      localStorage.setItem("repcheck_tour_step", "0");
+    } catch (e) {}
     window.location.href = "/";
   }
 

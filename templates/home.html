@@ -10,11 +10,6 @@
      nutrition page; only those classes are used here, not coaching.js. -->
 <link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
 
-<!-- First-run guided tour (self-runs only when repcheck_pending_tour is
-     set, i.e. right after a brand-new user finishes onboarding). -->
-<link rel="stylesheet" href="{{ asset_url('tour.css') }}">
-<script src="{{ asset_url('tour.js') }}" defer></script>
-
 {% if current_user %}
 <!--
   Hero: the one deliberately dark, gradient surface on the page. Leads
