@@ -513,6 +513,44 @@ Work out OVERALL_SCORE using ALL of the following criteria together:
    clear compensation pattern like this should reduce the score
    proportional to how much it's doing the work instead of proper form.
 
+Calibrate ALL THREE scores to these bands. Be honest, not polite — most
+real-world gym sets land in the 40-75 range, and anything above 85 should
+be rare and earned:
+- 90-100: textbook. Full controlled range of motion on essentially every
+  rep, no meaningful faults.
+- 75-89: good with minor flaws — full range of motion on most reps, small
+  technical slips that don't change what muscle is doing the work.
+- 55-74: mediocre — noticeable faults on many reps (cut-short range of
+  motion, some momentum, inconsistent tempo), though the target muscle
+  still does most of the work.
+- 30-54: poor — major faults dominate the set: half/partial reps on most
+  attempts, momentum or other muscle groups doing much of the work, or
+  joints repeatedly loaded in risky positions.
+- 0-29: dangerous, or barely recognizable as this exercise performed
+  correctly.
+
+HARD RULES that override everything above — apply them after computing
+your initial numbers:
+- These scores grade the lifter's execution of {config['label']}
+  specifically — the exercise they told the app they were doing. If the
+  clip actually shows a different movement (or something so far from
+  {config['label']} that it's effectively a different exercise), say so
+  plainly in the Movement Summary and score all three numbers 25 or
+  lower. Do NOT quietly grade whatever movement they performed instead.
+- If most reps are partial/half reps, the score for whichever end is
+  being cut (STRETCH_SCORE for a cut stretch, SQUEEZE_SCORE for a cut
+  squeeze) MUST be 45 or lower. A half rep is a failing range-of-motion
+  grade at that end — it is never an 80.
+- The scores and your written sections MUST agree. If the faults you list
+  under Negatives and Injury Prevention outweigh what you list under
+  Positives — more problems than strengths, or any real injury risk from
+  how the reps are executed — OVERALL_SCORE MUST be below 50. Never write
+  a warning-heavy report and attach a 75+ score to it.
+- Do not soften the numbers to be encouraging. Encouragement belongs in
+  the words; the lifter uses the numbers to track progress, and an
+  inflated score on bad form teaches them to keep lifting in a way that
+  can injure them.
+
 Before writing anything, silently re-check every specific claim you're
 about to make (a scored angle, a named fault, a stated asymmetry)
 against the frames one more time: is it clearly and repeatedly visible,
