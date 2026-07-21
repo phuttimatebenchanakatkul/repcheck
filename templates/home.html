@@ -139,7 +139,6 @@
       <div class="ch-modal-title" id="ch-record-title" data-i18n="challenges.recordTitle">Record your attempt</div>
       <button type="button" class="ch-close-btn" id="ch-record-close" aria-label="Close">&times;</button>
     </div>
-    <div class="ch-record-sub" id="ch-record-sub"></div>
     <video id="ch-record-preview" class="ch-record-video" autoplay playsinline muted style="display:none;"></video>
 
     <!--
@@ -163,9 +162,7 @@
     <div class="ch-record-actions" id="ch-record-actions">
       <button type="button" class="ch-btn-primary" id="ch-record-start-btn" data-i18n="challenges.startRecording">Start recording</button>
       <button type="button" class="ch-btn-secondary" id="ch-record-stop-btn" style="display:none;" data-i18n="challenges.stopSubmit">Stop &amp; submit</button>
-      <button type="button" class="ch-btn-secondary" id="ch-record-upload-btn" data-i18n="challenges.uploadInstead">Upload video instead</button>
     </div>
-    <input type="file" id="ch-record-file-input" accept="video/*" style="display:none;">
     <div class="ch-record-status" id="ch-record-status"></div>
   </div>
 </div>
@@ -416,6 +413,8 @@
   .ch-btn-primary:disabled:hover { opacity: 1; }
   .ch-btn-secondary { background: none; border: 1.5px solid var(--border); color: var(--text); }
   .ch-btn-secondary:hover { border-color: var(--text-secondary); }
+  .ch-btn-secondary:disabled { color: var(--text-secondary); cursor: default; opacity: 0.55; }
+  .ch-btn-secondary:disabled:hover { border-color: var(--border); }
 
   .ch-overlay {
     position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
@@ -445,7 +444,6 @@
   .ch-lb-scope-tabs button.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
   .ch-lb-full-list { display: flex; flex-direction: column; gap: 8px; }
 
-  .ch-record-sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
   .ch-record-video { width: 100%; border-radius: 12px; background: #000; margin-bottom: 12px; }
 
   .ch-analyze-stage { margin-bottom: 12px; }
@@ -1272,12 +1270,24 @@
       if (canvasEl) canvasEl.getContext("2d").clearRect(0, 0, canvasEl.width, canvasEl.height);
     }
 
-    // ---------- Record / upload an attempt ----------
+    // ---------- Record an attempt ----------
     const recordOverlay = document.getElementById("ch-record-overlay");
     let recordingStream = null;
     let mediaRecorder = null;
     let recordedChunks = [];
     let analyzeVideoUrl = null;
+    // A clip stopped within the first couple of seconds is often too short
+    // for the recorder to have written a valid webm container yet, which
+    // fails at the ffmpeg-trim step with a cryptic, technical error the
+    // user can't act on. Disabling "Stop & submit" for a short cooldown
+    // after Start prevents that failure mode instead of just wording the
+    // error more nicely.
+    const MIN_RECORDING_MS = 2000;
+    let recordStopTimer = null;
+    // Set right before a deliberate stop-without-submit (closing the modal
+    // mid-recording) so the onstop handler below knows not to submit the
+    // partial clip it was about to produce.
+    let recordCancelled = false;
 
     // ---------- Once-a-day attempt limit ----------
     const recordBtn = document.getElementById("ch-record-btn");
@@ -1313,11 +1323,20 @@
       activeChallengeId = data.id;
 
       document.getElementById("ch-record-title").textContent = t("challenges.recordTitleFor", { exercise: exerciseTitle(data.exercise) });
-      document.getElementById("ch-record-sub").textContent = t("challenges.recordSub");
       document.getElementById("ch-record-status").textContent = "";
       recordOverlay.classList.add("is-open");
     }
     function closeRecordModal() {
+      // Closing mid-recording must discard the clip, not submit it --
+      // otherwise a recording abandoned seconds after Start would still
+      // fire off a submission (and very likely the same ffmpeg failure
+      // the cooldown above exists to avoid) after the modal is already
+      // gone from view.
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        recordCancelled = true;
+        mediaRecorder.stop();
+      }
+      if (recordStopTimer) { clearTimeout(recordStopTimer); recordStopTimer = null; }
       stopRecordingStream();
       hideAnalyzeStage();
       recordOverlay.classList.remove("is-open");
@@ -1354,7 +1373,9 @@
       video.style.display = "none";
       video.srcObject = null;
       document.getElementById("ch-record-start-btn").style.display = "inline-block";
-      document.getElementById("ch-record-stop-btn").style.display = "none";
+      const stopBtn = document.getElementById("ch-record-stop-btn");
+      stopBtn.style.display = "none";
+      stopBtn.disabled = false;
     }
     document.getElementById("ch-record-btn").addEventListener("click", (event) => {
       event.stopPropagation();
@@ -1378,26 +1399,26 @@
       video.srcObject = recordingStream;
       video.style.display = "block";
       recordedChunks = [];
+      recordCancelled = false;
       mediaRecorder = new MediaRecorder(recordingStream);
       mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
       mediaRecorder.onstop = () => {
+        if (recordCancelled) return; // discarded via closeRecordModal(), not a real attempt
         const blob = new Blob(recordedChunks, { type: "video/webm" });
         submitAttempt(blob, "attempt.webm");
       };
       mediaRecorder.start();
       document.getElementById("ch-record-start-btn").style.display = "none";
-      document.getElementById("ch-record-stop-btn").style.display = "inline-block";
+      const stopBtn = document.getElementById("ch-record-stop-btn");
+      stopBtn.style.display = "inline-block";
+      // Briefly disabled: stopping within the first couple of seconds tends
+      // to hand ffmpeg a webm with no valid container data yet to trim.
+      stopBtn.disabled = true;
+      recordStopTimer = setTimeout(() => { stopBtn.disabled = false; }, MIN_RECORDING_MS);
     });
     document.getElementById("ch-record-stop-btn").addEventListener("click", () => {
       if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
       stopRecordingStream();
-    });
-    document.getElementById("ch-record-upload-btn").addEventListener("click", () => {
-      document.getElementById("ch-record-file-input").click();
-    });
-    document.getElementById("ch-record-file-input").addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (file) submitAttempt(file, file.name);
     });
 
     async function submitAttempt(blobOrFile, filename) {
