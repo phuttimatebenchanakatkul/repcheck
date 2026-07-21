@@ -197,7 +197,7 @@ Watch the ENTIRE clip carefully from start to finish at normal speed (not a quic
 Answer each numbered check independently, based only on what you actually see for THAT specific rep — do not let a YES on one check bias your answer on another, and do not default to YES just because the overall rep looks fine at a glance. A rep still in progress and not completed by the end of the clip doesn't count as an attempt.
 
 Step 2 — Check your own list for duplicate entries.
-A real rep takes at least half a second. If any two consecutive entries are implausibly close together in timestamp, you likely split one physical rep into two entries — merge them into one and renumber before continuing.
+A real rep takes at least half a second. If any two consecutive entries are implausibly close together in timestamp, you likely split one physical rep into two entries — merge them into one and renumber before continuing. A small bounce, hip sag correction, or partial re-dip at the bottom or top of a rep is NOT a new rep; it is part of the same one. When you genuinely cannot tell whether a movement is a brand-new, separately-completed rep or just the continuation/bounce of the previous one, do NOT add it — when in doubt, leave it out. Overcounting is a more common failure here than undercounting, so lean conservative on ambiguous cases.
 
 Step 3 — Report the totals.
 After your rep-by-rep list, finish your response with EXACTLY these three lines and nothing after them:
