@@ -231,8 +231,11 @@
     const replayBtn = document.getElementById("st-replay-tour");
     if (replayBtn) {
       replayBtn.addEventListener("click", () => {
-        try { localStorage.setItem("repcheck_pending_tour", "1"); } catch (e) {}
-        window.location.href = "/"; // home page's tour.js picks up the flag
+        try {
+          localStorage.setItem("repcheck_pending_tour", "1");
+          localStorage.setItem("repcheck_tour_step", "0"); // restart from the top
+        } catch (e) {}
+        window.location.href = "/"; // tour.js picks it up on home
       });
     }
 

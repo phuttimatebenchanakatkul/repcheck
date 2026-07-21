@@ -24,7 +24,9 @@
 .tour-spotlight {
   position: absolute;
   border-radius: 15px;
-  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.78);
+  /* A lighter dim than a normal modal so the page the tour just walked into
+     stays clearly visible behind the card. */
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.55);
   transition: top 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
               left 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
               width 0.34s cubic-bezier(0.34, 1.2, 0.4, 1),
@@ -32,7 +34,7 @@
   pointer-events: none;
 }
 .tour-spotlight.has-target {
-  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.78);
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.55);
   outline: 3px solid var(--tour-accent);
   outline-offset: 3px;
 }
