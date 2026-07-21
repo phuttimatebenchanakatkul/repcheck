@@ -917,7 +917,7 @@ def api_challenge_submit(challenge_id):
         # can act on -- log it for debugging but never surface it raw, same
         # reasoning as RepCountError's use in video_trimmer.py.
         traceback.print_exc()
-        return jsonify({"ok": False, "error": "Something went wrong while analyzing your video. Please try again."}), 500
+        return jsonify({"ok": False, "error": "An error has occurred. Please record again."}), 500
     finally:
         # The clips only exist to be counted — don't hoard user videos.
         for p in (raw_path, trimmed_path):
