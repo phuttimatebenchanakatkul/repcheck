@@ -67,7 +67,18 @@ def trim_first_25_seconds(input_path, output_path):
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RepCountError(f"ffmpeg failed to trim the video:\n{result.stderr[-800:]}")
+        # Raw ffmpeg stderr is internal/developer jargon (codec build flags,
+        # container-parsing internals) that a user can't act on -- log it
+        # for debugging but never surface it in the app. In practice this
+        # almost always means the recording was stopped before the
+        # recorder produced a valid file (e.g. stopped within a second of
+        # starting), so a plain, actionable message is far more useful here
+        # than the stack of ffmpeg internals.
+        print(f"ffmpeg failed to trim {input_path}:\n{result.stderr[-800:]}", file=sys.stderr)
+        raise RepCountError(
+            "That recording couldn't be processed — it may have been too short. "
+            "Please record for at least a few seconds and try again."
+        )
 
 
 def main():
