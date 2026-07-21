@@ -467,7 +467,11 @@
   class HyroxApp {
     constructor(root) {
       this.root = root;
+      // Always an array. A sync bug once wrote "{}" here (an empty object
+      // instead of []); guard so a bad-shaped stored value can never crash
+      // the whole page render on this.history.forEach/.slice.
       this.history = loadJson(HISTORY_KEY, []);
+      if (!Array.isArray(this.history)) this.history = [];
       // Which stations have their detail expanded in the weight-standards
       // reference list (renderWeightsCard) -- deliberately NOT reset by
       // resetSetup/setCategory/etc, since it's just a display preference,

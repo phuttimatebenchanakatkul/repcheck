@@ -224,6 +224,18 @@
     "repcheck_day_status_v1",
   ]);
 
+  // Of those, these two are a flat ARRAY of entries; the rest are
+  // date-keyed OBJECTS. mergeLog must be told which so it can't guess
+  // wrong: when an array log is empty/absent on BOTH sides, neither value
+  // is an array, and guessing-by-shape would fall through to the object
+  // merge and write "{}" -- which then crashes readers that expect an
+  // array (e.g. hyrox.js does this.history.forEach). Keyed lookup keeps an
+  // array log an array (defaulting to []) and an object log an object.
+  var ARRAY_LOG_KEYS = new Set([
+    "repcheck_hyrox_history_v1",
+    "repcheck_analyze_log_v1",
+  ]);
+
   // Union an array of entries by id (falling back to a full-value key for
   // entries without one, e.g. the analyze log), local taking precedence on
   // an id collision so this device's edits to an existing entry win.
@@ -269,8 +281,8 @@
     return v !== null && typeof v === "object" && !Array.isArray(v);
   }
 
-  function mergeLog(localVal, serverVal) {
-    if (Array.isArray(localVal) || Array.isArray(serverVal)) {
+  function mergeLog(key, localVal, serverVal) {
+    if (ARRAY_LOG_KEYS.has(key)) {
       return mergeById(Array.isArray(localVal) ? localVal : [], Array.isArray(serverVal) ? serverVal : []);
     }
     return mergeDateKeyed(localVal, serverVal);
@@ -442,7 +454,7 @@
           var localLog = null, serverLog = null;
           try { localLog = localRaw !== null ? JSON.parse(localRaw) : null; } catch (e) { localLog = null; }
           serverLog = hasServer ? serverValues[key] : null;
-          var mergedLog = mergeLog(localLog, serverLog);
+          var mergedLog = mergeLog(key, localLog, serverLog);
           var mergedLogRaw = JSON.stringify(mergedLog);
           if (mergedLogRaw !== localRaw) {
             nativeSetItem(key, mergedLogRaw);
