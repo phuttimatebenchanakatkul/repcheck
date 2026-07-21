@@ -522,7 +522,8 @@
     const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
     const weightLog = loadJson("repcheck_weight_log_v1", {});
     const analyzeLog = loadJson("repcheck_analyze_log_v1", []);
-    const hyroxHistory = (loadJson("repcheck_hyrox_history_v1", []) || [])
+    const hyroxHistoryRaw = loadJson("repcheck_hyrox_history_v1", []);
+    const hyroxHistory = (Array.isArray(hyroxHistoryRaw) ? hyroxHistoryRaw : [])
       .filter((r) => !r.flagged && typeof r.totalSeconds === "number");
 
     function hasActivityOn(iso) {
