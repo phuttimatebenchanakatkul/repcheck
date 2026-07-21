@@ -554,6 +554,17 @@ input[type="file"], select {
 
 .fb-list { display: flex; flex-direction: column; gap: 10px; }
 
+/* One-line verdict tying the score to what the sections show. Colored by
+   bucket so the framing (problem-focused vs. celebratory) reads instantly. */
+.fb-verdict {
+  font-size: 13px; font-weight: 600; line-height: 1.5;
+  border-radius: 12px; padding: 11px 14px; margin-bottom: 14px;
+  border: 1px solid transparent;
+}
+.fb-verdict-bad { background: var(--red-bg); color: var(--red); border-color: rgba(209, 69, 59, 0.25); }
+.fb-verdict-ok { background: var(--amber-bg); color: var(--amber); border-color: rgba(185, 131, 42, 0.25); }
+.fb-verdict-good { background: var(--green-bg); color: var(--green); border-color: rgba(31, 169, 113, 0.25); }
+
 .fb-item {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -561,6 +572,12 @@ input[type="file"], select {
   overflow: hidden;
   transition: box-shadow 0.16s ease, border-color 0.16s ease;
 }
+/* "Muted" sections are shown but deliberately secondary -- e.g. the limited
+   positives on a poor set, or the minor notes on a great one. Kept legible
+   (not near-invisible), just clearly lower-priority than the featured ones
+   above them. */
+.fb-item-muted { opacity: 0.72; }
+.fb-item-muted .fb-item-icon { box-shadow: none; }
 .fb-item.is-expandable:hover { border-color: rgba(127, 127, 127, 0.35); box-shadow: 0 6px 16px rgba(20, 20, 20, 0.06); }
 
 .fb-item-main {
