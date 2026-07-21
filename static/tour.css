@@ -1,0 +1,122 @@
+/* First-run guided tour. Shown once, right after a brand-new user finishes
+   onboarding (onboarding.js sets repcheck_pending_tour before landing on
+   home; tour.js reads + clears it). A dim backdrop with a moving spotlight
+   ring highlights each function's nav entry while a card explains, in plain
+   language, what it does and how to use it. Fully skippable. */
+
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 240; /* above the mobile tabbar (which sits below modals) */
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.tour-overlay.is-visible { opacity: 1; }
+
+/* The spotlight: a rounded window over the highlighted element, with a huge
+   box-shadow dimming everything around it. For centered (no-target) steps
+   it collapses to nothing at screen-centre so the whole screen just dims. */
+.tour-spotlight {
+  position: absolute;
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.74);
+  transition: top 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              left 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              height 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.tour-spotlight.has-target {
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.74), 0 0 0 3px var(--blue) inset;
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.tour-card {
+  position: absolute;
+  z-index: 241;
+  width: min(360px, calc(100vw - 28px));
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 22px;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.4);
+  padding: 22px 22px 18px;
+  animation: tour-card-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes tour-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.tour-skip {
+  position: absolute;
+  top: 15px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.tour-skip:hover { color: var(--text); }
+
+.tour-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.tour-icon svg { width: 26px; height: 26px; }
+.tour-step-count { font-size: 11px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.tour-title { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
+.tour-body { font-size: 13.5px; color: var(--text-secondary); line-height: 1.55; margin-top: 8px; }
+
+.tour-dots { display: flex; gap: 5px; margin-top: 18px; }
+.tour-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border);
+  transition: width 0.22s ease, background 0.22s ease, border-radius 0.22s ease;
+}
+.tour-dot.is-active { background: var(--blue); width: 18px; border-radius: 3px; }
+
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.tour-back {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 10px 4px;
+}
+.tour-back:hover { color: var(--text); }
+.tour-back.is-hidden { visibility: hidden; }
+.tour-next {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 14px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 12px 22px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.28);
+  transition: transform 0.1s ease;
+}
+.tour-next:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spotlight { transition: none; }
+  .tour-card { animation: none; }
+}
