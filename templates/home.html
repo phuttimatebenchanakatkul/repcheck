@@ -110,6 +110,7 @@
     </div>
     <div class="ch-today-exercise" id="ch-today-exercise"></div>
   </div>
+  <div class="ch-lb-scope-label" id="ch-lb-scope-label" data-i18n="challenges.globalLeaderboard">🌍 Global leaderboard</div>
   <div class="ch-lb-preview" id="ch-lb-preview"></div>
   <div id="ch-lb-me-preview"></div>
   <div class="ch-actions">
@@ -385,6 +386,11 @@
     box-shadow: 0 5px 12px rgba(185, 131, 42, 0.3);
   }
 
+  .ch-lb-scope-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+    color: var(--text-secondary); text-transform: uppercase;
+    margin: 14px 0 10px;
+  }
   .ch-lb-preview { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; min-height: 40px; }
   .ch-lb-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 14px 0; }
 
@@ -1104,9 +1110,10 @@
         t("challenges.todayIs", { exercise: exerciseTitle(todaysExercise) });
     }
 
-    // ---------- Friends-scoped leaderboard preview ----------
-    // Fewer than 5 friends -> top 3 (a 5-row list looks sparse/padded with
-    // almost nobody in it); 5 or more friends -> top 5.
+    // ---------- Global leaderboard preview ----------
+    // loadFriendCount is still used to size the *friends* view inside the
+    // full-leaderboard modal and to seed myUserId; the homepage card itself
+    // now shows the global top 5 (see loadLeaderboardPreview).
     async function loadFriendCount() {
       const res = await fetch("/api/friends");
       const data = await res.json();
@@ -1170,8 +1177,9 @@
     async function loadLeaderboardPreview() {
       const previewEl = document.getElementById("ch-lb-preview");
       const mePreviewEl = document.getElementById("ch-lb-me-preview");
-      const limit = friendCount >= 5 ? 5 : 3;
-      const res = await fetch(`/api/leaderboard?scope=friends&limit=${limit}`);
+      // The homepage card shows the GLOBAL top 5 -- everyone, not just
+      // friends -- so a new user immediately sees the real competition.
+      const res = await fetch("/api/leaderboard?scope=global&limit=5");
       const data = await res.json();
       if (!data.ok) return;
       myUserId = data.me;
@@ -1181,14 +1189,17 @@
 
     // ---------- Full leaderboard modal (Friends vs Global) ----------
     const lbOverlay = document.getElementById("ch-lb-overlay");
-    let lbScope = "friends";
+    // Default to Global so tapping through from the homepage card (which now
+    // shows the global board) opens on the same scope; the Friends tab is
+    // still one tap away.
+    let lbScope = "global";
 
     function paintCaption() {
       const scopeLabel = t(lbScope === "global" ? "challenges.global" : "challenges.friends");
       document.getElementById("ch-lb-caption").textContent = `${scopeLabel} · ${exerciseTitle(todaysExercise)}`;
     }
     function openLeaderboardModal() {
-      lbScope = "friends";
+      lbScope = "global";
       paintCaption();
       paintScopeTabs();
       loadFullLeaderboard();
