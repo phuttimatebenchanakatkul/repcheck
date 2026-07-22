@@ -212,6 +212,12 @@ RATE_LIMITS = {
     "ai_chat": (5, 6 * 60 * 60),            # 5 messages per 6 hours
 }
 
+# Admin exemption, per the owner's explicit request: this one account is
+# never limited (same single-account pattern as
+# ANALYZE_LATEST_REDIRECT_EMAIL below). Everyone else -- every other
+# existing account and every future signup -- is limited.
+RATE_LIMIT_EXEMPT_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
+
 
 def _friendly_wait(seconds):
     """A short human phrase for how long until the window resets."""
@@ -224,8 +230,12 @@ def _friendly_wait(seconds):
 
 def _limited_user():
     """The account the AI usage limits are counted against -- every
-    logged-in user, no exemptions."""
-    return current_user()
+    logged-in user except the admin account(s) in
+    RATE_LIMIT_EXEMPT_EMAILS."""
+    user = current_user()
+    if not user or (user.get("email") or "").lower() in RATE_LIMIT_EXEMPT_EMAILS:
+        return None
+    return user
 
 
 def _rate_limit_blocked(feature):
