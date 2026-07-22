@@ -199,15 +199,24 @@ def require_login():
 
 
 # ---------- Per-user AI usage limits ----------
-# Applied only to rate-limited accounts (every signup created after this
-# shipped -- see database.py's `rate_limited` column). Anonymous visitors and
-# grandfathered pre-existing accounts are not limited. Both chatbots (Coach
-# page + analysis follow-ups) share the one "ai_chat" bucket.
+# Applied to EVERY account. (A first version grandfathered accounts that
+# existed before the limits shipped via database.py's `rate_limited` column,
+# but that just made the limits look broken when testing with an existing
+# account -- the column is now vestigial and ignored.) Both chatbots (Coach
+# page + analysis follow-ups) share the one "ai_chat" bucket. The AI routes
+# all require login (the app is fully login-gated anyway), so there's no
+# anonymous path that could dodge the per-user counter.
 RATE_LIMITS = {
     "workout_analysis": (2, 6 * 60 * 60),   # 2 per 6 hours
     "food_analysis": (3, 24 * 60 * 60),     # 3 per day
     "ai_chat": (5, 6 * 60 * 60),            # 5 messages per 6 hours
 }
+
+# Admin exemption, per the owner's explicit request: this one account is
+# never limited (same single-account pattern as
+# ANALYZE_LATEST_REDIRECT_EMAIL below). Everyone else -- every other
+# existing account and every future signup -- is limited.
+RATE_LIMIT_EXEMPT_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
 
 
 def _friendly_wait(seconds):
@@ -220,11 +229,13 @@ def _friendly_wait(seconds):
 
 
 def _limited_user():
-    """The current user IF their account is subject to the AI usage limits;
-    None for anonymous visitors and grandfathered pre-existing accounts (both
-    stay unlimited)."""
+    """The account the AI usage limits are counted against -- every
+    logged-in user except the admin account(s) in
+    RATE_LIMIT_EXEMPT_EMAILS."""
     user = current_user()
-    return user if (user and user.get("rate_limited")) else None
+    if not user or (user.get("email") or "").lower() in RATE_LIMIT_EXEMPT_EMAILS:
+        return None
+    return user
 
 
 def _rate_limit_blocked(feature):
@@ -668,6 +679,11 @@ def coach():
 
 @app.route("/api/analyze-food", methods=["POST"])
 def api_analyze_food():
+    # Login required so every scan is counted against an account -- an
+    # anonymous caller would otherwise have no counter and be unlimited.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
     image_file = request.files.get("image")
     if not image_file or image_file.filename == "":
         return jsonify({"ok": False, "error": "Please provide a photo."}), 400
@@ -1177,6 +1193,11 @@ def api_hyrox_leaderboard():
 
 @app.route("/api/coach-chat", methods=["POST"])
 def api_coach_chat():
+    # Same reasoning as /api/analyze-food: every message must count against
+    # an account, so no anonymous access.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
     payload = request.get_json(silent=True) or {}
     message = str(payload.get("message", "")).strip()
     history = payload.get("history") or []
@@ -1202,6 +1223,11 @@ def api_coach_chat():
 
 @app.route("/api/analyze-chat", methods=["POST"])
 def api_analyze_chat():
+    # Same reasoning as /api/analyze-food: every message must count against
+    # an account, so no anonymous access.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
     payload = request.get_json(silent=True) or {}
     message = str(payload.get("message", "")).strip()
     history = payload.get("history") or []

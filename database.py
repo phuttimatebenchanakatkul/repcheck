@@ -91,17 +91,15 @@ def init_db():
                 "ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0"
             )
             conn.execute("UPDATE users SET onboarding_completed = 1")
-        # Whether this account is subject to the per-user AI usage limits
-        # (workout/food analysis, chatbot -- see rate_limit_peek below and
-        # app.py's enforcement). Every NEW signup gets 1 via the column
-        # default; accounts that already existed when the limits shipped are
-        # backfilled to 0 so they stay unlimited (matches the "every new user
-        # created" scope the limits were requested for).
+        # VESTIGIAL: rate_limited originally exempted pre-existing accounts
+        # from the AI usage limits, but enforcement now applies to every
+        # account and ignores this column entirely (see app.py's
+        # _limited_user). The migration is kept only so fresh installs get
+        # the same schema as databases it already ran against.
         if "rate_limited" not in cols:
             conn.execute(
                 "ALTER TABLE users ADD COLUMN rate_limited INTEGER NOT NULL DEFAULT 1"
             )
-            conn.execute("UPDATE users SET rate_limited = 0")
         # Per-user AI usage counters (workout/food analysis, chatbot). One
         # row per user per feature, holding a fixed-window count -- see
         # rate_limit_peek / rate_limit_consume below.
