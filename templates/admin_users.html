@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Admin{% endblock %}
+{% block heading %}Signups{% endblock %}
+
+{% block content %}
+<!--
+  Admin-only signups list (see app.py's admin_users() -- gated to
+  ADMIN_EMAILS, 404s for everyone else). Built so the owner can answer
+  "who signed up today" without shelling into the Render disk each time
+  -- see the conversation that asked for this. Deliberately plain: no
+  i18n (admin-only, single owner), no styling framework beyond the
+  existing .card/.btn-* classes already loaded by base.html's style.css.
+-->
+<style>
+  .adm-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .adm-range-btn {
+    padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--card-bg); color: var(--text); font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit; text-decoration: none; display: inline-block;
+  }
+  .adm-range-btn:hover { border-color: var(--text-secondary); }
+  .adm-range-btn.is-active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  .adm-count { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+  .adm-count strong { color: var(--text); font-weight: 800; }
+
+  .adm-list { display: flex; flex-direction: column; gap: 8px; }
+  .adm-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 14px 16px;
+  }
+  .adm-avatar {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    background: var(--blue-bg); color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800;
+  }
+  .adm-info { flex: 1; min-width: 0; }
+  .adm-name { font-size: 14px; font-weight: 700; }
+  .adm-email { font-size: 12.5px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .adm-meta { text-align: right; flex-shrink: 0; }
+  .adm-when { font-size: 12.5px; font-weight: 700; }
+  .adm-provider {
+    display: inline-block; margin-top: 3px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary);
+    background: var(--bg); border-radius: 999px; padding: 2px 8px;
+  }
+
+  .adm-empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); font-size: 14px; }
+</style>
+
+<div class="card">
+  <div class="adm-toolbar">
+    {% for key in ranges %}
+      <a href="{{ url_for('admin_users', range=key) }}" class="adm-range-btn {{ 'is-active' if key == range_key else '' }}">
+        {{ {"today": "Today", "week": "Past 7 days", "month": "Past 30 days", "all": "All time"}[key] }}
+      </a>
+    {% endfor %}
+  </div>
+
+  <div class="adm-count"><strong>{{ users|length }}</strong> signup{{ "" if users|length == 1 else "s" }}</div>
+
+  {% if users %}
+    <div class="adm-list">
+      {% for u in users %}
+        <div class="adm-row">
+          <div class="adm-avatar">{{ u.name[0]|upper if u.name else "?" }}</div>
+          <div class="adm-info">
+            <div class="adm-name">{{ u.name }}</div>
+            <div class="adm-email">{{ u.email }}</div>
+          </div>
+          <div class="adm-meta">
+            <div class="adm-when">{{ u.created_at }}</div>
+            <span class="adm-provider">{{ u.auth_provider }}</span>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="adm-empty">No signups in this range.</div>
+  {% endif %}
+</div>
+{% endblock %}
