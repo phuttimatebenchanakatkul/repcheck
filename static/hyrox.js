@@ -1651,32 +1651,54 @@
         </div>`;
       }
 
-      // Travelling stations: total distance + laps of the gym lane + load.
+      // Travelling stations. Redesigned around ONE hero number instead of
+      // 3-4 same-size chips (distance + rounds + laps-of-lane + weight all
+      // shown at once was the reported confusion -- a wall of numbers with
+      // no clear "start here"). The hero is whichever number the lifter
+      // actually needs right now: their own share in a Doubles race, or
+      // the full distance in Singles. Everything else -- the station's
+      // full total, how that maps to laps of their own gym lane, and the
+      // load -- becomes one short supporting line underneath.
       const totalM = Math.round(this.effectiveDistanceM(key));
       const lane = this.getFacilityLane(key);
       const rounds = this.roundsFor(key);
-      const chips = [
-        chip(formatStationMeters(totalM), t("hyrox.space.chip.distance")),
-        chip(`${rounds}×`, t("hyrox.space.chip.lapsOf", { lane: formatStationMeters(lane) }), "is-rounds"),
-      ];
+      const isSled = key === "sledPush" || key === "sledPull";
+
       // In a Doubles race the four splittable stations are shared between
-      // partners -- lead with the user's own configured share (the rounds/
-      // meters they set at setup, see getDoublesSplit) so the race reflects
-      // the Doubles selection instead of showing the full Singles total.
+      // partners -- lead with the user's own configured share so the race
+      // reflects the Doubles selection instead of the full Singles total.
+      // Sled shares are tracked as whole "rounds" (see getDoublesSplit)
+      // because that's how the sport's own markers work, but every other
+      // number on this screen is in meters -- converting the share to
+      // meters here too (1 round = 12.5m) means the lifter is never
+      // comparing two different units at a glance.
       const split = this.format === "doubles" ? this.getDoublesSplit(key) : null;
-      if (split) {
-        chips.unshift(chip(`${split.mine}`, t("hyrox.running.yourShare", { unit: roundUnitLabel(key) }), "is-share"));
-      }
+      const shareM = split ? (isSled ? split.mine * STATION_SPECS[key].splitM : split.mine) : null;
+
+      const heroValue = split ? formatStationMeters(shareM) : formatStationMeters(totalM);
+      const heroLabel = split ? t("hyrox.running.yourShare") : t("hyrox.space.chip.distance");
+
+      const captionParts = [];
+      if (split) captionParts.push(t("hyrox.running.stationTotal", { total: formatStationMeters(totalM) }));
+      captionParts.push(t("hyrox.running.lapsCaption", { rounds, lane: formatStationMeters(lane) }));
       const w = this.getStationWeight(key);
       if (w) {
         let label = t("hyrox.space.chip.load");
-        if (key === "sledPush" || key === "sledPull") label = t("hyrox.space.chip.sled");
+        if (isSled) label = t("hyrox.space.chip.sled");
         else if (key === "farmersCarry") label = t("hyrox.space.chip.perHand");
         else if (key === "lunges") label = t("hyrox.space.chip.sandbag");
-        chips.push(chip(formatWeight(w), label));
+        captionParts.push(`${formatWeight(w)} ${label.toLowerCase()}`);
       }
+
       const note = rounds > 1 ? `<div class="hx-now-note">${t("hyrox.space.lapNote")}</div>` : "";
-      return `<div class="hx-now-chips">${chips.join("")}</div>${note}`;
+      return `
+        <div class="hx-now-hero${split ? " is-share" : ""}">
+          <div class="hx-now-hero-value">${heroValue}</div>
+          <div class="hx-now-hero-label">${heroLabel}</div>
+        </div>
+        <div class="hx-now-caption">${captionParts.join(" · ")}</div>
+        ${note}
+      `;
     }
 
     renderRunning() {
