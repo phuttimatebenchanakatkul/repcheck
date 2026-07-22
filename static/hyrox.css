@@ -439,9 +439,9 @@
 .hx-now-title { font-size: 27px; font-weight: 800; margin-top: 16px; letter-spacing: -0.02em; }
 .hx-now-detail { font-size: 13.5px; color: var(--text-secondary); margin-top: 8px; line-height: 1.55; }
 
-/* "What to do right now" as clear stat chips: total distance, laps of the
-   user's gym lane, and the load. The laps chip is emphasised (blue) since
-   it's the number that tells you how many times to go. */
+/* "What to do right now" as clear stat chips -- still used by the
+   machine/reps stations (Wall Balls, SkiErg, Row), which only ever need
+   2-3 numbers at once and don't have the rounds-vs-laps overlap below. */
 .hx-now-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .hx-now-chip {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -453,11 +453,25 @@
 .hx-now-chip.is-rounds { background: linear-gradient(135deg, #4d7ff5, var(--blue)); border-color: transparent; box-shadow: 0 6px 16px rgba(47, 102, 232, 0.35); }
 .hx-now-chip.is-rounds .hx-now-chip-value { color: #fff; }
 .hx-now-chip.is-rounds .hx-now-chip-label { color: rgba(255, 255, 255, 0.85); }
-/* The lifter's own share of a shared Doubles station -- the lead chip, in the
-   same purple used for the Doubles badge so the two read as one concept. */
-.hx-now-chip.is-share { background: linear-gradient(135deg, #9b7bef, var(--purple)); border-color: transparent; box-shadow: 0 6px 16px rgba(124, 79, 224, 0.35); }
-.hx-now-chip.is-share .hx-now-chip-value { color: #fff; }
-.hx-now-chip.is-share .hx-now-chip-label { color: rgba(255, 255, 255, 0.85); }
+
+/* Travelling stations (sled push/pull, farmers carry, lunges): ONE hero
+   number -- the lifter's own share in Doubles, or the full distance in
+   Singles -- instead of several same-size chips competing for attention.
+   Everything else (the station's full total, how that maps to laps of
+   their own lane, the load) collapses into one short line underneath so
+   there's a clear "read this first" instead of a wall of numbers. */
+.hx-now-hero { margin-top: 14px; }
+.hx-now-hero-value { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--text); }
+.hx-now-hero-label {
+  font-size: 11px; font-weight: 800; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;
+}
+/* Doubles share gets the same purple used for the Doubles badge, so the
+   two read as one concept -- this is the number that's different because
+   of Doubles, everything else on screen is unchanged from Singles. */
+.hx-now-hero.is-share .hx-now-hero-value { color: var(--purple); }
+.hx-now-hero.is-share .hx-now-hero-label { color: var(--purple); opacity: 0.85; }
+.hx-now-caption { font-size: 13px; color: var(--text-secondary); margin-top: 6px; font-weight: 600; }
 .hx-now-note { font-size: 11.5px; color: var(--text-secondary); margin-top: 10px; line-height: 1.45; }
 
 /* ---------- "Your training space" setup card ---------- */
