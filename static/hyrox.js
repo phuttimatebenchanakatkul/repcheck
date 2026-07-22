@@ -1645,49 +1645,42 @@
         </div>`;
       }
       if (key === "skierg" || key === "row") {
+        // Just the distance -- the old second chip ("Resistance: Bodyweight")
+        // was machine-damper jargon that didn't tell the lifter anything
+        // actionable.
         return `<div class="hx-now-chips">
           ${chip(formatStationMeters(spec.distanceM), t("hyrox.space.chip.distance"))}
-          ${chip(t("hyrox.space.chip.machineVal"), t("hyrox.space.chip.resistance"))}
         </div>`;
       }
 
-      // Travelling stations. Redesigned around ONE hero number instead of
-      // 3-4 same-size chips (distance + rounds + laps-of-lane + weight all
-      // shown at once was the reported confusion -- a wall of numbers with
-      // no clear "start here"). The hero is whichever number the lifter
-      // actually needs right now: their own share in a Doubles race, or
-      // the full distance in Singles. Everything else -- the station's
-      // full total, how that maps to laps of their own gym lane, and the
-      // load -- becomes one short supporting line underneath.
-      const totalM = Math.round(this.effectiveDistanceM(key));
-      const lane = this.getFacilityLane(key);
+      // Travelling/loaded stations (sled push/pull, farmers carry, sandbag
+      // lunges). No meters anywhere here -- reported as confusing/jargony.
+      // What actually matters to a lifter standing in their gym is (1) how
+      // many times do I go, and (2) how heavy. So the hero is a plain round
+      // count (their own share of it in Doubles, the full count in Singles)
+      // and the only supporting line is the weight to carry/push/pull.
       const rounds = this.roundsFor(key);
       const isSled = key === "sledPush" || key === "sledPull";
 
-      // In a Doubles race the four splittable stations are shared between
-      // partners -- lead with the user's own configured share so the race
-      // reflects the Doubles selection instead of the full Singles total.
-      // Sled shares are tracked as whole "rounds" (see getDoublesSplit)
-      // because that's how the sport's own markers work, but every other
-      // number on this screen is in meters -- converting the share to
-      // meters here too (1 round = 12.5m) means the lifter is never
-      // comparing two different units at a glance.
+      // In Doubles, split the round count proportionally to the share the
+      // lifter configured at setup (getDoublesSplit's mine/total, tracked
+      // in the sport's own units -- 12.5m sled segments, or raw meters for
+      // farmers carry/lunges) rather than a second, separate share number.
+      // One consistent "rounds" figure everywhere beats reconciling two.
       const split = this.format === "doubles" ? this.getDoublesSplit(key) : null;
-      const shareM = split ? (isSled ? split.mine * STATION_SPECS[key].splitM : split.mine) : null;
+      const heroValue = split
+        ? Math.max(1, Math.round(rounds * (split.mine / split.total)))
+        : rounds;
+      const heroLabel = split ? t("hyrox.running.yourShare") : t("hyrox.running.roundsLabel");
 
-      const heroValue = split ? formatStationMeters(shareM) : formatStationMeters(totalM);
-      const heroLabel = split ? t("hyrox.running.yourShare") : t("hyrox.space.chip.distance");
-
-      const captionParts = [];
-      if (split) captionParts.push(t("hyrox.running.stationTotal", { total: formatStationMeters(totalM) }));
-      captionParts.push(t("hyrox.running.lapsCaption", { rounds, lane: formatStationMeters(lane) }));
       const w = this.getStationWeight(key);
+      let caption = "";
       if (w) {
         let label = t("hyrox.space.chip.load");
         if (isSled) label = t("hyrox.space.chip.sled");
         else if (key === "farmersCarry") label = t("hyrox.space.chip.perHand");
         else if (key === "lunges") label = t("hyrox.space.chip.sandbag");
-        captionParts.push(`${formatWeight(w)} ${label.toLowerCase()}`);
+        caption = `<div class="hx-now-caption">${formatWeight(w)} ${label.toLowerCase()}</div>`;
       }
 
       const note = rounds > 1 ? `<div class="hx-now-note">${t("hyrox.space.lapNote")}</div>` : "";
@@ -1696,7 +1689,7 @@
           <div class="hx-now-hero-value">${heroValue}</div>
           <div class="hx-now-hero-label">${heroLabel}</div>
         </div>
-        <div class="hx-now-caption">${captionParts.join(" · ")}</div>
+        ${caption}
         ${note}
       `;
     }
