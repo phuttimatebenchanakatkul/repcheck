@@ -167,6 +167,37 @@ def inject_current_user():
     return {"current_user": current_user()}
 
 
+# The only things reachable without a session: the auth pages/flows and the
+# static assets they need. Everything else is gated (see require_login below).
+_PUBLIC_ENDPOINTS = frozenset({
+    "static",
+    "auth.login_page", "auth.login",
+    "auth.signup_page", "auth.signup",
+    "auth.logout",
+    "auth.google_login", "auth.google_callback",
+    "auth.apple_login",
+})
+
+
+@app.before_request
+def require_login():
+    """Gate the whole app behind an account so a first-time (logged-out)
+    visitor lands on the login page instead of the app. Only the auth
+    pages/flows and static assets are public. API routes are left alone --
+    they already answer with their own JSON 401 when not logged in, and
+    turning that into an HTML redirect would just break their callers."""
+    endpoint = request.endpoint
+    if endpoint is None or endpoint in _PUBLIC_ENDPOINTS:
+        return
+    if request.path.startswith("/api/"):
+        return
+    if current_user():
+        return
+    # Preserve where they were headed so login can send them back there.
+    target = request.full_path.rstrip("?") or "/"
+    return redirect(url_for("auth.login_page", next=target))
+
+
 # ---------- Per-user AI usage limits ----------
 # Applied only to rate-limited accounts (every signup created after this
 # shipped -- see database.py's `rate_limited` column). Anonymous visitors and
