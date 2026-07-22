@@ -111,17 +111,15 @@
   // their own lane length and the app works out how many laps hit the
   // HYROX total. See getFacilityLane/roundsFor and renderTrainingSpaceCard.
   const TRAVERSAL_STATIONS = ["sledPush", "sledPull", "farmersCarry", "lunges", "burpeeBroadJump"];
-  const FACILITY_LANES_KEY = "repcheck_hyrox_facility_lanes_v1";
-
-  // The default length of one lap (start line to end line) when the user
-  // hasn't measured their gym: the HYROX sled lane (12.5m) for the sleds,
-  // and the full station distance for the others (i.e. one continuous
-  // length by default) -- which reproduces the app's prior behavior.
-  function defaultLaneM(key) {
-    const spec = STATION_SPECS[key];
-    if (key === "sledPush" || key === "sledPull") return spec.splitM;
-    return spec.distanceM;
-  }
+  // One shared lane length for every travelling station -- asked once
+  // instead of per-station, since a home/garage gym almost always has one
+  // usable stretch of floor, not a different one for each movement. New key
+  // (not a version bump of the old one) since the stored shape changed from
+  // a per-station object to a single number.
+  const FACILITY_LANE_KEY = "repcheck_hyrox_facility_lane_v1";
+  // Matches the official HYROX sled-marker spacing -- a reasonable default
+  // for a small home/garage space until the user answers the one question.
+  const DEFAULT_LANE_M = 12.5;
 
   // Same 4 stations double as the ones whose total rounds/distance can be
   // split between a Doubles pair (see getDoublesSplit/renderDoublesSplitStep
@@ -488,12 +486,12 @@
       // per-race AI analysis cache keyed by race id (see loadRaceAnalysis).
       this.stationInfo = null;
       this.detailRaceId = null; // which history race's detail modal is open
-      // Per-station gym lane lengths (start->end distance the user measured
-      // at their facility), keyed by station. A property of the user's gym,
-      // NOT of any one race, so it persists across races and is never reset
-      // by resetSetup(). Kept local (not account-synced) since it's tied to
-      // wherever the user physically trains.
-      this.facilityLanes = loadJson(FACILITY_LANES_KEY, {}) || {};
+      // One shared gym lane length (start->end distance the user measured
+      // at their facility), used by every travelling station. A property of
+      // the user's gym, NOT of any one race, so it persists across races and
+      // is never reset by resetSetup(). Kept local (not account-synced)
+      // since it's tied to wherever the user physically trains.
+      this.facilityLane = loadJson(FACILITY_LANE_KEY, null);
       this.analysisCache = {}; // raceId -> { loading, data|error }
       // Which analysis sections are expanded to their full bullet-point
       // detail, keyed "raceId:section" (section = "overall" or a rating
@@ -670,7 +668,7 @@
       if (action === "close-race-detail") return this.closeRaceDetail();
       if (action === "analyze-race") return this.loadRaceAnalysis(target.dataset.id, true);
       if (action === "toggle-analysis-detail") return this.toggleAnalysisDetail(target.dataset.id, target.dataset.section);
-      if (action === "reset-facility-lane") return this.resetFacilityLane(target.dataset.station);
+      if (action === "reset-facility-lane") return this.resetFacilityLane();
       if (action === "hero-start") return this.scrollToSetup();
     }
 
@@ -708,7 +706,7 @@
       const splitPartnerInput = event.target.closest("[data-doubles-round-partner-input]");
       if (splitPartnerInput) return this.setDoublesSplitPartner(splitPartnerInput.dataset.station, splitPartnerInput.value);
       const laneInput = event.target.closest("[data-facility-lane-input]");
-      if (laneInput) return this.setFacilityLane(laneInput.dataset.station, laneInput.value);
+      if (laneInput) return this.setFacilityLane(laneInput.value);
     }
 
     setCategory(value) {
@@ -807,28 +805,30 @@
     }
 
     // ---------- Facility lane distance (gym-specific) ----------
-    getFacilityLane(key) {
-      const v = this.facilityLanes[key];
-      return (typeof v === "number" && v > 0) ? v : defaultLaneM(key);
+    // One shared "how long is your available space" answer used by every
+    // travelling station (see TRAVERSAL_STATIONS) -- asked once instead of
+    // per-station, since a home/garage gym almost always has one usable
+    // stretch of floor, not a different one for each movement.
+    getFacilityLane() {
+      return (typeof this.facilityLane === "number" && this.facilityLane > 0) ? this.facilityLane : DEFAULT_LANE_M;
     }
 
-    setFacilityLane(key, rawValue) {
+    setFacilityLane(rawValue) {
       const v = parseFloat(rawValue);
       if (!isFinite(v) || v <= 0) {
-        delete this.facilityLanes[key];
+        this.facilityLane = null;
       } else {
-        // Clamp to something sane: no gym lane is longer than the full
-        // station distance (that would just be one lap) or shorter than 1m.
-        const capped = Math.min(v, STATION_SPECS[key].distanceM);
-        this.facilityLanes[key] = Math.max(1, Math.round(capped * 100) / 100);
+        // Clamp to something sane: 1m minimum, 500m ceiling (well past any
+        // single station's own full distance).
+        this.facilityLane = Math.max(1, Math.min(500, Math.round(v * 100) / 100));
       }
-      localStorage.setItem(FACILITY_LANES_KEY, JSON.stringify(this.facilityLanes));
+      localStorage.setItem(FACILITY_LANE_KEY, JSON.stringify(this.facilityLane));
       this.render();
     }
 
-    resetFacilityLane(key) {
-      delete this.facilityLanes[key];
-      localStorage.setItem(FACILITY_LANES_KEY, JSON.stringify(this.facilityLanes));
+    resetFacilityLane() {
+      this.facilityLane = null;
+      localStorage.setItem(FACILITY_LANE_KEY, JSON.stringify(this.facilityLane));
       this.render();
     }
 
@@ -850,7 +850,7 @@
     // distance -- "first line to last line and back counts as one lap."
     // e.g. an 80m station in a 10m lane => 8 laps.
     roundsFor(key) {
-      return Math.max(1, Math.ceil(this.effectiveDistanceM(key) / this.getFacilityLane(key)));
+      return Math.max(1, Math.ceil(this.effectiveDistanceM(key) / this.getFacilityLane()));
     }
 
     // ---------- Weight-standards reference list (renderWeightsCard) ----------
@@ -1480,10 +1480,14 @@
       return card;
     }
 
-    // "Your training space": let the user tell the app how long each
-    // travelling station's lane is at their own gym, and show how many
-    // laps that means to cover the HYROX distance. Distances shown in
-    // meters (HYROX's own unit), not the km/mi Settings preference.
+    // "Your training space": ask ONE question -- how long is your usable
+    // floor space -- rather than the same question per station, since a
+    // home/garage gym almost always has just one stretch of open floor
+    // shared by every travelling movement. Below the single input, show
+    // each station's resulting round count (read-only, derived) so the
+    // user can see what that one answer means for every station at a
+    // glance. Distances shown in meters (HYROX's own unit), not the km/mi
+    // Settings preference.
     renderTrainingSpaceCard() {
       // Rendered inside the setup card (right after Step 3), so this is a
       // plain section -- not its own .hx-card box.
@@ -1492,6 +1496,8 @@
       // supported; the card degrades gracefully (steps still readable) if
       // the image ever fails to load. A subtle credit sits bottom-right.
       const MEASURE_PHOTO = "https://images.unsplash.com/photo-1646656130703-8f95eed6a79b?w=1000&h=280&fit=crop&q=75&auto=format";
+      const lane = this.getFacilityLane();
+      const isCustom = typeof this.facilityLane === "number" && this.facilityLane > 0;
       const card = el(`
         <div class="hx-space-section">
           <div class="hx-step-label">${t("hyrox.space.title")}</div>
@@ -1522,6 +1528,17 @@
             </div>
           </div>
 
+          <div class="hx-space-lane-question">
+            <label class="hx-space-field">
+              <span class="hx-space-field-label">${t("hyrox.space.laneLabel")}</span>
+              <span class="hx-space-input-wrap">
+                <input type="number" inputmode="decimal" step="0.5" min="1" max="500" value="${lane}" data-facility-lane-input class="hx-space-input">
+                <span class="hx-space-input-unit">m</span>
+              </span>
+            </label>
+            ${isCustom ? `<button type="button" class="hx-weight-reset hx-space-reset" data-action="reset-facility-lane">${t("hyrox.weightAdjust.reset")}</button>` : ""}
+          </div>
+
           <div class="hx-space-list" data-space-list></div>
         </div>
       `);
@@ -1529,30 +1546,15 @@
       const listEl = card.querySelector("[data-space-list]");
       TRAVERSAL_STATIONS.forEach((key) => {
         const title = STATIONS.find((s) => s.key === key).title;
-        const lane = this.getFacilityLane(key);
         const rounds = this.roundsFor(key);
-        const isCustom = typeof this.facilityLanes[key] === "number" && this.facilityLanes[key] > 0;
 
         listEl.appendChild(el(`
           <div class="hx-space-row">
-            <div class="hx-space-row-head">
-              <span class="hx-space-icon">${stationIconSvg(key, 24)}</span>
-              <span class="hx-space-name">${title}</span>
-              ${isCustom ? `<button type="button" class="hx-weight-reset hx-space-reset" data-action="reset-facility-lane" data-station="${key}">${t("hyrox.weightAdjust.reset")}</button>` : ""}
-            </div>
-            <div class="hx-space-row-body">
-              <label class="hx-space-field">
-                <span class="hx-space-field-label">${t("hyrox.space.laneLabel")}</span>
-                <span class="hx-space-input-wrap">
-                  <input type="number" inputmode="decimal" step="0.5" min="1" max="${STATION_SPECS[key].distanceM}" value="${lane}" data-facility-lane-input data-station="${key}" class="hx-space-input">
-                  <span class="hx-space-input-unit">m</span>
-                </span>
-              </label>
-              <span class="hx-space-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-              <div class="hx-space-laps">
-                <span class="hx-space-laps-value">${rounds}</span>
-                <span class="hx-space-laps-label">${t("hyrox.space.laps")}</span>
-              </div>
+            <span class="hx-space-icon">${stationIconSvg(key, 24)}</span>
+            <span class="hx-space-name">${title}</span>
+            <div class="hx-space-laps">
+              <span class="hx-space-laps-value">${rounds}</span>
+              <span class="hx-space-laps-label">${t("hyrox.space.laps")}</span>
             </div>
           </div>
         `));
@@ -1591,7 +1593,7 @@
           + chip(t("hyrox.space.chip.machineVal"), t("hyrox.space.chip.resistance"));
       }
       // Travelling stations: rounds (laps of the gym lane) + distance + weight.
-      const rounds = Math.max(1, Math.ceil(spec.distanceM / this.getFacilityLane(key)));
+      const rounds = Math.max(1, Math.ceil(spec.distanceM / this.getFacilityLane()));
       const parts = [
         chip(`${rounds}×`, t("hyrox.space.chip.rounds"), "is-rounds"),
         chip(formatStationMeters(spec.distanceM), t("hyrox.space.chip.distance")),
@@ -1683,37 +1685,28 @@
         caption = `<div class="hx-now-caption">${formatWeight(w)} ${label.toLowerCase()}</div>`;
       }
 
-      const note = rounds > 1 ? `<div class="hx-now-note">${t("hyrox.space.lapNote")}</div>` : "";
       return `
         <div class="hx-now-hero${split ? " is-share" : ""}">
           <div class="hx-now-hero-value">${heroValue}</div>
           <div class="hx-now-hero-label">${heroLabel}</div>
         </div>
         ${caption}
-        ${note}
       `;
     }
 
     renderRunning() {
       const segment = STATIONS[this.stationIndex];
       const isLast = this.stationIndex >= STATIONS.length - 1;
-      const isDoubles = this.format === "doubles";
-      // On a run, doubles changes nothing about the distance (both partners
-      // run the full 1km together), so say that explicitly instead of leaving
-      // the screen looking identical to Singles. On a station, the chips
-      // themselves carry the doubles split (see stationNowChipsHtml).
-      const runDetail = isDoubles
-        ? `<div class="hx-now-detail">${t("hyrox.running.runDetail")}</div><div class="hx-now-note">${t("hyrox.running.doublesRunNote")}</div>`
-        : `<div class="hx-now-detail">${t("hyrox.running.runDetail")}</div>`;
-      const detailHtml = segment.type === "station"
-        ? this.stationNowChipsHtml(segment.key)
-        : runDetail;
+      // No subtitle text under the title -- the icon + "1km Run"/station
+      // name already says what it is; the chips/hero above carry whatever
+      // actionable detail there is (weight, rounds, distance).
+      const detailHtml = segment.type === "station" ? this.stationNowChipsHtml(segment.key) : "";
       const iconKey = segment.type === "station" ? segment.key : "run";
       const progressPct = Math.round((this.stationIndex / STATIONS.length) * 100);
       // A persistent badge so the chosen format is visible on every segment,
       // not just at setup -- the reported bug was that a Doubles race looked
       // exactly like a Singles one once started.
-      const formatBadge = isDoubles
+      const formatBadge = this.format === "doubles"
         ? `<span class="hx-run-format-badge">${t("hyrox.running.doublesBadge")}</span>`
         : "";
 
