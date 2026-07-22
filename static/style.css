@@ -550,24 +550,26 @@ input[type="file"], select {
 }
 
 /* ---------- Form breakdown ----------
-   A flat, quiet list instead of stacked colored boxes: hairline dividers
-   between rows, one small soft-tinted icon per row, and a single dot-led
-   verdict line under the header. Color appears only in the small icon chip
-   and the short category label -- the boxed cards, gradients, and glow
-   shadows of the previous design read as visually overwhelming on a phone,
-   especially in dark mode where three tinted banners stacked up. */
+   A soft 2-column grid of pastel blocks. Each block is a gently tinted
+   rounded tile (pale category color, no border, no shadow) with a small
+   solid icon chip and a short label -- calm pastels rather than the old
+   saturated gradient chips, but still clearly "cards" rather than a bare
+   list. When the section count is odd, the first block stretches into a
+   full-width rectangle so the grid never leaves a hole (with 3 sections:
+   one rectangle + two blocks). The verdict stays a single quiet dot-led
+   line so only the tiles carry color. */
 .fb-head { margin-bottom: 4px; }
 .fb-head-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
 .fb-head-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; font-weight: 500; }
 
-.fb-list { display: flex; flex-direction: column; }
+.fb-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 /* One-line verdict tying the score to what the sections show: a small
    colored dot + short colored sentence, no filled banner. */
 .fb-verdict {
   display: flex; align-items: flex-start; gap: 8px;
   font-size: 13px; font-weight: 600; line-height: 1.5;
-  padding: 10px 2px 12px; border-bottom: 1px solid var(--border);
+  padding: 8px 2px 14px;
 }
 .fb-verdict::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%;
@@ -580,41 +582,55 @@ input[type="file"], select {
 .fb-verdict-good { color: var(--green); }
 .fb-verdict-good::before { background: var(--green); }
 
-.fb-item { border-bottom: 1px solid var(--border); }
-.fb-item:last-child { border-bottom: none; }
+.fb-item {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--bg);
+}
+/* Odd section count -> the first tile becomes the full-width rectangle. */
+.fb-item:first-child:nth-last-child(odd) { grid-column: 1 / -1; }
+
 /* "Muted" sections are shown but deliberately secondary -- e.g. the limited
    positives on a poor set, or the minor notes on a great one. Kept legible
-   (not near-invisible), just clearly lower-priority than the featured ones
-   above them. */
-.fb-item-muted { opacity: 0.6; }
+   (not near-invisible), just clearly lower-priority than the featured ones. */
+.fb-item-muted { opacity: 0.62; }
 
+/* Square-ish blocks stack icon-over-text; the full-width rectangle lays
+   out as a classic icon-beside-text row. */
 .fb-item-main {
-  display: flex; align-items: flex-start; gap: 12px;
-  width: 100%; padding: 15px 2px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  width: 100%; height: 100%; padding: 14px;
   background: none; border: none; text-align: left; font-family: inherit; color: var(--text);
 }
-.fb-item.is-expandable .fb-item-main { cursor: pointer; }
-.fb-item.is-expandable .fb-item-main:active { opacity: 0.7; }
+.fb-item:first-child:nth-last-child(odd) .fb-item-main {
+  flex-direction: row; align-items: flex-start; gap: 12px;
+}
+.fb-item.is-expandable .fb-item-main { cursor: pointer; padding-right: 34px; }
+.fb-item.is-expandable .fb-item-main:active { transform: scale(0.98); }
 
 .fb-item-icon {
-  width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; color: #fff;
 }
-.fb-item-icon svg { width: 16px; height: 16px; display: block; }
+.fb-item-icon svg { width: 17px; height: 17px; display: block; }
 
 .fb-item-text { flex: 1; min-width: 0; }
 .fb-item-title {
-  font-size: 11px; font-weight: 800; margin-bottom: 3px;
-  text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 10.5px; font-weight: 800; margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: 0.05em;
 }
-.fb-item-summary { font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--text); }
+.fb-item-summary { font-size: 13.5px; font-weight: 500; line-height: 1.5; color: var(--text); }
 .fb-item-summary p { margin: 0; }
 
-.fb-item-chevron { flex-shrink: 0; color: var(--text-secondary); margin-top: 8px; transition: transform 0.25s ease; }
+.fb-item-chevron {
+  position: absolute; top: 12px; right: 12px;
+  color: var(--text-secondary); opacity: 0.7;
+  transition: transform 0.25s ease;
+}
 .fb-item.is-expanded .fb-item-chevron { transform: rotate(180deg); }
 
-/* Detail is indented to line up under the headline (past the icon). */
-.fb-item-detail { display: none; padding: 0 2px 16px 46px; }
+.fb-item-detail { display: none; padding: 0 14px 14px; }
 .fb-item.is-expanded .fb-item-detail { display: block; animation: fb-reveal 0.24s ease; }
 .fb-item-detail ul { margin: 0; padding-left: 17px; }
 .fb-item-detail li { font-size: 13.5px; line-height: 1.6; color: var(--text); margin-bottom: 6px; }
@@ -622,14 +638,21 @@ input[type="file"], select {
 .fb-item-detail p { margin: 0; font-size: 13.5px; line-height: 1.6; }
 @keyframes fb-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
-/* Soft-tinted icon chips (colored icon on its pale background) + matching
-   category-label color -- the accent lives here and nowhere else. */
-.fb-summary .fb-item-icon { background: var(--bg); color: var(--text-secondary); }
-.fb-positives .fb-item-icon { background: var(--green-bg); color: var(--green); }
-.fb-negatives .fb-item-icon { background: var(--red-bg); color: var(--red); }
-.fb-improvements .fb-item-icon { background: var(--blue-bg); color: var(--blue); }
-.fb-injury .fb-item-icon { background: var(--amber-bg); color: var(--amber); }
-.fb-progress .fb-item-icon { background: var(--purple-bg); color: var(--purple); }
+/* Pale pastel tile per category + small solid icon chip (flat, no
+   gradient/shadow) + matching label color. */
+.fb-summary { background: var(--bg); }
+.fb-positives { background: var(--green-bg); }
+.fb-negatives { background: var(--red-bg); }
+.fb-improvements { background: var(--blue-bg); }
+.fb-injury { background: var(--amber-bg); }
+.fb-progress { background: var(--purple-bg); }
+
+.fb-summary .fb-item-icon { background: var(--text-secondary); }
+.fb-positives .fb-item-icon { background: var(--green); }
+.fb-negatives .fb-item-icon { background: var(--red); }
+.fb-improvements .fb-item-icon { background: var(--blue); }
+.fb-injury .fb-item-icon { background: var(--amber); }
+.fb-progress .fb-item-icon { background: var(--purple); }
 
 .fb-summary .fb-item-title { color: var(--text-secondary); }
 .fb-positives .fb-item-title { color: var(--green); }
