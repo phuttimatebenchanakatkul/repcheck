@@ -262,6 +262,28 @@ def get_user_by_provider(provider, provider_user_id):
         ).fetchone())
 
 
+def list_users(since=None):
+    """All users, newest first -- for the admin signups page. `since` (an
+    ISO datetime string) restricts to accounts created at or after that
+    moment; omit for every account. created_at is stored as SQLite's
+    default UTC `datetime('now')`, so `since` must be UTC too for the
+    comparison to line up (see app.py's admin route, which builds it from
+    datetime.utcnow())."""
+    with get_db() as conn:
+        if since:
+            rows = conn.execute(
+                "SELECT id, name, email, auth_provider, created_at FROM users "
+                "WHERE created_at >= ? ORDER BY created_at DESC",
+                (since,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, name, email, auth_provider, created_at FROM users "
+                "ORDER BY created_at DESC"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def create_local_user(email, password, name):
     from werkzeug.security import generate_password_hash
 

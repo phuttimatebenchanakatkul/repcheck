@@ -24,11 +24,11 @@ import re
 import time
 import traceback
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import markdown as markdown_lib
-from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 from werkzeug.utils import secure_filename
 
 from analyze_chat import get_analysis_chat_reply
@@ -79,6 +79,7 @@ from database import (
     get_visible_challenges,
     has_submitted_today,
     init_db,
+    list_users,
     mark_onboarding_completed,
     prune_analyze_results,
     rate_limit_consume,
@@ -164,7 +165,14 @@ init_db()
 def inject_current_user():
     # Makes {{ current_user }} available in every template (including
     # base.html's sidebar) without passing it into each render_template call.
-    return {"current_user": current_user()}
+    user = current_user()
+    # is_admin drives the "Signups" link in the sidebar account popup
+    # (base.html) -- only the owner account ever sees it. ADMIN_EMAILS is
+    # defined further down this file, but that's fine: this function only
+    # runs per-request, long after the whole module (and ADMIN_EMAILS with
+    # it) has finished loading.
+    is_admin = bool(user) and (user.get("email") or "").lower() in ADMIN_EMAILS
+    return {"current_user": user, "is_admin": is_admin}
 
 
 # The only things reachable without a session: the auth pages/flows and the
@@ -198,6 +206,13 @@ def require_login():
     return redirect(url_for("auth.login_page", next=target))
 
 
+# Single owner-account allowlist, reused wherever this app needs an
+# "admin" concept (the AI-limit exemption below, and the /admin signups
+# page) -- one account, no roles/permissions system, per the owner's
+# explicit request each time this has come up.
+ADMIN_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
+
+
 # ---------- Per-user AI usage limits ----------
 # Applied to EVERY account. (A first version grandfathered accounts that
 # existed before the limits shipped via database.py's `rate_limited` column,
@@ -213,10 +228,9 @@ RATE_LIMITS = {
 }
 
 # Admin exemption, per the owner's explicit request: this one account is
-# never limited (same single-account pattern as
-# ANALYZE_LATEST_REDIRECT_EMAIL below). Everyone else -- every other
-# existing account and every future signup -- is limited.
-RATE_LIMIT_EXEMPT_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
+# never limited. Everyone else -- every other existing account and every
+# future signup -- is limited.
+RATE_LIMIT_EXEMPT_EMAILS = ADMIN_EMAILS
 
 
 def _friendly_wait(seconds):
@@ -877,6 +891,40 @@ def friends():
     return render_template(
         "friends.html", active_nav="friends", i18n_page="friends",
         add_code=request.args.get("add", ""),
+    )
+
+
+# ---------- Admin: signups list ----------
+# Own account, own eyes only -- see ADMIN_EMAILS. 404 (not 403) for
+# non-admins so the page's existence isn't revealed to anyone else; the
+# app-wide login gate already keeps logged-out visitors out entirely.
+ADMIN_SIGNUP_RANGES = {
+    "today": timedelta(days=1),
+    "week": timedelta(days=7),
+    "month": timedelta(days=30),
+    "all": None,
+}
+
+
+@app.route("/admin/users", methods=["GET"])
+def admin_users():
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+
+    range_key = request.args.get("range", "today")
+    if range_key not in ADMIN_SIGNUP_RANGES:
+        range_key = "today"
+    delta = ADMIN_SIGNUP_RANGES[range_key]
+    since = (datetime.utcnow() - delta).strftime("%Y-%m-%d %H:%M:%S") if delta else None
+
+    users = list_users(since=since)
+    return render_template(
+        "admin_users.html",
+        active_nav="",
+        users=users,
+        range_key=range_key,
+        ranges=list(ADMIN_SIGNUP_RANGES.keys()),
     )
 
 
