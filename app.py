@@ -24,7 +24,7 @@ import re
 import time
 import traceback
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import markdown as markdown_lib
@@ -898,12 +898,15 @@ def friends():
 # Own account, own eyes only -- see ADMIN_EMAILS. 404 (not 403) for
 # non-admins so the page's existence isn't revealed to anyone else; the
 # app-wide login gate already keeps logged-out visitors out entirely.
-ADMIN_SIGNUP_RANGES = {
-    "today": timedelta(days=1),
-    "week": timedelta(days=7),
-    "month": timedelta(days=30),
-    "all": None,
-}
+#
+# Thailand time (ICT, UTC+7) for the owner viewing this page, both for
+# "today" meaning Bangkok's calendar day and for the displayed timestamps.
+# A fixed offset, not a zoneinfo lookup, on purpose: Thailand has never
+# observed DST, so there's no rule to get wrong, and it works identically
+# on a Windows dev box and the Linux container without needing the
+# tzdata package installed either place.
+THAILAND_TZ = timezone(timedelta(hours=7))
+ADMIN_SIGNUP_RANGES = {"today", "week", "month", "all"}
 
 
 @app.route("/admin/users", methods=["GET"])
@@ -915,16 +918,31 @@ def admin_users():
     range_key = request.args.get("range", "today")
     if range_key not in ADMIN_SIGNUP_RANGES:
         range_key = "today"
-    delta = ADMIN_SIGNUP_RANGES[range_key]
-    since = (datetime.utcnow() - delta).strftime("%Y-%m-%d %H:%M:%S") if delta else None
+
+    now_th = datetime.now(timezone.utc).astimezone(THAILAND_TZ)
+    if range_key == "today":
+        since_th = now_th.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif range_key == "week":
+        since_th = now_th - timedelta(days=7)
+    elif range_key == "month":
+        since_th = now_th - timedelta(days=30)
+    else:
+        since_th = None
+    # created_at is stored as SQLite's naive UTC datetime('now'), so the
+    # cutoff passed to the query has to be naive UTC too.
+    since = since_th.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S") if since_th else None
 
     users = list_users(since=since)
+    for u in users:
+        created_utc = datetime.strptime(u["created_at"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        u["created_at_th"] = created_utc.astimezone(THAILAND_TZ).strftime("%Y-%m-%d %H:%M") + " ICT"
+
     return render_template(
         "admin_users.html",
         active_nav="",
         users=users,
         range_key=range_key,
-        ranges=list(ADMIN_SIGNUP_RANGES.keys()),
+        ranges=list(ADMIN_SIGNUP_RANGES),
     )
 
 
