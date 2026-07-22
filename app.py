@@ -75,7 +75,10 @@ from database import (
     get_progress_photo,
     get_progress_photos,
     get_total_reps_leaderboard,
+    get_usage_events,
+    get_user_activity_counts,
     get_user_by_friend_code,
+    get_user_by_id,
     get_visible_challenges,
     has_submitted_today,
     init_db,
@@ -87,6 +90,7 @@ from database import (
     save_analyze_result,
     save_submission,
     set_user_data,
+    track_usage,
     set_weight_log_entry,
     update_account,
 )
@@ -206,6 +210,25 @@ def require_login():
     return redirect(url_for("auth.login_page", next=target))
 
 
+@app.before_request
+def track_page_view():
+    """Count every logged-in page view per user for the admin activity
+    view ("which page did they visit the most / how many times"). Runs
+    after require_login (Flask runs before_request hooks in registration
+    order, and stops if an earlier one returned a response), so it only
+    ever fires for requests that were actually allowed through. GET page
+    loads only -- static assets, /api/* JSON calls, and form POSTs aren't
+    page views."""
+    if request.method != "GET":
+        return
+    endpoint = request.endpoint
+    if not endpoint or endpoint == "static" or request.path.startswith("/api/"):
+        return
+    user = current_user()
+    if user:
+        track_usage(user["id"], f"page:{endpoint}")
+
+
 # Single owner-account allowlist, reused wherever this app needs an
 # "admin" concept (the AI-limit exemption below, and the /admin signups
 # page) -- one account, no roles/permissions system, per the owner's
@@ -269,6 +292,15 @@ def _rate_limit_record(feature):
     if user:
         _, window = RATE_LIMITS[feature]
         rate_limit_consume(user["id"], feature, window, int(time.time()))
+
+
+def _track_feature(name):
+    """Lifetime usage counter for the admin activity view. Unlike
+    _rate_limit_record this counts EVERY account including the admin
+    (an exemption from limits shouldn't mean invisible in analytics)."""
+    user = current_user()
+    if user:
+        track_usage(user["id"], f"feature:{name}")
 
 
 def _chat_limit_response(retry_seconds):
@@ -422,6 +454,7 @@ def api_nutrition_log_entry():
         return jsonify({"ok": False, "error": "Invalid entry."}), 400
 
     day_entries = append_nutrition_log_entry(user["id"], date_iso, entry)
+    _track_feature("food_logged")
     return jsonify({"ok": True, "date": date_iso, "day_entries": day_entries})
 
 
@@ -448,6 +481,7 @@ def api_weight_log_entry():
         return jsonify({"ok": False, "error": "Invalid entry."}), 400
 
     weight_log = set_weight_log_entry(user["id"], date_iso, entry)
+    _track_feature("weight_logged")
     return jsonify({"ok": True, "date": date_iso, "weight_log": weight_log})
 
 
@@ -718,6 +752,7 @@ def api_analyze_food():
     try:
         result = analyze_food_photo(image_file.read(), mime_type=mime_type)
         _rate_limit_record("food_analysis")
+        _track_feature("food_scan")
         return jsonify({"ok": True, **result})
     except FoodAnalysisError as exc:
         app.logger.warning("Food photo analysis failed: %s", exc)
@@ -732,6 +767,7 @@ def api_scan_barcode():
 
     try:
         result = scan_and_lookup(image_file.read())
+        _track_feature("barcode_scan")
         return jsonify({"ok": True, **result})
     except BarcodeScanError as exc:
         app.logger.warning("Barcode scan failed: %s", exc)
@@ -946,6 +982,120 @@ def admin_users():
     )
 
 
+def _utc_str_to_ict(value):
+    """Stored naive-UTC 'YYYY-MM-DD HH:MM:SS' -> displayed Thailand time."""
+    try:
+        dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt.astimezone(THAILAND_TZ).strftime("%Y-%m-%d %H:%M") + " ICT"
+    except (TypeError, ValueError):
+        return value or ""
+
+
+# Friendly display names for tracked page endpoints -- anything untracked
+# here falls back to the raw endpoint name, so new pages still show up.
+ADMIN_PAGE_LABELS = {
+    "home": "Home", "analyze_page": "Analyze", "analyze_latest": "Analyze (latest result)",
+    "workouts": "Workouts", "nutrition": "Nutrition", "coach": "Coach", "hyrox": "HYROX",
+    "friends": "Friends", "settings": "Settings", "weight_history": "Weight History",
+    "logging_history": "Logging History", "streaks": "Streaks", "onboarding": "Onboarding",
+    "admin_users": "Admin: Signups", "admin_user_detail": "Admin: User Detail",
+    "auth.login_page": "Login page", "auth.signup_page": "Signup page",
+    "analyze": "Analyze (upload)", "result_latest": "Analyze result",
+}
+
+ADMIN_FEATURE_LABELS = {
+    "workout_analysis": "Workout analyses (AI)", "food_scan": "Food photo scans (AI)",
+    "coach_chat_message": "Coach chat messages", "analyze_chat_message": "Analysis chat messages",
+    "hyrox_ai_analysis": "HYROX race analyses (AI)", "challenge_submission": "Challenge submissions",
+    "food_logged": "Foods logged", "weight_logged": "Weigh-ins logged", "barcode_scan": "Barcode scans",
+}
+
+
+@app.route("/admin/users/<int:user_id>", methods=["GET"])
+def admin_user_detail(user_id):
+    admin = current_user()
+    if not admin or (admin.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+
+    target = get_user_by_id(user_id)
+    if not target:
+        abort(404)
+
+    # Page views + feature uses from the lifetime counters (collected from
+    # the moment this feature deployed onward -- there's no historical
+    # clickstream to backfill from).
+    page_views, feature_uses = [], []
+    for ev in get_usage_events(user_id):
+        kind, _, name = ev["event"].partition(":")
+        entry = {
+            "label": (ADMIN_PAGE_LABELS if kind == "page" else ADMIN_FEATURE_LABELS).get(name, name),
+            "count": ev["count"],
+            "last_at": _utc_str_to_ict(ev["last_at"]),
+        }
+        (page_views if kind == "page" else feature_uses).append(entry)
+
+    # What they've actually logged, from the account-synced localStorage
+    # mirror (user_data, values already JSON-decoded by get_all_user_data).
+    # Shape-checked defensively -- any malformed blob just renders as empty
+    # rather than 500ing the admin page.
+    synced = get_all_user_data(user_id)
+
+    def synced_dict(key):
+        value = synced.get(key)
+        return value if isinstance(value, dict) else {}
+
+    foods, total_foods = [], 0
+    nutrition_log = synced_dict("repcheck_nutrition_log_v1")
+    for date_iso in sorted(nutrition_log, reverse=True):
+        entries = nutrition_log.get(date_iso) or []
+        if not isinstance(entries, list):
+            continue
+        total_foods += len(entries)
+        for e in entries:
+            if len(foods) < 15 and isinstance(e, dict):
+                foods.append({"date": date_iso, "name": e.get("food") or e.get("name") or "?", "grams": e.get("grams")})
+
+    workouts, total_exercises = [], 0
+    workout_log = synced_dict("repcheck_workout_log_v2")
+    for date_iso in sorted(workout_log, reverse=True):
+        entries = workout_log.get(date_iso) or []
+        if not isinstance(entries, list):
+            continue
+        total_exercises += len(entries)
+        for e in entries:
+            if len(workouts) < 15 and isinstance(e, dict):
+                workouts.append({"date": date_iso, "name": e.get("exercise") or "?", "sets": len(e.get("sets") or [])})
+
+    weight_log = synced_dict("repcheck_weight_log_v1")
+    latest_weight = None
+    if weight_log:
+        latest_day = max(weight_log)
+        entry = weight_log.get(latest_day) or {}
+        if isinstance(entry, dict) and entry.get("kg"):
+            latest_weight = {"date": latest_day, "kg": entry["kg"]}
+
+    analyses = get_analyze_results(user_id, limit=10)
+    for a in analyses:
+        a["created_at_th"] = _utc_str_to_ict(a["created_at"])
+
+    return render_template(
+        "admin_user_detail.html",
+        active_nav="",
+        target=target,
+        created_at_th=_utc_str_to_ict(target["created_at"]),
+        page_views=page_views,
+        feature_uses=feature_uses,
+        counts=get_user_activity_counts(user_id),
+        foods=foods,
+        total_foods=total_foods,
+        workouts=workouts,
+        total_exercises=total_exercises,
+        weight_entries=len(weight_log),
+        latest_weight=latest_weight,
+        analyses=analyses,
+    )
+
+
 @app.route("/weight-history", methods=["GET"])
 def weight_history():
     # Client-side rendered from repcheck_weight_log_v1, same as everything
@@ -1148,6 +1298,7 @@ def api_challenge_submit(challenge_id):
                 pass
 
     save_submission(challenge_id, user["id"], result["reps"], result["notes"])
+    _track_feature("challenge_submission")
     rejected = result.get("rejected", 0)
     return jsonify({
         "ok": True,
@@ -1279,6 +1430,7 @@ def api_coach_chat():
 
     result = get_coach_reply(message, history)
     _rate_limit_record("ai_chat")
+    _track_feature("coach_chat_message")
     return jsonify({
         "ok": True,
         "reply": result["reply"],
@@ -1312,6 +1464,7 @@ def api_analyze_chat():
 
     result = get_analysis_chat_reply(message, history, context)
     _rate_limit_record("ai_chat")
+    _track_feature("analyze_chat_message")
     return jsonify({
         "ok": True,
         "reply": result["reply"],
@@ -1332,6 +1485,7 @@ def api_hyrox_analyze():
         return jsonify({"ok": False, "error": "Race has no segments to analyze."}), 400
 
     result = get_hyrox_race_analysis(race)
+    _track_feature("hyrox_ai_analysis")
     return jsonify({
         "ok": True,
         "overall": result["overall"],
@@ -1576,6 +1730,7 @@ def analyze():
         # Only count a use once the analysis actually succeeded, so a failed
         # Gemini call doesn't burn one of a user's 2-per-6h analyses.
         _rate_limit_record("workout_analysis")
+        _track_feature("workout_analysis")
         sections = split_feedback_sections(result["feedback"], result["overall_score"])
 
         # Model name / clip duration are useful for debugging but not

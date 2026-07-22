@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Admin{% endblock %}
+{% block heading %}{{ target.name }}{% endblock %}
+
+{% block content %}
+<!--
+  Admin-only per-user activity view (see app.py's admin_user_detail --
+  same ADMIN_EMAILS gate as the signups list, 404 for everyone else).
+  Page-view and feature counters come from usage_events and only start
+  accumulating from when tracking shipped; the logged food / exercises /
+  weight come from the account-synced localStorage mirror so they cover
+  the user's full history.
+-->
+<style>
+  .adu-back { display: inline-block; margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-decoration: none; }
+  .adu-back:hover { color: var(--text); }
+
+  .adu-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 18px 20px; margin-bottom: 14px;
+  }
+  .adu-card-title { font-size: 12px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+
+  .adu-id-row { display: flex; align-items: center; gap: 14px; }
+  .adu-avatar {
+    width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+    background: var(--blue-bg); color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px; font-weight: 800;
+  }
+  .adu-id-name { font-size: 16px; font-weight: 800; }
+  .adu-id-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+
+  .adu-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .adu-stat { background: var(--bg); border-radius: 12px; padding: 12px; text-align: center; }
+  .adu-stat-value { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  .adu-stat-label { font-size: 10.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 3px; }
+
+  .adu-row { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .adu-row:last-child { border-bottom: none; }
+  .adu-row-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .adu-row-meta { color: var(--text-secondary); font-size: 12px; flex-shrink: 0; }
+  .adu-row-count {
+    min-width: 40px; text-align: center; flex-shrink: 0;
+    background: var(--blue-bg); color: var(--blue);
+    border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 800;
+  }
+  .adu-empty { color: var(--text-secondary); font-size: 13px; padding: 6px 0; }
+  .adu-note { font-size: 11.5px; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
+</style>
+
+<a class="adu-back" href="{{ url_for('admin_users') }}">&larr; All signups</a>
+
+<div class="adu-card">
+  <div class="adu-id-row">
+    <div class="adu-avatar">{{ target.name[0]|upper if target.name else "?" }}</div>
+    <div>
+      <div class="adu-id-name">{{ target.name }}</div>
+      <div class="adu-id-sub">{{ target.email }} &middot; {{ target.auth_provider }} &middot; joined {{ created_at_th }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="adu-card">
+  <div class="adu-card-title">Totals</div>
+  <div class="adu-stat-grid">
+    <div class="adu-stat"><div class="adu-stat-value">{{ total_foods }}</div><div class="adu-stat-label">Foods logged</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ total_exercises }}</div><div class="adu-stat-label">Exercises logged</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ weight_entries }}</div><div class="adu-stat-label">Weigh-ins</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ counts.workout_analyses }}</div><div class="adu-stat-label">AI analyses</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ counts.hyrox_races }}</div><div class="adu-stat-label">HYROX races</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ counts.challenge_submissions }}</div><div class="adu-stat-label">Challenges</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ counts.custom_foods }}</div><div class="adu-stat-label">Custom foods</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ counts.custom_exercises }}</div><div class="adu-stat-label">Custom exercises</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ counts.progress_photos }}</div><div class="adu-stat-label">Progress photos</div></div>
+    <div class="adu-stat"><div class="adu-stat-value">{{ counts.friends }}</div><div class="adu-stat-label">Friends</div></div>
+    {% if latest_weight %}
+    <div class="adu-stat"><div class="adu-stat-value">{{ latest_weight.kg }}kg</div><div class="adu-stat-label">Latest weight</div></div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="adu-card">
+  <div class="adu-card-title">Page visits (most visited first)</div>
+  {% if page_views %}
+    {% for p in page_views %}
+      <div class="adu-row">
+        <span class="adu-row-name">{{ p.label }}</span>
+        <span class="adu-row-meta">last {{ p.last_at }}</span>
+        <span class="adu-row-count">{{ p.count }}</span>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="adu-empty">No page visits recorded yet.</div>
+  {% endif %}
+  <div class="adu-note">Counting starts from when activity tracking was added &mdash; visits before that weren't recorded anywhere and can't be backfilled.</div>
+</div>
+
+<div class="adu-card">
+  <div class="adu-card-title">Feature usage</div>
+  {% if feature_uses %}
+    {% for f in feature_uses %}
+      <div class="adu-row">
+        <span class="adu-row-name">{{ f.label }}</span>
+        <span class="adu-row-meta">last {{ f.last_at }}</span>
+        <span class="adu-row-count">{{ f.count }}</span>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="adu-empty">No feature usage recorded yet.</div>
+  {% endif %}
+</div>
+
+<div class="adu-card">
+  <div class="adu-card-title">Recent foods logged ({{ total_foods }} total)</div>
+  {% if foods %}
+    {% for fd in foods %}
+      <div class="adu-row">
+        <span class="adu-row-name">{{ fd.name }}</span>
+        <span class="adu-row-meta">{% if fd.grams %}{{ fd.grams }}g &middot; {% endif %}{{ fd.date }}</span>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="adu-empty">No food logged.</div>
+  {% endif %}
+</div>
+
+<div class="adu-card">
+  <div class="adu-card-title">Recent exercises logged ({{ total_exercises }} total)</div>
+  {% if workouts %}
+    {% for w in workouts %}
+      <div class="adu-row">
+        <span class="adu-row-name">{{ w.name }}</span>
+        <span class="adu-row-meta">{{ w.sets }} set{{ "" if w.sets == 1 else "s" }} &middot; {{ w.date }}</span>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="adu-empty">No exercises logged.</div>
+  {% endif %}
+</div>
+
+<div class="adu-card">
+  <div class="adu-card-title">Recent AI workout analyses</div>
+  {% if analyses %}
+    {% for a in analyses %}
+      <div class="adu-row">
+        <span class="adu-row-name">{{ a.exercise_label }}</span>
+        <span class="adu-row-meta">{{ a.reps }} reps &middot; {{ a.created_at_th }}</span>
+        <span class="adu-row-count">{{ a.overall_score }}/100</span>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="adu-empty">No analyses yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

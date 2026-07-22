@@ -112,6 +112,21 @@ def init_db():
                 PRIMARY KEY (user_id, feature)
             )
         """)
+        # Lifetime per-user usage counters for the admin activity view:
+        # one row per (user, event), where event is "page:<endpoint>" for
+        # page views or "feature:<name>" for feature uses (AI analysis,
+        # food scan, chat message, ...). Deliberately aggregate counters,
+        # not an event log -- the admin page needs "how many times", not a
+        # full clickstream, and counters can't grow unbounded per user.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS usage_events (
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                event TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                last_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (user_id, event)
+            )
+        """)
         # Friendships are stored one row per direction (both inserted on
         # add) so "my friends" is always a single indexed lookup.
         conn.execute("""
@@ -486,6 +501,47 @@ def rate_limit_consume(user_id, feature, window_seconds, now):
             "window_start = excluded.window_start, count = excluded.count",
             (user_id, feature, window_start, count + 1),
         )
+
+
+# ---------- Admin activity tracking ----------
+def track_usage(user_id, event):
+    """Increment the lifetime counter for one (user, event) pair -- events
+    are "page:<endpoint>" or "feature:<name>", see app.py's tracker."""
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO usage_events (user_id, event, count, last_at) "
+            "VALUES (?, ?, 1, datetime('now')) "
+            "ON CONFLICT(user_id, event) DO UPDATE SET "
+            "count = count + 1, last_at = datetime('now')",
+            (user_id, event),
+        )
+
+
+def get_usage_events(user_id):
+    """All of one user's usage counters, most-used first."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT event, count, last_at FROM usage_events "
+            "WHERE user_id = ? ORDER BY count DESC, event",
+            (user_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_user_activity_counts(user_id):
+    """Row counts of everything this user has stored server-side, for the
+    admin per-user detail page."""
+    queries = {
+        "workout_analyses": "SELECT COUNT(*) FROM analyze_results WHERE user_id = ?",
+        "hyrox_races": "SELECT COUNT(*) FROM hyrox_results WHERE user_id = ?",
+        "challenge_submissions": "SELECT COUNT(*) FROM challenge_submissions WHERE user_id = ?",
+        "custom_foods": "SELECT COUNT(*) FROM custom_foods WHERE user_id = ?",
+        "custom_exercises": "SELECT COUNT(*) FROM custom_exercises WHERE user_id = ?",
+        "progress_photos": "SELECT COUNT(*) FROM progress_photos WHERE user_id = ?",
+        "friends": "SELECT COUNT(*) FROM friends WHERE user_id = ?",
+    }
+    with get_db() as conn:
+        return {name: conn.execute(sql, (user_id,)).fetchone()[0] for name, sql in queries.items()}
 
 
 def get_or_create_friend_code(user_id):
