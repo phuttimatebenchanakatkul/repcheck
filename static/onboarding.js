@@ -155,8 +155,15 @@
   // Generated once with the app's own Gemini image model -- no third-party
   // copyright baggage -- and shipped as ordinary static assets. Same
   // helper as coaching.js (duplicated rather than shared -- see file header).
+  //
+  // If an image ever fails to load (a lagging deploy, a network blip), the
+  // onerror swaps in a neutral body silhouette (inline base64 SVG) instead
+  // of the browser's broken-image glyph -- the % label below the figure
+  // still conveys the choice, so the step stays usable. `this.onerror=null`
+  // prevents an infinite loop if the fallback itself somehow can't render.
+  var BODY_TYPE_FALLBACK_SRC = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0ODAgNDgwIj48ZyBmaWxsPSIjOGI4ZjlhIj48Y2lyY2xlIGN4PSIyNDAiIGN5PSIxNTAiIHI9IjcyIi8+PHBhdGggZD0iTTExMCA0ODBjMC05NiA1OC0xNjAgMTMwLTE2MHMxMzAgNjQgMTMwIDE2MHoiLz48L2c+PC9zdmc+";
   function bodyTypeImageHtml(rangeId) {
-    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="ob-body-type-img">`;
+    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="ob-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
   }
 
   function optionsFor(ids, prefix, iconMap) {

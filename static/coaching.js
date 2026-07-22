@@ -135,8 +135,13 @@
   // themselves to the figure, like the reference charts fitness apps use.
   // Generated once with the app's own Gemini image model -- no third-party
   // copyright baggage -- and shipped as ordinary static assets.
+  //
+  // onerror falls back to a neutral body silhouette (inline base64 SVG) so a
+  // failed image load never shows the browser's broken-image glyph -- same
+  // fallback as onboarding.js's bodyTypeImageHtml.
+  var BODY_TYPE_FALLBACK_SRC = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0ODAgNDgwIj48ZyBmaWxsPSIjOGI4ZjlhIj48Y2lyY2xlIGN4PSIyNDAiIGN5PSIxNTAiIHI9IjcyIi8+PHBhdGggZD0iTTExMCA0ODBjMC05NiA1OC0xNjAgMTMwLTE2MHMxMzAgNjQgMTMwIDE2MHoiLz48L2c+PC9zdmc+";
   function bodyTypeImageHtml(rangeId) {
-    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="pc-body-type-img">`;
+    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="pc-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
   }
 
   function loadWeightLog() { return loadJson(WEIGHT_LOG_KEY, {}); }
