@@ -91,6 +91,29 @@ def init_db():
                 "ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0"
             )
             conn.execute("UPDATE users SET onboarding_completed = 1")
+        # Whether this account is subject to the per-user AI usage limits
+        # (workout/food analysis, chatbot -- see rate_limit_peek below and
+        # app.py's enforcement). Every NEW signup gets 1 via the column
+        # default; accounts that already existed when the limits shipped are
+        # backfilled to 0 so they stay unlimited (matches the "every new user
+        # created" scope the limits were requested for).
+        if "rate_limited" not in cols:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN rate_limited INTEGER NOT NULL DEFAULT 1"
+            )
+            conn.execute("UPDATE users SET rate_limited = 0")
+        # Per-user AI usage counters (workout/food analysis, chatbot). One
+        # row per user per feature, holding a fixed-window count -- see
+        # rate_limit_peek / rate_limit_consume below.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rate_limits (
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                feature TEXT NOT NULL,
+                window_start INTEGER NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, feature)
+            )
+        """)
         # Friendships are stored one row per direction (both inserted on
         # add) so "my friends" is always a single indexed lookup.
         conn.execute("""
@@ -401,6 +424,48 @@ def update_account(user_id, name=None, email=None):
     except sqlite3.IntegrityError:
         return "That email is already in use by another account."
     return None
+
+
+# ---------- Per-user AI usage rate limits ----------
+# A fixed-window counter per (user, feature): the window opens on the first
+# use and lasts window_seconds; once `limit` uses land inside it, further
+# uses are blocked until it elapses, then the next use opens a fresh window.
+# Split into a read-only peek and a separate consume so the caller can check
+# the limit up front but only spend a use once the work actually succeeds
+# (a failed Gemini call shouldn't burn one of a user's scarce analyses).
+def rate_limit_peek(user_id, feature, limit, window_seconds, now):
+    """Read-only: (allowed, retry_after_seconds) for one more use of `feature`
+    by this user right now. Does not record anything."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT window_start, count FROM rate_limits WHERE user_id = ? AND feature = ?",
+            (user_id, feature),
+        ).fetchone()
+    if row is None or now - row["window_start"] >= window_seconds:
+        return True, 0
+    if row["count"] >= limit:
+        return False, int(window_seconds - (now - row["window_start"]))
+    return True, 0
+
+
+def rate_limit_consume(user_id, feature, window_seconds, now):
+    """Record one use of `feature` for this user, opening a fresh window if the
+    previous one has fully elapsed (or none exists yet)."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT window_start, count FROM rate_limits WHERE user_id = ? AND feature = ?",
+            (user_id, feature),
+        ).fetchone()
+        if row is None or now - row["window_start"] >= window_seconds:
+            window_start, count = now, 0
+        else:
+            window_start, count = row["window_start"], row["count"]
+        conn.execute(
+            "INSERT INTO rate_limits (user_id, feature, window_start, count) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(user_id, feature) DO UPDATE SET "
+            "window_start = excluded.window_start, count = excluded.count",
+            (user_id, feature, window_start, count + 1),
+        )
 
 
 def get_or_create_friend_code(user_id):

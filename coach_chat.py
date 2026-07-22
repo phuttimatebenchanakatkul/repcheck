@@ -7,10 +7,8 @@ answering free-form questions in plain language.
 """
 
 import os
-import time
 
 from dotenv import load_dotenv
-from flask import session
 
 load_dotenv()
 
@@ -19,13 +17,6 @@ GEMINI_MODEL = "gemini-3.1-flash-lite"
 # How many prior turns (user + coach messages) to send back for context.
 # Keeps requests small and avoids re-litigating very old parts of the chat.
 MAX_HISTORY_TURNS = 16
-
-# Simple per-browser-session cap so a single visitor can't run up unbounded
-# Gemini usage: only SESSION_MESSAGE_LIMIT messages allowed, then the coach
-# goes quiet until SESSION_WINDOW_SECONDS has passed since the first message
-# of that window, at which point it resets automatically.
-SESSION_MESSAGE_LIMIT = 3
-SESSION_WINDOW_SECONDS = 5 * 60 * 60  # 5 hours
 
 SYSTEM_PROMPT = (
     "You are the RepCheck Coach, a friendly assistant inside a fitness app. "
@@ -75,51 +66,10 @@ def _fallback_reply():
     )
 
 
-def _format_wait(seconds_left):
-    seconds_left = max(seconds_left, 0)
-    hours, remainder = divmod(seconds_left, 3600)
-    minutes = remainder // 60
-    if hours and minutes:
-        return f"{hours}h {minutes}m"
-    if hours:
-        return f"{hours}h"
-    return f"{max(minutes, 1)}m"
-
-
-def _check_session_limit():
-    """Tracked entirely in the Flask session cookie — no server-side
-    storage needed, and it resets on its own once the window elapses.
-
-    Returns (allowed, seconds_until_reset).
-    """
-    now = time.time()
-    window_start = session.get("coach_window_start")
-    count = session.get("coach_message_count", 0)
-
-    if window_start is None or now - window_start >= SESSION_WINDOW_SECONDS:
-        window_start = now
-        count = 0
-
-    if count >= SESSION_MESSAGE_LIMIT:
-        return False, int(SESSION_WINDOW_SECONDS - (now - window_start))
-
-    session["coach_window_start"] = window_start
-    session["coach_message_count"] = count + 1
-    return True, 0
-
-
 def get_coach_reply(message, history=None):
-    allowed, seconds_left = _check_session_limit()
-    if not allowed:
-        return {
-            "reply": (
-                f"You've used your {SESSION_MESSAGE_LIMIT} messages for this session. "
-                f"Come back in about {_format_wait(seconds_left)} and I'll be ready to help again."
-            ),
-            "limited": True,
-            "retry_after_seconds": seconds_left,
-        }
-
+    # Usage limiting now lives in app.py's /api/coach-chat route (a shared
+    # per-user "ai_chat" budget across both chatbots), so this module just
+    # generates a reply.
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return {"reply": _fallback_reply(), "limited": False, "retry_after_seconds": 0}
