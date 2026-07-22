@@ -19,10 +19,8 @@ server-side; the client re-sends it on every chat turn, exactly like
 """
 
 import os
-import time
 
 from dotenv import load_dotenv
-from flask import session
 
 load_dotenv()
 
@@ -37,51 +35,11 @@ MAX_HISTORY_TURNS = 16
 # the prompt size, not because real critiques get anywhere close.
 MAX_FEEDBACK_CHARS = 6000
 
-# Independent from coach_chat.py's session limit -- a visitor analyzing a
-# set and asking about it shouldn't share a budget with (or be blocked by)
-# unrelated Coach page usage in the same browser session.
-SESSION_MESSAGE_LIMIT = 6
-SESSION_WINDOW_SECONDS = 5 * 60 * 60  # 5 hours
-
-
 def _fallback_reply():
     return (
         "The analysis assistant isn't reachable right now (no Gemini connection). "
         "Please try again in a moment."
     )
-
-
-def _format_wait(seconds_left):
-    seconds_left = max(seconds_left, 0)
-    hours, remainder = divmod(seconds_left, 3600)
-    minutes = remainder // 60
-    if hours and minutes:
-        return f"{hours}h {minutes}m"
-    if hours:
-        return f"{hours}h"
-    return f"{max(minutes, 1)}m"
-
-
-def _check_session_limit():
-    """Tracked entirely in the Flask session cookie -- no server-side
-    storage needed, and it resets on its own once the window elapses.
-
-    Returns (allowed, seconds_until_reset).
-    """
-    now = time.time()
-    window_start = session.get("analyze_chat_window_start")
-    count = session.get("analyze_chat_message_count", 0)
-
-    if window_start is None or now - window_start >= SESSION_WINDOW_SECONDS:
-        window_start = now
-        count = 0
-
-    if count >= SESSION_MESSAGE_LIMIT:
-        return False, int(SESSION_WINDOW_SECONDS - (now - window_start))
-
-    session["analyze_chat_window_start"] = window_start
-    session["analyze_chat_message_count"] = count + 1
-    return True, 0
 
 
 def _build_system_prompt(context):
@@ -136,17 +94,9 @@ def _build_system_prompt(context):
 
 
 def get_analysis_chat_reply(message, history=None, context=None):
-    allowed, seconds_left = _check_session_limit()
-    if not allowed:
-        return {
-            "reply": (
-                f"You've used your {SESSION_MESSAGE_LIMIT} messages for this analysis. "
-                f"Come back in about {_format_wait(seconds_left)} and I'll be ready to help again."
-            ),
-            "limited": True,
-            "retry_after_seconds": seconds_left,
-        }
-
+    # Usage limiting now lives in app.py's /api/analyze-chat route (a shared
+    # per-user "ai_chat" budget across both chatbots), so this module just
+    # generates a reply.
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return {"reply": _fallback_reply(), "limited": False, "retry_after_seconds": 0}

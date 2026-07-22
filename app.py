@@ -21,6 +21,7 @@ Requires:
 import mimetypes
 import os
 import re
+import time
 import traceback
 import uuid
 from datetime import date
@@ -80,6 +81,8 @@ from database import (
     init_db,
     mark_onboarding_completed,
     prune_analyze_results,
+    rate_limit_consume,
+    rate_limit_peek,
     save_analyze_result,
     save_submission,
     set_user_data,
@@ -162,6 +165,65 @@ def inject_current_user():
     # Makes {{ current_user }} available in every template (including
     # base.html's sidebar) without passing it into each render_template call.
     return {"current_user": current_user()}
+
+
+# ---------- Per-user AI usage limits ----------
+# Applied only to rate-limited accounts (every signup created after this
+# shipped -- see database.py's `rate_limited` column). Anonymous visitors and
+# grandfathered pre-existing accounts are not limited. Both chatbots (Coach
+# page + analysis follow-ups) share the one "ai_chat" bucket.
+RATE_LIMITS = {
+    "workout_analysis": (2, 6 * 60 * 60),   # 2 per 6 hours
+    "food_analysis": (3, 24 * 60 * 60),     # 3 per day
+    "ai_chat": (5, 6 * 60 * 60),            # 5 messages per 6 hours
+}
+
+
+def _friendly_wait(seconds):
+    """A short human phrase for how long until the window resets."""
+    if seconds >= 3600:
+        hours = max(1, round(seconds / 3600))
+        return f"about {hours} hour{'s' if hours != 1 else ''}"
+    minutes = max(1, round(seconds / 60))
+    return f"about {minutes} minute{'s' if minutes != 1 else ''}"
+
+
+def _limited_user():
+    """The current user IF their account is subject to the AI usage limits;
+    None for anonymous visitors and grandfathered pre-existing accounts (both
+    stay unlimited)."""
+    user = current_user()
+    return user if (user and user.get("rate_limited")) else None
+
+
+def _rate_limit_blocked(feature):
+    """Read-only: (blocked, retry_after_seconds) for `feature`. Does not spend
+    a use -- call _rate_limit_record once the work actually succeeds."""
+    user = _limited_user()
+    if not user:
+        return False, 0
+    limit, window = RATE_LIMITS[feature]
+    allowed, retry = rate_limit_peek(user["id"], feature, limit, window, int(time.time()))
+    return (not allowed), retry
+
+
+def _rate_limit_record(feature):
+    """Spend one use of `feature` for the current (limited) user."""
+    user = _limited_user()
+    if user:
+        _, window = RATE_LIMITS[feature]
+        rate_limit_consume(user["id"], feature, window, int(time.time()))
+
+
+def _chat_limit_response(retry_seconds):
+    """The over-limit reply shape both chat routes return -- a normal-looking
+    bot message plus the flags the chat widgets already use to lock input."""
+    limit = RATE_LIMITS["ai_chat"][0]
+    return {
+        "reply": f"You've reached your {limit} chat messages for now. Please check back in {_friendly_wait(retry_seconds)}.",
+        "limited": True,
+        "retry_after_seconds": retry_seconds,
+    }
 
 
 # One-off, per user's explicit request: for this single account only, the
@@ -579,6 +641,14 @@ def api_analyze_food():
     if not image_file or image_file.filename == "":
         return jsonify({"ok": False, "error": "Please provide a photo."}), 400
 
+    blocked, retry = _rate_limit_blocked("food_analysis")
+    if blocked:
+        limit = RATE_LIMITS["food_analysis"][0]
+        return jsonify({
+            "ok": False,
+            "error": f"You've used your {limit} food scans for today — try again in {_friendly_wait(retry)}.",
+        }), 429
+
     # Camera captures come through as a Blob with no real filename, so the
     # browser-reported content type (not the filename extension) is the
     # reliable signal here.
@@ -586,6 +656,7 @@ def api_analyze_food():
 
     try:
         result = analyze_food_photo(image_file.read(), mime_type=mime_type)
+        _rate_limit_record("food_analysis")
         return jsonify({"ok": True, **result})
     except FoodAnalysisError as exc:
         app.logger.warning("Food photo analysis failed: %s", exc)
@@ -1084,7 +1155,12 @@ def api_coach_chat():
     if not isinstance(history, list):
         return jsonify({"ok": False, "error": "Invalid history."}), 400
 
+    blocked, retry = _rate_limit_blocked("ai_chat")
+    if blocked:
+        return jsonify({"ok": True, **_chat_limit_response(retry)})
+
     result = get_coach_reply(message, history)
+    _rate_limit_record("ai_chat")
     return jsonify({
         "ok": True,
         "reply": result["reply"],
@@ -1107,7 +1183,12 @@ def api_analyze_chat():
     if not isinstance(context, dict):
         return jsonify({"ok": False, "error": "Invalid context."}), 400
 
+    blocked, retry = _rate_limit_blocked("ai_chat")
+    if blocked:
+        return jsonify({"ok": True, **_chat_limit_response(retry)})
+
     result = get_analysis_chat_reply(message, history, context)
+    _rate_limit_record("ai_chat")
     return jsonify({
         "ok": True,
         "reply": result["reply"],
@@ -1355,6 +1436,11 @@ def analyze():
     if suffix not in ALLOWED_EXTENSIONS:
         return fail(f"Unsupported file type '{suffix}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
 
+    blocked, retry = _rate_limit_blocked("workout_analysis")
+    if blocked:
+        limit = RATE_LIMITS["workout_analysis"][0]
+        return fail(f"You've used your {limit} workout analyses for now — try again in {_friendly_wait(retry)}.")
+
     job_id = uuid.uuid4().hex[:12]
     safe_name = secure_filename(video_file.filename) or "upload"
     raw_path = UPLOAD_DIR / f"{job_id}_{safe_name}"
@@ -1364,6 +1450,9 @@ def analyze():
 
     try:
         result = run_pipeline(raw_path, exercise, trimmed_path=trimmed_path)
+        # Only count a use once the analysis actually succeeded, so a failed
+        # Gemini call doesn't burn one of a user's 2-per-6h analyses.
+        _rate_limit_record("workout_analysis")
         sections = split_feedback_sections(result["feedback"], result["overall_score"])
 
         # Model name / clip duration are useful for debugging but not
