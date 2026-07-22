@@ -65,11 +65,11 @@
   </div>
   {% if overall_score is not none %}
     {% if overall_score < 50 %}
-      <div class="fb-verdict fb-verdict-bad" data-i18n="analyze.verdictBad">This score is low because the form issues and injury risks outweigh what went well — focus on the fixes and safety points below.</div>
+      <div class="fb-verdict fb-verdict-bad" data-i18n="analyze.verdictBad">The issues outweighed what went well — start with the fixes below.</div>
     {% elif overall_score >= 80 %}
-      <div class="fb-verdict fb-verdict-good" data-i18n="analyze.verdictGood">Strong set! Your form's strengths clearly outweigh any issues — here's what you nailed and how to push further.</div>
+      <div class="fb-verdict fb-verdict-good" data-i18n="analyze.verdictGood">Strong set — keep it up and push a little further.</div>
     {% else %}
-      <div class="fb-verdict fb-verdict-ok" data-i18n="analyze.verdictOk">A mixed set — here's the full breakdown of what worked and what to tighten up.</div>
+      <div class="fb-verdict fb-verdict-ok" data-i18n="analyze.verdictOk">A mixed set — what worked and what to tighten up.</div>
     {% endif %}
   {% endif %}
   <div class="fb-list">
