@@ -30,6 +30,7 @@ from database import (
     get_user_by_provider,
     verify_password,
 )
+from name_filter import validate_display_name
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -88,9 +89,12 @@ def signup():
     name = request.form.get("name", "").strip()
     next_url = _safe_next(request.form.get("next", ""))
 
-    error = None
-    if not name:
-        error = "Please enter your name."
+    # This name is what shows up to other users everywhere (leaderboards,
+    # friends, challenges) -- validate it here at signup rather than let an
+    # inappropriate one into the account and get caught later, if ever.
+    error = validate_display_name(name)
+    if error:
+        pass
     elif "@" not in email or "." not in email.split("@")[-1]:
         error = "Please enter a valid email address."
     elif len(password) < 8:

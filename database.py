@@ -18,6 +18,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from name_filter import validate_display_name
+
 # DATA_DIR lets deployment point this at a persistent volume (e.g. a
 # Render disk) instead of the app's own source directory, which is wiped
 # on every deploy. Defaults to the old local-dev behavior when unset.
@@ -378,6 +380,13 @@ def update_account(user_id, name=None, email=None):
     (e.g. the email is already taken by another account)."""
     fields, values = [], []
     if name is not None and name.strip():
+        # Same display-name check as signup (see name_filter.py) -- this is
+        # the other place a user can set the name shown to everyone else,
+        # so an inappropriate one shouldn't be able to sneak in by renaming
+        # after account creation.
+        name_error = validate_display_name(name)
+        if name_error:
+            return name_error
         fields.append("name = ?")
         values.append(name.strip())
     if email is not None and email.strip():
