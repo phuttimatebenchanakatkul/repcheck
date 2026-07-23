@@ -28,7 +28,7 @@
       "nav.home": "Home",
       "tour.skip": "Skip",
       "tour.next": "Next",
-      "tour.finish": "Done — let's go",
+      "tour.finish": "Done",
       "tour.stepCount": "{n} of {total}",
       "tour.welcome.title": "Welcome to RepCheck 👋",
       "tour.welcome.body": "Here's a 20-second look at the three things you'll use most.",
