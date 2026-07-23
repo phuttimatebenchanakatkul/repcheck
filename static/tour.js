@@ -1,9 +1,10 @@
 /*
- * First-run guided tour of the whole app -- a walkthrough that clicks INTO
- * each page and briefly explains it. Deliberately low-key: a light dim, a
- * bright pulsing ring on the ONE control being described, and a small card
- * pinned to the bottom. The user advances by tapping the highlighted
- * control itself (no Next button on those steps).
+ * First-run guided tour -- deliberately short and simple: four steps, one
+ * sentence each, advanced with a single Next button. A light dim, a ring
+ * around the one control being described, and a small card at the bottom.
+ * (It used to be a 7-step affair with a tap-to-try mechanic, per-step
+ * colour themes and confetti; that proved overwhelming for new users, so
+ * it was cut down to just the three core pages.)
  *
  * Trigger: onboarding.js sets repcheck_pending_tour = "1" (and
  * repcheck_tour_step = "0"). The tour spans several full page loads, so it
@@ -27,20 +28,14 @@
     return p === "" ? "/" : p;
   }
 
-  // Each step: the page it lives on, the control to highlight there (first
-  // visible wins; null = a centred info card), and a two-colour accent.
+  // Each step: the page it lives on and the control to highlight there
+  // (first visible selector wins; null = a centred info card).
   var STEPS = [
-    { key: "welcome", path: "/", targets: null, accent: ["#2f66e8", "#4d7ff5"] },
-    { key: "workouts", path: "/workouts", targets: ["#wl-log-btn"], accent: ["#6366f1", "#8b5cf6"] },
-    { key: "nutrition", path: "/nutrition", targets: ["#nl-log-btn"], accent: ["#16a34a", "#22c55e"] },
-    { key: "analyze", path: "/analyze", targets: ["#file-drop"], accent: ["#f59e0b", "#fb923c"] },
-    { key: "hyrox", path: "/hyrox", targets: ['[data-action="start-race"]', ".hx-hero-cta", ".hx-primary-btn"], accent: ["#ef4444", "#f87171"] },
-    { key: "coach", path: "/coach", targets: ["#cc-input", ".cc-input-pill"], accent: ["#8b5cf6", "#a78bfa"] },
-    { key: "done", path: "/", targets: null, accent: ["#16a34a", "#22c55e"] }
+    { key: "welcome", path: "/", targets: null },
+    { key: "workouts", path: "/workouts", targets: ["#wl-log-btn"] },
+    { key: "nutrition", path: "/nutrition", targets: ["#nl-log-btn"] },
+    { key: "analyze", path: "/analyze", targets: ["#file-drop"] }
   ];
-
-  var CONFETTI_COLORS = ["#2f66e8", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#0ea5e9", "#fb923c"];
-  var TAP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="8.5" opacity="0.5"/></svg>';
 
   ready(function () {
     var t = (window.RepCheckI18n && RepCheckI18n.t)
@@ -54,7 +49,7 @@
     // Resume on the right page if the tour was interrupted elsewhere.
     if (pathOf() !== STEPS[idx].path) { location.replace(STEPS[idx].path); return; }
 
-    var overlay, spotlight, hotspot, card, stepCountEl, titleEl, bodyEl, tapHint, backBtn, nextBtn, resumeBtn;
+    var overlay, spotlight, card, stepCountEl, titleEl, bodyEl, nextBtn;
     var currentTarget = null;
     var pollTimer = null;
 
@@ -82,7 +77,6 @@
       overlay.setAttribute("aria-modal", "true");
       overlay.innerHTML =
         '<div class="tour-spotlight"></div>' +
-        '<div class="tour-hotspot" role="button" tabindex="0" aria-label="Try it"></div>' +
         '<div class="tour-card">' +
           '<div class="tour-top">' +
             '<span class="tour-step-count"></span>' +
@@ -91,54 +85,23 @@
           '<div class="tour-title"></div>' +
           '<div class="tour-body"></div>' +
           '<div class="tour-foot">' +
-            '<button type="button" class="tour-back"></button>' +
-            '<div class="tour-foot-spacer"></div>' +
-            '<div class="tour-tap-hint">' + TAP_ICON + '<span></span></div>' +
             '<button type="button" class="tour-next"></button>' +
           '</div>' +
-        '</div>' +
-        '<button type="button" class="tour-resume"></button>';
+        '</div>';
       document.body.appendChild(overlay);
 
       spotlight = overlay.querySelector(".tour-spotlight");
-      hotspot = overlay.querySelector(".tour-hotspot");
       card = overlay.querySelector(".tour-card");
       stepCountEl = overlay.querySelector(".tour-step-count");
       titleEl = overlay.querySelector(".tour-title");
       bodyEl = overlay.querySelector(".tour-body");
-      tapHint = overlay.querySelector(".tour-tap-hint");
-      backBtn = overlay.querySelector(".tour-back");
       nextBtn = overlay.querySelector(".tour-next");
-      resumeBtn = overlay.querySelector(".tour-resume");
 
       overlay.querySelector(".tour-skip").addEventListener("click", finish);
-      backBtn.addEventListener("click", function () { goToStep(idx - 1); });
       nextBtn.addEventListener("click", function () { goToStep(idx + 1); });
-      // Tapping the highlighted control TRIES IT for real: the tour steps
-      // aside (dim + card hidden, a small "Continue tour" pill stays) and
-      // the actual control is clicked, so the user sees the real feature
-      // instead of being whisked to the next page.
-      hotspot.addEventListener("click", tryIt);
-      hotspot.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tryIt(); }
-      });
-      resumeBtn.addEventListener("click", function () { goToStep(idx + 1); });
       window.addEventListener("resize", reposition);
       // Keep the highlight glued to the control as the page scrolls/reflows.
       window.addEventListener("scroll", reposition, true);
-    }
-
-    // Let the user use the real feature: hide the tour chrome, then click
-    // the actual control so its modal/picker/input opens. A floating
-    // "Continue tour" pill remains for moving on when they're done looking.
-    function tryIt() {
-      if (!currentTarget) { goToStep(idx + 1); return; }
-      var tgt = currentTarget;
-      overlay.classList.add("is-minimized");
-      clearPoll();
-      setTimeout(function () {
-        try { tgt.click(); if (tgt.focus) tgt.focus(); } catch (e) {}
-      }, 30);
     }
 
     function placeCard(target) {
@@ -165,18 +128,12 @@
         spotlight.style.left = (r.left - pad) + "px";
         spotlight.style.width = (r.width + pad * 2) + "px";
         spotlight.style.height = (r.height + pad * 2) + "px";
-        hotspot.style.top = (r.top - pad) + "px";
-        hotspot.style.left = (r.left - pad) + "px";
-        hotspot.style.width = (r.width + pad * 2) + "px";
-        hotspot.style.height = (r.height + pad * 2) + "px";
-        hotspot.classList.add("is-active");
       } else {
         spotlight.classList.remove("has-target");
         spotlight.style.top = "50%";
         spotlight.style.left = "50%";
         spotlight.style.width = "0px";
         spotlight.style.height = "0px";
-        hotspot.classList.remove("is-active");
       }
       placeCard(currentTarget);
     }
@@ -186,44 +143,7 @@
       try { currentTarget.scrollIntoView({ block: "center", inline: "nearest" }); } catch (e) {}
     }
 
-    function clearConfetti() {
-      var c = overlay.querySelector(".tour-confetti");
-      if (c) c.parentNode.removeChild(c);
-    }
-    function spawnConfetti() {
-      clearConfetti();
-      var wrap = document.createElement("div");
-      wrap.className = "tour-confetti";
-      var html = "";
-      for (var i = 0; i < 40; i++) {
-        var x = Math.round(Math.random() * 100);
-        var col = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
-        var dur = (1.9 + Math.random() * 1.8).toFixed(2);
-        var delay = (Math.random() * 0.5).toFixed(2);
-        var w = 5 + Math.round(Math.random() * 5);
-        html += '<i style="--x:' + x + '%;--c:' + col + ';--d:' + dur + 's;--delay:' + delay + 's;width:' + w + 'px;"></i>';
-      }
-      wrap.innerHTML = html;
-      overlay.appendChild(wrap);
-    }
-
     function clearPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
-
-    // "tap" -> the highlighted control can be tried for real; Next stays
-    // available too so moving on never depends on trying it.
-    // "button" -> just a Next/Start button (welcome, finish, or a fallback
-    // when a control never renders so the user is never stranded).
-    function setControls(mode, i) {
-      nextBtn.style.display = "";
-      nextBtn.textContent = (i === STEPS.length - 1) ? t("tour.finish")
-        : (i === 0 ? t("tour.begin") : t("tour.next"));
-      if (mode === "tap") {
-        tapHint.classList.add("is-shown");
-        tapHint.querySelector("span").textContent = t("tour.tapHint");
-      } else {
-        tapHint.classList.remove("is-shown");
-      }
-    }
 
     // Controls on the JS-rendered pages appear after load and the page keeps
     // reflowing for a moment, so re-find + re-place the highlight a few times.
@@ -235,14 +155,10 @@
         var tgt = findTarget(step);
         if (tgt && tgt !== currentTarget) {
           currentTarget = tgt;
-          setControls("tap", idx);
           scrollTargetIntoView();
         }
         reposition();
-        if (tries > 24) { // ~2.4s of settling
-          clearPoll();
-          if (step.targets && !currentTarget) setControls("button", idx); // never stranded
-        }
+        if (tries > 24) clearPoll(); // ~2.4s of settling
       }, 100);
     }
 
@@ -250,27 +166,16 @@
       idx = i;
       var step = STEPS[i];
 
-      // Coming back from a "try it" detour restores the full tour chrome.
-      overlay.classList.remove("is-minimized");
-
-      overlay.style.setProperty("--tour-accent", step.accent[0]);
-      overlay.style.setProperty("--tour-accent-2", step.accent[1]);
-
       stepCountEl.textContent = t("tour.stepCount").replace("{n}", i + 1).replace("{total}", STEPS.length);
       titleEl.textContent = t("tour." + step.key + ".title");
       bodyEl.textContent = t("tour." + step.key + ".body");
       overlay.querySelector(".tour-skip").textContent = t("tour.skip");
-      resumeBtn.textContent = t("tour.resume") + " ▸";
-      backBtn.textContent = t("tour.back");
-      backBtn.classList.toggle("is-hidden", i === 0);
+      nextBtn.textContent = (i === STEPS.length - 1) ? t("tour.finish") : t("tour.next");
 
       currentTarget = findTarget(step);
-      setControls(step.targets ? "tap" : "button", i);
-      if (step.key === "done") spawnConfetti(); else clearConfetti();
-
       scrollTargetIntoView();
       reposition();
-      if (step.targets) settle(step); else { clearPoll(); }
+      if (step.targets) settle(step); else clearPoll();
     }
 
     function goToStep(i) {
