@@ -50,6 +50,7 @@ from coaching_engine import (
     weekly_adjustment,
 )
 from database import (
+    DB_PATH,
     add_friendship,
     append_nutrition_log_entry,
     create_challenge,
@@ -1094,6 +1095,39 @@ def admin_user_detail(user_id):
         latest_weight=latest_weight,
         analyses=analyses,
     )
+
+
+@app.route("/admin/export-db", methods=["GET"])
+def admin_export_db():
+    # Lets the owner pull a consistent snapshot of the live SQLite file
+    # (e.g. from Render) for local inspection with user_report.py, without
+    # SSHing into the box. Same ADMIN_EMAILS / 404 gate as the other admin
+    # routes. Uses sqlite3's backup API rather than just streaming DB_PATH
+    # so a concurrent write on the live server can't hand back a torn file.
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+
+    import sqlite3
+    import tempfile
+
+    fd, snapshot_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    src = sqlite3.connect(DB_PATH)
+    dst = sqlite3.connect(snapshot_path)
+    with dst:
+        src.backup(dst)
+    src.close()
+    dst.close()
+
+    response = send_file(
+        snapshot_path,
+        mimetype="application/x-sqlite3",
+        as_attachment=True,
+        download_name="repcheck_production.db",
+    )
+    response.call_on_close(lambda: os.unlink(snapshot_path))
+    return response
 
 
 @app.route("/weight-history", methods=["GET"])
