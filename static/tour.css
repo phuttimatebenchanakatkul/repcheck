@@ -1,9 +1,7 @@
-/* First-run guided tour. A brand-new user is walked through each page (see
-   tour.js). Deliberately low-key: a light dim, a bright ring around the one
-   control being pointed at, and a small card pinned to the bottom that says
-   what the control does. The user advances by tapping the highlighted
-   control itself. Each step carries its own accent colour, set as
-   --tour-accent / --tour-accent-2 on the overlay by tour.js. Skippable. */
+/* First-run guided tour (see tour.js). Kept deliberately minimal so a new
+   user is never overwhelmed: a light dim, a ring around the one control
+   being described, and a small bottom card with one sentence and a single
+   Next button. One brand accent throughout. Skippable. */
 
 .tour-overlay {
   position: fixed;
@@ -17,7 +15,8 @@
 .tour-overlay.is-visible { opacity: 1; }
 
 /* The spotlight: a window over the highlighted control with a light dim
-   around it. Collapses to nothing at centre for no-target steps. */
+   around it. Collapses to nothing at centre for no-target steps. The
+   overlay swallows clicks so nothing on the page fires mid-tour. */
 .tour-spotlight {
   position: absolute;
   border-radius: 14px;
@@ -41,19 +40,6 @@
   70% { box-shadow: 0 0 0 13px color-mix(in srgb, var(--tour-accent) 0%, transparent); }
   100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 0%, transparent); }
 }
-
-/* Transparent click-catcher over the highlighted control -- tapping it
-   advances the tour, so the user progresses by clicking the thing being
-   pointed at. The rest of the overlay swallows clicks so nothing else on
-   the page fires mid-tour. */
-.tour-hotspot {
-  position: absolute;
-  z-index: 242;
-  border-radius: 14px;
-  cursor: pointer;
-  display: none;
-}
-.tour-hotspot.is-active { display: block; }
 
 /* Small card pinned to the bottom, out of the way of the highlighted
    control (which tour.js scrolls into the upper part of the screen). */
@@ -90,24 +76,7 @@
 .tour-title { font-size: 16.5px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }
 .tour-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px; }
 
-.tour-foot { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
-.tour-foot-spacer { flex: 1; }
-.tour-back {
-  background: none; border: none;
-  color: var(--text-secondary);
-  font-size: 13px; font-weight: 700; font-family: inherit;
-  cursor: pointer; padding: 8px 2px;
-}
-.tour-back:hover { color: var(--text); }
-.tour-back.is-hidden { display: none; }
-
-.tour-tap-hint { display: none; align-items: center; gap: 6px; color: var(--tour-accent); font-size: 12.5px; font-weight: 700; }
-.tour-tap-hint.is-shown { display: flex; }
-.tour-tap-hint svg { width: 16px; height: 16px; flex-shrink: 0; animation: tour-tap-pulse 1.2s ease-in-out infinite; }
-@keyframes tour-tap-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.18); opacity: 1; }
-}
+.tour-foot { display: flex; justify-content: flex-end; margin-top: 13px; }
 
 .tour-next {
   border: none;
@@ -122,53 +91,8 @@
 }
 .tour-next:active { transform: scale(0.96); }
 
-/* "Try it" mode: tapping the highlighted control hides the tour chrome and
-   clicks the real control, so the user can see and use the actual feature.
-   Only this floating pill remains, to continue the tour when they're done.
-   The overlay stops intercepting clicks so the page is fully usable. */
-.tour-overlay.is-minimized { pointer-events: none; }
-.tour-overlay.is-minimized .tour-spotlight,
-.tour-overlay.is-minimized .tour-hotspot,
-.tour-overlay.is-minimized .tour-card { display: none; }
-.tour-resume {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 14px;
-  z-index: 244;
-  display: none;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(135deg, var(--tour-accent), var(--tour-accent-2));
-  color: #fff;
-  font-size: 13.5px;
-  font-weight: 700;
-  font-family: inherit;
-  padding: 11px 20px;
-  border-radius: 999px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
-  pointer-events: auto;
-  animation: tour-card-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.tour-overlay.is-minimized .tour-resume { display: block; }
-.tour-resume:active { transform: translateX(-50%) scale(0.96); }
-
-/* Celebration confetti on the final step. */
-.tour-confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 243; }
-.tour-confetti i {
-  position: absolute; top: -14px;
-  width: 8px; height: 13px; border-radius: 2px;
-  background: var(--c); left: var(--x); opacity: 0;
-  animation: tour-confetti-fall var(--d) linear var(--delay) forwards;
-}
-@keyframes tour-confetti-fall {
-  0% { transform: translateY(0) rotate(0); opacity: 1; }
-  100% { transform: translateY(112vh) rotate(720deg); opacity: 0.9; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tour-spotlight { transition: none; }
   .tour-spotlight.has-target::after { animation: none; }
-  .tour-card, .tour-tap-hint svg { animation: none; }
-  .tour-confetti { display: none; }
+  .tour-card { animation: none; }
 }
