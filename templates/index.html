@@ -298,8 +298,9 @@
     background: var(--bg);
     border: none;
     color: var(--text-secondary);
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
+    display: flex; align-items: center; justify-content: center;
     border-radius: 50%;
     font-size: 18px;
     line-height: 1;
@@ -362,7 +363,8 @@
     font-size: 18px;
     line-height: 1;
     cursor: pointer;
-    padding: 4px 8px;
+    min-width: 44px; min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
   }
   .clear-exercise-btn:hover { color: var(--red); }
 
@@ -996,6 +998,7 @@
     const tutorialCard = tutorialCardHtml(data.exercise_label);
 
     return `
+      ${agDockHtml()}
       ${data.video_url ? videoCard + tutorialCard : tutorialCard}
       <div class="card">
         <div class="an-result-hero">
@@ -1034,26 +1037,37 @@
         ${verdictHtml}
         <div class="fb-list">${sections}</div>
       </div>
-      <div class="ac-card">
-        <div class="ac-header">
-          <div class="ac-header-avatar">${ANALYZE_ICONS.sparkle}</div>
-          <div>
-            <div class="ac-header-title">${t("analyzeChat.headerTitle")}</div>
-            <div class="ac-header-sub" id="ac-header-sub">${t("analyzeChat.headerSub")}</div>
+      <div class="an-again">
+        <button class="btn-primary" id="reset-btn">${t("analyze.analyzeAnother")}</button>
+      </div>
+    `;
+  }
+
+  // The AI "ask" dock, rendered at the very top of the results so that
+  // opening it pushes the results down (it's in normal flow, not an
+  // overlay). Shared verbatim by the AJAX path here and result.html.
+  function agDockHtml() {
+    const t = RepCheckI18n.t;
+    return `
+      <div class="ag-dock" id="ac-dock">
+        <div class="ag-bar">
+          <button type="button" class="ag-spark" id="ac-toggle" aria-label="Ask AI about your analysis">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M11.4 3.5a.6.6 0 0 1 1.2 0l1.1 3.2a3 3 0 0 0 1.9 1.9l3.2 1.1a.6.6 0 0 1 0 1.1l-3.2 1.1a3 3 0 0 0-1.9 1.9l-1.1 3.2a.6.6 0 0 1-1.2 0l-1.1-3.2a3 3 0 0 0-1.9-1.9L5.2 11.9a.6.6 0 0 1 0-1.1l3.2-1.1a3 3 0 0 0 1.9-1.9z"/></svg>
+          </button>
+          <form class="ag-inputrow" id="ac-form">
+            <input type="text" id="ac-input" placeholder="${t("analyzeChat.inputPlaceholder")}" autocomplete="off" maxlength="500">
+            <button type="submit" class="ag-send" id="ac-send-btn" aria-label="Send message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </form>
+        </div>
+        <div class="ag-panel">
+          <div class="ag-panel-inner">
+            <div class="ag-suggest" id="ac-suggestions"></div>
+            <div class="ag-thread" id="ac-messages"></div>
+            <div class="ag-sub" id="ac-header-sub"></div>
           </div>
         </div>
-        <div class="ac-messages" id="ac-messages"></div>
-        <div class="ac-suggestions" id="ac-suggestions"></div>
-        <form class="ac-input-row" id="ac-form">
-          <input type="text" id="ac-input" placeholder="${t("analyzeChat.inputPlaceholder")}" autocomplete="off" maxlength="500">
-          <button type="submit" class="ac-send-btn" id="ac-send-btn" aria-label="Send message">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
-          </button>
-        </form>
-      </div>
-      <div class="an-sticky-cta-spacer"></div>
-      <div class="an-sticky-cta">
-        <button class="btn-primary" id="reset-btn">${t("analyze.analyzeAnother")}</button>
       </div>
     `;
   }
@@ -1065,6 +1079,9 @@
       URL.revokeObjectURL(previewVideo.src);
       previewVideo.removeAttribute("src");
     }
+    // Tear down the AI chat's topbar toggle + listeners before wiping the
+    // results (the toggle lives in the topbar, outside #result-view).
+    if (window.__agCleanup) { window.__agCleanup(); window.__agCleanup = null; }
     resultView.style.display = "none";
     resultView.innerHTML = "";
     analyzingView.style.display = "none";

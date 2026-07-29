@@ -23,15 +23,6 @@
       </div>
     </div>
 
-    <div class="nl-goals-form" id="nl-goals-form" style="display:none;">
-      <label><span data-i18n="nutrition.goals.protein">Protein (g)</span><input type="number" min="20" max="400" id="goal-protein"></label>
-      <label><span data-i18n="nutrition.goals.fat">Fat (g)</span><input type="number" min="15" max="300" id="goal-fat"></label>
-      <label><span data-i18n="nutrition.goals.carbs">Carbs (g)</span><input type="number" min="20" max="800" id="goal-carbs"></label>
-      <label><span data-i18n="nutrition.goals.calories">Calories (auto)</span><input type="number" id="goal-calories" readonly></label>
-      <div class="nl-goals-hint" data-i18n="nutrition.goals.hint">Calories are calculated for you from protein/fat/carbs (protein &amp; carbs = 4 kcal/g, fat = 9 kcal/g), so the numbers always add up.</div>
-      <button type="button" class="nl-save-goals-btn" id="nl-save-goals-btn" data-i18n="nutrition.goals.save">Save goals</button>
-    </div>
-
     <div class="nl-hero-row">
       <div class="nl-cal-ring-wrap">
         <svg class="nl-cal-ring" viewBox="0 0 120 120">
@@ -128,8 +119,9 @@
 <div id="coaching-root"></div>
 <link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
 
-<div class="af-modal-overlay" id="af-modal-overlay" style="display:none;">
+<div class="af-modal-overlay" id="af-modal-overlay">
   <div class="af-modal">
+    <div class="af-modal-handle"></div>
     <div class="af-modal-header">
       <div class="af-modal-title" id="af-modal-title">Analyze a food photo</div>
       <button type="button" class="nl-modal-close" id="af-modal-close" aria-label="Close">&times;</button>
@@ -148,30 +140,62 @@
 </div>
 
 <!-- Confirm-amount step shown before logging a food picked from search/
-     quick-add/favorites — same amount-card UI as the barcode/photo scan
-     result screen, so choosing how much of something you're logging looks
-     and works the same everywhere in the app. -->
-<div class="af-modal-overlay" id="lq-modal-overlay" style="display:none;">
-  <div class="af-modal">
-    <div class="af-modal-header">
-      <div class="af-modal-title" id="lq-modal-title">Log food</div>
-      <button type="button" class="nl-modal-close" id="lq-modal-close" aria-label="Close">&times;</button>
+     quick-add/favorites. Uses the shared Apple-style logging bottom sheet
+     (.log-sheet-* in style.css) so it slides up from the bottom exactly
+     like the "+" menu and the food-search sheet it opens from. IDs are
+     unchanged so the amount JS below keeps driving it. -->
+<!-- Edit-goals: was an inline form that expanded in place on the main
+     page (mixing goal-editing into the same screen as the food log,
+     the primary task here) -- now the same Apple-style bottom sheet as
+     every other secondary action on this page. -->
+<div class="log-sheet-overlay" id="nl-goals-overlay">
+  <div class="log-sheet">
+    <div class="log-sheet-handle"></div>
+    <div class="log-sheet-head">
+      <div class="lq-title" data-i18n="nutrition.totals.editGoals">Edit goals</div>
+      <button type="button" class="log-sheet-close" id="nl-goals-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
     </div>
-    <div class="af-modal-body" id="lq-modal-body"></div>
+    <div class="log-sheet-body">
+      <div class="nl-goals-form" id="nl-goals-form">
+        <label><span data-i18n="nutrition.goals.protein">Protein (g)</span><input type="number" min="20" max="400" id="goal-protein"></label>
+        <label><span data-i18n="nutrition.goals.fat">Fat (g)</span><input type="number" min="15" max="300" id="goal-fat"></label>
+        <label><span data-i18n="nutrition.goals.carbs">Carbs (g)</span><input type="number" min="20" max="800" id="goal-carbs"></label>
+        <label><span data-i18n="nutrition.goals.calories">Calories (auto)</span><input type="number" id="goal-calories" readonly></label>
+        <div class="nl-goals-hint" data-i18n="nutrition.goals.hint">Calories are calculated for you from protein/fat/carbs (protein &amp; carbs = 4 kcal/g, fat = 9 kcal/g), so the numbers always add up.</div>
+        <button type="button" class="nl-save-goals-btn" id="nl-save-goals-btn" data-i18n="nutrition.goals.save">Save goals</button>
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="nl-modal-overlay" id="nl-modal-overlay" style="display:none;">
-  <div class="nl-modal">
-    <div class="nl-modal-header">
-      <div class="nl-modal-title" id="nl-modal-title">Add food</div>
-      <button type="button" class="nl-modal-close" id="nl-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+<div class="log-sheet-overlay" id="lq-modal-overlay">
+  <div class="log-sheet">
+    <div class="log-sheet-handle"></div>
+    <div class="log-sheet-head">
+      <div class="lq-title" id="lq-modal-title">Log food</div>
+      <button type="button" class="log-sheet-close" id="lq-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
     </div>
-    <div class="nl-modal-search-wrap">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="text" id="modal-food-search" data-i18n-placeholder="nutrition.search.placeholder" placeholder="Search for a food..." autocomplete="off">
+    <div class="log-sheet-body" id="lq-modal-body"></div>
+  </div>
+</div>
+
+<!-- Add-food picker -- the shared Apple-style logging bottom sheet (see
+     .log-sheet-* in style.css). Search settles in first, then favorites /
+     top picks for this hour / recent. IDs are unchanged so the food-search
+     JS below keeps driving it. The old "Add food" title row is dropped for
+     the cleaner "+"-sheet look; the "Top picks for {hour}" section header
+     already carries the when-context. -->
+<div class="log-sheet-overlay" id="nl-modal-overlay">
+  <div class="log-sheet">
+    <div class="log-sheet-handle"></div>
+    <div class="log-sheet-head">
+      <div class="log-sheet-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="modal-food-search" data-i18n-placeholder="nutrition.search.placeholder" placeholder="Search for a food..." autocomplete="off">
+      </div>
+      <button type="button" class="log-sheet-close" id="nl-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
     </div>
-    <div class="nl-modal-results" id="modal-food-results"></div>
+    <div class="log-sheet-body nl-modal-results" id="modal-food-results"></div>
   </div>
 </div>
 
@@ -233,6 +257,7 @@
   }
   .nl-checkin-btn.is-ready:active { transform: scale(0.94); }
   .nl-goals-toggle {
+    min-height: 44px; box-sizing: border-box;
     padding: 7px 15px;
     border-radius: 999px;
     border: 1px solid var(--border);
@@ -249,17 +274,11 @@
 
   .nl-goals-form {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 14px;
-    margin-bottom: 14px;
-    animation: nl-pop-in 0.15s ease;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
   .nl-goals-form label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-secondary);
     font-weight: 600;
     display: flex;
@@ -267,12 +286,13 @@
     gap: 6px;
   }
   .nl-goals-form input {
+    min-height: 44px; box-sizing: border-box;
     padding: 8px 10px;
     border: 1px solid var(--border);
-    background: var(--card-bg);
+    background: var(--bg);
     color: var(--text);
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 16px;
     font-family: inherit;
   }
   .nl-goals-form input[readonly] {
@@ -289,12 +309,13 @@
   }
   .nl-save-goals-btn {
     grid-column: 1 / -1;
+    min-height: 44px; box-sizing: border-box;
     padding: 9px 14px;
     border-radius: 999px;
     border: none;
     background: var(--text);
     color: var(--bg);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
     font-family: inherit;
@@ -382,7 +403,8 @@
   .nl-date-strip-wrap { display: flex; align-items: center; gap: 6px; }
   .nl-week-nav {
     background: none; border: none; color: var(--text-secondary);
-    padding: 6px; cursor: pointer; flex-shrink: 0;
+    width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0;
   }
   .nl-week-nav:hover { color: var(--text); }
   .nl-week-nav:active { transform: scale(0.88); }
@@ -434,41 +456,39 @@
   .af-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(10, 10, 14, 0.5);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
+    z-index: 400;
     display: flex;
-    align-items: flex-start;
+    align-items: flex-end;
     justify-content: center;
-    /* dvh tracks the actual visible viewport (browser chrome collapsing,
-       on-screen keyboard) -- plain vh is computed against the largest
-       possible viewport, so on mobile it can size this overlay taller
-       than what's actually visible, pushing the modal's bottom content
-       (the log/add button) past the fold with no way to scroll to it.
-       vh stays as the fallback for browsers without dvh support. */
-    padding: 8vh 16px 16px;
-    padding: 8dvh 16px 16px;
-    /* Must beat .mobile-tabbar's z-index: 100 (base.html) -- it's fixed
-       to the bottom of the screen and, being later in the DOM at the
-       same z-index, was painting on top of this modal's last ~60-80px
-       on mobile, permanently covering the log/add button no matter how
-       far you scrolled. */
-    z-index: 300;
-    animation: nl-fade-in 0.15s ease;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.46s ease;
   }
+  .af-modal-overlay.is-open,
+  .af-modal-overlay.is-in { opacity: 1; pointer-events: auto; }
   .af-modal {
-    background: var(--card-bg);
-    border-radius: 26px;
-    box-shadow: 0 24px 60px rgba(10, 10, 14, 0.22);
+    pointer-events: auto;
     width: 100%;
-    max-width: 480px;
-    max-height: 84vh;
-    max-height: 84dvh;
+    max-width: 560px;
+    max-height: 92vh;
     display: flex;
     flex-direction: column;
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.42);
+    transform: translateY(100%);
+    transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
     overflow: hidden;
-    animation: nl-pop-in 0.18s ease;
   }
+  .af-modal-overlay.is-open .af-modal,
+  .af-modal-overlay.is-in .af-modal { transform: translateY(0); }
+  .af-modal-handle {
+    width: 38px; height: 5px; border-radius: 999px;
+    background: var(--border); margin: 9px auto 2px; flex-shrink: 0;
+    cursor: grab;
+  }
+  .af-modal-handle:active { cursor: grabbing; }
   .af-modal-header {
     display: flex;
     align-items: center;
@@ -478,6 +498,17 @@
   }
   .af-modal-title { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
   .af-modal-body { padding: 4px 22px 22px; overflow-y: auto; flex: 1; min-height: 0; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  /* Smooths every choice -> loading -> result/error content swap inside
+     the sheet (see the afBodyObserver JS below) -- a quick fade + rise
+     for whatever content just landed, instead of a hard cut. */
+  .af-modal-body.af-body-enter { animation: af-body-fade-in 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes af-body-fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .af-modal-body.af-body-enter { animation: none; }
+  }
 
   /* Entry tiles: same gradient-badge design language as the home page's
      quick actions and the "+" sheet, so logging food reads as part of one
@@ -857,6 +888,72 @@
 
   .af-error { color: var(--red); font-size: 13px; text-align: center; padding: 20px 0; }
 
+  /* ---------- Log-amount sheet (lq-modal) -- modern, simple content ----------
+     The food name is the sheet's title (in .log-sheet-head); below it the
+     macro donut, a clean amount card, and one full-width "Add to log"
+     button. The X / backdrop / swipe-down handle dismissal, so there's no
+     separate Cancel button cluttering it. */
+  .lq-title {
+    flex: 1; min-width: 0;
+    font-size: 18px; font-weight: 800; letter-spacing: -0.01em;
+    color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .lq-amount {
+    background: var(--bg);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-top: 16px;
+  }
+  .lq-amount-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .lq-amount-label { font-size: 13px; font-weight: 800; color: var(--text); }
+  .lq-amount-hint { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+  .lq-amount-row { display: flex; align-items: center; gap: 10px; }
+  .lq-amount-input {
+    flex: 1; min-width: 0;
+    padding: 12px 15px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 13px;
+    font-size: 20px; font-weight: 800; font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .lq-amount-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .lq-unit-seg {
+    display: flex; flex-shrink: 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px;
+  }
+  .lq-unit-seg button {
+    padding: 8px 13px; border: none; border-radius: 999px;
+    background: none; color: var(--text-secondary);
+    font-size: 12px; font-weight: 700; font-family: inherit;
+    cursor: pointer; white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .lq-unit-seg button.is-active { background: var(--blue); color: #fff; }
+  .lq-add-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 15px;
+    border: none; border-radius: 16px;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    color: #fff;
+    font-size: 16px; font-weight: 800; font-family: inherit; letter-spacing: -0.01em;
+    cursor: pointer;
+    box-shadow: 0 10px 24px -8px var(--blue);
+    transition: transform 0.1s ease, opacity 0.15s ease;
+  }
+  .lq-add-btn:hover { opacity: 0.94; }
+  .lq-add-btn:active { transform: scale(0.98); }
+
   .nl-save-error-toast {
     position: fixed;
     left: 50%;
@@ -950,7 +1047,8 @@
     background: var(--bg);
     border: none;
     color: var(--text-secondary);
-    width: 32px; height: 32px;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     border-radius: 50%;
     font-size: 19px;
     line-height: 1;
@@ -1079,7 +1177,7 @@
   .nl-log-btn:active { transform: scale(0.98); }
   .nl-log-btn svg { flex-shrink: 0; }
 
-  .nl-timeline { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .nl-timeline { display: flex; flex-direction: column; margin-top: 14px; }
 
   .nl-empty { text-align: center; padding: 34px 16px 26px; }
   .nl-empty-icon {
@@ -1096,34 +1194,43 @@
   .nl-empty-title { font-size: 15px; font-weight: 700; color: var(--text); }
   .nl-empty-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; }
 
+  /* Flat, divider-separated rows rather than a card nested inside the
+     outer .nl-log-card -- matches the same flattened-list pattern used
+     for weight/logging history (.wh-row). */
   .nl-entry-card {
-    display: flex; align-items: center; gap: 12px; background: var(--bg);
-    border-radius: 18px; padding: 10px 12px; margin-top: 10px; cursor: pointer;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 2px; margin-top: 0; cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    border-radius: 8px;
     animation: nl-pop-in 0.18s ease;
-    transition: box-shadow 0.15s ease, transform 0.1s ease;
+    transition: background-color 0.15s ease, transform 0.1s ease;
   }
-  .nl-entry-card:hover { box-shadow: 0 6px 16px rgba(20, 20, 20, 0.06); }
+  .nl-timeline .nl-entry-card:last-child { border-bottom: none; }
+  .nl-entry-card:hover { background: var(--bg); }
   .nl-entry-card:active { transform: scale(0.985); }
   .nl-entry-icon {
-    width: 40px; height: 40px; border-radius: 14px; background: var(--card-bg);
+    width: 40px; height: 40px; border-radius: 14px; background: var(--bg);
     box-shadow: 0 1px 3px rgba(20, 20, 20, 0.08);
     display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
   }
   .nl-entry-info { flex: 1; min-width: 0; }
   .nl-entry-name {
-    font-size: 14px; font-weight: 700; color: var(--text);
+    font-size: 16px; font-weight: 700; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .nl-entry-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
   .nl-entry-toggle {
-    background: none; border: none; color: var(--text-secondary); padding: 6px;
-    cursor: pointer; flex-shrink: 0; display: flex; transition: transform 0.15s ease;
+    background: none; border: none; color: var(--text-secondary);
+    width: 44px; height: 44px;
+    cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s ease;
   }
   .nl-entry-toggle:hover { color: var(--text); }
   .nl-entry-toggle.is-expanded { transform: rotate(180deg); }
 
   .nl-entry-fav-btn {
-    background: none; border: none; color: var(--text-secondary); padding: 6px;
+    background: none; border: none; color: var(--text-secondary);
+    width: 44px; height: 44px;
     cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
     transition: color 0.15s ease, transform 0.1s ease;
   }
@@ -1375,9 +1482,6 @@
     to { opacity: 1; }
   }
 
-  @media (max-width: 600px) {
-    .nl-goals-form { grid-template-columns: repeat(2, 1fr); }
-  }
   @media (max-width: 480px) {
     .nl-page { padding: 14px; border-radius: var(--radius-md); }
     .nl-summary-title { font-size: 14px; }
@@ -1390,7 +1494,6 @@
     .nl-macro-pill-value { font-size: 13px; }
     .nl-date-number { width: 32px; height: 32px; font-size: 13px; }
     .nl-date-weekday { font-size: 10px; }
-    .nl-week-nav { padding: 8px; }
     .nl-entry-card { padding: 10px; gap: 8px; }
     .nl-entry-icon { width: 34px; height: 34px; font-size: 16px; }
     .nl-hero { gap: 14px; }
@@ -1637,15 +1740,20 @@
     const t = entryTotals(entry);
     return {
       calories: Math.round(t.calories),
-      carbs: Math.round(t.carbs * 10) / 10,
-      fat: Math.round(t.fat * 10) / 10,
-      protein: Math.round(t.protein * 10) / 10,
+      carbs: Math.round(t.carbs),
+      fat: Math.round(t.fat),
+      protein: Math.round(t.protein),
     };
   }
 
   // ---------- Goals UI ----------
+  // Was an inline form that expanded in place on the page; now a bottom
+  // sheet like every other secondary action here (log food, scan a photo,
+  // check in) -- editing goals shouldn't compete with the food log, the
+  // one thing this page is actually for.
   const goalsToggleBtn = document.getElementById("nl-goals-toggle");
-  const goalsFormEl = document.getElementById("nl-goals-form");
+  const goalsOverlay = document.getElementById("nl-goals-overlay");
+  const goalsCloseBtn = document.getElementById("nl-goals-close");
   const goalCaloriesInput = document.getElementById("goal-calories");
   const goalProteinInput = document.getElementById("goal-protein");
   const goalFatInput = document.getElementById("goal-fat");
@@ -1670,14 +1778,21 @@
     input.addEventListener("input", updateLiveCalories);
   });
 
-  goalsToggleBtn.addEventListener("click", () => {
-    const showing = goalsFormEl.style.display !== "none";
-    if (showing) {
-      goalsFormEl.style.display = "none";
-    } else {
-      fillGoalInputs();
-      goalsFormEl.style.display = "grid";
-    }
+  function openGoalsSheet() {
+    fillGoalInputs();
+    if (window.openBottomSheet) window.openBottomSheet(goalsOverlay, ".log-sheet");
+    else goalsOverlay.style.display = "flex";
+  }
+  function closeGoalsSheet() {
+    if (window.closeBottomSheet) window.closeBottomSheet(goalsOverlay, ".log-sheet");
+    else goalsOverlay.style.display = "none";
+  }
+  if (window.bindSheetDrag) window.bindSheetDrag(goalsOverlay, ".log-sheet", ".log-sheet-handle", closeGoalsSheet);
+
+  goalsToggleBtn.addEventListener("click", openGoalsSheet);
+  goalsCloseBtn.addEventListener("click", closeGoalsSheet);
+  goalsOverlay.addEventListener("click", (event) => {
+    if (event.target === goalsOverlay) closeGoalsSheet();
   });
 
   document.getElementById("nl-save-goals-btn").addEventListener("click", () => {
@@ -1687,7 +1802,7 @@
 
     goals = { protein, fat, carbs, calories: caloriesFromMacros({ protein, fat, carbs }) };
     saveGoals();
-    goalsFormEl.style.display = "none";
+    closeGoalsSheet();
     renderSummary();
   });
 
@@ -1828,7 +1943,12 @@
 
   // ---------- Add-food / add-ingredient modal ----------
   const modalOverlay = document.getElementById("nl-modal-overlay");
+  // The visible title row was dropped for the cleaner bottom-sheet look, so
+  // this is null now. setModalTitle() no-ops on it but is kept as the one
+  // place the (now-unused) context string was set, in case a caption is
+  // ever wanted back -- callers stay unchanged.
   const modalTitle = document.getElementById("nl-modal-title");
+  function setModalTitle(text) { if (modalTitle) modalTitle.textContent = text; }
   const modalCloseBtn = document.getElementById("nl-modal-close");
   const modalSearchInput = document.getElementById("modal-food-search");
   const modalResultsEl = document.getElementById("modal-food-results");
@@ -1838,35 +1958,39 @@
   function openAddFoodModal(hour) {
     pendingHour = hour;
     modalMode = { type: "add-food" };
-    modalTitle.textContent = RepCheckI18n.t("nutrition.modal.addFoodAt", { hour: hourLabel(hour) });
+    setModalTitle(RepCheckI18n.t("nutrition.modal.addFoodAt", { hour: hourLabel(hour) }));
     showModal();
   }
 
   function openAddIngredientModal(entryId) {
     modalMode = { type: "add-ingredient", entryId };
-    modalTitle.textContent = RepCheckI18n.t("nutrition.modal.addIngredient");
+    setModalTitle(RepCheckI18n.t("nutrition.modal.addIngredient"));
     showModal();
   }
 
   function showModal() {
-    modalOverlay.style.display = "flex";
     modalSearchInput.value = "";
     renderModalDefaultSections();
-    modalSearchInput.focus();
+    if (window.openBottomSheet) window.openBottomSheet(modalOverlay, ".log-sheet");
+    else modalOverlay.classList.add("is-open");
+    setTimeout(() => modalSearchInput.focus(), 340);
   }
 
   function closeModal() {
-    modalOverlay.style.display = "none";
+    if (window.closeBottomSheet) window.closeBottomSheet(modalOverlay, ".log-sheet");
+    else modalOverlay.classList.remove("is-open", "is-entering");
     modalMode = null;
     pendingHour = null;
   }
+
+  if (window.bindSheetDrag) window.bindSheetDrag(modalOverlay, ".log-sheet", ".log-sheet-handle", closeModal);
 
   modalCloseBtn.addEventListener("click", closeModal);
   modalOverlay.addEventListener("click", (event) => {
     if (event.target === modalOverlay) closeModal();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modalOverlay.style.display !== "none") closeModal();
+    if (event.key === "Escape" && modalOverlay.classList.contains("is-open")) closeModal();
   });
 
   // ---------- Confirm amount before logging (search / quick-add / favorites) ----------
@@ -1900,11 +2024,11 @@
     const scale = grams / 100;
     return {
       calories: Math.round(lqFood.calories * scale),
-      protein: Math.round(lqFood.protein * scale * 10) / 10,
-      fat: Math.round(lqFood.fat * scale * 10) / 10,
-      carbs: Math.round(lqFood.carbs * scale * 10) / 10,
+      protein: Math.round(lqFood.protein * scale),
+      fat: Math.round(lqFood.fat * scale),
+      carbs: Math.round(lqFood.carbs * scale),
       sodiumMg: (lqFood.sodium_mg || lqFood.sodium_mg === 0) ? Math.round(lqFood.sodium_mg * scale) : undefined,
-      sugarG: (lqFood.sugar_g || lqFood.sugar_g === 0) ? Math.round(lqFood.sugar_g * scale * 10) / 10 : undefined,
+      sugarG: (lqFood.sugar_g || lqFood.sugar_g === 0) ? Math.round(lqFood.sugar_g * scale) : undefined,
     };
   }
   function refreshLqDonut() {
@@ -1930,28 +2054,24 @@
     document.getElementById("lq-modal-title").textContent = food.name;
     lqModalBody.innerHTML = `
       <div id="lq-donut-area"></div>
-      <div class="af-amount-card">
-        <div class="af-amount-head">
-          <span class="af-amount-title">Amount</span>
-          <span class="af-amount-serving-hint">1 serving = ${lqServingGrams}g</span>
+      <div class="lq-amount">
+        <div class="lq-amount-head">
+          <span class="lq-amount-label">Amount</span>
+          <span class="lq-amount-hint">1 serving = ${lqServingGrams}g</span>
         </div>
-        <div class="af-amount-input-row">
-          <input type="text" inputmode="decimal" id="lq-amount-value" value="1">
-          <div class="af-unit-seg" id="lq-unit-seg">
+        <div class="lq-amount-row">
+          <input type="text" inputmode="decimal" id="lq-amount-value" class="lq-amount-input" value="1">
+          <div class="lq-unit-seg" id="lq-unit-seg">
             <button type="button" data-unit="serving" class="is-active">serving</button>
             <button type="button" data-unit="g">g</button>
             <button type="button" data-unit="oz">oz</button>
           </div>
         </div>
       </div>
-      <div class="af-actions">
-        <button type="button" class="af-secondary-btn" id="lq-cancel-btn" style="flex:1;">Cancel</button>
-        <button type="button" class="nl-save-goals-btn" id="lq-add-btn" style="flex:2;">Add to log</button>
-      </div>
+      <button type="button" class="lq-add-btn" id="lq-add-btn">Add to log</button>
     `;
     refreshLqDonut();
 
-    document.getElementById("lq-cancel-btn").addEventListener("click", closeLogAmountModal);
     document.getElementById("lq-add-btn").addEventListener("click", async () => {
       pendingHour = lqPendingHour; // addFoodToSelectedDay() reads + resets this itself
       const name = lqFood.name;
@@ -1976,20 +2096,24 @@
       refreshLqDonut();
     });
 
-    lqModalOverlay.style.display = "flex";
+    if (window.openBottomSheet) window.openBottomSheet(lqModalOverlay, ".log-sheet");
+    else lqModalOverlay.classList.add("is-open");
   }
 
   function closeLogAmountModal() {
-    lqModalOverlay.style.display = "none";
+    if (window.closeBottomSheet) window.closeBottomSheet(lqModalOverlay, ".log-sheet");
+    else lqModalOverlay.classList.remove("is-open");
     lqFood = null;
   }
+
+  if (window.bindSheetDrag) window.bindSheetDrag(lqModalOverlay, ".log-sheet", ".log-sheet-handle", closeLogAmountModal);
 
   lqModalCloseBtn.addEventListener("click", closeLogAmountModal);
   lqModalOverlay.addEventListener("click", (event) => {
     if (event.target === lqModalOverlay) closeLogAmountModal();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && lqModalOverlay.style.display !== "none") closeLogAmountModal();
+    if (event.key === "Escape" && lqModalOverlay.classList.contains("is-open")) closeLogAmountModal();
   });
 
   // ---------- Analyze-a-photo (camera or upload) ----------
@@ -2008,18 +2132,46 @@
   let afPreviewUrl = null;  // object URL for the preview <img>, revoked on close
   let afResult = null;      // last successful analysis, kept for logging
 
+  // Every step of the photo-analysis flow (choice screen -> loading spinner
+  // -> result/error) replaces afModalBody.innerHTML wholesale -- there are
+  // over a dozen call sites for this across the choice/loading/result/
+  // create-food screens, too many to thread a transition through
+  // individually. A MutationObserver instead gives every one of those
+  // swaps the same smooth ease-in, with zero changes needed at the call
+  // sites: each time the body's content changes, replay a quick
+  // fade-and-rise on the new content, exactly like .log-sheet-overlay's
+  // own entrance animation for its head/body.
+  const afBodyObserver = new MutationObserver(() => {
+    afModalBody.classList.remove("af-body-enter");
+    void afModalBody.offsetWidth; // restart the animation on back-to-back swaps
+    afModalBody.classList.add("af-body-enter");
+  });
+  afBodyObserver.observe(afModalBody, { childList: true });
+
   function openAnalyzeFoodModal() {
-    afModalOverlay.style.display = "flex";
+    if (window.openBottomSheet) window.openBottomSheet(afModalOverlay, ".af-modal");
+    else afModalOverlay.style.display = "flex";
     renderAfChoice();
   }
 
   function closeAnalyzeFoodModal() {
-    afModalOverlay.style.display = "none";
-    if (afPreviewUrl) { URL.revokeObjectURL(afPreviewUrl); afPreviewUrl = null; }
-    afImageBlob = null;
-    afResult = null;
-    stopLiveBarcodeScan(); // no-op if no live scan was in progress
+    if (window.closeBottomSheet) {
+      window.closeBottomSheet(afModalOverlay, ".af-modal", () => {
+        if (afPreviewUrl) { URL.revokeObjectURL(afPreviewUrl); afPreviewUrl = null; }
+        afImageBlob = null;
+        afResult = null;
+        stopLiveBarcodeScan();
+      });
+    } else {
+      afModalOverlay.style.display = "none";
+      if (afPreviewUrl) { URL.revokeObjectURL(afPreviewUrl); afPreviewUrl = null; }
+      afImageBlob = null;
+      afResult = null;
+      stopLiveBarcodeScan();
+    }
   }
+
+  if (window.bindSheetDrag) window.bindSheetDrag(afModalOverlay, ".af-modal", ".af-modal-handle", closeAnalyzeFoodModal);
 
   afScanBtn.addEventListener("click", openAnalyzeFoodModal);
   afModalCloseBtn.addEventListener("click", closeAnalyzeFoodModal);
@@ -3013,7 +3165,7 @@
   function openQuickaddModal() {
     pendingHour = null;
     modalMode = { type: "quickadd", topPicksHour: new Date().getHours() };
-    modalTitle.textContent = RepCheckI18n.t("nutrition.modal.logFoodNow");
+    setModalTitle(RepCheckI18n.t("nutrition.modal.logFoodNow"));
     showModal();
   }
 
@@ -3108,8 +3260,7 @@
     const amountHtml = isComposite ? `
       <div class="nl-amount-card">
         <div class="nl-amount-meta">
-          <label class="nl-amount-title" for="total-grams-${entry.id}">${t("nutrition.amount.totalLabel")}</label>
-          <div class="nl-amount-hint">${t("nutrition.amount.hint")}</div>
+          <label class="nl-amount-title" for="total-grams-${entry.id}">${t("nutrition.amount.label")}</label>
         </div>
         <div class="nl-amount-field">
           <input type="number" min="0" id="total-grams-${entry.id}" value="${Math.round(totals.grams)}" data-total-grams-entry="${entry.id}">
@@ -3146,9 +3297,9 @@
     const scale = ing.grams / 100;
     return {
       calories: Math.round(ing.baseCalories * scale),
-      protein: Math.round(ing.baseProtein * scale * 10) / 10,
-      fat: Math.round(ing.baseFat * scale * 10) / 10,
-      carbs: Math.round(ing.baseCarbs * scale * 10) / 10,
+      protein: Math.round(ing.baseProtein * scale),
+      fat: Math.round(ing.baseFat * scale),
+      carbs: Math.round(ing.baseCarbs * scale),
     };
   }
 
@@ -3187,12 +3338,13 @@
   function entryHeroHtml(entryId, m) {
     const t = RepCheckI18n.t;
     const g = heroGeometry(m);
-    const macroRow = (dotClass, label, value, pct) => `
+    // Just dot + name + grams -- the % share of calories was extra number
+    // noise a first-time user doesn't need (the ring already shows the mix).
+    const macroRow = (dotClass, label, value) => `
       <div class="nl-hero-macro">
         <span class="nl-dot ${dotClass}"></span>
         <span class="nl-hero-macro-label">${label}</span>
         <span class="nl-hero-macro-value">${value}g</span>
-        <span class="nl-hero-macro-pct">${pct}%</span>
       </div>
     `;
     return `
@@ -3210,9 +3362,9 @@
           </div>
         </div>
         <div class="nl-hero-macros">
-          ${macroRow("nl-dot-protein", t("common.protein"), m.protein, g.pPct)}
-          ${macroRow("nl-dot-fat", t("common.fat"), m.fat, g.fPct)}
-          ${macroRow("nl-dot-carbs", t("common.carbs"), m.carbs, g.cPct)}
+          ${macroRow("nl-dot-protein", t("common.protein"), m.protein)}
+          ${macroRow("nl-dot-fat", t("common.fat"), m.fat)}
+          ${macroRow("nl-dot-carbs", t("common.carbs"), m.carbs)}
         </div>
       </div>
     `;
@@ -3234,9 +3386,7 @@
     seg(".nl-seg-carbs", g.cLen, g.pLen + g.fLen);
     hero.querySelector(".nl-hero-kcal").textContent = m.calories;
     const values = hero.querySelectorAll(".nl-hero-macro-value");
-    const pcts = hero.querySelectorAll(".nl-hero-macro-pct");
     [m.protein, m.fat, m.carbs].forEach((v, i) => { values[i].textContent = `${v}g`; });
-    [g.pPct, g.fPct, g.cPct].forEach((v, i) => { pcts[i].textContent = `${v}%`; });
   }
 
   // Per-ingredient macro blocks: always visible, one tinted block per
@@ -3275,7 +3425,7 @@
     const fatLen = circumference * fatFrac;
     const carbsLen = circumference * carbsFrac;
 
-    const round1 = (v) => Math.round(v * 10) / 10;
+    const round1 = (v) => Math.round(v);
 
     return `
       <div class="mn-donut-row">
@@ -3333,7 +3483,7 @@
       rows.push(`<div class="mn-micro-row"><span class="mn-micro-label">Sodium</span><span class="mn-micro-value">${Math.round(sodiumMg)} mg</span></div>`);
     }
     if (sugarG !== undefined && sugarG !== null) {
-      rows.push(`<div class="mn-micro-row"><span class="mn-micro-label">Sugar</span><span class="mn-micro-value">${Math.round(sugarG * 10) / 10} g</span></div>`);
+      rows.push(`<div class="mn-micro-row"><span class="mn-micro-label">Sugar</span><span class="mn-micro-value">${Math.round(sugarG)} g</span></div>`);
     }
     if (!rows.length) return "";
     return `<div class="mn-micro-section"><div class="mn-micro-title">Other nutrients</div>${rows.join("")}</div>`;
@@ -3364,7 +3514,6 @@
                     <select class="nl-unit-select" data-ingredient-unit-entry="${entry.id}" data-ingredient-unit-index="${i}">${unitOptionsHtml(ing.unit || "g")}</select>
                   </div>
                 </div>
-                <div class="nl-ing-macros" data-ing-macros>${ingMiniMacrosHtml(ing)}</div>
               </div>
             `).join("")}
           </div>

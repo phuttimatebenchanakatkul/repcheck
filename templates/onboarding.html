@@ -92,7 +92,7 @@
     .ob-choice-icon svg { width: 22px; height: 22px; }
     .ob-choice-card.is-selected .ob-choice-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
     .ob-choice-text { flex: 1; min-width: 0; }
-    .ob-choice-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .ob-choice-title { font-size: 16px; font-weight: 700; color: var(--text); }
     .ob-choice-card.is-selected .ob-choice-title { color: var(--blue); }
     .ob-choice-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
     .ob-choice-check {
@@ -204,7 +204,7 @@
     .ob-type-card-icon svg { width: 22px; height: 22px; }
     .ob-type-card.is-selected .ob-type-card-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
     .ob-type-card-text { flex: 1; min-width: 0; }
-    .ob-type-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .ob-type-card-title { font-size: 16px; font-weight: 700; color: var(--text); }
     .ob-type-card.is-selected .ob-type-card-title { color: var(--blue); }
     .ob-type-card-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
 
@@ -215,6 +215,7 @@
     }
     .ob-custom-input-row input:focus { outline: none; border-color: var(--blue); }
     .ob-custom-add-btn {
+      min-height: 44px; box-sizing: border-box;
       padding: 12px 18px; border: none; border-radius: 14px;
       background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
       font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
@@ -224,7 +225,10 @@
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
       background: var(--bg); border-radius: 14px; padding: 11px 14px; font-size: 14px; font-weight: 600;
     }
-    .ob-custom-day-remove { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px; line-height: 1; }
+    .ob-custom-day-remove {
+      background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px; line-height: 1;
+      min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
 
     .ob-days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 22px; }
     .ob-day-btn {
@@ -251,7 +255,10 @@
     .ob-result-hero-icon svg { width: 26px; height: 26px; }
     .ob-result-hero-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
 
-    .ob-result-section { background: var(--bg); border-radius: 20px; padding: 20px 18px; margin-bottom: 18px; }
+    /* Grouped by whitespace + the .ob-section-label pill, not its own
+       boxed container -- avoids stacking a 3rd nested card inside
+       .ob-card around .ob-macro-chip/.ob-review-day below. */
+    .ob-result-section { margin-bottom: 26px; }
     .ob-result-calorie-icon {
       width: 44px; height: 44px; margin: 10px auto 8px; border-radius: 13px;
       background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
@@ -262,7 +269,7 @@
     .ob-result-label { text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
     .ob-result-detail { font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: -10px; margin-bottom: 4px; }
     .ob-macro-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
-    .ob-macro-chip { background: var(--card-bg); border-radius: 14px; padding: 14px 8px; text-align: center; }
+    .ob-macro-chip { background: var(--bg); border-radius: 14px; padding: 14px 8px; text-align: center; }
     .ob-macro-chip-icon {
       width: 32px; height: 32px; margin: 0 auto 8px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
@@ -275,7 +282,7 @@
     .ob-macro-chip-label { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
 
     .ob-review-day {
-      background: var(--card-bg); border: 1.5px solid var(--border); border-radius: 18px;
+      background: var(--bg); border: 1.5px solid var(--border); border-radius: 18px;
       padding: 16px; margin-bottom: 12px;
     }
     .ob-review-day-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -290,7 +297,7 @@
     .ob-review-exercise-chip {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 12px; padding: 5px 12px 5px 5px; border-radius: 999px;
-      background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);
+      background: var(--card-bg); border: 1px solid var(--border); color: var(--text-secondary);
     }
     .ob-review-exercise-chip-icon {
       display: inline-flex; align-items: center; justify-content: center;

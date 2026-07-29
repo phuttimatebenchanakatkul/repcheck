@@ -790,7 +790,7 @@
 
       if (this.wizard) this.root.appendChild(this.renderWizard());
       if (this.dayPopup) this.root.appendChild(this.renderDayPopup());
-      if (this.checkin) this.root.appendChild(this.renderCheckinModal());
+      this.syncCheckinSheet();
 
       this.syncCheckinButton();
     }
@@ -1463,15 +1463,52 @@
       `);
     }
 
-    // ---------- Weekly check-in modal ----------
-    renderCheckinModal() {
-      const overlay = el(`<div class="pc-wizard-overlay"><div class="pc-wizard" id="pc-checkin-inner"></div></div>`);
-      // Deliberately no backdrop-click-to-close and no × button anywhere
-      // in here -- this is a forced weekly check-in, not a dismissible
-      // wizard, per the "force the user to check in" request.
+    // ---------- Weekly check-in bottom sheet ----------
+    // Presented as a classic iOS card sheet, via the SAME shared sheet
+    // system every other bottom sheet in the app uses (base.html's
+    // window.openBottomSheet/closeBottomSheet/bindSheetDrag, see also
+    // .log-sheet-overlay in style.css and .af-modal-overlay in
+    // nutrition.html) -- not a bespoke reimplementation, so the motion is
+    // guaranteed identical rather than incidentally similar, and there's
+    // only one place that owns the shared .pc-sheet-active/.pc-sheet-locked
+    // classes on <html>. The sheet lives on document.body -- NOT inside
+    // .app -- because .app gets a transform for the recede, and a fixed
+    // child of a transformed ancestor would scale along with it;
+    // openBottomSheet reparents it there automatically. No backdrop-click
+    // or × button, but the sheet can be swiped/scrolled down to dismiss
+    // (bindSheetDrag) or completed via the form's own flow.
+    //
+    // The shell is created once and kept across re-renders so cycling a day
+    // or editing weight (which each trigger a full render) only swaps the
+    // inner content -- it never re-plays the slide-up animation.
+    syncCheckinSheet() {
+      const existing = document.getElementById("pc-ck-sheet-root");
+
+      if (!this.checkin) {
+        if (existing) {
+          window.closeBottomSheet(existing, ".pc-ck-sheet", () => existing.remove());
+        }
+        return;
+      }
+
+      let overlay = existing;
+      if (!overlay) {
+        overlay = el(`
+          <div class="pc-ck-sheet-overlay" id="pc-ck-sheet-root">
+            <div class="pc-ck-sheet">
+              <div class="pc-ck-sheet-handle"></div>
+              <div class="pc-ck-sheet-inner" id="pc-checkin-inner"></div>
+            </div>
+          </div>
+        `);
+        document.body.appendChild(overlay);
+        window.openBottomSheet(overlay, ".pc-ck-sheet");
+        window.bindSheetDrag(overlay, ".pc-ck-sheet", ".pc-ck-sheet-handle", () => this.closeCheckin());
+      }
+
       const inner = overlay.querySelector("#pc-checkin-inner");
+      inner.innerHTML = "";
       inner.appendChild(this.checkin.step === "result" ? this.renderCheckinResult() : this.renderCheckinGather());
-      return overlay;
     }
 
     renderCheckinPhotoSlot(angle) {

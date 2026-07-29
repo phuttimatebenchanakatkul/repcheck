@@ -486,6 +486,13 @@
       // per-race AI analysis cache keyed by race id (see loadRaceAnalysis).
       this.stationInfo = null;
       this.detailRaceId = null; // which history race's detail modal is open
+      // Whether the race-setup bottom sheet (category/format/gender/etc.)
+      // is currently open -- see openSetupSheet()/closeSetupSheet(). Not
+      // race data, so (like the modals above) it's not touched by
+      // resetSetup() itself... except resetSetup() DOES explicitly close
+      // it (see there), since "start over" should never leave a stale
+      // sheet open over a screen that's no longer "setup".
+      this.setupSheetOpen = false;
       // One shared gym lane length (start->end distance the user measured
       // at their facility), used by every travelling station. A property of
       // the user's gym, NOT of any one race, so it persists across races and
@@ -584,6 +591,7 @@
       // an even split until touched, so nothing here needs to key off
       // gender/category (the totals don't vary with them).
       this.doublesSplit = {};
+      this.closeSetupSheet();
     }
 
     saveHistory() {
@@ -669,14 +677,8 @@
       if (action === "analyze-race") return this.loadRaceAnalysis(target.dataset.id, true);
       if (action === "toggle-analysis-detail") return this.toggleAnalysisDetail(target.dataset.id, target.dataset.section);
       if (action === "reset-facility-lane") return this.resetFacilityLane();
-      if (action === "hero-start") return this.scrollToSetup();
-    }
-
-    // Hero CTA: glide down to the setup steps instead of jumping into a
-    // race unconfigured -- category/format/gender still need choosing.
-    scrollToSetup() {
-      const cardEl = this.root.querySelector("[data-setup-card]");
-      if (cardEl) cardEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (action === "hero-start") return this.openSetupSheet();
+      if (action === "close-setup-sheet") return this.closeSetupSheet();
     }
 
     // ---------- AI analysis: short/detail toggle ----------
@@ -951,6 +953,10 @@
       this.elapsedSeconds = 0;
       this.startTicking();
       this.render();
+      // Render the running screen underneath first, then let the sheet
+      // slide down over it -- reveals the race already in progress as the
+      // sheet dismisses, instead of an abrupt cut.
+      this.closeSetupSheet();
     }
 
     startTicking() {
@@ -1082,6 +1088,12 @@
       // no-op if the current gender/category/format combo is already
       // loaded or loading, so this is safe to call on every render.
       if (this.screen === "setup" || this.screen === "leaderboard") this.loadLeaderboard();
+      // Keep the race-setup sheet's own content in sync with whatever just
+      // triggered this render (picking category/format/gender, adjusting a
+      // station weight, etc.) -- every one of those setters just calls
+      // render(), same as everything else in this class, rather than each
+      // needing to remember to also resync the sheet itself.
+      if (this.setupSheetOpen) this.syncSetupSheetContent();
     }
 
     // ---------- Station info popup (how-to + demo video) ----------
@@ -1172,21 +1184,93 @@
       const wrap = el(`<div></div>`);
       // The hero opens the page (same design language as the home page's
       // dark gradient hero): your fastest time, the 8 stations as tappable
-      // icon chips, one CTA down to the setup steps. The leaderboard
-      // follows -- same content as the standalone "Leaderboard" screen
-      // (see renderLeaderboardCard) minus its back button.
+      // icon chips, one CTA that opens the race-setup bottom sheet (see
+      // openSetupSheet()) instead of the steps living inline on the page.
+      // The leaderboard follows -- same content as the standalone
+      // "Leaderboard" screen (see renderLeaderboardCard) minus its back
+      // button.
       wrap.appendChild(this.renderHeroCard());
       wrap.appendChild(this.renderLeaderboardCard(false));
 
       // Weight standards sits right under the intro -- it's the "what the
       // race asks of you" reference. Needs category + gender to show the
-      // correct weights, so it only appears once those are picked below.
+      // correct weights, so it only appears once those are picked in the
+      // setup sheet.
       if (this.category && this.gender) {
         wrap.appendChild(this.renderWeightsCard());
       }
 
-      const card = el(`
-        <div class="hx-card" data-setup-card>
+      return wrap;
+    }
+
+    // ---------- Race setup bottom sheet ----------
+    // Category/format/gender/training-space/pro-weight/doubles-split --
+    // used to live inline on the setup screen as a "STEP 1/STEP 2/..."
+    // card; now presented as a bottom sheet, opened from the hero's
+    // "Start race" CTA, via the SAME shared sheet system every other
+    // sheet in the app uses (base.html's window.openBottomSheet/
+    // closeBottomSheet/bindSheetDrag + style.css's .log-sheet-* classes)
+    // -- not a bespoke reimplementation of hyrox.js's own .hx-modal-overlay
+    // (that one has no slide-up/drag-to-dismiss at all; see the station-info
+    // and race-detail popups below for that pattern instead).
+    //
+    // The sheet lives on document.body (openBottomSheet reparents it there
+    // automatically), NOT inside #hyrox-root, since #hyrox-root's own
+    // content gets fully replaced on every render() (see render()) -- a
+    // sheet living there would vanish/rebuild on every keystroke instead of
+    // animating in once. That also means clicks/changes inside it don't
+    // bubble up to this.root's delegated listeners, so it needs its own,
+    // forwarding to the exact same handleClick()/handleChange().
+    openSetupSheet() {
+      let overlay = document.getElementById("hx-setup-sheet-root");
+      if (!overlay) {
+        overlay = el(`
+          <div class="log-sheet-overlay" id="hx-setup-sheet-root">
+            <div class="log-sheet">
+              <div class="log-sheet-handle"></div>
+              <div class="log-sheet-head">
+                <div class="hx-setup-sheet-title">${t("hyrox.setupSheet.title")}</div>
+                <button type="button" class="log-sheet-close" data-action="close-setup-sheet" aria-label="${t("common.close")}">&times;</button>
+              </div>
+              <div class="log-sheet-body" id="hx-setup-sheet-body"></div>
+            </div>
+          </div>
+        `);
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) return this.closeSetupSheet();
+          this.handleClick(event);
+        });
+        overlay.addEventListener("change", (event) => this.handleChange(event));
+        window.bindSheetDrag(overlay, ".log-sheet", ".log-sheet-handle", () => this.closeSetupSheet());
+      }
+      this.setupSheetOpen = true;
+      window.openBottomSheet(overlay, ".log-sheet");
+      this.syncSetupSheetContent();
+    }
+
+    closeSetupSheet() {
+      this.setupSheetOpen = false;
+      const overlay = document.getElementById("hx-setup-sheet-root");
+      if (overlay) window.closeBottomSheet(overlay, ".log-sheet");
+    }
+
+    // Rebuilds just the sheet's inner content -- called on open, and again
+    // from render()'s trailing sync (see there) whenever any setter
+    // (setCategory/setGender/setStationWeight/...) triggers a re-render,
+    // so picking a step's option immediately reveals the next one without
+    // the sheet itself re-playing its slide-up animation.
+    syncSetupSheetContent() {
+      const overlay = document.getElementById("hx-setup-sheet-root");
+      if (!overlay) return;
+      const body = overlay.querySelector("#hx-setup-sheet-body");
+      body.innerHTML = "";
+      body.appendChild(this.buildSetupSteps());
+    }
+
+    buildSetupSteps() {
+      const wrap = el(`
+        <div>
           <div class="hx-step-label">${t("hyrox.step.category")}</div>
           <div class="hx-choice-grid" data-group="category"></div>
           <div class="hx-step-label">${t("hyrox.step.format")}</div>
@@ -1194,14 +1278,13 @@
           <div id="hx-gender-block"></div>
           <div id="hx-training-space-block"></div>
           <div id="hx-pro-adjust-block"></div>
-          <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-top:6px;">
-            <button type="button" class="hx-primary-btn" data-action="start-race" ${this.canStart() ? "" : "disabled"}>${t("hyrox.startRace")}</button>
-            <button type="button" class="hx-secondary-btn" data-action="show-history">${t("hyrox.viewHistory")}</button>
+          <div style="margin-top:6px;">
+            <button type="button" class="hx-primary-btn" data-action="start-race" style="width:100%;" ${this.canStart() ? "" : "disabled"}>${t("hyrox.startRace")}</button>
           </div>
         </div>
       `);
 
-      const categoryGrid = card.querySelector('[data-group="category"]');
+      const categoryGrid = wrap.querySelector('[data-group="category"]');
       CATEGORY_IDS.forEach((id) => {
         categoryGrid.appendChild(el(`
           <button type="button" class="hx-choice-card ${this.category === id ? "is-selected" : ""}" data-action="set-category" data-value="${id}">
@@ -1210,7 +1293,7 @@
         `));
       });
 
-      const formatGrid = card.querySelector('[data-group="format"]');
+      const formatGrid = wrap.querySelector('[data-group="format"]');
       FORMAT_IDS.forEach((id) => {
         formatGrid.appendChild(el(`
           <button type="button" class="hx-choice-card ${this.format === id ? "is-selected" : ""}" data-action="set-format" data-value="${id}">
@@ -1219,7 +1302,7 @@
         `));
       });
 
-      const genderBlock = card.querySelector("#hx-gender-block");
+      const genderBlock = wrap.querySelector("#hx-gender-block");
       if (this.needsGender()) {
         genderBlock.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.gender")}</div>`));
         const genderGrid = el(`<div class="hx-choice-grid" data-group="gender"></div>`);
@@ -1242,20 +1325,20 @@
       // shown by the Weight Standards card up top, so we don't repeat them
       // here after Step 3.
       // "Your training space" sits right after Step 3 (gender), inside
-      // this same card, once category + gender are chosen.
-      const trainingSpaceBlock = card.querySelector("#hx-training-space-block");
+      // this same sheet, once category + gender are chosen.
+      const trainingSpaceBlock = wrap.querySelector("#hx-training-space-block");
       if (this.category && this.gender) {
         trainingSpaceBlock.appendChild(this.renderTrainingSpaceCard());
       }
 
-      const proAdjustBlock = card.querySelector("#hx-pro-adjust-block");
+      const proAdjustBlock = wrap.querySelector("#hx-pro-adjust-block");
       if (this.gender && this.format === "singles" && this.category === "pro") {
         proAdjustBlock.appendChild(this.renderProAdjustStep());
       } else if (this.gender && this.format === "doubles") {
         proAdjustBlock.appendChild(this.renderDoublesSplitStep());
       }
 
-      const startRow = card.querySelector('[data-action="start-race"]').parentElement;
+      const startRow = wrap.querySelector('[data-action="start-race"]').parentElement;
       if (this.canStart()) {
         const pb = this.getPersonalBest(this.category, this.format, this.gender);
         if (pb) {
@@ -1269,7 +1352,6 @@
         }
       }
 
-      wrap.appendChild(card);
       return wrap;
     }
 
@@ -1463,6 +1545,7 @@
           <div class="hx-hero-stations" data-hero-stations></div>
           <div class="hx-hero-hint">${t("hyrox.hero.tapHint")}</div>
           <button type="button" class="hx-hero-cta" data-action="hero-start">${t("hyrox.startRace")}</button>
+          <button type="button" class="hx-hero-history-link" data-action="show-history">${t("hyrox.viewHistory")}</button>
         </div>
       `);
 
@@ -2247,7 +2330,13 @@
       const rows = this.history.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
 
       if (!rows.length) {
-        listEl.appendChild(el(`<div class="hx-history-empty">${t("hyrox.nothingYet")}</div>`));
+        listEl.appendChild(el(`
+          <div class="hx-history-empty-rich">
+            <div class="hx-history-empty-icon">\u{23F1}\u{FE0F}</div>
+            <div class="hx-history-empty-title">${t("hyrox.nothingYet")}</div>
+            <div class="hx-history-empty-sub">${t("hyrox.nothingYetSub")}</div>
+          </div>
+        `));
       } else {
         rows.forEach((r) => {
           const dateLabel = new Date(r.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });

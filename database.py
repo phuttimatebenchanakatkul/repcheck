@@ -183,9 +183,20 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL REFERENCES users(id),
                 name TEXT NOT NULL,
+                emoji TEXT,
+                mode TEXT NOT NULL DEFAULT 'both',
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        # emoji (chosen icon) and mode (how sets are logged: 'both' sides at
+        # once, 'each' side individually, or 'either' -- user picks per set)
+        # were added after this table first shipped name-only. Probe-then-
+        # ALTER for existing DBs, same reasoning as friend_code above.
+        ce_cols = {row["name"] for row in conn.execute("PRAGMA table_info(custom_exercises)")}
+        if "emoji" not in ce_cols:
+            conn.execute("ALTER TABLE custom_exercises ADD COLUMN emoji TEXT")
+        if "mode" not in ce_cols:
+            conn.execute("ALTER TABLE custom_exercises ADD COLUMN mode TEXT NOT NULL DEFAULT 'both'")
         # Weekly check-in progress photos (front/back). A dedicated table
         # rather than the generic user_data JSON-blob pattern, since these
         # need to be queried/listed per user and each row points at a real
@@ -852,11 +863,13 @@ def delete_custom_food(user_id, food_id):
         conn.execute("DELETE FROM custom_foods WHERE user_id = ? AND id = ?", (user_id, food_id))
 
 
-def create_custom_exercise(user_id, name):
+def create_custom_exercise(user_id, name, emoji=None, mode="both"):
+    if mode not in ("both", "each", "either"):
+        mode = "both"
     with get_db() as conn:
         cursor = conn.execute(
-            "INSERT INTO custom_exercises (user_id, name) VALUES (?, ?)",
-            (user_id, name),
+            "INSERT INTO custom_exercises (user_id, name, emoji, mode) VALUES (?, ?, ?, ?)",
+            (user_id, name, emoji or None, mode),
         )
         return cursor.lastrowid
 

@@ -261,6 +261,40 @@
   width: 100%; max-width: 480px; max-height: 86vh; display: flex; flex-direction: column; overflow: hidden;
 }
 .pc-wizard.pc-wizard-wide { max-width: 660px; }
+
+/* ---------- Weekly check-in: classic iOS card bottom sheet ----------
+   Just this sheet's own shell -- the "page recedes behind it" motion is
+   shared with every other bottom sheet in the app (see the
+   ".pc-sheet-active .app" rule in style.css), driven by base.html's
+   window.openBottomSheet()/closeBottomSheet()/bindSheetDrag(). */
+.pc-ck-sheet-overlay {
+  position: fixed; inset: 0; z-index: 400;
+  display: flex; align-items: flex-end; justify-content: center;
+  pointer-events: none;
+}
+.pc-ck-sheet {
+  pointer-events: auto;
+  width: 100%; max-width: 560px; max-height: 94vh;
+  display: flex; flex-direction: column;
+  background: var(--card-bg);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -14px 48px rgba(0,0,0,0.42);
+  transform: translateY(100%);
+  transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+}
+.pc-ck-sheet-overlay.is-in .pc-ck-sheet { transform: translateY(0); }
+.pc-ck-sheet-handle {
+  width: 38px; height: 5px; border-radius: 999px;
+  background: var(--border); margin: 9px auto 0; flex-shrink: 0;
+}
+.pc-ck-sheet-inner { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pc-ck-sheet-inner .pc-ck { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pc-ck-sheet-inner .pc-ck-body { flex: 1; min-height: 0; overflow-y: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-ck-sheet { transition: none; }
+}
 .pc-wizard-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 8px; flex-shrink: 0; }
 .pc-wizard-title { font-size: 16px; font-weight: 700; }
 .pc-wizard-close { background: var(--bg); border: none; color: var(--text-secondary); width: 30px; height: 30px; border-radius: 50%; font-size: 18px; cursor: pointer; }

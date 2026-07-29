@@ -84,6 +84,28 @@
 }
 .hx-hero-cta:hover { opacity: 0.92; }
 .hx-hero-cta:active { transform: scale(0.98); }
+/* Relocated here from the old always-inline setup card now that category/
+   format/etc. live in a bottom sheet instead (see hyrox.js's
+   openSetupSheet()) -- "View history" still needed a home on the main
+   setup screen since it stays page content, not a sheet. */
+.hx-hero-history-link {
+  display: block; width: 100%; min-height: 44px; box-sizing: border-box;
+  text-align: center; margin-top: 6px; padding: 8px;
+  background: none; border: none;
+  color: rgba(255, 255, 255, 0.72); font-size: 13px; font-weight: 700;
+  font-family: inherit; cursor: pointer;
+}
+.hx-hero-history-link:hover { color: #fff; }
+.hx-hero-history-link:active { opacity: 0.7; }
+
+/* ---------- Race-setup bottom sheet header (shell reuses style.css's
+   shared .log-sheet-* classes; just the title needs its own definition,
+   same pattern as e.g. nutrition.html's .lq-title) ---------- */
+.hx-setup-sheet-title {
+  flex: 1; min-width: 0;
+  font-size: 18px; font-weight: 800; letter-spacing: -0.01em;
+  color: var(--text);
+}
 
 /* ---------- Modal (station info popup + race detail) ---------- */
 .hx-modal-overlay {
@@ -114,7 +136,8 @@
   box-shadow: 0 5px 12px rgba(47, 102, 232, 0.35);
 }
 .hx-modal-close {
-  width: 30px; height: 30px; border-radius: 50%; border: none; flex-shrink: 0;
+  width: 44px; height: 44px; border-radius: 50%; border: none; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
   background: var(--bg); color: var(--text-secondary); font-size: 19px; cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -774,6 +797,14 @@
   color: var(--text-secondary);
 }
 .hx-history-empty { text-align: center; color: var(--text-secondary); font-size: 13px; padding: 30px 0; }
+.hx-history-empty-rich { text-align: center; padding: 30px 0 22px; }
+.hx-history-empty-icon {
+  width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 50%;
+  background: var(--amber-bg); display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+}
+.hx-history-empty-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.hx-history-empty-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; }
 
 /* ---------- Leaderboard ---------- */
 .hx-lb-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }

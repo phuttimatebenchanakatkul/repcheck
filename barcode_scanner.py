@@ -1,6 +1,8 @@
 """Barcode-based nutrition lookup: decode a product barcode from a photo
 with pyzbar, then look up that product's nutrition facts via the Open
-Food Facts API.
+Food Facts API, falling back to FatSecret (see fatsecret_lookup.py) for
+Thai/regional products Open Food Facts doesn't have -- it's crowd-sourced
+and much sparser outside western markets.
 
 Separate from analyze_food_gemini.py (AI photo estimation of a plate of
 food) — this is for packaged products with a real barcode, where exact
@@ -23,6 +25,8 @@ import re
 import requests
 from PIL import Image
 from pyzbar.pyzbar import decode as zbar_decode
+
+import fatsecret_lookup
 
 OPEN_FOOD_FACTS_URL = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 # The legacy cgi/search.pl and /api/v2/search endpoints were returning 503s
@@ -130,7 +134,7 @@ def _brand_name(product):
     return str(brands or "").strip().split(",")[0].strip()
 
 
-def _validate(barcode, product):
+def _validate(barcode, product, source="Open Food Facts"):
     name = str(product.get("product_name") or "").strip()
     brand = _brand_name(product)
     if name and brand and brand.lower() not in name.lower():
@@ -154,7 +158,7 @@ def _validate(barcode, product):
     }
     if not any([per_100g["calories"], per_100g["protein"], per_100g["fat"], per_100g["carbs"]]):
         raise BarcodeScanError(
-            f"Found \"{food_name}\" but it has no nutrition data on Open Food Facts."
+            f"Found \"{food_name}\" but it has no nutrition data on {source}."
         )
 
     grams = _parse_serving_grams(product)
@@ -166,7 +170,7 @@ def _validate(barcode, product):
     return {
         "food_name": food_name,
         "confidence": "high",  # exact barcode match, not a visual estimate
-        "note": f"Nutrition from the product label (Open Food Facts), for a {grams}g serving.",
+        "note": f"Nutrition from the product label ({source}), for a {grams}g serving.",
         "ingredients": [{
             "name": food_name,
             "grams": grams,
@@ -206,12 +210,23 @@ def lookup_by_barcode(barcode):
     browsers that can decode the barcode client-side in real time (the
     BarcodeDetector API) and just need the nutrition lookup for a barcode
     they've already read. Keeps pyzbar as the fallback path for browsers
-    without BarcodeDetector (photo upload -> scan_and_lookup())."""
+    without BarcodeDetector (photo upload -> scan_and_lookup()).
+
+    Tries Open Food Facts first (unlimited, no account needed); if that
+    has no match, falls back to FatSecret (see fatsecret_lookup.py) --
+    silently a no-op if FATSECRET_CLIENT_ID/SECRET aren't configured, so
+    this behaves exactly as before until those are set up."""
     barcode = str(barcode).strip()
     if not barcode:
         raise BarcodeScanError("No barcode value given.")
-    product = _lookup_product(barcode)
-    return _validate(barcode, product)
+    try:
+        product = _lookup_product(barcode)
+        return _validate(barcode, product)
+    except BarcodeScanError as off_error:
+        fatsecret_product = fatsecret_lookup.find_product_by_barcode(barcode)
+        if fatsecret_product is None:
+            raise off_error
+        return _validate(barcode, fatsecret_product, source="FatSecret")
 
 
 def search_open_food_facts(query, limit=15):

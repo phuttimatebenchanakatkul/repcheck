@@ -149,48 +149,172 @@
       </div>
       {% endblock %}
 
+      <script>
+        // ---------- Shared iOS card bottom sheet helpers ----------
+        // Defined here, ahead of the page content block below, so every
+        // page's own inline script (workouts.html, nutrition.html, ...)
+        // can call these immediately at parse time when wiring up its own
+        // sheets -- those scripts render inside that content block, and a
+        // script tag runs the instant the parser reaches it. Defining these
+        // any later (e.g. alongside the mt-fab/lw-modal sheets further down
+        // this file) left them undefined at the moment content-block pages
+        // called them, so window.bindSheetDrag(...) silently no-op'd and
+        // swipe-to-dismiss never actually bound on those sheets.
+        window.bindSheetDrag = function(overlay, sheetSelector, handleSelector, closeCb) {
+          if (!overlay || overlay._dragBound) return;
+          overlay._dragBound = true;
+
+          const sheet = overlay.querySelector(sheetSelector);
+          const handle = overlay.querySelector(handleSelector);
+          if (!sheet) return;
+
+          const DEADZONE = 6;
+          const CLOSE_PX = 120;
+          let dragging = false;
+          let startY = 0;
+          let dy = 0;
+
+          const bodyScrollEl = () => {
+            return overlay.querySelector(".log-sheet-body, .af-modal-body, .qa-grid, .lw-modal-body, .ch-lb-sheet-body, .pc-ck-body") || sheet;
+          };
+
+          const onStart = (e) => {
+            const touch = e.touches ? e.touches[0] : e;
+            const fromHandle = handle && handle.contains(e.target);
+            const scrollEl = bodyScrollEl();
+            const atTop = !scrollEl || scrollEl.scrollTop <= 0;
+            if (!fromHandle && !atTop) return;
+            dragging = true;
+            startY = touch.clientY;
+            dy = 0;
+            sheet.style.transition = "none";
+          };
+
+          const onMove = (e) => {
+            if (!dragging) return;
+            const touch = e.touches ? e.touches[0] : e;
+            const rawDy = touch.clientY - startY;
+            if (rawDy <= 0) {
+              dragging = false;
+              sheet.style.transition = "";
+              sheet.style.transform = "";
+              return;
+            }
+            if (rawDy <= DEADZONE) return;
+            if (e.cancelable) e.preventDefault();
+            dy = rawDy - DEADZONE;
+            sheet.style.transform = `translateY(${dy}px)`;
+          };
+
+          const onEnd = () => {
+            if (!dragging) return;
+            dragging = false;
+            sheet.style.transition = "";
+            const passed = dy > CLOSE_PX;
+            sheet.style.transform = "";
+            if (passed && typeof closeCb === "function") {
+              closeCb();
+            }
+            dy = 0;
+          };
+
+          overlay.addEventListener("touchstart", onStart, { passive: true });
+          overlay.addEventListener("touchmove", onMove, { passive: false });
+          overlay.addEventListener("touchend", onEnd, { passive: true });
+          overlay.addEventListener("touchcancel", onEnd, { passive: true });
+
+          if (handle) {
+            handle.addEventListener("mousedown", (e) => {
+              onStart(e);
+              const mouseMove = (me) => onMove(me);
+              const mouseUp = () => {
+                onEnd();
+                window.removeEventListener("mousemove", mouseMove);
+                window.removeEventListener("mouseup", mouseUp);
+              };
+              window.addEventListener("mousemove", mouseMove);
+              window.addEventListener("mouseup", mouseUp);
+            });
+          }
+        };
+
+        window.openBottomSheet = function(overlayEl, sheetSelector) {
+          if (!overlayEl) return;
+          if (overlayEl.parentElement !== document.body) {
+            document.body.appendChild(overlayEl);
+          }
+          overlayEl.style.display = "";
+          document.documentElement.classList.add("pc-sheet-locked");
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              overlayEl.classList.add("is-in");
+              overlayEl.classList.add("is-open");
+              document.documentElement.classList.add("pc-sheet-active");
+            });
+          });
+        };
+
+        window.closeBottomSheet = function(overlayEl, sheetSelector, callback) {
+          if (!overlayEl || (!overlayEl.classList.contains("is-in") && !overlayEl.classList.contains("is-open"))) {
+            if (typeof callback === "function") callback();
+            return;
+          }
+          overlayEl.classList.remove("is-in");
+          overlayEl.classList.remove("is-open");
+          document.documentElement.classList.remove("pc-sheet-active");
+
+          let cleaned = false;
+          const cleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            document.documentElement.classList.remove("pc-sheet-locked");
+            if (typeof callback === "function") callback();
+          };
+
+          const sheetEl = overlayEl.querySelector(sheetSelector || ".mt-sheet, .log-sheet, .af-modal, .lw-modal, .ch-lb-sheet");
+          if (sheetEl) {
+            sheetEl.addEventListener("transitionend", cleanup, { once: true });
+          }
+          setTimeout(cleanup, 500);
+        };
+      </script>
+
       {% block content %}{% endblock %}
     </main>
   </div>
 
   <!--
     Mobile bottom tab bar: the sidebar's nav list is hidden below 720px
-    (see style.css) in favor of this fixed, thumb-reachable bar — the
-    pattern users already expect from native apps, instead of the old
-    wrapping horizontal nav row. The "+" is deliberately the largest,
-    most saturated element in the bar (raised above the bar line) since
-    it's the fastest path to the app's core actions (scan a meal, analyze
-    a lift, log a workout, log weight) from anywhere, not just one page.
+    (see style.css) in favor of this fixed, thumb-reachable bar. Styled
+    as two floating "bubbles" (reference: the user's mock): a fully
+    rounded pill holding icon-only nav items — the active one sits in
+    its own highlighted bubble — and a separate circular "+" to the
+    right of it. The "+" is the catch-all for everything not on the
+    pill: the app's core quick actions (scan a meal, analyze a lift,
+    log a workout, log weight) AND the "further features" pages (Coach,
+    Friends, Settings, account), so the bar itself can stay uncluttered.
   -->
   <nav class="mobile-tabbar" aria-label="Primary">
-    <a href="{{ url_for('home') }}" class="mt-item {{ 'is-active' if active_nav == 'home' else '' }}" aria-label="Home">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
-      <span class="mt-label" data-i18n="nav.home">Home</span>
-    </a>
-    <a href="{{ url_for('workouts') }}" class="mt-item {{ 'is-active' if active_nav == 'workouts' else '' }}" aria-label="Workouts">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM6 10v4M18 10v4M8 8h8v8H8z"/></svg>
-      <span class="mt-label" data-i18n="nav.workouts">Workouts</span>
-    </a>
-    <a href="{{ url_for('nutrition') }}" class="mt-item {{ 'is-active' if active_nav == 'nutrition' else '' }}" aria-label="Nutrition">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4Z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-      <span class="mt-label" data-i18n="nav.nutrition">Nutrition</span>
-    </a>
+    <div class="mt-pill">
+      <a href="{{ url_for('home') }}" class="mt-item {{ 'is-active' if active_nav == 'home' else '' }}" aria-label="Home">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+      </a>
+      <a href="{{ url_for('workouts') }}" class="mt-item {{ 'is-active' if active_nav == 'workouts' else '' }}" aria-label="Workouts">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM6 10v4M18 10v4M8 8h8v8H8z"/></svg>
+      </a>
+      <a href="{{ url_for('nutrition') }}" class="mt-item {{ 'is-active' if active_nav == 'nutrition' else '' }}" aria-label="Nutrition">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4Z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      </a>
+      <a href="{{ url_for('hyrox') }}" class="mt-item {{ 'is-active' if active_nav == 'hyrox' else '' }}" aria-label="HYROX">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6M12 2v3"/></svg>
+      </a>
+      <a href="{{ analyze_nav_href }}" class="mt-item {{ 'is-active' if active_nav == 'analyze' else '' }}" aria-label="Analyze">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg>
+      </a>
+    </div>
 
-    <button type="button" class="mt-fab" id="mt-fab-btn" aria-label="Quick actions" aria-haspopup="true" aria-expanded="false">
+    <button type="button" class="mt-fab" id="mt-fab-btn" aria-label="More features and quick actions" aria-haspopup="true" aria-expanded="false">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
-
-    <a href="{{ url_for('hyrox') }}" class="mt-item {{ 'is-active' if active_nav == 'hyrox' else '' }}" aria-label="HYROX">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6M12 2v3"/></svg>
-      <span class="mt-label">HYROX</span>
-    </a>
-    <a href="{{ analyze_nav_href }}" class="mt-item {{ 'is-active' if active_nav == 'analyze' else '' }}" aria-label="Analyze">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg>
-      <span class="mt-label" data-i18n="nav.analyze">Analyze</span>
-    </a>
-    <button type="button" class="mt-item mt-more-btn" id="mt-more-btn" aria-label="More" aria-haspopup="true" aria-expanded="false">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>
-      <span class="mt-label" data-i18n="mobile.more">More</span>
     </button>
   </nav>
 
@@ -228,53 +352,46 @@
           <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
         </button>
       </div>
-      <button type="button" class="qa-cancel" id="mt-fab-cancel" data-i18n="mobile.cancel">Cancel</button>
-    </div>
-  </div>
 
-  <!-- "More" sheet: the remaining sidebar items that don't fit in the bar
-       (Analyze/HYROX already have their own slots — this covers Coach,
-       Friends, Settings, language, theme shortcut, and account/logout so
-       nothing from the desktop sidebar becomes unreachable on mobile). -->
-  <div class="mt-sheet-overlay" id="mt-more-overlay">
-    <div class="mt-sheet" id="mt-more-sheet">
-      <div class="mt-sheet-handle"></div>
-      <a href="{{ url_for('coach') }}" class="mt-sheet-action">
-        <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-        <span><span class="mt-sheet-action-title" data-i18n="nav.coach">Coach</span></span>
-      </a>
-      <a href="{{ url_for('friends') }}" class="mt-sheet-action">
-        <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-        <span><span class="mt-sheet-action-title" data-i18n="nav.friends">Friends</span></span>
-      </a>
-      <a href="{{ url_for('settings') }}" class="mt-sheet-action">
-        <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
-        <span><span class="mt-sheet-action-title" data-i18n="nav.settings">Settings</span></span>
-      </a>
-      {% if is_admin %}
-      <a href="{{ url_for('admin_users') }}" class="mt-sheet-action">
-        <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="m17 11 2 2 4-4"/></svg></span>
-        <span><span class="mt-sheet-action-title">Signups</span></span>
-      </a>
-      {% endif %}
-      {% if current_user %}
-        <div class="mt-sheet-action" style="cursor:default;">
-          <span class="mt-sheet-action-icon" style="background:var(--blue-bg); color:var(--blue);">{{ current_user.name[0]|upper }}</span>
-          <span><span class="mt-sheet-action-title">{{ current_user.name }}</span><span class="mt-sheet-action-sub">{{ current_user.email }}</span></span>
-        </div>
+      <!-- "Explore" — the pages that used to live behind the bar's "More"
+           tab. Folded in here so the bottom bar stays uncluttered and the
+           "+" is the single entry point to everything off the main pill. -->
+      <div class="qa-section-label" data-i18n="mobile.more">More</div>
+      <div class="qa-links">
+        <a href="{{ url_for('coach') }}" class="mt-sheet-action">
+          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span><span class="mt-sheet-action-title" data-i18n="nav.coach">Coach</span></span>
+        </a>
+        <a href="{{ url_for('friends') }}" class="mt-sheet-action">
+          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <span><span class="mt-sheet-action-title" data-i18n="nav.friends">Friends</span></span>
+        </a>
+        <a href="{{ url_for('settings') }}" class="mt-sheet-action">
+          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+          <span><span class="mt-sheet-action-title" data-i18n="nav.settings">Settings</span></span>
+        </a>
+        {% if is_admin %}
+        <a href="{{ url_for('admin_users') }}" class="mt-sheet-action">
+          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="m17 11 2 2 4-4"/></svg></span>
+          <span><span class="mt-sheet-action-title">Signups</span></span>
+        </a>
+        {% endif %}
+        {% if current_user %}
         <form method="post" action="{{ url_for('auth.logout') }}">
           <button type="submit" class="mt-sheet-action" style="width:100%; border:none; background:none; font:inherit; text-align:left;">
             <span class="mt-sheet-action-icon" style="background:var(--red-bg); color:var(--red);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
             <span><span class="mt-sheet-action-title" data-i18n="sidebar.logout">Log out</span></span>
           </button>
         </form>
-      {% else %}
+        {% else %}
         <a href="{{ url_for('auth.login_page') }}" class="mt-sheet-action">
           <span class="mt-sheet-action-icon" style="background:var(--blue-bg); color:var(--blue);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
           <span><span class="mt-sheet-action-title" data-i18n="sidebar.login">Log in</span></span>
         </a>
-      {% endif %}
-      <button type="button" class="mt-sheet-cancel" id="mt-more-cancel" data-i18n="mobile.cancel">Cancel</button>
+        {% endif %}
+      </div>
+
+      <button type="button" class="qa-cancel" id="mt-fab-cancel" data-i18n="mobile.cancel">Cancel</button>
     </div>
   </div>
 
@@ -282,8 +399,9 @@
        instead of navigating to the Nutrition page. Save logic mirrors
        coaching.js's logWeight()/persistWeightEntry(), kept standalone
        here since this popup (and base.html) loads on every page. -->
-  <div class="lw-modal-overlay" id="lw-modal-overlay" style="display:none;">
+  <div class="lw-modal-overlay" id="lw-modal-overlay">
     <div class="lw-modal">
+      <div class="lw-modal-handle"></div>
       <div class="lw-modal-header">
         <div class="lw-modal-title" data-i18n="mobile.logWeight">Log today's weight</div>
         <button type="button" class="lw-modal-close" id="lw-modal-close" aria-label="Close">&times;</button>
@@ -292,6 +410,11 @@
         <input type="number" id="lw-weight-input" class="lw-weight-input" min="1" step="0.1" inputmode="decimal">
         <button type="button" class="lw-save-btn" id="lw-save-btn" data-i18n="common.save">Save</button>
         <div class="lw-modal-msg" id="lw-modal-msg"></div>
+        <!-- Populated by open()'s renderRecent() -- last few weigh-ins,
+             so this sheet stands in for more than just today's entry.
+             Hidden (empty) until there's at least one logged. -->
+        <div class="lw-recent" id="lw-recent"></div>
+        <a class="lw-history-link" href="{{ url_for('weight_history') }}" data-i18n="mobile.viewFullHistory">View full history &rarr;</a>
       </div>
     </div>
   </div>
@@ -324,6 +447,8 @@
     })();
 
     // ---------- Mobile bottom bar: FAB + More sheets ----------
+    // (window.bindSheetDrag/openBottomSheet/closeBottomSheet are defined
+    // earlier, ahead of the page content block -- see the comment there.)
     (function () {
       function wireSheet(openBtnId, overlayId, cancelId) {
         const openBtn = document.getElementById(openBtnId);
@@ -332,42 +457,42 @@
         if (!openBtn || !overlay) return;
 
         function open() {
-          overlay.classList.add("is-open");
+          window.openBottomSheet(overlay, ".mt-sheet");
           openBtn.setAttribute("aria-expanded", "true");
         }
         function close() {
-          overlay.classList.remove("is-open");
-          openBtn.setAttribute("aria-expanded", "false");
+          window.closeBottomSheet(overlay, ".mt-sheet", () => {
+            openBtn.setAttribute("aria-expanded", "false");
+          });
         }
-        openBtn.addEventListener("click", open);
+        openBtn.addEventListener("click", () => {
+          if (overlay.classList.contains("is-open") || overlay.classList.contains("is-in")) close();
+          else open();
+        });
         if (cancelBtn) cancelBtn.addEventListener("click", close);
-        // Only the backdrop itself closes it — clicks on the sheet's own
-        // links/buttons must reach them, not get swallowed by this listener.
         overlay.addEventListener("click", (event) => {
           if (event.target === overlay) close();
         });
+
+        window.bindSheetDrag(overlay, ".mt-sheet", ".mt-sheet-handle", close);
       }
       wireSheet("mt-fab-btn", "mt-fab-overlay", "mt-fab-cancel");
-      wireSheet("mt-more-btn", "mt-more-overlay", "mt-more-cancel");
     })();
 
     // Closes the "+" quick-actions sheet AND resets the FAB's aria-expanded
-    // so the "+" morphs back from "×" (the morph is pure CSS off that
-    // attribute). Actions that dismiss the sheet in place — Log weight,
-    // Scan barcode — must call this instead of only removing "is-open", or
-    // the "×" gets stuck until the next open/close cycle.
     window.closeFabSheet = function () {
       const fabOverlay = document.getElementById("mt-fab-overlay");
-      if (fabOverlay) fabOverlay.classList.remove("is-open");
       const fabBtn = document.getElementById("mt-fab-btn");
-      if (fabBtn) fabBtn.setAttribute("aria-expanded", "false");
+      if (fabOverlay) {
+        window.closeBottomSheet(fabOverlay, ".mt-sheet", () => {
+          if (fabBtn) fabBtn.setAttribute("aria-expanded", "false");
+        });
+      } else if (fabBtn) {
+        fabBtn.setAttribute("aria-expanded", "false");
+      }
     };
 
     // ---------- "Log weight" quick-action popup ----------
-    // Standalone (not coaching.js, which isn't loaded on every page): a
-    // fast way to log today's weight from wherever the user is, instead
-    // of navigating to the Nutrition page. Mirrors coaching.js's
-    // logWeight()/persistWeightEntry() save logic.
     (function () {
       const overlay = document.getElementById("lw-modal-overlay");
       const input = document.getElementById("lw-weight-input");
@@ -392,6 +517,78 @@
         catch (err) { return {}; }
       }
 
+      // A handful of recent weigh-ins, newest first -- this sheet is now
+      // the only entry point off the home page for weight, so it needs to
+      // show a *little* more than "type today's number" (the full
+      // history/chart still lives one tap away via .lw-history-link).
+      // The trend sparkline mirrors home.html's buildSparkline() (same
+      // math, same look) so the two feel like one design, not two
+      // separately-invented weight widgets.
+      const recentEl = document.getElementById("lw-recent");
+
+      function buildRecentSparkline(values) {
+        if (values.length < 2) return "";
+        const w = 260, h = 30, pad = 4;
+        const min = Math.min(...values), max = Math.max(...values);
+        const range = max - min || 1;
+        const step = (w - pad * 2) / (values.length - 1);
+        const points = values.map((v, i) => {
+          const x = pad + i * step;
+          const y = pad + (1 - (v - min) / range) * (h - pad * 2);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        });
+        const [lastX, lastY] = points[points.length - 1].split(",");
+        return `
+          <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+            <polyline points="${points.join(" ")}" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="${lastX}" cy="${lastY}" r="3.5" fill="var(--red)"/>
+          </svg>
+        `;
+      }
+
+      function renderRecent() {
+        if (!recentEl) return;
+        const weightLog = loadWeightLog();
+        // Newest first, but fetch one extra beyond what's shown so the
+        // oldest visible row can still show a day-over-day delta against
+        // the entry right before it.
+        const allEntries = Object.keys(weightLog)
+          .map((date) => ({ date, kg: weightLog[date].kg }))
+          .filter((e) => typeof e.kg === "number")
+          .sort((a, b) => b.date.localeCompare(a.date));
+        if (!allEntries.length) {
+          recentEl.innerHTML = "";
+          return;
+        }
+        const shown = allEntries.slice(0, 5);
+        const sparkValues = allEntries.slice(0, 10).map((e) => e.kg).reverse(); // oldest -> newest for the chart
+
+        const rows = shown.map((entry, i) => {
+          const label = new Date(entry.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          const older = allEntries[i + 1];
+          let deltaHtml = "";
+          if (older) {
+            const delta = entry.kg - older.kg;
+            if (Math.abs(delta) >= 0.05) {
+              const isDown = delta < 0;
+              deltaHtml = `<span class="lw-recent-delta ${isDown ? "is-down" : "is-up"}">${delta > 0 ? "+" : "-"}${RepCheckUnits.formatWeightKg(Math.abs(delta))}</span>`;
+            }
+          }
+          return `
+            <div class="lw-recent-row">
+              <span class="lw-recent-date">${label}</span>
+              <span class="lw-recent-right">${deltaHtml}<span class="lw-recent-value">${RepCheckUnits.formatWeightKg(entry.kg)}</span></span>
+            </div>
+          `;
+        }).join("");
+
+        recentEl.innerHTML = `
+          <div class="lw-recent-title">${RepCheckI18n.t("mobile.recentWeighIns")}</div>
+          <div class="lw-recent-spark">${buildRecentSparkline(sparkValues)}</div>
+          <div class="lw-recent-list">${rows}</div>
+        `;
+      }
+
       function open() {
         if (window.closeFabSheet) window.closeFabSheet();
         const todayIso = toIsoDate(new Date());
@@ -399,12 +596,15 @@
         input.value = todaysEntry ? RepCheckUnits.kgToDisplay(todaysEntry.kg) : "";
         msgEl.textContent = "";
         msgEl.classList.remove("is-error");
-        overlay.style.display = "flex";
-        setTimeout(() => input.focus(), 0);
+        renderRecent();
+        window.openBottomSheet(overlay, ".lw-modal");
+        setTimeout(() => input.focus(), 150);
       }
       function close() {
-        overlay.style.display = "none";
+        window.closeBottomSheet(overlay, ".lw-modal");
       }
+
+      window.bindSheetDrag(overlay, ".lw-modal", ".lw-modal-handle", close);
 
       async function save() {
         const kg = RepCheckUnits.displayToKg(input.value);
@@ -441,9 +641,6 @@
         document.dispatchEvent(new CustomEvent("repcheck:weight-logged"));
       }
 
-      // Exposed so other pages can open the same today-only weight logger
-      // (e.g. the Weight History pictograph's "today" circle) instead of
-      // re-implementing the input + validation + sync flow.
       window.openLogWeightModal = open;
 
       openTriggers.forEach((btn) => btn.addEventListener("click", open));

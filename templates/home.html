@@ -53,13 +53,21 @@
     <div id="hm-food-body"></div>
   </a>
 
-  <a class="hm-glance" href="{{ url_for('weight_history') }}">
+  <!-- Was a plain link out to the full weight-history page; now opens the
+       same shared "Log weight" bottom sheet as the "+" menu (base.html's
+       #lw-modal-overlay already had a dormant hook for exactly this,
+       document.getElementById("hm-quick-log-weight") in its openTriggers
+       list, just never wired up to anything). Gets the identical recede
+       motion for free since it's the same shared sheet system. The sheet
+       itself now also shows recent weigh-ins + a link to the full history
+       page, so that page doesn't become orphaned by dropping this link. -->
+  <button type="button" class="hm-glance" id="hm-quick-log-weight">
     <div class="hm-glance-head">
       <span class="hm-glance-chip hm-qi-red"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
       <span class="hm-glance-label" data-i18n="home.weight.title">Weight</span>
     </div>
     <div id="hm-weight-body"></div>
-  </a>
+  </button>
 
   <a class="hm-glance" href="{{ url_for('hyrox') }}">
     <div class="hm-glance-head">
@@ -119,18 +127,23 @@
   </div>
 </div>
 
-<div class="ch-overlay" id="ch-lb-overlay">
-  <div class="ch-modal">
-    <div class="ch-lb-header">
-      <div class="ch-lb-caption" id="ch-lb-caption"></div>
-      <button type="button" class="ch-close-btn" id="ch-lb-close" aria-label="Close">&times;</button>
+<div class="ch-lb-sheet-overlay" id="ch-lb-overlay">
+  <div class="ch-lb-sheet">
+    <div class="ch-lb-sheet-handle"></div>
+    <div class="ch-lb-sheet-inner">
+      <div class="ch-lb-header">
+        <div class="ch-lb-caption" id="ch-lb-caption"></div>
+        <button type="button" class="ch-close-btn" id="ch-lb-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="ch-lb-scope-tabs" id="ch-lb-scope-tabs">
+        <button type="button" data-scope="friends" data-i18n="challenges.friends">Friends</button>
+        <button type="button" data-scope="global" data-i18n="challenges.global">Global</button>
+      </div>
+      <div class="ch-lb-sheet-body">
+        <div class="ch-lb-full-list" id="ch-lb-full-list"></div>
+        <div id="ch-lb-me"></div>
+      </div>
     </div>
-    <div class="ch-lb-scope-tabs" id="ch-lb-scope-tabs">
-      <button type="button" data-scope="friends" data-i18n="challenges.friends">Friends</button>
-      <button type="button" data-scope="global" data-i18n="challenges.global">Global</button>
-    </div>
-    <div class="ch-lb-full-list" id="ch-lb-full-list"></div>
-    <div id="ch-lb-me"></div>
   </div>
 </div>
 
@@ -229,7 +242,7 @@
   .hm-streak-chip {
     display: inline-flex; align-items: center; gap: 5px;
     background: rgba(255, 255, 255, 0.1); color: #fff;
-    border-radius: 999px; padding: 6px 13px;
+    border-radius: 999px; padding: 6px 13px; min-height: 44px; box-sizing: border-box;
     font-size: 13px; font-weight: 800; text-decoration: none;
     transition: transform 0.1s ease;
   }
@@ -312,6 +325,10 @@
     padding: 16px;
     min-height: 128px;
     transition: transform 0.13s ease, box-shadow 0.15s ease;
+    /* Button-element resets (the WEIGHT tile is a <button>, not a link,
+       since it opens a sheet instead of navigating) -- no-ops on the
+       other tiles, which are still plain <a>s. */
+    border: none; width: 100%; text-align: left; font-family: inherit; cursor: pointer;
   }
   .hm-glance:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
   .hm-glance:active { transform: scale(0.98); }
@@ -435,6 +452,7 @@
   .ch-btn-primary, .ch-btn-secondary {
     flex: 1;
     min-width: 0;
+    min-height: 44px; box-sizing: border-box;
     padding: 12px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 800;
     cursor: pointer; font-family: inherit; border: none;
     display: flex; align-items: center; justify-content: center;
@@ -454,6 +472,46 @@
   .ch-btn-secondary:disabled { color: var(--text-secondary); cursor: default; opacity: 0.55; }
   .ch-btn-secondary:disabled:hover { border-color: var(--border); }
 
+  /* ---------- Global Leaderboard: classic iOS card bottom sheet ---------- */
+  .ch-lb-sheet-overlay {
+    position: fixed; inset: 0; z-index: 400;
+    display: flex; align-items: flex-end; justify-content: center;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.46s ease;
+  }
+  .ch-lb-sheet-overlay.is-in {
+    pointer-events: auto; opacity: 1;
+  }
+  .ch-lb-sheet {
+    pointer-events: auto;
+    width: 100%; max-width: 560px; max-height: 92vh;
+    display: flex; flex-direction: column;
+    background: var(--card-bg);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 48px rgba(0,0,0,0.42);
+    transform: translateY(100%);
+    transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+    overflow: hidden;
+  }
+  .ch-lb-sheet-overlay.is-in .ch-lb-sheet {
+    transform: translateY(0);
+  }
+  .ch-lb-sheet-handle {
+    width: 38px; height: 5px; border-radius: 999px;
+    background: var(--border); margin: 9px auto 2px; flex-shrink: 0;
+    cursor: grab;
+  }
+  .ch-lb-sheet-handle:active {
+    cursor: grabbing;
+  }
+  .ch-lb-sheet-inner {
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+  }
+  .ch-lb-sheet-body {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px 24px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
   .ch-overlay {
     position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
     display: none; align-items: center; justify-content: center; z-index: 220; padding: 16px;
@@ -466,17 +524,18 @@
   .ch-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
   .ch-modal-title { font-size: 16px; font-weight: 700; }
   .ch-close-btn {
-    width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--bg);
+    width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--bg);
     color: var(--text-secondary); font-size: 18px; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
   }
-  .ch-lb-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .ch-lb-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 20px 8px; flex-shrink: 0; }
   .ch-lb-caption {
     font-size: 12px; font-weight: 700; color: var(--text-secondary);
     text-transform: uppercase; letter-spacing: 0.04em;
   }
-  .ch-lb-scope-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .ch-lb-scope-tabs { display: flex; gap: 8px; padding: 0 20px 12px; flex-shrink: 0; }
   .ch-lb-scope-tabs button {
-    flex: 1; padding: 10px; border: 1.5px solid var(--border); border-radius: 999px; cursor: pointer;
+    flex: 1; min-height: 44px; padding: 10px; border: 1.5px solid var(--border); border-radius: 999px; cursor: pointer;
     background: none; color: var(--text); font-size: 13px; font-weight: 700; font-family: inherit;
   }
   .ch-lb-scope-tabs button.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
@@ -589,7 +648,6 @@
     // nutrition.html/coaching.js), always derived from protein/fat/carbs
     // below so it can't drift out of sync with the macro targets.
     const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
-    const weightLog = loadJson("repcheck_weight_log_v1", {});
     const analyzeLog = loadJson("repcheck_analyze_log_v1", []);
     const hyroxHistoryRaw = loadJson("repcheck_hyrox_history_v1", []);
     const hyroxHistory = (Array.isArray(hyroxHistoryRaw) ? hyroxHistoryRaw : [])
@@ -958,6 +1016,10 @@
     function renderWeight() {
       const mount = document.getElementById("hm-weight-body");
       if (!mount) return;
+      // Re-read fresh each call (not a page-load-time const) -- this now
+      // also re-renders right after the "Log weight" sheet saves, so a
+      // stale snapshot would show the old number until a full reload.
+      const weightLog = loadJson("repcheck_weight_log_v1", {});
       const entries = Object.keys(weightLog)
         .map((date) => ({ date, kg: weightLog[date].kg }))
         .filter((e) => typeof e.kg === "number")
@@ -1062,6 +1124,10 @@
     renderAll();
     document.addEventListener("repcheck:language-changed", renderAll);
     document.addEventListener("repcheck:units-changed", renderAll);
+    // Fired by base.html's shared "Log weight" sheet right after a
+    // successful save -- keep this card's number/delta in sync without
+    // needing a page reload.
+    document.addEventListener("repcheck:weight-logged", renderWeight);
 
     // ---------- Personalized greeting ----------
     // "Hey {first name} 👋" instead of the static page heading. The h1
@@ -1187,26 +1253,122 @@
       renderMeCard(mePreviewEl, data.myRank, data.totalEntries);
     }
 
-    // ---------- Full leaderboard modal (Friends vs Global) ----------
+    // ---------- Full leaderboard bottom sheet (Friends vs Global) ----------
     const lbOverlay = document.getElementById("ch-lb-overlay");
     // Default to Global so tapping through from the homepage card (which now
     // shows the global board) opens on the same scope; the Friends tab is
     // still one tap away.
     let lbScope = "global";
 
+    function bindLeaderboardSheetDrag(overlay) {
+      const sheet = overlay.querySelector(".ch-lb-sheet");
+      const handle = overlay.querySelector(".ch-lb-sheet-handle");
+      const DEADZONE = 6;
+      const CLOSE_PX = 120;
+      let dragging = false;
+      let startY = 0;
+      let dy = 0;
+
+      const bodyScrollEl = () => overlay.querySelector(".ch-lb-sheet-body");
+
+      const onStart = (e) => {
+        const touch = e.touches ? e.touches[0] : e;
+        const fromHandle = handle && handle.contains(e.target);
+        const scrollEl = bodyScrollEl();
+        const atTop = !scrollEl || scrollEl.scrollTop <= 0;
+        if (!fromHandle && !atTop) return;
+        dragging = true;
+        startY = touch.clientY;
+        dy = 0;
+        sheet.style.transition = "none";
+      };
+
+      const onMove = (e) => {
+        if (!dragging) return;
+        const touch = e.touches ? e.touches[0] : e;
+        const rawDy = touch.clientY - startY;
+        if (rawDy <= 0) {
+          dragging = false;
+          sheet.style.transition = "";
+          sheet.style.transform = "";
+          return;
+        }
+        if (rawDy <= DEADZONE) return;
+        if (e.cancelable) e.preventDefault();
+        dy = rawDy - DEADZONE;
+        sheet.style.transform = `translateY(${dy}px)`;
+      };
+
+      const onEnd = () => {
+        if (!dragging) return;
+        dragging = false;
+        sheet.style.transition = "";
+        const passed = dy > CLOSE_PX;
+        sheet.style.transform = "";
+        if (passed) closeLeaderboardModal();
+        dy = 0;
+      };
+
+      overlay.addEventListener("touchstart", onStart, { passive: true });
+      overlay.addEventListener("touchmove", onMove, { passive: false });
+      overlay.addEventListener("touchend", onEnd, { passive: true });
+      overlay.addEventListener("touchcancel", onEnd, { passive: true });
+
+      if (handle) {
+        handle.addEventListener("mousedown", (e) => {
+          onStart(e);
+          const mouseMove = (me) => onMove(me);
+          const mouseUp = () => {
+            onEnd();
+            window.removeEventListener("mousemove", mouseMove);
+            window.removeEventListener("mouseup", mouseUp);
+          };
+          window.addEventListener("mousemove", mouseMove);
+          window.addEventListener("mouseup", mouseUp);
+        });
+      }
+    }
+
+    if (lbOverlay) bindLeaderboardSheetDrag(lbOverlay);
+
     function paintCaption() {
       const scopeLabel = t(lbScope === "global" ? "challenges.global" : "challenges.friends");
       document.getElementById("ch-lb-caption").textContent = `${scopeLabel} · ${exerciseTitle(todaysExercise)}`;
     }
     function openLeaderboardModal() {
+      if (lbOverlay.parentElement !== document.body) {
+        document.body.appendChild(lbOverlay);
+      }
       lbScope = "global";
       paintCaption();
       paintScopeTabs();
       loadFullLeaderboard();
-      lbOverlay.classList.add("is-open");
+
+      document.documentElement.classList.add("pc-sheet-locked");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          lbOverlay.classList.add("is-in");
+          document.documentElement.classList.add("pc-sheet-active");
+        });
+      });
     }
     function closeLeaderboardModal() {
-      lbOverlay.classList.remove("is-open");
+      if (!lbOverlay.classList.contains("is-in")) return;
+      lbOverlay.classList.remove("is-in");
+      document.documentElement.classList.remove("pc-sheet-active");
+
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        document.documentElement.classList.remove("pc-sheet-locked");
+      };
+
+      const sheetEl = lbOverlay.querySelector(".ch-lb-sheet");
+      if (sheetEl) {
+        sheetEl.addEventListener("transitionend", cleanup, { once: true });
+      }
+      setTimeout(cleanup, 500);
     }
     function paintScopeTabs() {
       document.querySelectorAll("#ch-lb-scope-tabs button").forEach((btn) => {

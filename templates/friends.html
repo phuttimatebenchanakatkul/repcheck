@@ -44,13 +44,20 @@
   .fr-friend-list { display: flex; flex-direction: column; gap: 8px; }
   .fr-friend-row {
     display: flex; align-items: center; gap: 10px;
-    background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600;
+    background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 16px; font-weight: 600;
   }
   .fr-friend-avatar {
     width: 28px; height: 28px; border-radius: 50%; background: var(--blue-bg); color: var(--blue);
     display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
   }
-  .fr-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 16px 0; }
+  .fr-empty { text-align: center; padding: 30px 16px 22px; }
+  .fr-empty-icon {
+    width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 50%;
+    background: var(--blue-bg); display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .fr-empty-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .fr-empty-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; }
 
   .fr-new-challenge { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   .fr-exercise-btn {
@@ -157,7 +164,13 @@
       const listEl = document.getElementById("fr-friend-list");
       listEl.innerHTML = "";
       if (!myFriends.length) {
-        listEl.appendChild(el(`<div class="fr-empty">${t("friends.empty")}</div>`));
+        listEl.appendChild(el(`
+          <div class="fr-empty">
+            <div class="fr-empty-icon">\u{1F465}</div>
+            <div class="fr-empty-title">${t("friends.empty")}</div>
+            <div class="fr-empty-sub">${t("friends.emptySub")}</div>
+          </div>
+        `));
         return;
       }
       myFriends.forEach((f) => {

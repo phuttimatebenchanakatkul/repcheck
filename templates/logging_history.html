@@ -27,7 +27,7 @@
 
   .lh-toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; }
   .lh-nav-btn {
-    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+    width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border);
     background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
   .lh-nav-btn:hover { border-color: var(--text-secondary); }
@@ -39,6 +39,7 @@
   .lh-summary-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
   .lh-summary-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
   .lh-summary-value { font-weight: 700; color: var(--text); }
+  .lh-empty-hint { text-align: center; font-size: 13px; color: var(--text-secondary); margin: 4px 0 14px; }
 
   .lh-circle-grid {
     display: flex; flex-wrap: wrap; gap: 12px;
@@ -46,10 +47,10 @@
     margin-bottom: 20px;
   }
   .lh-circle {
-    width: 42px; height: 42px; border-radius: 50%;
+    width: 44px; height: 44px; border-radius: 50%;
     border: none; cursor: pointer; font-family: inherit;
     display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700;
+    font-size: 14px; font-weight: 700;
     position: relative;
   }
   .lh-circle.is-today { box-shadow: 0 0 0 2px var(--blue); }
@@ -156,6 +157,18 @@
         <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--text-secondary)"></span><span class="lh-summary-value">${counts.incomplete}</span> ${t("loggingHistory.summary.incomplete")}</div>
         <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--border)"></span><span class="lh-summary-value">${counts.none}</span> ${t("loggingHistory.summary.notLogged")}</div>
       `;
+      // Same reasoning as streaks.html's identical hint: a calendar grid
+      // never looks visually "empty", it just quietly fills with grey --
+      // call out a fully-inactive month directly instead of leaving it
+      // to the counts alone.
+      const existingHint = document.getElementById("lh-empty-hint");
+      if (existingHint) existingHint.remove();
+      if (counts.logged === 0 && counts.fasting === 0 && counts.incomplete === 0 && counts.none > 0) {
+        summaryEl.insertAdjacentHTML(
+          "afterend",
+          `<div class="lh-empty-hint" id="lh-empty-hint">${t("loggingHistory.emptyMonth")}</div>`
+        );
+      }
     }
 
     function renderGrid() {

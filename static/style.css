@@ -67,6 +67,7 @@ button:active, a.btn-primary:active, [role="button"]:active {
 body {
   margin: 0;
   font-family: "Inter", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 17px;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -107,6 +108,29 @@ body {
      position:sticky descendants keep working. Wide content that genuinely
      needs scrolling must use its own overflow-x:auto container. */
   overflow-x: clip;
+  transition: transform 0.46s cubic-bezier(0.32, 0.72, 0, 1),
+              border-radius 0.46s cubic-bezier(0.32, 0.72, 0, 1),
+              filter 0.46s ease;
+}
+
+/* ---------- Bottom sheets: classic iOS card-sheet recede ----------
+   Shared by every bottom sheet in the app (the "+" quick-actions sheet,
+   weight-log, food/exercise logging, food-photo analysis, weekly check-in,
+   the Hyrox leaderboard sheet): base.html's openBottomSheet()/
+   closeBottomSheet() toggle .pc-sheet-active/.pc-sheet-locked on <html>
+   for every one of them, so this single rule gives them all the same
+   motion -- the page behind the sheet scales back, rounds its corners,
+   and dims, exactly like a native iOS sheet. */
+html.pc-sheet-locked, html.pc-sheet-locked body { overflow: hidden; }
+html.pc-sheet-active .app {
+  transform: scale(0.92) translateY(6px);
+  transform-origin: top center;
+  border-radius: 22px;
+  overflow: hidden;
+  filter: brightness(0.7);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app { transition: none; }
 }
 
 /* ---------- Sidebar ---------- */
@@ -478,34 +502,6 @@ input[type="file"], select {
 
 .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
 
-/* ---------- Analyze: sticky "Analyze another" bottom CTA ----------
-   Fixed above the mobile tab bar (position:fixed escapes normal layout,
-   so it works the same whether it's inside #result-view's innerHTML on
-   the AJAX path or the plain page flow on the server-rendered fallback)
-   so the repeat-use action is always reachable without scrolling back
-   down through the whole results page, chat widget included. The spacer
-   reserves the same vertical space in normal flow so the bar never
-   covers the last real content (the chat widget). */
-.an-sticky-cta-spacer { height: 86px; }
-.an-sticky-cta {
-  position: fixed;
-  left: 0; right: 0;
-  bottom: 0;
-  display: flex;
-  justify-content: center;
-  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to top, var(--bg) 55%, transparent);
-  z-index: 90;
-  pointer-events: none;
-}
-.an-sticky-cta .btn-primary {
-  pointer-events: auto;
-  margin-top: 0;
-  max-width: 320px;
-}
-@media (max-width: 720px) {
-  .an-sticky-cta { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); padding-bottom: 14px; }
-}
 .btn-primary:active { transform: translateY(0); }
 
 .error {
@@ -568,7 +564,7 @@ input[type="file"], select {
    colored dot + short colored sentence, no filled banner. */
 .fb-verdict {
   display: flex; align-items: flex-start; gap: 8px;
-  font-size: 13px; font-weight: 600; line-height: 1.5;
+  font-size: 15px; font-weight: 600; line-height: 1.5;
   padding: 8px 2px 14px;
 }
 .fb-verdict::before {
@@ -619,7 +615,7 @@ input[type="file"], select {
   font-size: 10.5px; font-weight: 800; margin-bottom: 4px;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
-.fb-item-summary { font-size: 13.5px; font-weight: 500; line-height: 1.5; color: var(--text); }
+.fb-item-summary { font-size: 15px; font-weight: 500; line-height: 1.5; color: var(--text); }
 .fb-item-summary p { margin: 0; }
 
 .fb-item-chevron {
@@ -632,9 +628,9 @@ input[type="file"], select {
 .fb-item-detail { display: none; padding: 0 14px 14px; }
 .fb-item.is-expanded .fb-item-detail { display: block; animation: fb-reveal 0.24s ease; }
 .fb-item-detail ul { margin: 0; padding-left: 17px; }
-.fb-item-detail li { font-size: 13.5px; line-height: 1.6; color: var(--text); margin-bottom: 6px; }
+.fb-item-detail li { font-size: 15px; line-height: 1.6; color: var(--text); margin-bottom: 6px; }
 .fb-item-detail li:last-child { margin-bottom: 0; }
-.fb-item-detail p { margin: 0; font-size: 13.5px; line-height: 1.6; }
+.fb-item-detail p { margin: 0; font-size: 15px; line-height: 1.6; }
 @keyframes fb-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 /* Pale pastel tile per category + small solid icon chip (flat, no
@@ -677,134 +673,227 @@ input[type="file"], select {
   border-radius: var(--radius-md);
   background: var(--blue-bg);
   color: var(--blue);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
 }
 
 .favor-note strong { text-transform: capitalize; }
 
-/* ---------- Analyze results: small context-aware chatbot ----------
-   Scoped to one specific analysis (no localStorage persistence -- the
-   context is re-sent with every message, same pattern coach_chat.py's
-   `history` already uses), shown on both the AJAX result view
-   (templates/index.html) and the server-rendered fallback
-   (templates/result.html). Modeled on templates/coach.html's .cc-*
-   widget but under its own prefix and a fixed, compact height since this
-   is a small embedded widget, not a full chat page. */
-.ac-card {
-  background: var(--card-bg);
-  color: var(--text);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  margin-top: 20px;
+/* ---------- Analyze results: Apple-Intelligence-style "ask" bar ----------
+   Replaces the old boxed chatbot. A frosted-glass pill pinned to the
+   bottom that fades in once you scroll to the last section; asking a
+   question grows a translucent thread panel upward from it. The same
+   AnalyzeChatWidget.init(context) drives it, shared by index.html (AJAX)
+   and result.html (fallback). Scoped to one analysis, no persistence --
+   context is re-sent with every message, like coach_chat.py's history. */
+
+/* "Analyze another" is a normal button at the end of the content. */
+.an-again { display: flex; justify-content: center; margin-top: 24px; }
+.an-again .btn-primary { margin-top: 0; max-width: 320px; }
+
+/* The dock sits in normal flow in the MIDDLE at the top of the results as a
+   small glass circle. Binary: the collapsed circle or the fully open chat,
+   never a resting in-between. Opening (tap the circle, or pull down at the
+   very top edge) widens the pill AND expands the panel below it; since it's
+   in flow the results are pushed down to make room, and closing returns
+   everything to exactly where it was. */
+.ag-dock {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  height: 466px;
+  align-items: center;
+  margin: 2px 0 8px;
+  /* transform is used only for the pull-preview dip; snaps back smoothly. */
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ag-dock.is-pulling { transition: none; } /* follow the finger 1:1 while pulling */
+
+/* The pill: collapsed it's a small, quiet centered circle. On .is-open it
+   widens into the full centered bar; overflow-hidden clips the input row
+   until it's grown. */
+.ag-bar {
+  align-self: center;
+  position: relative;
   overflow: hidden;
+  width: 44px;
+  height: 44px;
+  display: flex; align-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-bg) 42%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: width 0.44s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.34s ease, border-color 0.2s ease,
+              background-color 0.34s ease;
 }
-.ac-header { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.ac-header-avatar {
-  width: 40px; height: 40px; border-radius: 13px; flex-shrink: 0;
-  background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff;
-  box-shadow: 0 6px 14px rgba(124, 79, 224, 0.4);
+.ag-dock.is-open .ag-bar {
+  width: min(480px, 100%);
+  height: 52px;
+  background: color-mix(in srgb, var(--card-bg) 55%, transparent);
+  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22);
+}
+
+/* The sparkle circle IS the toggle button: tap to open, tap again to close. */
+.ag-spark {
+  flex-shrink: 0;
+  width: 44px; height: 44px; padding: 0;
   display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
+  transition: color 0.2s ease, width 0.3s ease, height 0.3s ease;
 }
-.ac-header-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
-.ac-header-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+.ag-spark svg { width: 17px; height: 17px; }
+.ag-dock.is-open .ag-spark { width: 52px; height: 52px; color: var(--purple); }
+.ag-dock.is-open .ag-spark svg { width: 19px; height: 19px; }
+.ag-spark:active { opacity: 0.6; }
 
-.ac-messages {
-  flex: 1; overflow-y: auto; padding: 16px;
-  display: flex; flex-direction: column; gap: 12px;
-  scroll-behavior: smooth;
+.ag-inputrow {
+  flex: 1; min-width: 0; align-self: stretch;
+  display: flex; align-items: center; gap: 8px;
+  padding-right: 7px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
-
-/* Empty state: a warm intro + inviting, tappable starter questions so the
-   user immediately sees they can just tap to ask -- far friendlier than a
-   row of tiny grey pills tucked under the input. */
-.ac-empty { margin: auto 0; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 4px; }
-.ac-empty-avatar {
-  width: 48px; height: 48px; border-radius: 15px; margin-bottom: 11px;
-  background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff;
-  box-shadow: 0 10px 22px rgba(124, 79, 224, 0.35);
+.ag-dock.is-open .ag-inputrow { opacity: 1; }
+.ag-inputrow input {
+  flex: 1; min-width: 0;
+  height: 100%;
+  background: none; border: none; outline: none;
+  color: var(--text); font-family: inherit;
+  /* 16px so iOS Safari doesn't zoom the page on focus. */
+  font-size: 16px;
+}
+.ag-inputrow input::placeholder { color: var(--text-secondary); }
+.ag-send {
+  flex-shrink: 0;
+  width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: linear-gradient(135deg, #9b7bef, var(--purple));
+  color: #fff; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-}
-.ac-empty-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
-.ac-empty-body { font-size: 12.5px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; max-width: 250px; }
-.ac-prompts { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 15px; }
-.ac-prompt {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 11px 13px; border-radius: 12px;
-  border: 1px solid var(--border); background: var(--bg);
-  color: var(--text); font-family: inherit; font-size: 13px; font-weight: 600;
-  text-align: left; cursor: pointer; line-height: 1.35;
-  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
-}
-.ac-prompt:hover { border-color: var(--purple); background: var(--purple-bg); }
-.ac-prompt:active { transform: scale(0.98); }
-.ac-prompt-text { flex: 1; min-width: 0; }
-.ac-prompt-arrow { flex-shrink: 0; color: var(--purple); }
-
-.ac-row { display: flex; gap: 8px; max-width: 88%; align-items: flex-end; }
-.ac-row-user { align-self: flex-end; flex-direction: row-reverse; }
-.ac-avatar {
-  width: 28px; height: 28px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px;
-}
-.ac-row-assistant .ac-avatar { background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff; }
-.ac-row-user .ac-avatar { background: var(--sidebar-active); color: var(--text); }
-
-.ac-bubble { padding: 10px 14px; border-radius: 16px; font-size: 13.5px; line-height: 1.5; word-break: break-word; }
-.ac-row-assistant .ac-bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 5px; }
-.ac-row-user .ac-bubble { background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff; border-bottom-right-radius: 5px; }
-.ac-bubble strong { font-weight: 700; }
-.ac-bubble p { margin: 0 0 6px; }
-.ac-bubble p:last-child { margin-bottom: 0; }
-.ac-bullet-list { margin: 4px 0 6px; padding-left: 16px; }
-.ac-bullet-list li { margin-bottom: 3px; }
-.ac-bullet-list li:last-child { margin-bottom: 0; }
-
-.ac-typing-row { align-self: flex-start; }
-.ac-typing-dots {
-  display: flex; align-items: center; gap: 4px; padding: 13px 15px;
-  background: var(--bg); border-radius: 16px; border-bottom-left-radius: 5px;
-}
-.ac-typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); animation: ac-bounce 1.2s ease-in-out infinite; }
-.ac-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
-.ac-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
-
-/* Suggestion bar under the input is unused now (starter questions live in
-   the empty state) -- kept in markup for the widget's JS, hidden when empty. */
-.ac-suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; flex-shrink: 0; }
-.ac-suggestions:empty { display: none; }
-
-.ac-input-row { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
-.ac-input-row input {
-  flex: 1; min-width: 0; background: var(--bg); border: 1.5px solid var(--border);
-  border-radius: 999px; padding: 11px 16px; color: var(--text); font-size: 14px;
-  font-family: inherit; outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.ac-input-row input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px var(--purple-bg); }
-.ac-send-btn {
-  width: 40px; height: 40px; border-radius: 50%; border: none;
-  background: linear-gradient(135deg, #9b7bef, var(--purple)); color: #fff;
-  box-shadow: 0 5px 12px rgba(124, 79, 224, 0.4);
-  display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
   transition: opacity 0.15s ease, transform 0.1s ease;
 }
-.ac-send-btn:hover { opacity: 0.92; }
-.ac-send-btn:active { transform: scale(0.92); }
-.ac-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ag-send:hover { opacity: 0.92; }
+.ag-send:active { transform: scale(0.9); }
+.ag-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
-@keyframes ac-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-  30% { transform: translateY(-3px); opacity: 1; }
+/* Collapsible panel below the bar (chips / thread / status). Animating
+   grid-template-rows 0fr<->1fr expands/collapses its height regardless of
+   content, so the reflow that pushes the page down (and back) is smooth. */
+.ag-panel {
+  width: 100%; max-width: 560px;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.44s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ag-dock.is-open .ag-panel { grid-template-rows: 1fr; }
+.ag-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.ag-dock.is-open .ag-panel-inner { padding-top: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .ag-bar, .ag-panel { transition: none; }
 }
 
-@media (max-width: 720px) {
-  .ac-header { padding: 12px 14px; }
-  .ac-messages { padding: 12px; }
-  .ac-input-row { padding: 10px 12px; }
-  .ac-row { max-width: 90%; }
+/* Conversation thread: see-through glass panel below the bar. */
+.ag-thread {
+  width: 100%;
+  max-height: 46vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--card-bg) 52%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(1.7);
+  backdrop-filter: blur(26px) saturate(1.7);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+  scroll-behavior: smooth;
+}
+.ag-thread:empty { display: none; }
+
+/* Tappable starter questions shown under the bar until the first message. */
+.ag-suggest {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+  width: 100%;
+}
+.ag-suggest:empty { display: none; }
+.ag-chip {
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--card-bg) 60%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 12.5px; font-weight: 600;
+  padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.ag-chip:hover { color: var(--text); border-color: color-mix(in srgb, var(--purple) 55%, transparent); }
+.ag-chip:active { transform: scale(0.96); }
+
+/* Rate-limit / status line under the bar; hidden when empty. */
+.ag-sub { font-size: 11px; color: var(--text-secondary); text-align: center; }
+.ag-sub:empty { display: none; }
+
+/* Thread bubbles: see-through glass, matching the bar. Each new one rises
+   in softly. The user's is a translucent purple tint; the assistant's is a
+   translucent neutral -- both keep the page readable through them. */
+.ag-row { display: flex; max-width: 90%; animation: ag-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+.ag-row-user { align-self: flex-end; }
+.ag-row-assistant { align-self: flex-start; }
+.ag-bubble {
+  padding: 9px 13px; border-radius: 16px;
+  font-size: 15px; line-height: 1.5; word-break: break-word;
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+.ag-row-assistant .ag-bubble {
+  background: color-mix(in srgb, var(--card-bg) 42%, transparent);
+  color: var(--text);
+  border-bottom-left-radius: 5px;
+}
+.ag-row-user .ag-bubble {
+  background: color-mix(in srgb, var(--purple) 52%, transparent);
+  border-color: color-mix(in srgb, var(--purple) 40%, transparent);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.ag-bubble p { margin: 0 0 6px; }
+.ag-bubble p:last-child { margin: 0; }
+.ag-bubble strong { font-weight: 700; }
+.ag-bullet-list { margin: 4px 0 6px; padding-left: 16px; }
+.ag-bullet-list li { margin-bottom: 3px; }
+.ag-bullet-list li:last-child { margin-bottom: 0; }
+/* Thinking indicator: same glass as an assistant bubble, not a flat grey
+   block, so the "thinking" moment reads as part of the transparent UI. */
+.ag-typing {
+  align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px;
+  background: color-mix(in srgb, var(--card-bg) 42%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 16px; border-bottom-left-radius: 5px;
+  animation: ag-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ag-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); animation: ag-bounce 1.2s ease-in-out infinite; }
+.ag-typing span:nth-child(2) { animation-delay: 0.15s; }
+.ag-typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes ag-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-row, .ag-typing { animation: none; }
+}
+
+@keyframes ag-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-3px); opacity: 1; }
 }
 
 /* ---------- Mobile bottom tab bar + FAB (hidden on desktop) ---------- */
@@ -835,49 +924,79 @@ input[type="file"], select {
   .topbar h1 { font-size: 21px; }
 
   /* Room for the fixed bottom bar so the last card is never hidden
-     behind it; extra bottom padding accounts for the FAB overhang and
-     the iOS home-indicator safe area. */
-  .main { padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+     behind it; the bar now floats 12px off the bottom edge, so clearance
+     is its offset + pill height + breathing room, plus the iOS
+     home-indicator safe area. */
+  .main { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 
+  /* Two floating "bubbles" (per the reference mock): a fully rounded
+     pill with the nav items, and the circular "+" beside it. The nav
+     element itself is just an invisible flex row pinning them both. */
   .mobile-tabbar {
     display: flex;
     align-items: center;
-    justify-content: space-around;
+    gap: 10px;
     position: fixed;
-    left: 0; right: 0; bottom: 0;
-    height: calc(64px + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: var(--card-bg);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    left: 12px; right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     z-index: 100;
+    transition: opacity 0.22s ease, transform 0.22s ease;
   }
-  /* Icon + text label stacked, blue when active (reference design) --
-     replaces the old unlabeled gray-box style. */
-  .mt-item {
+  /* Deliberately hidden (not just covered by a higher z-index) while a
+     sheet is open -- an active task, like logging a set or scanning a
+     food photo, shouldn't share the screen with unrelated destinations. */
+  html.pc-sheet-active .mobile-tabbar {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-tabbar { transition: none; }
+  }
+  .mt-pill {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    flex-direction: column;
+    align-items: stretch;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    /* Named so the pill holds perfectly still across page navigations
+       (see the View Transitions block below) while the active bubble
+       glides to its new slot -- no cross-fade flicker on the bar itself. */
+    view-transition-name: mt-pill;
+  }
+  /* Icon-only items; the active one sits in its own softly highlighted
+     bubble inside the pill (like the mock's "Overview"). No labels — the
+     bar stays uncluttered and the "+" carries everything else. */
+  .mt-item {
+    flex: 1;
+    min-width: 0;
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    min-width: 52px;
-    height: 52px;
-    border-radius: 12px;
+    padding: 13px 4px;
+    border-radius: 999px;
     color: var(--text-secondary);
     text-decoration: none;
     background: none;
     border: none;
     cursor: pointer;
-    flex-shrink: 0;
     font-family: inherit;
   }
-  .mt-label { font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
-  .mt-item.is-active { color: var(--blue); }
+  .mt-item.is-active {
+    background: var(--sidebar-active); color: var(--text);
+    /* The star of the show: this bubble morphs from the old page's active
+       slot to the new page's on every navigation (View Transitions). */
+    view-transition-name: mt-active-bubble;
+  }
   .mt-item:active { transform: scale(0.9); }
 
-  /* The "+" is deliberately the biggest, most saturated, most elevated
-     element in the bar — it's the fastest path to the app's core actions
-     from anywhere, so it needs to read as the primary CTA at a glance. */
+  /* The "+" bubble: its own raised circle beside the pill — the most
+     saturated element in the bar since it's the fastest path to the
+     app's core actions from anywhere. */
   .mt-fab {
     display: flex;
     align-items: center;
@@ -890,10 +1009,11 @@ input[type="file"], select {
     box-shadow: 0 8px 22px rgba(47, 102, 232, 0.5);
     cursor: pointer;
     flex-shrink: 0;
-    margin-top: -26px;
     /* A slow, subtle "breathing" glow so the "+" quietly invites a tap
        without ever being distracting. */
     animation: mt-fab-breathe 3.2s ease-in-out infinite;
+    /* Named so it stays put across navigations, like the pill. */
+    view-transition-name: mt-fab;
   }
   .mt-fab svg { transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }
   /* wireSheet() flips aria-expanded on the FAB when the sheet opens/closes,
@@ -908,7 +1028,6 @@ input[type="file"], select {
   .mt-sheet-overlay {
     display: block;
     position: fixed; inset: 0;
-    background: rgba(0, 0, 0, 0.45);
     z-index: 200;
     opacity: 0;
     pointer-events: none;
@@ -918,6 +1037,12 @@ input[type="file"], select {
   .mt-sheet {
     position: absolute;
     left: 0; right: 0; bottom: 0;
+    /* Cap the height and scroll internally: the "+" sheet now carries the
+       action tiles AND the folded-in "More" pages, so on shorter phones
+       it can exceed the viewport -- without this the top rows (handle +
+       first tiles) would be clipped off-screen with no way to reach them. */
+    max-height: 88vh;
+    overflow-y: auto;
     background: var(--card-bg);
     border-radius: 20px 20px 0 0;
     padding: 10px 16px calc(16px + env(safe-area-inset-bottom, 0px));
@@ -986,6 +1111,17 @@ input[type="file"], select {
      one of the set -- just a wider one -- instead of a different shape. */
   .qa-tile-wide { grid-column: 1 / -1; }
 
+  /* "More" section inside the "+" sheet -- the pages that used to sit
+     behind the bar's removed "More" tab (Coach/Friends/Settings/etc.),
+     rendered as a simple labelled list of rows below the action tiles. */
+  .qa-section-label {
+    font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.03em; margin: 18px 4px 6px;
+  }
+  .qa-links { display: flex; flex-direction: column; }
+  .qa-links .mt-sheet-action { border-radius: 12px; }
+  .qa-links .mt-sheet-action:active { background: var(--sidebar-active); }
+
   .qa-green .qa-tile-icon { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 6px 14px rgba(31, 169, 113, 0.42); }
   .qa-blue .qa-tile-icon { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 6px 14px rgba(47, 102, 232, 0.42); }
   .qa-amber .qa-tile-icon { background: linear-gradient(135deg, #e8a33f, var(--amber)); box-shadow: 0 6px 14px rgba(185, 131, 42, 0.42); }
@@ -1022,8 +1158,9 @@ input[type="file"], select {
   .app { padding: 8px; }
   .card { padding: 14px; border-radius: var(--radius-md); }
   .topbar h1 { font-size: 19px; }
-  .mt-item { min-width: 44px; height: 48px; }
-  .mt-fab { width: 54px; height: 54px; margin-top: -24px; }
+  .mobile-tabbar { left: 8px; right: 8px; gap: 8px; }
+  .mt-item { padding: 12px 1px; }
+  .mt-fab { width: 54px; height: 54px; }
 }
 
 /* Respect users who ask for less motion: drop the FAB's idle breathing and
@@ -1035,43 +1172,223 @@ input[type="file"], select {
   .mt-sheet-overlay.is-open .qa-cancel { animation: none; }
 }
 
-/* ---------- "Log weight" quick-action popup (base.html) ----------
-   Site-wide (not page-scoped like the other modal CSS blocks) since the
-   "+" FAB and home-page quick actions can open this from any page. */
-@keyframes lw-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes lw-pop-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.lw-modal-overlay {
+/* ---------- Ultra-smooth page-to-page nav (View Transitions API) ----------
+   On a real browser navigation the active bottom-bar "bubble" morphs from
+   its old slot straight to the new page's slot, so moving between pages
+   feels like one bubble gliding to the next instead of a hard reload. The
+   page contents cross-fade underneath; the pill and "+" are named (above)
+   so they stay rock-steady. Browsers without cross-document view
+   transitions just navigate normally -- no animation, nothing breaks. */
+@view-transition { navigation: auto; }
+
+/* Quick, soft cross-fade of the page body between routes. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.24s;
+  animation-timing-function: ease;
+}
+
+/* The bubble glide: a touch of overshoot at the end so it settles with a
+   gentle, "bubbly" spring rather than a mechanical stop. Outlasts the body
+   cross-fade slightly so the bubble stays the focal point of the motion. */
+::view-transition-group(mt-active-bubble) {
+  animation-duration: 0.44s;
+  animation-timing-function: cubic-bezier(0.34, 1.24, 0.64, 1);
+}
+
+/* Never animate for users who asked for reduced motion -- navigate flat. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+
+/* ---------- Shared logging bottom sheet (Workouts + Nutrition) ----------
+   One Apple-style sheet used by both "log" flows, presented like the "+"
+   quick-actions sheet: a grabber handle, a search field that settles in
+   first, an X to dismiss, then the suggested + recent lists below. Slides
+   up from the bottom on phones; centers as a card on wider screens.
+   Toggled by the .is-open class from JS so the slide can animate. No own
+   backdrop scrim -- the page behind (.app) dims and recedes on its own,
+   see the ".pc-sheet-active .app" rule above, same as every other sheet. */
+.log-sheet-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  z-index: 400;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.46s ease;
+}
+.log-sheet-overlay.is-open,
+.log-sheet-overlay.is-in { opacity: 1; pointer-events: auto; }
+
+.log-sheet {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.42);
+  transform: translateY(100%);
+  transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+}
+.log-sheet-overlay.is-open .log-sheet,
+.log-sheet-overlay.is-in .log-sheet { transform: translateY(0); }
+
+.log-sheet-handle {
+  width: 38px; height: 5px;
+  border-radius: 999px;
+  background: var(--border);
+  margin: 9px auto 3px;
+  flex-shrink: 0;
+  cursor: grab;
+}
+.log-sheet-handle:active { cursor: grabbing; }
+
+.log-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 14px;
+  flex-shrink: 0;
+}
+.log-sheet-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 12px 16px;
+  color: var(--text-secondary);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.log-sheet-search:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-bg);
+  color: var(--blue);
+}
+.log-sheet-search svg { flex-shrink: 0; }
+.log-sheet-search input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 16px;
+  font-family: inherit;
+}
+.log-sheet-search input::placeholder { color: var(--text-secondary); }
+.log-sheet-close {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
-  z-index: 300;
-  animation: lw-fade-in 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
+.log-sheet-close:hover { background: var(--sidebar-active); color: var(--text); }
+.log-sheet-close:active { transform: scale(0.9); }
+
+.log-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 2px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.log-sheet-overlay.is-entering .log-sheet-head {
+  animation: log-sheet-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.06s backwards;
+}
+.log-sheet-overlay.is-entering .log-sheet-body {
+  animation: log-sheet-rise 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.18s backwards;
+}
+@keyframes log-sheet-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-sheet { transition: none; }
+  .log-sheet-overlay.is-entering .log-sheet-head,
+  .log-sheet-overlay.is-entering .log-sheet-body { animation: none; }
+}
+
+/* ---------- "Log weight" quick-action popup (base.html) ---------- */
+.lw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 400;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.46s ease;
+}
+.lw-modal-overlay.is-open,
+.lw-modal-overlay.is-in { opacity: 1; pointer-events: auto; }
 .lw-modal {
+  pointer-events: auto;
   background: var(--card-bg);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.42);
   width: 100%;
-  max-width: 360px;
-  animation: lw-pop-in 0.18s ease;
+  max-width: 560px;
+  max-height: 92vh;
+  transform: translateY(100%);
+  transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
+.lw-modal-overlay.is-open .lw-modal,
+.lw-modal-overlay.is-in .lw-modal { transform: translateY(0); }
+.lw-modal-handle {
+  width: 38px; height: 5px;
+  border-radius: 999px;
+  background: var(--border);
+  margin: 9px auto 2px;
+  flex-shrink: 0;
+  cursor: grab;
+}
+.lw-modal-handle:active { cursor: grabbing; }
 .lw-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px 10px;
+  padding: 12px 20px 10px;
+  flex-shrink: 0;
 }
 .lw-modal-title { font-size: 16px; font-weight: 700; color: var(--text); }
 .lw-modal-close {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   background: none; border: none; font-size: 20px; line-height: 1;
-  color: var(--text-secondary); cursor: pointer; padding: 4px;
+  color: var(--text-secondary); cursor: pointer;
 }
 .lw-modal-close:hover { color: var(--text); }
-.lw-modal-body { padding: 4px 20px 20px; }
+.lw-modal-body { padding: 4px 20px 24px; flex: 1; overflow-y: auto; }
 .lw-weight-input {
   width: 100%;
   padding: 12px 14px;
@@ -1088,12 +1405,13 @@ input[type="file"], select {
 }
 .lw-save-btn {
   width: 100%;
+  min-height: 44px; box-sizing: border-box;
   padding: 12px;
   border-radius: 999px;
   border: none;
   background: var(--text);
   color: var(--bg);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
@@ -1101,3 +1419,37 @@ input[type="file"], select {
 .lw-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .lw-modal-msg { text-align: center; font-size: 12px; color: var(--text-secondary); margin-top: 10px; min-height: 15px; }
 .lw-modal-msg.is-error { color: var(--red); }
+
+/* Recent weigh-ins + link to the full history page -- see base.html's
+   renderRecent(): this sheet became the only home-screen entry point for
+   weight, so it's no longer just a bare "type today's number" popup.
+   A trend sparkline (matching home.html's card) up top, then each row as
+   its own soft tile with a colored day-over-day delta badge -- not a
+   plain divided list. */
+.lw-recent { margin-top: 20px; }
+.lw-recent-title {
+  font-size: 11px; font-weight: 800; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.04em; margin: 0 2px 10px;
+}
+.lw-recent-spark { width: 100%; height: 30px; margin-bottom: 14px; }
+.lw-recent-spark svg { width: 100%; height: 100%; display: block; }
+.lw-recent-list { display: flex; flex-direction: column; gap: 7px; }
+.lw-recent-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 14px; border-radius: 14px; background: var(--bg);
+}
+.lw-recent-date { font-size: 13.5px; font-weight: 600; color: var(--text-secondary); }
+.lw-recent-right { display: flex; align-items: center; gap: 8px; }
+.lw-recent-delta {
+  font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px;
+  white-space: nowrap;
+}
+.lw-recent-delta.is-down { color: var(--green); background: var(--green-bg); }
+.lw-recent-delta.is-up { color: var(--red); background: var(--red-bg); }
+.lw-recent-value { font-size: 15px; font-weight: 800; color: var(--text); min-width: 50px; text-align: right; }
+.lw-history-link {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  min-height: 44px; margin-top: 10px;
+  color: var(--blue); font-size: 14px; font-weight: 700; text-decoration: none;
+}
+.lw-history-link:active { opacity: 0.7; }

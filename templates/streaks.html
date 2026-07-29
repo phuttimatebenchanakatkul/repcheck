@@ -35,7 +35,7 @@
   .st-section-title { font-size: 15px; font-weight: 700; margin: 24px 4px 12px; }
   .lh-toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; }
   .lh-nav-btn {
-    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+    width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border);
     background: var(--bg); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
   .lh-nav-btn:hover { border-color: var(--text-secondary); }
@@ -54,10 +54,10 @@
     margin-bottom: 20px;
   }
   .lh-circle {
-    width: 42px; height: 42px; border-radius: 50%;
+    width: 44px; height: 44px; border-radius: 50%;
     border: none; cursor: default; font-family: inherit;
     display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700;
+    font-size: 14px; font-weight: 700;
     position: relative;
   }
   .lh-circle.is-today { box-shadow: 0 0 0 2px var(--blue); }
@@ -68,6 +68,8 @@
   .lh-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; font-size: 11px; color: var(--text-secondary); }
   .lh-legend-item { display: flex; align-items: center; gap: 5px; }
   .lh-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  .lh-empty-hint { text-align: center; font-size: 13px; color: var(--text-secondary); margin: 4px 0 14px; }
 </style>
 
 <a href="{{ url_for('home') }}" class="st-back" data-i18n="streaks.backToHome">&larr; Back to Home</a>
@@ -203,6 +205,18 @@
         <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--amber)"></span><span class="lh-summary-value">${activeCount}</span> ${t("streaks.legend.active")}</div>
         <div class="lh-summary-item"><span class="lh-summary-dot" style="background:var(--border)"></span><span class="lh-summary-value">${inactiveCount}</span> ${t("streaks.legend.none")}</div>
       `;
+      // The grid itself is never visually "empty" (a calendar always shows
+      // every day of the month) -- a zero-active month reads as a wall of
+      // identical grey circles with no obvious explanation, so call it out
+      // directly rather than leaving the user to infer it from the count.
+      const existingHint = document.getElementById("lh-empty-hint");
+      if (existingHint) existingHint.remove();
+      if (activeCount === 0 && inactiveCount > 0) {
+        document.getElementById("lh-summary").insertAdjacentHTML(
+          "afterend",
+          `<div class="lh-empty-hint" id="lh-empty-hint">${t("streaks.emptyMonth")}</div>`
+        );
+      }
 
       const gridEl = document.getElementById("lh-circle-grid");
       gridEl.innerHTML = days.map((dateIso, i) => {

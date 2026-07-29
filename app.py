@@ -16,6 +16,11 @@ Requires:
 
     Put your key in a .env file next to this script:
         GEMINI_API_KEY=...
+
+    Optional: FATSECRET_CLIENT_ID / FATSECRET_CLIENT_SECRET, a fallback
+    barcode-nutrition source for products Open Food Facts doesn't have
+    (see fatsecret_lookup.py) -- the barcode scanner works fine without
+    these, just with narrower product coverage.
 """
 
 import mimetypes
@@ -28,7 +33,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import markdown as markdown_lib
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
 from werkzeug.utils import secure_filename
 
 from analyze_chat import get_analysis_chat_reply
@@ -162,6 +167,15 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 # in .env to override.
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "repcheck-local-dev-secret")
 
+# Stay signed in "forever" -- until an explicit logout. Login already marks
+# the session permanent (auth.py's _login_session), and Flask's default
+# SESSION_REFRESH_EACH_REQUEST re-stamps the cookie's expiry on every
+# request; the only missing piece was the lifetime that "permanent" uses,
+# which defaults to 31 days -- so a user who didn't visit for a month got
+# bounced back to the login page. A ~10-year window makes that effectively
+# never happen, and _keep_session_permanent() below refreshes it each visit.
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=3650)
+
 app.register_blueprint(auth_bp)
 init_db()
 
@@ -190,6 +204,16 @@ _PUBLIC_ENDPOINTS = frozenset({
     "auth.google_login", "auth.google_callback",
     "auth.apple_login",
 })
+
+
+@app.before_request
+def _keep_session_permanent():
+    """Re-mark a logged-in session permanent on every request so its rolling
+    10-year expiry (see PERMANENT_SESSION_LIFETIME above) keeps refreshing and
+    never lapses. Guarded on user_id so anonymous visitors aren't handed a
+    session cookie just for browsing the login page."""
+    if session.get("user_id"):
+        session.permanent = True
 
 
 @app.before_request
@@ -246,9 +270,9 @@ ADMIN_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
 # all require login (the app is fully login-gated anyway), so there's no
 # anonymous path that could dodge the per-user counter.
 RATE_LIMITS = {
-    "workout_analysis": (2, 6 * 60 * 60),   # 2 per 6 hours
+    "workout_analysis": (1, 24 * 60 * 60),  # 1 per day
     "food_analysis": (3, 24 * 60 * 60),     # 3 per day
-    "ai_chat": (5, 6 * 60 * 60),            # 5 messages per 6 hours
+    "ai_chat": (3, 24 * 60 * 60),           # 3 messages per day
 }
 
 # Admin exemption, per the owner's explicit request: this one account is
@@ -898,8 +922,20 @@ def api_create_custom_exercise():
     if not name:
         return jsonify({"ok": False, "error": "Enter a name for the exercise."}), 400
 
-    exercise_id = create_custom_exercise(user["id"], name[:60])
-    return jsonify({"ok": True, "exercise": {"id": exercise_id, "name": name[:60]}})
+    # emoji is the user-picked icon (a single glyph; cap length so a pasted
+    # string can't bloat the row). mode is how its sets get logged.
+    emoji = (str(payload.get("emoji") or "").strip() or None)
+    if emoji:
+        emoji = emoji[:8]
+    mode = str(payload.get("mode") or "both").strip()
+    if mode not in ("both", "each", "either"):
+        mode = "both"
+
+    exercise_id = create_custom_exercise(user["id"], name[:60], emoji, mode)
+    return jsonify({
+        "ok": True,
+        "exercise": {"id": exercise_id, "name": name[:60], "emoji": emoji, "mode": mode},
+    })
 
 
 @app.route("/api/custom-exercises/<int:exercise_id>", methods=["DELETE"])
@@ -1750,7 +1786,8 @@ def analyze():
     blocked, retry = _rate_limit_blocked("workout_analysis")
     if blocked:
         limit = RATE_LIMITS["workout_analysis"][0]
-        return fail(f"You've used your {limit} workout analyses for now — try again in {_friendly_wait(retry)}.")
+        plural = "analysis" if limit == 1 else "analyses"
+        return fail(f"You've used your {limit} workout {plural} for now — try again in {_friendly_wait(retry)}.")
 
     job_id = uuid.uuid4().hex[:12]
     safe_name = secure_filename(video_file.filename) or "upload"
@@ -1762,7 +1799,7 @@ def analyze():
     try:
         result = run_pipeline(raw_path, exercise, trimmed_path=trimmed_path)
         # Only count a use once the analysis actually succeeded, so a failed
-        # Gemini call doesn't burn one of a user's 2-per-6h analyses.
+        # Gemini call doesn't burn the user's one analysis for the day.
         _rate_limit_record("workout_analysis")
         _track_feature("workout_analysis")
         sections = split_feedback_sections(result["feedback"], result["overall_score"])
