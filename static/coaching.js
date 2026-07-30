@@ -61,11 +61,57 @@
   const DIET_IDS = ["balanced", "low_fat", "low_carb", "keto"];
   const DISTRIBUTION_IDS = ["stable", "weekly"];
 
-  function optionsFor(ids, prefix) {
+  // Same icon set as onboarding.js's identical wizard steps (duplicated,
+  // not imported -- see this file's header comment for why the two
+  // wizards are kept as separate modules) so re-configuring goals here
+  // looks like the same flow as first-time setup, not a plainer cousin
+  // of it.
+  const ICONS = {
+    trendDown: `<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>`,
+    equal: `<line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/>`,
+    trendUp: `<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>`,
+    male: `<circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="20" y2="4"/><polyline points="14 4 20 4 20 10"/>`,
+    female: `<circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/>`,
+    dumbbell: `<rect x="2" y="9" width="3" height="6" rx="1"/><rect x="19" y="9" width="3" height="6" rx="1"/><rect x="6" y="7" width="2.5" height="10" rx="1"/><rect x="15.5" y="7" width="2.5" height="10" rx="1"/><line x1="8.5" y1="12" x2="15.5" y2="12"/>`,
+    pulse: `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`,
+    liftCardio: `<circle cx="3" cy="12" r="2"/><circle cx="21" cy="12" r="2"/><polyline points="5 12 9 12 11 6 13 18 15 12 19 12"/>`,
+    moon: `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>`,
+    plate: `<circle cx="12" cy="12" r="9"/><line x1="12" y1="12" x2="12" y2="3"/><line x1="12" y1="12" x2="19" y2="16.5"/><line x1="12" y1="12" x2="5" y2="16.5"/>`,
+    droplet: `<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5S13 5 12 2c-1 3-2 4.4-4 6.5S5 13 5 15a7 7 0 0 0 7 7Z"/><line x1="4" y1="4" x2="20" y2="20"/>`,
+    wheatSlash: `<line x1="12" y1="22" x2="12" y2="8"/><line x1="12" y1="10" x2="8" y2="7"/><line x1="12" y1="10" x2="16" y2="7"/><line x1="12" y1="14" x2="8" y2="11"/><line x1="12" y1="14" x2="16" y2="11"/><line x1="12" y1="18" x2="8" y2="15"/><line x1="12" y1="18" x2="16" y2="15"/><line x1="4" y1="4" x2="20" y2="20"/>`,
+    avocado: `<path d="M12 2c4 3 6 7 6 11a6 6 0 0 1-12 0c0-4 2-8 6-11Z"/><circle cx="12" cy="14" r="3"/>`,
+    barsEven: `<rect x="4" y="8" width="4" height="10" rx="1"/><rect x="10" y="8" width="4" height="10" rx="1"/><rect x="16" y="8" width="4" height="10" rx="1"/>`,
+    barsUneven: `<rect x="4" y="12" width="4" height="6" rx="1"/><rect x="10" y="6" width="4" height="12" rx="1"/><rect x="16" y="9" width="4" height="9" rx="1"/>`,
+  };
+  function iconSvg(name) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
+  }
+  // A single reusable "how much" glyph (1-4 filled bars) instead of four
+  // unrelated icons -- protein preference is a magnitude, not a category,
+  // so the icon reads as a meter, not a symbol per option.
+  function proteinMeterSvg(filled) {
+    let bars = "";
+    for (let i = 0; i < 4; i++) {
+      const h = 6 + i * 4;
+      const y = 20 - h;
+      bars += i < filled
+        ? `<rect x="${2 + i * 6}" y="${y}" width="4" height="${h}" rx="1"/>`
+        : `<rect x="${2 + i * 6}" y="${y}" width="4" height="${h}" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>`;
+    }
+    return `<svg viewBox="0 0 24 24" fill="currentColor">${bars}</svg>`;
+  }
+  const ASPIRATION_ICONS = { lose: "trendDown", maintain: "equal", gain: "trendUp" };
+  const GENDER_ICONS = { male: "male", female: "female" };
+  const ACTIVITY_ICONS = { lift_and_cardio: "liftCardio", cardio_only: "pulse", lift_only: "dumbbell", none: "moon" };
+  const DIET_ICONS = { balanced: "plate", low_fat: "droplet", low_carb: "wheatSlash", keto: "avocado" };
+  const DISTRIBUTION_ICONS = { stable: "barsEven", weekly: "barsUneven" };
+
+  function optionsFor(ids, prefix, iconMap) {
     return ids.map((id) => ({
       id,
       title: t(`${prefix}.${id}.title`),
       sub: t(`${prefix}.${id}.sub`),
+      icon: iconMap ? iconSvg(iconMap[id]) : null,
     }));
   }
 
@@ -788,9 +834,9 @@
 
       this.root.appendChild(frag);
 
-      if (this.wizard) this.root.appendChild(this.renderWizard());
       if (this.dayPopup) this.root.appendChild(this.renderDayPopup());
       this.syncCheckinSheet();
+      this.syncWizardSheet();
 
       this.syncCheckinButton();
     }
@@ -1188,33 +1234,52 @@
     }
 
     // ---------- Wizard rendering ----------
-    renderWizard() {
-      const w = this.wizard;
-      const isWideStep = WIZARD_STEPS[w.stepIndex] === "body_type";
-      const overlay = el(`
-        <div class="pc-wizard-overlay">
-          <div class="pc-wizard ${isWideStep ? "pc-wizard-wide" : ""}" id="pc-wizard-inner">
-            <div class="pc-wizard-header">
-              <div class="pc-wizard-title">${t("coaching.title")}</div>
-              <button type="button" class="pc-wizard-close" data-action="close-wizard">&times;</button>
-            </div>
-            <div class="pc-wizard-body" id="pc-wizard-body"></div>
-          </div>
-        </div>
-      `);
-      // Deliberately NOT data-action + stopPropagation on the inner card
-      // — that would block every button inside the wizard (choice cards,
-      // Next/Back/Save) from ever reaching the root's delegated click
-      // listener. This dedicated listener only reacts to a click landing
-      // exactly on the backdrop itself.
-      overlay.addEventListener("click", (event) => {
-        if (event.target === overlay) this.closeWizard();
-      });
+    // Presented as the SAME shared bottom sheet every other sheet in the
+    // app uses (base.html's window.openBottomSheet/closeBottomSheet/
+    // bindSheetDrag + style.css's .log-sheet-* classes) -- this used to be
+    // its own centered .pc-wizard-overlay dialog, the one modal in the app
+    // that didn't match the rest of the bottom-sheet design language (and
+    // whose close button was a non-compliant 30x30px). Exact same
+    // create-once-then-resync-inner-content pattern as syncCheckinSheet()
+    // just below: the shell is built once and kept across re-renders, so
+    // picking an option or hitting Next (each a full render()) only swaps
+    // the step content -- it never re-plays the slide-up animation.
+    syncWizardSheet() {
+      const existing = document.getElementById("pc-wizard-sheet-root");
 
-      const body = overlay.querySelector("#pc-wizard-body");
+      if (!this.wizard) {
+        if (existing) {
+          window.closeBottomSheet(existing, ".log-sheet", () => existing.remove());
+        }
+        return;
+      }
+
+      let overlay = existing;
+      if (!overlay) {
+        overlay = el(`
+          <div class="log-sheet-overlay" id="pc-wizard-sheet-root">
+            <div class="log-sheet">
+              <div class="log-sheet-handle"></div>
+              <div class="log-sheet-head">
+                <div class="pc-wizard-title">${t("coaching.title")}</div>
+                <button type="button" class="log-sheet-close" data-action="close-wizard" aria-label="${t("common.close")}">&times;</button>
+              </div>
+              <div class="log-sheet-body" id="pc-wizard-sheet-body"></div>
+            </div>
+          </div>
+        `);
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) this.closeWizard();
+        });
+        window.openBottomSheet(overlay, ".log-sheet");
+        window.bindSheetDrag(overlay, ".log-sheet", ".log-sheet-handle", () => this.closeWizard());
+      }
+
+      const body = overlay.querySelector("#pc-wizard-sheet-body");
+      body.innerHTML = "";
       body.appendChild(this.renderWizardProgress());
       body.appendChild(this.renderWizardStep());
-      return overlay;
     }
 
     renderWizardProgress() {
@@ -1243,8 +1308,12 @@
       items.forEach((item) => {
         grid.appendChild(el(`
           <button type="button" class="pc-choice-card ${selectedValue === item.id ? "is-selected" : ""}" data-action="${action}" data-value="${item.id}">
-            <div class="pc-choice-title">${item.title}</div>
-            ${showSub ? `<div class="pc-choice-sub">${item.sub}</div>` : ""}
+            ${item.icon ? `<div class="pc-choice-icon">${item.icon}</div>` : ""}
+            <div class="pc-choice-text">
+              <div class="pc-choice-title">${item.title}</div>
+              ${showSub && item.sub ? `<div class="pc-choice-sub">${item.sub}</div>` : ""}
+            </div>
+            <div class="pc-choice-check">✓</div>
           </button>
         `));
       });
@@ -1253,7 +1322,7 @@
 
     renderAspirationStep() {
       const wrap = el(`<div><div class="pc-wizard-step-label">${t("coaching.wizard.stepAspiration")}</div></div>`);
-      wrap.appendChild(this.renderChoiceGrid(optionsFor(ASPIRATION_IDS, "coaching.aspiration"), "wizard-set-aspiration", this.wizard.aspiration, false));
+      wrap.appendChild(this.renderChoiceGrid(optionsFor(ASPIRATION_IDS, "coaching.aspiration", ASPIRATION_ICONS), "wizard-set-aspiration", this.wizard.aspiration, false));
       wrap.appendChild(this.renderWizardActions());
       return wrap;
     }
@@ -1275,7 +1344,8 @@
       weightInput.addEventListener("click", (e) => e.stopPropagation());
 
       const genderGrid = this.renderChoiceGrid(
-        [{ id: "male", title: t("coaching.gender.male"), sub: "" }, { id: "female", title: t("coaching.gender.female"), sub: "" }],
+        [{ id: "male", title: t("coaching.gender.male"), icon: iconSvg(GENDER_ICONS.male) },
+         { id: "female", title: t("coaching.gender.female"), icon: iconSvg(GENDER_ICONS.female) }],
         "wizard-set-gender",
         w.gender,
         false
@@ -1395,28 +1465,34 @@
 
     renderActivityStep() {
       const wrap = el(`<div><div class="pc-wizard-step-label">${t("coaching.wizard.stepActivity")}</div></div>`);
-      wrap.appendChild(this.renderChoiceGrid(optionsFor(ACTIVITY_IDS, "coaching.activity"), "wizard-set-activity", this.wizard.activityLevel, false));
+      wrap.appendChild(this.renderChoiceGrid(optionsFor(ACTIVITY_IDS, "coaching.activity", ACTIVITY_ICONS), "wizard-set-activity", this.wizard.activityLevel, false));
       wrap.appendChild(this.renderWizardActions());
       return wrap;
     }
 
     renderProteinStep() {
       const wrap = el(`<div><div class="pc-wizard-step-label">${t("coaching.wizard.stepProtein")}</div></div>`);
-      wrap.appendChild(this.renderChoiceGrid(optionsFor(PROTEIN_IDS, "coaching.protein"), "wizard-set-protein", this.wizard.proteinPreference, false));
+      const items = PROTEIN_IDS.map((id, i) => ({
+        id,
+        title: t(`coaching.protein.${id}.title`),
+        sub: t(`coaching.protein.${id}.sub`),
+        icon: proteinMeterSvg(i + 1),
+      }));
+      wrap.appendChild(this.renderChoiceGrid(items, "wizard-set-protein", this.wizard.proteinPreference, false));
       wrap.appendChild(this.renderWizardActions());
       return wrap;
     }
 
     renderDietStep() {
       const wrap = el(`<div><div class="pc-wizard-step-label">${t("coaching.wizard.stepDiet")}</div></div>`);
-      wrap.appendChild(this.renderChoiceGrid(optionsFor(DIET_IDS, "coaching.diet"), "wizard-set-diet", this.wizard.dietPreference, false));
+      wrap.appendChild(this.renderChoiceGrid(optionsFor(DIET_IDS, "coaching.diet", DIET_ICONS), "wizard-set-diet", this.wizard.dietPreference, false));
       wrap.appendChild(this.renderWizardActions());
       return wrap;
     }
 
     renderDistributionStep() {
       const wrap = el(`<div><div class="pc-wizard-step-label">${t("coaching.wizard.stepDistribution")}</div></div>`);
-      wrap.appendChild(this.renderChoiceGrid(optionsFor(DISTRIBUTION_IDS, "coaching.distribution"), "wizard-set-distribution", this.wizard.distribution, false));
+      wrap.appendChild(this.renderChoiceGrid(optionsFor(DISTRIBUTION_IDS, "coaching.distribution", DISTRIBUTION_ICONS), "wizard-set-distribution", this.wizard.distribution, false));
       wrap.appendChild(this.renderWizardActions());
       return wrap;
     }

@@ -19,7 +19,15 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           <span data-i18n="coaching.checkin.button">Check in</span>
         </button>
-        <button type="button" class="nl-goals-toggle" id="nl-goals-toggle" data-i18n="nutrition.totals.editGoals">Edit goals</button>
+        <!-- Opens the SAME nutrition-question wizard as first-time
+             onboarding (static/coaching.js's openWizard(), delegated via
+             document-level click handling) instead of letting the user
+             type raw macro/calorie numbers directly -- re-answering the
+             goal/activity/protein/diet questions keeps the numbers
+             internally consistent (protein-per-kg-lean-mass, fat/carb
+             split by diet type, etc.) instead of letting them drift out
+             of that relationship. -->
+        <button type="button" class="nl-goals-toggle" id="nl-goals-toggle" data-action="open-wizard" data-i18n="nutrition.totals.editGoals">Edit goals</button>
       </div>
     </div>
 
@@ -144,30 +152,6 @@
      (.log-sheet-* in style.css) so it slides up from the bottom exactly
      like the "+" menu and the food-search sheet it opens from. IDs are
      unchanged so the amount JS below keeps driving it. -->
-<!-- Edit-goals: was an inline form that expanded in place on the main
-     page (mixing goal-editing into the same screen as the food log,
-     the primary task here) -- now the same Apple-style bottom sheet as
-     every other secondary action on this page. -->
-<div class="log-sheet-overlay" id="nl-goals-overlay">
-  <div class="log-sheet">
-    <div class="log-sheet-handle"></div>
-    <div class="log-sheet-head">
-      <div class="lq-title" data-i18n="nutrition.totals.editGoals">Edit goals</div>
-      <button type="button" class="log-sheet-close" id="nl-goals-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
-    </div>
-    <div class="log-sheet-body">
-      <div class="nl-goals-form" id="nl-goals-form">
-        <label><span data-i18n="nutrition.goals.protein">Protein (g)</span><input type="number" min="20" max="400" id="goal-protein"></label>
-        <label><span data-i18n="nutrition.goals.fat">Fat (g)</span><input type="number" min="15" max="300" id="goal-fat"></label>
-        <label><span data-i18n="nutrition.goals.carbs">Carbs (g)</span><input type="number" min="20" max="800" id="goal-carbs"></label>
-        <label><span data-i18n="nutrition.goals.calories">Calories (auto)</span><input type="number" id="goal-calories" readonly></label>
-        <div class="nl-goals-hint" data-i18n="nutrition.goals.hint">Calories are calculated for you from protein/fat/carbs (protein &amp; carbs = 4 kcal/g, fat = 9 kcal/g), so the numbers always add up.</div>
-        <button type="button" class="nl-save-goals-btn" id="nl-save-goals-btn" data-i18n="nutrition.goals.save">Save goals</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="log-sheet-overlay" id="lq-modal-overlay">
   <div class="log-sheet">
     <div class="log-sheet-handle"></div>
@@ -272,41 +256,6 @@
   .nl-goals-toggle:hover { border-color: var(--blue); color: var(--blue); }
   .nl-goals-toggle:active { transform: scale(0.94); }
 
-  .nl-goals-form {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-  .nl-goals-form label {
-    font-size: 12px;
-    color: var(--text-secondary);
-    font-weight: 600;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .nl-goals-form input {
-    min-height: 44px; box-sizing: border-box;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    border-radius: 8px;
-    font-size: 16px;
-    font-family: inherit;
-  }
-  .nl-goals-form input[readonly] {
-    background: var(--border);
-    color: var(--text-secondary);
-    cursor: not-allowed;
-  }
-  .nl-goals-hint {
-    grid-column: 1 / -1;
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    margin-top: -2px;
-  }
   .nl-save-goals-btn {
     grid-column: 1 / -1;
     min-height: 44px; box-sizing: border-box;
@@ -1655,7 +1604,6 @@
     const carbs = clamp(merged.carbs, MACRO_BOUNDS.carbs, DEFAULT_GOALS.carbs);
     return { protein, fat, carbs, calories: caloriesFromMacros({ protein, fat, carbs }) };
   }
-  function saveGoals() { localStorage.setItem(GOALS_KEY, JSON.stringify(goals)); }
 
   let log = loadLog();
   let goals = loadGoals();
@@ -1747,64 +1695,11 @@
   }
 
   // ---------- Goals UI ----------
-  // Was an inline form that expanded in place on the page; now a bottom
-  // sheet like every other secondary action here (log food, scan a photo,
-  // check in) -- editing goals shouldn't compete with the food log, the
-  // one thing this page is actually for.
-  const goalsToggleBtn = document.getElementById("nl-goals-toggle");
-  const goalsOverlay = document.getElementById("nl-goals-overlay");
-  const goalsCloseBtn = document.getElementById("nl-goals-close");
-  const goalCaloriesInput = document.getElementById("goal-calories");
-  const goalProteinInput = document.getElementById("goal-protein");
-  const goalFatInput = document.getElementById("goal-fat");
-  const goalCarbsInput = document.getElementById("goal-carbs");
-
-  function fillGoalInputs() {
-    goalProteinInput.value = goals.protein;
-    goalFatInput.value = goals.fat;
-    goalCarbsInput.value = goals.carbs;
-    goalCaloriesInput.value = goals.calories;
-  }
-
-  function updateLiveCalories() {
-    goalCaloriesInput.value = caloriesFromMacros({
-      protein: parseFloat(goalProteinInput.value) || 0,
-      fat: parseFloat(goalFatInput.value) || 0,
-      carbs: parseFloat(goalCarbsInput.value) || 0,
-    });
-  }
-
-  [goalProteinInput, goalFatInput, goalCarbsInput].forEach((input) => {
-    input.addEventListener("input", updateLiveCalories);
-  });
-
-  function openGoalsSheet() {
-    fillGoalInputs();
-    if (window.openBottomSheet) window.openBottomSheet(goalsOverlay, ".log-sheet");
-    else goalsOverlay.style.display = "flex";
-  }
-  function closeGoalsSheet() {
-    if (window.closeBottomSheet) window.closeBottomSheet(goalsOverlay, ".log-sheet");
-    else goalsOverlay.style.display = "none";
-  }
-  if (window.bindSheetDrag) window.bindSheetDrag(goalsOverlay, ".log-sheet", ".log-sheet-handle", closeGoalsSheet);
-
-  goalsToggleBtn.addEventListener("click", openGoalsSheet);
-  goalsCloseBtn.addEventListener("click", closeGoalsSheet);
-  goalsOverlay.addEventListener("click", (event) => {
-    if (event.target === goalsOverlay) closeGoalsSheet();
-  });
-
-  document.getElementById("nl-save-goals-btn").addEventListener("click", () => {
-    const protein = clamp(goalProteinInput.value, MACRO_BOUNDS.protein, goals.protein);
-    const fat = clamp(goalFatInput.value, MACRO_BOUNDS.fat, goals.fat);
-    const carbs = clamp(goalCarbsInput.value, MACRO_BOUNDS.carbs, goals.carbs);
-
-    goals = { protein, fat, carbs, calories: caloriesFromMacros({ protein, fat, carbs }) };
-    saveGoals();
-    closeGoalsSheet();
-    renderSummary();
-  });
+  // "Edit goals" (nutrition.totals.editGoals button, data-action=
+  // "open-wizard") is wired up entirely by coaching.js's document-level
+  // delegated click handler -- see openWizard()/wizardSave() there. It
+  // dispatches "repcheck:goals-updated" on save, which the listener
+  // below already re-reads goals from and re-renders on.
 
   function renderSummary() {
     const entries = log[selectedDate] || [];
