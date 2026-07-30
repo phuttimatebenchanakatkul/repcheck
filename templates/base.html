@@ -419,6 +419,35 @@
     </div>
   </div>
 
+  <!-- "Goal weight achieved" celebration sheet: opened from the shared
+       weight-log flow below whenever a newly logged weight crosses the
+       user's coaching goal weight (see repcheck_coaching_profile_v1's
+       aspiration/goalWeightKg, set via coaching.js's wizard). Built on the
+       same generic .log-sheet-* shell every other content sheet in the app
+       uses (workouts.html's exercise picker, nutrition.html's food-log
+       sheets), with its own .ga-* classes for the celebratory content. -->
+  <div class="log-sheet-overlay" id="ga-modal-overlay">
+    <div class="log-sheet ga-modal">
+      <div class="log-sheet-handle"></div>
+      <div class="log-sheet-head" style="justify-content:flex-end;">
+        <button type="button" class="log-sheet-close" id="ga-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+      </div>
+      <div class="log-sheet-body">
+        <div class="ga-hero">
+          <div class="ga-hero-icon">🎉</div>
+          <div class="ga-hero-title" data-i18n="mobile.goalAchieved.title">You reached your goal! 🎉</div>
+          <div class="ga-hero-sub" id="ga-hero-sub"></div>
+        </div>
+        <div class="ga-callout">
+          <div class="ga-callout-title" data-i18n="mobile.goalAchieved.recommendTitle">Ready for what's next?</div>
+          <div class="ga-callout-body" data-i18n="mobile.goalAchieved.recommendBody">We recommend checking in now to set your next goal.</div>
+          <button type="button" class="ga-btn-primary" id="ga-checkin-btn" data-i18n="mobile.goalAchieved.checkInNow">Check in now</button>
+        </div>
+        <button type="button" class="ga-btn-secondary" id="ga-later-btn" data-i18n="mobile.goalAchieved.maybeLater">Maybe later</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ---------- Sidebar account popup ----------
     (function () {
@@ -600,8 +629,8 @@
         window.openBottomSheet(overlay, ".lw-modal");
         setTimeout(() => input.focus(), 150);
       }
-      function close() {
-        window.closeBottomSheet(overlay, ".lw-modal");
+      function close(cb) {
+        window.closeBottomSheet(overlay, ".lw-modal", cb);
       }
 
       window.bindSheetDrag(overlay, ".lw-modal", ".lw-modal-handle", close);
@@ -637,8 +666,15 @@
           }
         }
         saveBtn.disabled = false;
-        close();
-        document.dispatchEvent(new CustomEvent("repcheck:weight-logged"));
+        // Deferred until this sheet's own close-cleanup finishes (via the
+        // afterClose callback threaded through closeBottomSheet above) so
+        // an achievement listener that opens ANOTHER sheet in response to
+        // this event never races the "pc-sheet-locked" cleanup below --
+        // see window.checkGoalAchievement's own comment for the failure
+        // mode this avoids.
+        close(() => {
+          document.dispatchEvent(new CustomEvent("repcheck:weight-logged"));
+        });
       }
 
       window.openLogWeightModal = open;
@@ -648,6 +684,85 @@
       overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
       saveBtn.addEventListener("click", save);
       input.addEventListener("keydown", (event) => { if (event.key === "Enter") save(); });
+    })();
+
+    // ---------- Goal-weight achievement detection + celebration sheet ----------
+    // Listens for the same repcheck:weight-logged event the "Log weight"
+    // popup above dispatches, since that's the one hook every page shares
+    // (this file loads on all of them). coaching.js duplicates this same
+    // check for the case where a weight is logged via its own in-page
+    // controls while already on /nutrition -- same convention as this
+    // codebase's other cross-file duplicated logic (see checkinDaysRemaining
+    // in coaching.js / home.html).
+    (function () {
+      const overlay = document.getElementById("ga-modal-overlay");
+      const closeBtn = document.getElementById("ga-modal-close");
+      const laterBtn = document.getElementById("ga-later-btn");
+      const checkinBtn = document.getElementById("ga-checkin-btn");
+      const subEl = document.getElementById("ga-hero-sub");
+      if (!overlay) return;
+
+      const PROFILE_KEY = "repcheck_coaching_profile_v1";
+      const ACHIEVED_KEY = "repcheck_coaching_goal_achieved_v1";
+      const WEIGHT_LOG_KEY = "repcheck_weight_log_v1";
+
+      function loadJson(key) {
+        try { return JSON.parse(localStorage.getItem(key)); } catch (err) { return null; }
+      }
+      function latestLoggedKg() {
+        const log = loadJson(WEIGHT_LOG_KEY) || {};
+        const dates = Object.keys(log).sort();
+        if (!dates.length) return null;
+        const last = log[dates[dates.length - 1]];
+        return last && typeof last.kg === "number" ? last.kg : null;
+      }
+
+      function close() {
+        window.closeBottomSheet(overlay, ".ga-modal");
+      }
+      window.bindSheetDrag(overlay, ".ga-modal", ".log-sheet-handle", close);
+
+      window.openGoalAchievedSheet = function (goalWeightKg) {
+        if (subEl) {
+          subEl.textContent = RepCheckI18n.t("mobile.goalAchieved.sub", { weight: RepCheckUnits.formatWeightKg(goalWeightKg) });
+        }
+        window.openBottomSheet(overlay, ".ga-modal");
+      };
+
+      closeBtn.addEventListener("click", close);
+      laterBtn.addEventListener("click", close);
+      overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+      checkinBtn.addEventListener("click", () => {
+        close();
+        window.location.href = "{{ url_for('nutrition') }}?quick=checkin";
+      });
+
+      // Stateless at heart (recomputed fresh from the profile + weight log
+      // every time), but the achieved state is also mirrored into a small
+      // persisted flag (ACHIEVED_KEY) so checkinDaysRemaining() elsewhere
+      // can force check-in "ready" ahead of the normal 7-day cadence --
+      // and so it self-clears if a later weigh-in drifts back off-goal
+      // before the user acts on it, rather than nagging forever off a
+      // single stale reading.
+      window.checkGoalAchievement = function () {
+        const profile = loadJson(PROFILE_KEY);
+        if (!profile || !profile.aspiration || profile.aspiration === "maintain" || !profile.goalWeightKg) return;
+        const latest = latestLoggedKg();
+        if (latest == null) return;
+        const goal = parseFloat(profile.goalWeightKg);
+        const achieved = profile.aspiration === "lose" ? latest <= goal : latest >= goal;
+        const flag = loadJson(ACHIEVED_KEY);
+        if (achieved) {
+          if (!flag) {
+            localStorage.setItem(ACHIEVED_KEY, JSON.stringify({ goalWeightKg: goal, aspiration: profile.aspiration }));
+            window.openGoalAchievedSheet(goal);
+          }
+        } else if (flag) {
+          localStorage.removeItem(ACHIEVED_KEY);
+        }
+      };
+
+      document.addEventListener("repcheck:weight-logged", window.checkGoalAchievement);
     })();
 
     // ---------- "Scan barcode" quick action ----------

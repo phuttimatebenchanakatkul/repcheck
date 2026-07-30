@@ -3,13 +3,12 @@
 The safe numeric bounds -- the +/-150 kcal/week cap, the per-gender
 minimum-calorie floor, and the fat/carb split for the user's diet style --
 still come entirely from coaching_engine.py's deterministic
-weekly_adjustment(). This module doesn't replace that math; it only asks
-Gemini to weigh in on the calorie DELTA itself when the user has provided
-front/back progress photos for this check-in, anchored to the
-deterministic suggestion as a starting point so a photo can't swing the
-result to something wild or unsafe. A check-in with no photos never calls
-this module at all -- there's nothing a photo-less LLM call would add
-over the existing weight/adherence math.
+weekly_adjustment(). This module doesn't replace that math; it asks Gemini
+to weigh in on the calorie DELTA itself for every check-in, anchored to
+the deterministic suggestion as a starting point so the model can't swing
+the result to something wild or unsafe. Front/back progress photos are
+included when the user provided them, but are optional -- a text-only
+check-in still gets the same Gemini review, just without the photo(s).
 """
 
 import json
@@ -74,17 +73,20 @@ def _build_prompt(profile, week_weight_entries, week_calorie_days, baseline, has
         f"Calories logged this week:\n{calorie_lines}\n\n"
         f"{baseline_line}\n\n"
         f"{photo_note}\n\n"
-        "Look at the photo(s) for visible week-over-week body composition change if this isn't "
-        "the user's first check-in with photos (you only have this week's photo(s) to go on, so "
-        "judge general leanness/composition, not a before/after comparison) — use it only as a "
-        "sanity check alongside the numeric trend, not as the primary signal (a single photo "
-        "can't out-weigh a clear multi-day weight trend).\n\n"
-        "Decide a calorie delta for next week: a NEGATIVE number to cut calories (not losing "
+        + (
+            "Look at the photo(s) for visible week-over-week body composition change if this isn't "
+            "the user's first check-in with photos (you only have this week's photo(s) to go on, so "
+            "judge general leanness/composition, not a before/after comparison) — use it only as a "
+            "sanity check alongside the numeric trend, not as the primary signal (a single photo "
+            "can't out-weigh a clear multi-day weight trend).\n\n"
+            if (has_front or has_back) else ""
+        )
+        + "Decide a calorie delta for next week: a NEGATIVE number to cut calories (not losing "
         "fast enough while trying to lose, or gaining too fast while trying to gain / maintain), "
         "a POSITIVE number to add calories (losing too fast while trying to lose, gaining too "
         "slowly while trying to gain, or has drifted down while trying to maintain), or 0 if "
         "everything looks on track. You may agree with, or adjust, the deterministic suggestion "
-        "above based on what the photo(s) show, but the delta MUST be within "
+        "above based on the numbers (and photo(s), if provided), but the delta MUST be within "
         f"-{WEEKLY_ADJUSTMENT_LIMIT} to +{WEEKLY_ADJUSTMENT_LIMIT} kcal/day — never outside that "
         "range.\n\n"
         "Respond with ONLY raw JSON (no markdown fences, no commentary) matching exactly this "
@@ -93,8 +95,8 @@ def _build_prompt(profile, week_weight_entries, week_calorie_days, baseline, has
     )
 
 
-def analyze_checkin_with_photos(profile, week_weight_entries, week_calorie_days, baseline, photo_files):
-    """photo_files: list of (bytes, mime_type) tuples (1 or 2 items).
+def analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files):
+    """photo_files: list of (bytes, mime_type) tuples -- 0, 1, or 2 items.
     baseline: coaching_engine.weekly_adjustment()'s result dict, or None.
     Returns {"delta": int, "reason": str} with delta clamped to
     +/-WEEKLY_ADJUSTMENT_LIMIT. Raises CheckinAnalysisError on failure --

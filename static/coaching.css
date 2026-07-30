@@ -525,8 +525,23 @@
   background: linear-gradient(135deg, #29b87e, var(--green));
   box-shadow: 0 12px 28px rgba(31, 169, 113, 0.4);
 }
+.pc-ck-achieved-badge { font-size: 30px; }
 .pc-ck-delta { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin-top: 14px; line-height: 1; }
 .pc-ck-delta-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+
+/* Pop-then-settle scale that plays alongside animateDelta()'s count-up
+   (see coaching.js) -- the number arriving reads as an event, not just
+   text appearing. */
+.pc-ck-delta.pc-ck-delta-pop { animation: pc-ck-delta-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes pc-ck-delta-pop {
+  0% { transform: scale(0.55); opacity: 0; }
+  45% { transform: scale(1.16); opacity: 1; }
+  70% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-ck-delta.pc-ck-delta-pop { animation: none; }
+}
 
 /* The updated daily calorie target, right under the delta so "what changed"
    and "what it is now" read as one unit. */

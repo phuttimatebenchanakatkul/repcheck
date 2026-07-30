@@ -980,12 +980,18 @@
       if (!mount) return;
       const profile = loadJson("repcheck_coaching_profile_v1", null);
       if (!profile) { mount.innerHTML = ""; return; }
-      const lastCheck = profile.lastAdjustmentDate || profile.createdAt;
-      let daysSince = Infinity;
-      if (lastCheck) {
-        daysSince = Math.floor((new Date() - new Date(lastCheck + "T00:00:00")) / 86400000);
+      // Goal reached -- ready right now regardless of the normal cadence.
+      // Mirrors coaching.js's own checkinDaysRemaining() override; see
+      // that file's ACHIEVED_KEY comment for why this flag exists.
+      const achieved = loadJson("repcheck_coaching_goal_achieved_v1", null);
+      if (!achieved) {
+        const lastCheck = profile.lastAdjustmentDate || profile.createdAt;
+        let daysSince = Infinity;
+        if (lastCheck) {
+          daysSince = Math.floor((new Date() - new Date(lastCheck + "T00:00:00")) / 86400000);
+        }
+        if (daysSince < 7) { mount.innerHTML = ""; return; }
       }
-      if (daysSince < 7) { mount.innerHTML = ""; return; }
       mount.innerHTML = `
         <a class="hm-checkin-banner" href="{{ url_for('nutrition') }}?quick=checkin">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -1128,6 +1134,7 @@
     // successful save -- keep this card's number/delta in sync without
     // needing a page reload.
     document.addEventListener("repcheck:weight-logged", renderWeight);
+    document.addEventListener("repcheck:weight-logged", renderCheckinBanner);
 
     // ---------- Personalized greeting ----------
     // "Hey {first name} 👋" instead of the static page heading. The h1

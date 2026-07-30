@@ -25,6 +25,12 @@
   const LAST_ADJUSTMENT_KEY = "repcheck_coaching_last_adjustment_v1";
   const DISTRIBUTION_KEY = "repcheck_coaching_distribution_v1";
   const INACTIVITY_NOTIFIED_KEY = "repcheck_coaching_inactivity_notified_v1";
+  // Mirrors templates/base.html's own copy of this same key -- set there
+  // (and here, at check-in submit time) when a logged weight crosses the
+  // profile's goalWeightKg, cleared the moment a later weigh-in drifts
+  // back off-goal. Its only job is letting checkinDaysRemaining() force
+  // check-in "ready" ahead of the normal 7-day cadence.
+  const ACHIEVED_KEY = "repcheck_coaching_goal_achieved_v1";
   const GOALS_KEY = "repcheck_nutrition_goals_v1";          // shared with nutrition.html
   const NUTRITION_LOG_KEY = "repcheck_nutrition_log_v1";    // shared, read-only here
   const SPLIT_PLAN_KEY = "repcheck_split_plan_v1";          // shared with workouts.html, read-only here
@@ -119,9 +125,12 @@
     return t(`coaching.aspiration.${id}.title`);
   }
 
-  const WIZARD_STEPS = ["aspiration", "weight_gender", "height", "body_type", "activity", "protein", "diet", "distribution", "result"];
+  const WIZARD_STEPS = ["aspiration", "weight_gender", "goal_weight", "height", "body_type", "activity", "protein", "diet", "distribution", "result"];
   const HEIGHT_MIN_CM = 130;
   const HEIGHT_MAX_CM = 230;
+  // Same bounds as onboarding.js's identical goal-weight step.
+  const MIN_WEIGHT_KG = 35;
+  const MAX_WEIGHT_KG = 400;
 
   // ---------- Small local helpers ----------
   function toIsoDate(date) {
@@ -294,6 +303,12 @@
       // reflected the log as of the last full page load, so logging a
       // food didn't visibly move the bars until you reloaded the page.
       document.addEventListener("repcheck:nutrition-log-updated", () => this.render());
+      // base.html's own weight-log flow is what actually sets/clears
+      // ACHIEVED_KEY (it runs on every page, this module only on
+      // /nutrition) -- this just re-renders so an already-mounted Check-in
+      // button here flips to "ready" immediately instead of needing a
+      // reload once that flag changes.
+      document.addEventListener("repcheck:weight-logged", () => this.render());
 
       this.applyTodaysDistributedGoalIfNeeded();
       this.maybeNotifyInactivity();
@@ -328,6 +343,7 @@
       if (action === "cycle-checkin-day") return this.cycleCheckinDayStatus(target.dataset.date);
       if (action === "checkin-submit") return this.submitCheckin();
       if (action === "checkin-done") return this.closeCheckin();
+      if (action === "checkin-set-new-goals") return this.closeCheckin(() => this.openWizard());
     }
 
     // ---------- Inactivity ----------
@@ -385,8 +401,26 @@
     // this file is UI + local data plumbing only.
     checkinDaysRemaining() {
       if (!this.profile) return null;
+      // Goal reached -- ready right now regardless of the normal cadence.
+      // See ACHIEVED_KEY's own comment; home.html mirrors this same
+      // override in its duplicated due-logic.
+      if (loadJson(ACHIEVED_KEY, null)) return 0;
       const lastCheck = this.profile.lastAdjustmentDate || this.profile.createdAt;
       return Math.max(0, 7 - daysSince(lastCheck));
+    }
+
+    // Stateless re-check at check-in submit time -- never trust the
+    // persisted ACHIEVED_KEY flag here, since that's only for
+    // checkinDaysRemaining()'s early "ready" override, not a cache of
+    // this result. Mirrors templates/base.html's own copy of this check.
+    checkGoalAchievedNow() {
+      if (!this.profile || !this.profile.aspiration || this.profile.aspiration === "maintain" || !this.profile.goalWeightKg) return false;
+      const weightLog = loadWeightLog();
+      const dates = Object.keys(weightLog).sort();
+      if (!dates.length) return false;
+      const latest = weightLog[dates[dates.length - 1]].kg;
+      const goal = parseFloat(this.profile.goalWeightKg);
+      return this.profile.aspiration === "lose" ? latest <= goal : latest >= goal;
     }
 
     openCheckin() {
@@ -494,6 +528,25 @@
           }
         }
 
+        if (this.checkGoalAchievedNow()) {
+          // Skip the normal adjustment fetch (and any attached photos --
+          // they'd have nothing left to be analyzed for) entirely: the
+          // goal is met, so the only meaningful next step is re-running
+          // the full wizard, not a macro tweak. lastAdjustmentDate still
+          // advances as normal so the 7-day cadence stays in sync; only
+          // ACHIEVED_KEY governs "ready for new goals" and it's cleared
+          // independently (see base.html) the moment they drift back off.
+          localStorage.setItem(ACHIEVED_KEY, JSON.stringify({ goalWeightKg: parseFloat(this.profile.goalWeightKg), aspiration: this.profile.aspiration }));
+          this.profile.lastAdjustmentDate = c.todayIso;
+          saveJson(PROFILE_KEY, this.profile);
+          c.result = "goal-achieved";
+          c.resultPrevious = null;
+          c.step = "result";
+          c.submitting = false;
+          this.render();
+          return;
+        }
+
         const uploads = [];
         if (c.frontPhotoFile) uploads.push(this.uploadCheckinPhoto("front", c.frontPhotoFile, c.todayIso).then((id) => { c.frontPhotoId = id; }));
         if (c.backPhotoFile) uploads.push(this.uploadCheckinPhoto("back", c.backPhotoFile, c.todayIso).then((id) => { c.backPhotoId = id; }));
@@ -589,11 +642,17 @@
       }
     }
 
-    closeCheckin() {
+    // afterClose (optional): deferred until this sheet's own close-cleanup
+    // finishes (threaded through syncCheckinSheet()'s closeBottomSheet call
+    // below) so opening ANOTHER sheet in response -- e.g. "Set new goals"
+    // opening the wizard -- never races the shared pc-sheet-locked cleanup
+    // the way calling it immediately here would.
+    closeCheckin(afterClose) {
       const c = this.checkin;
       if (c.frontPhotoPreviewUrl) URL.revokeObjectURL(c.frontPhotoPreviewUrl);
       if (c.backPhotoPreviewUrl) URL.revokeObjectURL(c.backPhotoPreviewUrl);
       this.checkin = null;
+      this._checkinAfterClose = afterClose || null;
       this.render();
     }
 
@@ -679,6 +738,10 @@
         aspiration: p ? p.aspiration : null,
         gender: p ? p.gender : null,
         weightKg: p ? String(p.weightKg) : "",
+        // Blank (not pre-filled) for a profile saved before this step
+        // existed, or one saved through this wizard before this fix --
+        // the user just re-enters it once, same as any other missing field.
+        goalWeightKg: (p && p.goalWeightKg) ? String(p.goalWeightKg) : "",
         heightCm: (p && p.heightCm) || 170,
         bodyFatRangeId: p ? p.bodyFatRangeId : null,
         activityLevel: p ? p.activityLevel : null,
@@ -715,6 +778,10 @@
       const step = WIZARD_STEPS[w.stepIndex];
       if (step === "aspiration") return !!w.aspiration;
       if (step === "weight_gender") return !!w.gender && parseFloat(w.weightKg) > 0 && parseFloat(w.weightKg) <= 400;
+      if (step === "goal_weight") {
+        const gv = parseFloat(w.goalWeightKg);
+        return gv >= MIN_WEIGHT_KG && gv <= MAX_WEIGHT_KG;
+      }
       if (step === "height") return w.heightCm >= HEIGHT_MIN_CM && w.heightCm <= HEIGHT_MAX_CM;
       if (step === "body_type") return !!w.bodyFatRangeId;
       if (step === "activity") return !!w.activityLevel;
@@ -724,10 +791,33 @@
       return true;
     }
 
+    // "goal_weight" only makes sense when actually moving away from the
+    // current weight -- for "maintain" it's the same number by definition,
+    // so the step is skipped rather than asking a redundant question. Not a
+    // generic skip engine (nothing else in this wizard needs one) -- just
+    // enough to walk past this one condition, mirroring onboarding.js's
+    // shouldSkipStep/nextVisibleIndex/prevVisibleIndex shape.
+    wizardShouldSkipStep(step) {
+      return step === "goal_weight" && this.wizard.aspiration === "maintain";
+    }
+    wizardVisibleSteps() {
+      return WIZARD_STEPS.filter((s) => !this.wizardShouldSkipStep(s));
+    }
+    nextVisibleIndex(fromIndex) {
+      let idx = fromIndex + 1;
+      while (idx < WIZARD_STEPS.length && this.wizardShouldSkipStep(WIZARD_STEPS[idx])) idx++;
+      return idx;
+    }
+    prevVisibleIndex(fromIndex) {
+      let idx = fromIndex - 1;
+      while (idx >= 0 && this.wizardShouldSkipStep(WIZARD_STEPS[idx])) idx--;
+      return idx;
+    }
+
     async wizardNext() {
       if (!this.wizardCanProceed()) return;
       const w = this.wizard;
-      const nextIndex = w.stepIndex + 1;
+      const nextIndex = this.nextVisibleIndex(w.stepIndex);
       const nextStep = WIZARD_STEPS[nextIndex];
 
       if (nextStep === "result") {
@@ -771,7 +861,7 @@
 
     wizardBack() {
       if (this.wizard.stepIndex === 0) return;
-      this.wizard.stepIndex -= 1;
+      this.wizard.stepIndex = Math.max(0, this.prevVisibleIndex(this.wizard.stepIndex));
       this.wizard.result = null;
       this.render();
     }
@@ -785,6 +875,12 @@
         aspiration: w.aspiration,
         gender: w.gender,
         weightKg: parseFloat(w.weightKg),
+        // BUG FIX: this whole object used to be built with no goalWeightKg
+        // key at all, silently dropping it (this.profile was replaced
+        // wholesale, not merged) for any profile that had one set by
+        // onboarding.js -- same convention as onboarding.js's own save():
+        // "maintain" has no distinct target, it's just the current weight.
+        goalWeightKg: w.aspiration === "maintain" ? parseFloat(w.weightKg) : parseFloat(w.goalWeightKg),
         heightCm: w.heightCm,
         bodyFatRangeId: w.bodyFatRangeId,
         activityLevel: w.activityLevel,
@@ -1283,7 +1379,12 @@
     }
 
     renderWizardProgress() {
-      const dots = WIZARD_STEPS.map((_, i) => `<div class="pc-wizard-progress-dot ${i <= this.wizard.stepIndex ? "is-done" : ""}"></div>`).join("");
+      // Dot count matches what a "maintain" user actually sees -- they never
+      // reach goal_weight, so it never gets a dot for them.
+      const visible = this.wizardVisibleSteps();
+      const currentStep = WIZARD_STEPS[this.wizard.stepIndex];
+      const currentVisibleIndex = visible.indexOf(currentStep);
+      const dots = visible.map((_, i) => `<div class="pc-wizard-progress-dot ${i <= currentVisibleIndex ? "is-done" : ""}"></div>`).join("");
       return el(`<div class="pc-wizard-progress">${dots}</div>`);
     }
 
@@ -1291,6 +1392,7 @@
       const step = WIZARD_STEPS[this.wizard.stepIndex];
       if (step === "aspiration") return this.renderAspirationStep();
       if (step === "weight_gender") return this.renderWeightGenderStep();
+      if (step === "goal_weight") return this.renderGoalWeightStep();
       if (step === "height") return this.renderHeightStep();
       if (step === "body_type") return this.renderBodyTypeStep();
       if (step === "activity") return this.renderActivityStep();
@@ -1389,6 +1491,53 @@
       });
 
       wrap.appendChild(this.renderWizardActions());
+      return wrap;
+    }
+
+    // Only reachable for lose/gain (skipped for maintain -- see
+    // wizardShouldSkipStep()). Mirrors onboarding.js's identical step,
+    // including its direct disabled-toggle on input: this step has no
+    // other control (unlike weight_gender, where picking a gender choice
+    // card already forces a full re-render), so wizardCanProceed() has to
+    // be re-checked on every keystroke by hand rather than waiting for
+    // the next render() to happen to notice.
+    renderGoalWeightStep() {
+      const w = this.wizard;
+      const weightUnit = RepCheckUnits.weightUnitLabel();
+      const displayGoalWeight = w.goalWeightKg ? RepCheckUnits.kgToDisplay(parseFloat(w.goalWeightKg)) : "";
+      const wrap = el(`
+        <div>
+          <div class="pc-wizard-step-label">${t("coaching.wizard.stepGoalWeight")}</div>
+          <div class="pc-field">
+            <label for="pc-goal-weight-kg">${t("coaching.wizard.goalWeight", { unit: weightUnit })}</label>
+            <input type="number" id="pc-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}">
+            <div class="pc-field-hint" id="pc-goal-weight-hint"></div>
+          </div>
+        </div>
+      `);
+      const goalInput = wrap.querySelector("#pc-goal-weight-kg");
+      goalInput.addEventListener("click", (e) => e.stopPropagation());
+      const hintEl = wrap.querySelector("#pc-goal-weight-hint");
+      const updateHint = () => {
+        const cur = parseFloat(w.weightKg) || 0;
+        const goal = parseFloat(w.goalWeightKg) || 0;
+        if (goal > 0 && goal < MIN_WEIGHT_KG) {
+          hintEl.textContent = t("coaching.wizard.minWeightHint", { min: RepCheckUnits.formatWeightKg(MIN_WEIGHT_KG) });
+          return;
+        }
+        hintEl.textContent = cur > 0 && goal > 0
+          ? t("coaching.wizard.goalWeightHint", { diff: RepCheckUnits.formatWeightKg(Math.abs(cur - goal)), weight: RepCheckUnits.formatWeightKg(cur) })
+          : "";
+      };
+      updateHint();
+
+      wrap.appendChild(this.renderWizardActions());
+      const nextBtn = wrap.querySelector('[data-action="wizard-next"]');
+      goalInput.addEventListener("input", (e) => {
+        w.goalWeightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
+        updateHint();
+        if (nextBtn) nextBtn.disabled = !this.wizardCanProceed();
+      });
       return wrap;
     }
 
@@ -1562,7 +1711,12 @@
 
       if (!this.checkin) {
         if (existing) {
-          window.closeBottomSheet(existing, ".pc-ck-sheet", () => existing.remove());
+          const afterClose = this._checkinAfterClose;
+          this._checkinAfterClose = null;
+          window.closeBottomSheet(existing, ".pc-ck-sheet", () => {
+            existing.remove();
+            if (afterClose) afterClose();
+          });
         }
         return;
       }
@@ -1726,7 +1880,19 @@
     renderCheckinResult() {
       const adj = this.checkin.result;
       const prev = this.checkin.resultPrevious;
-      return el(`
+      if (adj === "goal-achieved") {
+        return el(`
+          <div class="pc-ck">
+            <div class="pc-wizard-body pc-ck-body pc-ck-result">
+              <div class="pc-ck-done-badge pc-ck-achieved-badge">🎉</div>
+              <div class="pc-ck-hero-title">${t("coaching.checkin.goalAchievedTitle")}</div>
+              <div class="pc-ck-ontrack-sub">${t("coaching.checkin.goalAchievedSub", { weight: RepCheckUnits.formatWeightKg(parseFloat(this.profile.goalWeightKg)) })}</div>
+              <button type="button" class="pc-ck-submit" data-action="checkin-set-new-goals">${t("coaching.checkin.setNewGoals")}</button>
+            </div>
+          </div>
+        `);
+      }
+      const wrap = el(`
         <div class="pc-ck">
           <div class="pc-wizard-body pc-ck-body pc-ck-result">
             <div class="pc-ck-done-badge">
@@ -1734,7 +1900,7 @@
             </div>
             <div class="pc-ck-hero-title">${t("coaching.checkin.doneTitle")}</div>
             ${adj ? `
-              <div class="pc-ck-delta">${adj.delta > 0 ? "+" : ""}${adj.delta}</div>
+              <div class="pc-ck-delta" id="pc-ck-delta-num">0</div>
               <div class="pc-ck-delta-label">${t("coaching.wizard.kcalPerDay")}</div>
               <div class="pc-ck-new-target">${t("coaching.checkin.newTarget", { n: adj.calories })}</div>
               <div class="pc-ck-macros-title">${t("coaching.checkin.macrosTitle")}</div>
@@ -1748,6 +1914,39 @@
           </div>
         </div>
       `);
+      if (adj) {
+        const deltaEl = wrap.querySelector("#pc-ck-delta-num");
+        if (deltaEl) this.animateDelta(deltaEl, adj.delta);
+      }
+      return wrap;
+    }
+
+    // Counts from 0 up (or down) to the final delta over ~800ms with an
+    // ease-out curve, combined with a brief pop-then-settle scale (see
+    // .pc-ck-delta-pop in coaching.css) so the number arriving reads as an
+    // event, not static text. No existing count-up pattern anywhere else
+    // in this codebase to reuse (confirmed via grep) -- this is new.
+    animateDelta(el, toValue) {
+      const finalText = `${toValue > 0 ? "+" : ""}${toValue}`;
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        el.textContent = finalText;
+        return;
+      }
+      const DURATION = 800;
+      const start = performance.now();
+      const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+      el.classList.add("pc-ck-delta-pop");
+      const tick = (now) => {
+        const progress = Math.min(1, (now - start) / DURATION);
+        const current = Math.round(toValue * easeOutCubic(progress));
+        el.textContent = `${current > 0 ? "+" : ""}${current}`;
+        if (progress < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          el.textContent = finalText;
+        }
+      };
+      requestAnimationFrame(tick);
     }
   }
 

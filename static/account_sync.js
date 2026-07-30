@@ -52,6 +52,7 @@
     "repcheck_coaching_last_adjustment_v1",
     "repcheck_coaching_distribution_v1",
     "repcheck_coaching_inactivity_notified_v1",
+    "repcheck_coaching_goal_achieved_v1",
     "repcheck_hyrox_history_v1",
     "repcheck_hyrox_history_synced_v1",
   ]);

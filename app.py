@@ -42,7 +42,7 @@ from auth import auth_bp, current_user
 from hyrox_coach import get_hyrox_race_analysis
 from barcode_scanner import BarcodeScanError, lookup_by_barcode, scan_and_lookup, search_open_food_facts
 from coach_chat import get_coach_reply
-from checkin_analyzer import CheckinAnalysisError, analyze_checkin_with_photos
+from checkin_analyzer import CheckinAnalysisError, analyze_checkin
 from coaching_engine import (
     FEMALE_BODY_FAT_RANGES,
     LOSS_RATE_DEFAULT_PCT,
@@ -403,6 +403,7 @@ SYNCED_DATA_KEYS = {
     "repcheck_coaching_last_adjustment_v1",
     "repcheck_coaching_distribution_v1",
     "repcheck_coaching_inactivity_notified_v1",
+    "repcheck_coaching_goal_achieved_v1",
     "repcheck_hyrox_history_v1",
     "repcheck_hyrox_history_synced_v1",
 }
@@ -1722,8 +1723,8 @@ def api_coaching_weekly_adjustment():
         return jsonify({"ok": False, "error": "Missing current_targets."}), 400
 
     # The deterministic trend calculation always runs first, both as the
-    # answer for a photo-less check-in and as the anchor/fallback for a
-    # photo-informed one (see checkin_analyzer.py's module docstring).
+    # anchor/fallback for the Gemini call below and as the answer on its
+    # own if that call fails (see checkin_analyzer.py's module docstring).
     baseline = weekly_adjustment(profile, current_targets, week_weight_entries, week_calorie_days)
 
     photo_ids = payload.get("photo_ids") or []
@@ -1743,16 +1744,13 @@ def api_coaching_weekly_adjustment():
             mime_type = mimetypes.guess_type(photo["filename"])[0] or "image/jpeg"
             photo_files.append((path.read_bytes(), mime_type))
 
-    if not photo_files:
-        return jsonify({"ok": True, "adjustment": baseline})
-
     try:
-        ai_result = analyze_checkin_with_photos(profile, week_weight_entries, week_calorie_days, baseline, photo_files)
+        ai_result = analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files)
         adjustment = apply_calorie_delta(profile, current_targets, ai_result["delta"], ai_result["reason"])
     except CheckinAnalysisError:
-        # Photo analysis failed (no API key, Gemini hiccup, bad response) --
-        # fall back to the deterministic number rather than failing the
-        # whole check-in the user just spent time completing.
+        # Gemini call failed (no API key, hiccup, bad response) -- fall
+        # back to the deterministic number rather than failing the whole
+        # check-in the user just spent time completing.
         adjustment = baseline
 
     return jsonify({"ok": True, "adjustment": adjustment})
