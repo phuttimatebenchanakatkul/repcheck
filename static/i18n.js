@@ -144,6 +144,8 @@
       "home.workouts.restDaySub": "Recover well — you'll be back at it tomorrow.",
       "home.workouts.dayLabelSuffix": "Day",
       "home.macros.title": "Calories & macros",
+      "home.macros.fullStats": "Full stats",
+      "home.macros.todaysIntake": "Today's intake",
 
       "home.weight.title": "Weight",
       "home.weight.lastLogged": "Last logged {date}",
@@ -906,6 +908,8 @@
       "home.workouts.restDaySub": "พักผ่อนให้เต็มที่ — พรุ่งนี้กลับมาลุยต่อ",
       "home.workouts.dayLabelSuffix": "เดย์",
       "home.macros.title": "แคลอรี่และสารอาหาร",
+      "home.macros.fullStats": "ดูทั้งหมด",
+      "home.macros.todaysIntake": "ที่ทานวันนี้",
 
       "home.weight.title": "น้ำหนัก",
       "home.weight.lastLogged": "บันทึกล่าสุด {date}",

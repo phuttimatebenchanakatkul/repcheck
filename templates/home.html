@@ -44,6 +44,26 @@
      lives on the Nutrition page, where it belongs. -->
 <div class="hm-section-title" data-i18n="home.today">Today</div>
 
+<!-- Calories & macros summary: bar-chart-style card (blue=calories,
+     red=protein, amber=fat, green=carbs), same color coding as the
+     interactive week chart's own dots/bars (coaching.css's
+     .pc-week-bar-*), just collapsed to today's totals instead of a
+     7-day grid. Replaces the old .hm-chart-card week view that used to
+     sit below the glance grid -- moved above it per user request, with
+     "Full stats" linking to the full day-by-day chart on Nutrition. -->
+<a class="hm-macro-card" href="{{ url_for('nutrition') }}">
+  <div class="hm-macro-card-head">
+    <span class="hm-macro-card-title" data-i18n="home.macros.title">Calories &amp; macros</span>
+    <span class="hm-macro-card-pill">
+      <span data-i18n="home.macros.fullStats">Full stats</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    </span>
+  </div>
+  <div class="hm-macro-card-sub" data-i18n="home.macros.todaysIntake">Today's intake</div>
+  <div id="hm-macro-big"></div>
+  <div id="hm-macro-bars"></div>
+</a>
+
 <div class="hm-glance-grid">
   <a class="hm-glance" href="{{ url_for('nutrition') }}">
     <div class="hm-glance-head">
@@ -85,22 +105,6 @@
     <div id="hm-analyze-body"></div>
   </a>
 </div>
-
-<!-- Calories & macros week chart: the same interactive component as the
-     nutrition page's coaching card (tap a day column to see its numbers,
-     toggle between what you've eaten and what's left), restored here per
-     user request after the redesign initially replaced it with the
-     simpler kcal-left card above — now both live side by side. The card
-     itself links to the Nutrition page; the day-column/toggle buttons
-     inside stop propagation so tapping them doesn't also navigate away. -->
-<a class="hm-chart-card" href="{{ url_for('nutrition') }}">
-  <div class="hm-glance-head">
-    <span class="hm-glance-chip hm-qi-green"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
-    <span class="hm-glance-label" data-i18n="home.macros.title">Calories &amp; macros</span>
-    <span class="hm-workout-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-  </div>
-  <div id="hm-week-chart"></div>
-</a>
 
 {% if current_user %}
 <!--
@@ -312,18 +316,57 @@
     margin-bottom: 12px;
   }
 
-  /* ---------- Calories & macros week chart card (.pc-week-* styles come
-     from coaching.css, same component as the nutrition page) ---------- */
-  .hm-chart-card {
+  /* ---------- Calories & macros summary card: header + big number +
+     4 color-coded bars (blue=calories, red=protein, amber=fat,
+     green=carbs), styled after a "Heart Rate" bar-chart mockup the user
+     supplied. Bar fill colors reuse coaching.css's .pc-week-bar-* classes
+     so this card and the full week chart on Nutrition always agree. ---------- */
+  .hm-macro-card {
     display: block;
     background: var(--card-bg); color: inherit; text-decoration: none;
     border-radius: 20px; box-shadow: var(--shadow);
-    padding: 16px; margin-bottom: 22px;
+    padding: 18px; margin-bottom: 14px;
     transition: transform 0.13s ease, box-shadow 0.15s ease;
   }
-  .hm-chart-card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
-  .hm-chart-card:active { transform: scale(0.99); }
-  .hm-workout-chevron { margin-left: auto; color: var(--text-secondary); display: flex; flex-shrink: 0; }
+  .hm-macro-card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
+  .hm-macro-card:active { transform: scale(0.99); }
+  .hm-macro-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .hm-macro-card-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; }
+  .hm-macro-card-pill {
+    display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+    background: var(--bg); color: var(--text-secondary);
+    border-radius: 999px; padding: 6px 11px;
+    font-size: 11.5px; font-weight: 800;
+  }
+  .hm-macro-card-sub { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-top: 14px; }
+  .hm-macro-big-value { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; }
+  .hm-macro-big-value .hm-macro-big-unit { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin-left: 4px; letter-spacing: 0; }
+  .hm-macro-big-caption { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Bar chart: one row per metric, each row a rectangular track with a
+     single solid rectangle fill sitting inside it (sharp/minimally
+     rounded corners, not a rounded pill) -- matches the reference
+     mockup's per-row/axis-underneath layout. */
+  .hm-macro-bar-rows { display: flex; flex-direction: column; gap: 11px; margin-top: 18px; }
+  .hm-macro-bar-row { display: flex; align-items: center; gap: 10px; }
+  .hm-macro-bar-label { width: 56px; flex-shrink: 0; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
+  .hm-macro-bar-track { flex: 1; height: 18px; border-radius: 4px; background: var(--bg); overflow: hidden; }
+  .hm-macro-bar-fill { display: block; height: 100%; transition: width 0.4s ease; }
+
+  .hm-macro-axis { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+  .hm-macro-axis-spacer { width: 56px; flex-shrink: 0; }
+  .hm-macro-axis-ticks {
+    flex: 1; display: flex; justify-content: space-between;
+    font-size: 10px; font-weight: 600; color: var(--text-secondary);
+    border-top: 1px solid var(--border); padding-top: 6px;
+  }
+
+  /* .pc-week-toggle/.pc-week-toggle-btn come from coaching.css (same
+     Consumed/Remaining switch component as the full week chart) --
+     just needs spacing above it here, since that component only
+     defines margin-bottom for when it sits above other content. */
+  .hm-macro-toggle { margin-top: 14px; margin-bottom: 0; }
+
   .hm-glance {
     display: flex; flex-direction: column;
     background: var(--card-bg); color: inherit; text-decoration: none;
@@ -733,186 +776,111 @@
       return totals;
     }
 
-    // ---------- Calories & macros week chart ----------
-    // Ported from static/coaching.js's CoachingApp.renderWeekChart (same
-    // markup/classes, same coaching.css) rather than re-invented, so this
-    // card and the full chart on the nutrition page always look and
-    // behave identically. This copy owns its own tiny bit of UI state
-    // (Consumed/Remaining mode + selected day) since it isn't part of
-    // that class.
-    const WEEKDAY_LETTERS_MON_FIRST = ["M", "T", "W", "T", "F", "S", "S"];
-    let weekChartMode = "remaining";
-    let weekChartSelectedDay = toIsoDate(new Date());
+    // ---------- Calories & macros summary card ----------
+    // Today's totals as 4 color-coded bars, each filled relative to its
+    // OWN goal (calories vs. gram targets are different units/magnitudes,
+    // so there's no shared numeric axis to plot them against). Colors
+    // reuse coaching.css's .pc-week-bar-* classes (blue/red/amber/green)
+    // so this always agrees with the full week chart on Nutrition. Each
+    // bar is a rectangular track with a single solid rectangle fill
+    // inside it (sharp/minimally-rounded corners, not a rounded pill).
+    // A Consumed/Remaining toggle (same .pc-week-toggle-btn component
+    // and behavior as the old week chart) swaps which value the fill
+    // rectangle represents.
+    let macroCardMode = "consumed";
 
-    function startOfWeekMonday(date) {
-      const d = new Date(date);
-      const diff = (d.getDay() + 6) % 7;
-      d.setDate(d.getDate() - diff);
-      d.setHours(0, 0, 0, 0);
-      return d;
+    function macroCardFillPct(consumedPct) {
+      return macroCardMode === "consumed" ? consumedPct : Math.max(0, 100 - consumedPct);
     }
 
-    function weekChartDays() {
-      const todayIso = toIsoDate(new Date());
-      const weekStart = startOfWeekMonday(new Date());
-      return Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(weekStart);
-        d.setDate(d.getDate() + i);
-        const dateIso = toIsoDate(d);
-        const eaten = sumMacrosForDay(nutritionLog[dateIso]);
-        return {
-          dateIso,
-          letter: WEEKDAY_LETTERS_MON_FIRST[i],
-          isToday: dateIso === todayIso,
-          isSelected: dateIso === weekChartSelectedDay,
-          consumed: {
-            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
-            protein: Math.round(eaten.protein),
-            fat: Math.round(eaten.fat),
-            carbs: Math.round(eaten.carbs),
-          },
-        };
-      });
+    function macroCardRows() {
+      const eaten = sumMacrosForDay(nutritionLog[toIsoDate(new Date())]);
+      const eatenKcal = Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4);
+      const goalKcal = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
+      return {
+        eatenKcal,
+        goalKcal,
+        rows: [
+          { key: "calories", label: t("common.calories"), value: eatenKcal, goal: goalKcal, unit: "kcal", cls: "pc-week-bar-calories" },
+          { key: "protein", label: t("common.protein"), value: Math.round(eaten.protein), goal: Math.round(nutritionGoals.protein), unit: "g", cls: "pc-week-bar-protein" },
+          { key: "fat", label: t("common.fat"), value: Math.round(eaten.fat), goal: Math.round(nutritionGoals.fat), unit: "g", cls: "pc-week-bar-fat" },
+          { key: "carbs", label: t("common.carbs"), value: Math.round(eaten.carbs), goal: Math.round(nutritionGoals.carbs), unit: "g", cls: "pc-week-bar-carbs" },
+        ],
+      };
     }
 
-    function weekChartMetrics() {
-      const calories = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
-      return [
-        { key: "calories", label: t("common.calories"), target: calories, unit: "kcal" },
-        { key: "protein", label: t("common.protein"), target: nutritionGoals.protein, unit: "g" },
-        { key: "fat", label: t("common.fat"), target: nutritionGoals.fat, unit: "g" },
-        { key: "carbs", label: t("common.carbs"), target: nutritionGoals.carbs, unit: "g" },
-      ];
-    }
+    function renderMacroCard() {
+      const bigMount = document.getElementById("hm-macro-big");
+      const barsMount = document.getElementById("hm-macro-bars");
+      if (!bigMount || !barsMount) return;
 
-    function weekChartFillPct(target, consumed) {
-      if (target <= 0) return consumed > 0 ? 100 : 0;
-      if (weekChartMode === "consumed") return Math.max(0, Math.min(100, (consumed / target) * 100));
-      return Math.max(0, Math.min(100, ((target - consumed) / target) * 100));
-    }
+      const { eatenKcal, goalKcal, rows } = macroCardRows();
+      const isConsumedMode = macroCardMode === "consumed";
 
-    function renderWeekChart() {
-      const mount = document.getElementById("hm-week-chart");
-      if (!mount) return;
+      bigMount.innerHTML = `
+        <div class="hm-macro-big-value">${eatenKcal.toLocaleString()}<span class="hm-macro-big-unit">kcal</span></div>
+        <div class="hm-macro-big-caption">${t("home.food.ofGoal", { n: goalKcal.toLocaleString() })}</div>
+      `;
 
-      const isConsumedMode = weekChartMode === "consumed";
-      const days = weekChartDays();
-      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
-      const metrics = weekChartMetrics();
-
-      mount.innerHTML = `
-        <div class="pc-week-card">
-          <div class="pc-week-grid">
-            ${metrics.map((m) => {
-              // Same number the bar's fill represents -- how much has been
-              // eaten in Consumed mode, how much is left toward the target
-              // in Remaining mode (floored at 0, matching the bar itself
-              // never showing negative "over" as more empty space).
-              const selectedValue = isConsumedMode
-                ? selectedDay.consumed[m.key]
-                : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
-              return `
-                <div class="pc-week-row">
-                  <div class="pc-week-row-label">
-                    <span class="pc-week-dot pc-week-dot-${m.key}"></span>${m.label}
-                  </div>
-                  <div class="pc-week-row-bars">
-                    ${days.map((d) => `
-                      <button
-                        type="button"
-                        class="pc-week-bar-col ${d.isSelected ? "is-selected" : ""}"
-                        data-week-action="select-day"
-                        data-date="${d.dateIso}"
-                        aria-label="${d.dateIso}"
-                      >
-                        <span class="pc-week-bar-track">
-                          <span class="pc-week-bar-fill pc-week-bar-${m.key}" data-metric="${m.key}" data-date="${d.dateIso}" style="height:${weekChartFillPct(m.target, d.consumed[m.key])}%;"></span>
-                        </span>
-                      </button>
-                    `).join("")}
-                  </div>
-                  <div class="pc-week-row-total">
-                    <span class="pc-week-row-total-value" data-metric-total="${m.key}">${selectedValue}${m.unit === "g" ? "g" : ""}</span>
-                    <span class="pc-week-row-total-of">${t("coaching.week.of", { n: Math.round(m.target) })}</span>
-                  </div>
-                </div>
-              `;
-            }).join("")}
-            <div class="pc-week-row pc-week-daylabels-row">
-              <div class="pc-week-row-label"></div>
-              <div class="pc-week-row-bars">
-                ${days.map((d) => `
-                  <button type="button" class="pc-week-daylabel ${d.isSelected ? "is-selected" : ""} ${d.isToday ? "is-today" : ""}" data-week-action="select-day" data-date="${d.dateIso}">${d.letter}</button>
-                `).join("")}
-              </div>
-              <div class="pc-week-row-total"></div>
-            </div>
+      const barRowsHtml = rows.map((r) => {
+        const consumedPct = r.goal > 0 ? Math.max(0, Math.min(100, (r.value / r.goal) * 100)) : (r.value > 0 ? 100 : 0);
+        const fillPct = macroCardFillPct(consumedPct);
+        return `
+          <div class="hm-macro-bar-row">
+            <span class="hm-macro-bar-label">${r.label}</span>
+            <span class="hm-macro-bar-track">
+              <span class="hm-macro-bar-fill ${r.cls}" data-metric="${r.key}" style="width:${fillPct}%;"></span>
+            </span>
           </div>
-          <div class="pc-week-toggle">
-            <button type="button" class="pc-week-toggle-btn ${isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="consumed">${t("coaching.week.consumed")}</button>
-            <button type="button" class="pc-week-toggle-btn ${!isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="remaining">${t("coaching.week.remaining")}</button>
-          </div>
+        `;
+      }).join("");
+
+      barsMount.innerHTML = `
+        <div class="hm-macro-bar-rows">${barRowsHtml}</div>
+        <div class="hm-macro-axis">
+          <span class="hm-macro-axis-spacer"></span>
+          <span class="hm-macro-axis-ticks"><span>0%</span><span>50%</span><span>100%</span></span>
+        </div>
+        <div class="pc-week-toggle hm-macro-toggle">
+          <button type="button" class="pc-week-toggle-btn ${isConsumedMode ? "is-active" : ""}" data-macro-mode="consumed">${t("coaching.week.consumed")}</button>
+          <button type="button" class="pc-week-toggle-btn ${!isConsumedMode ? "is-active" : ""}" data-macro-mode="remaining">${t("coaching.week.remaining")}</button>
         </div>
       `;
     }
 
-    // Updates the existing bars/numbers/selection in place instead of
-    // calling renderWeekChart() again (which replaces mount.innerHTML
-    // and rebuilds every bar from scratch) -- a freshly-created <span>
-    // already at its target height has nothing to transition *from*,
-    // even with the CSS `transition: height` already on
-    // .pc-week-bar-fill, so a full re-render can never actually animate.
-    // Mutating the same, still-mounted elements lets that transition
-    // interpolate smoothly. See the identical fix (and this same
-    // reasoning) in static/coaching.js's updateWeekChart().
-    function updateWeekChart() {
-      const mount = document.getElementById("hm-week-chart");
-      if (!mount || !mount.querySelector(".pc-week-card")) {
-        renderWeekChart();
+    // Updates the existing fill widths in place instead of calling
+    // renderMacroCard() again -- same reasoning as updateWeekChart()
+    // above: a freshly-created fill already at its target width has
+    // nothing to transition *from*, so mutating the still-mounted
+    // elements is what lets the width transition actually animate.
+    function updateMacroCard() {
+      const barsMount = document.getElementById("hm-macro-bars");
+      if (!barsMount || !barsMount.querySelector(".hm-macro-bar-rows")) {
+        renderMacroCard();
         return;
       }
-
-      const isConsumedMode = weekChartMode === "consumed";
-      const days = weekChartDays();
-      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
-
-      weekChartMetrics().forEach((m) => {
-        days.forEach((d) => {
-          const fillEl = mount.querySelector(`.pc-week-bar-fill[data-metric="${m.key}"][data-date="${d.dateIso}"]`);
-          if (fillEl) fillEl.style.height = `${weekChartFillPct(m.target, d.consumed[m.key])}%`;
-        });
-        const selectedValue = isConsumedMode
-          ? selectedDay.consumed[m.key]
-          : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
-        const totalEl = mount.querySelector(`.pc-week-row-total-value[data-metric-total="${m.key}"]`);
-        if (totalEl) totalEl.textContent = `${selectedValue}${m.unit === "g" ? "g" : ""}`;
+      const { rows } = macroCardRows();
+      rows.forEach((r) => {
+        const consumedPct = r.goal > 0 ? Math.max(0, Math.min(100, (r.value / r.goal) * 100)) : (r.value > 0 ? 100 : 0);
+        const fillEl = barsMount.querySelector(`.hm-macro-bar-fill[data-metric="${r.key}"]`);
+        if (fillEl) fillEl.style.width = `${macroCardFillPct(consumedPct)}%`;
       });
-
-      mount.querySelectorAll(".pc-week-bar-col").forEach((btn) => {
-        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
-      });
-      mount.querySelectorAll(".pc-week-daylabel").forEach((btn) => {
-        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
-      });
-      mount.querySelectorAll(".pc-week-toggle-btn").forEach((btn) => {
-        btn.classList.toggle("is-active", btn.dataset.mode === weekChartMode);
+      barsMount.querySelectorAll(".pc-week-toggle-btn").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.macroMode === macroCardMode);
       });
     }
 
-    const weekChartMount = document.getElementById("hm-week-chart");
-    if (weekChartMount) {
-      weekChartMount.addEventListener("click", (event) => {
-        const target = event.target.closest("[data-week-action]");
+    const macroBarsMount = document.getElementById("hm-macro-bars");
+    if (macroBarsMount) {
+      macroBarsMount.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-macro-mode]");
         if (!target) return;
-        // The chart card is now a link to Nutrition (per user request) --
-        // without this, tapping a day column or the Consumed/Remaining
-        // toggle would also navigate away instead of just updating the
-        // chart in place.
+        // The card is a link to Nutrition -- without this, tapping the
+        // toggle would also navigate away instead of just switching mode.
         event.preventDefault();
         event.stopPropagation();
-        if (target.dataset.weekAction === "select-day") weekChartSelectedDay = target.dataset.date;
-        else if (target.dataset.weekAction === "set-mode") weekChartMode = target.dataset.mode;
-        updateWeekChart();
+        macroCardMode = target.dataset.macroMode;
+        updateMacroCard();
       });
     }
 
@@ -1151,7 +1119,7 @@
       renderWeight();
       renderHyrox();
       renderAnalyze();
-      renderWeekChart();
+      renderMacroCard();
     }
 
     renderAll();
