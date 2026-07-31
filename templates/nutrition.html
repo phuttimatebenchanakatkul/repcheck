@@ -1088,17 +1088,47 @@
   .nl-food-row-fav {
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    width: 34px; height: 34px;
+    width: 44px; height: 44px;
     border-radius: 50%;
-    background: none;
+    background: var(--bg);
     color: var(--text-secondary);
     cursor: pointer;
-    opacity: 0.65;
+    opacity: 0.85;
     transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
   }
   .nl-food-row-fav:hover { opacity: 1; color: var(--red); background: var(--red-bg); }
   .nl-food-row-fav:active { transform: scale(0.85); }
-  .nl-food-row-fav.is-fav { color: var(--red); opacity: 1; }
+  .nl-food-row-fav.is-fav { color: var(--red); opacity: 1; background: var(--red-bg); }
+
+  /* Persistent "can't find it? enter macros" CTA at the bottom of the
+     search sheet (see manualMacroCtaHtml()) -- dashed border + tinted
+     background so it reads as a distinct action, not another food row. */
+  .nl-manual-macro-btn {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%;
+    margin-top: 14px;
+    padding: 13px 14px;
+    border-radius: 14px;
+    border: 1.5px dashed color-mix(in srgb, var(--blue) 40%, transparent);
+    background: var(--blue-bg);
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: transform 0.1s ease, border-color 0.15s ease;
+  }
+  .nl-manual-macro-btn:hover { border-color: var(--blue); }
+  .nl-manual-macro-btn:active { transform: scale(0.99); }
+  .nl-manual-macro-icon {
+    flex-shrink: 0;
+    width: 38px; height: 38px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--blue); color: #fff;
+  }
+  .nl-manual-macro-text { flex: 1; min-width: 0; }
+  .nl-manual-macro-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .nl-manual-macro-sub { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .nl-manual-macro-arrow { flex-shrink: 0; color: var(--blue); display: flex; }
 
   /* ---------- Timeline ---------- */
 
@@ -2090,6 +2120,16 @@
 
   if (window.bindSheetDrag) window.bindSheetDrag(afModalOverlay, ".af-modal", ".af-modal-handle", closeAnalyzeFoodModal);
 
+  // Entry point for the "Can't find it?" CTA inside the food-search sheet
+  // (see manualMacroCtaHtml()) -- opens straight to the existing quickMode
+  // macro-entry form instead of the full choice screen, matching what the
+  // user actually asked for from that context.
+  function openQuickMacroModal() {
+    if (window.openBottomSheet) window.openBottomSheet(afModalOverlay, ".af-modal");
+    else afModalOverlay.style.display = "flex";
+    renderAfCreateForm(true);
+  }
+
   afScanBtn.addEventListener("click", openAnalyzeFoodModal);
   afModalCloseBtn.addEventListener("click", closeAnalyzeFoodModal);
   afModalOverlay.addEventListener("click", (event) => {
@@ -2806,8 +2846,8 @@
     }
   }
 
-  const HEART_OUTLINE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
-  const HEART_FILLED = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+  const HEART_OUTLINE = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+  const HEART_FILLED = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
 
   // A compact "142 kcal · 27P / 3F / 0C" line (per 100g) for a food that
   // lives in the shared library. Online/custom foods aren't in the library
@@ -2857,6 +2897,27 @@
     `;
   }
 
+  // Persistent escape hatch, shown at the bottom of the search sheet
+  // regardless of state (default view or live results) -- not every food
+  // is in the library or Open Food Facts (a specific chain item, a home
+  // recipe, etc.), so "can't find it" needs to always be one tap away
+  // from wherever the user already is, not buried behind "Analyze a food
+  // photo" -> "Log macros". Reuses that exact same quickMode form (see
+  // openQuickMacroModal() below) -- no separate flow to maintain.
+  function manualMacroCtaHtml() {
+    const t = RepCheckI18n.t;
+    return `
+      <button type="button" class="nl-manual-macro-btn" data-manual-macro="1">
+        <span class="nl-manual-macro-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+        <span class="nl-manual-macro-text">
+          <span class="nl-manual-macro-title">${t("nutrition.manualMacro.title")}</span>
+          <span class="nl-manual-macro-sub">${t("nutrition.manualMacro.sub")}</span>
+        </span>
+        <span class="nl-manual-macro-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+      </button>
+    `;
+  }
+
   function renderModalDefaultSections() {
     const t = RepCheckI18n.t;
     // Favorites first, per how the modal should prioritize them.
@@ -2877,7 +2938,7 @@
     sections.push(foodSectionHtml(t("nutrition.recent"), getRecentFoods(8)));
 
     const html = sections.join("");
-    modalResultsEl.innerHTML = html || `<div class="nl-search-empty">${t("nutrition.searchToAdd")}</div>`;
+    modalResultsEl.innerHTML = (html || `<div class="nl-search-empty">${t("nutrition.searchToAdd")}</div>`) + manualMacroCtaHtml();
   }
 
   // ---------- Open Food Facts online search (extends FOOD_LIBRARY) ----------
@@ -3007,6 +3068,7 @@
     modalResultsEl.innerHTML = `
       <div class="nl-food-list" id="modal-food-list">${matches.map(foodRowHtml).join("")}${customMatches.map(({ food, i }) => customFoodRowHtml(food, i)).join("")}</div>
       <div class="nl-search-empty" id="modal-empty-msg" style="${matches.length || customMatches.length ? "display:none;" : ""}">${RepCheckI18n.t("nutrition.noMatch", { query })}</div>
+      ${manualMacroCtaHtml()}
     `;
 
     if (modalOffDebounceId) clearTimeout(modalOffDebounceId);
@@ -3025,6 +3087,12 @@
   // once here rather than re-attached after every render, so a click
   // never gets lost to a stale/replaced element reference.
   modalResultsEl.addEventListener("click", (event) => {
+    if (event.target.closest("[data-manual-macro]")) {
+      closeModal();
+      openQuickMacroModal();
+      return;
+    }
+
     const favBtn = event.target.closest("[data-fav-toggle]");
     if (favBtn) {
       event.stopPropagation();

@@ -389,6 +389,8 @@
       "nutrition.recent": "Recent",
       "nutrition.noMatch": "No foods match \"{query}\".",
       "nutrition.searchToAdd": "Search for a food to add it.",
+      "nutrition.manualMacro.title": "Can't find it?",
+      "nutrition.manualMacro.sub": "Enter calories & macros directly",
 
       "settings.loginTitle": "Log in to manage settings",
       "settings.loginSub": "Your account, subscription, and unit preferences live on your account.",
@@ -1141,6 +1143,8 @@
       "nutrition.favorites": "รายการโปรด",
       "nutrition.topPicksForHour": "แนะนำสำหรับ{hour}",
       "nutrition.searchToAdd": "ค้นหาอาหารเพื่อเพิ่ม",
+      "nutrition.manualMacro.title": "หาไม่เจอใช่ไหม?",
+      "nutrition.manualMacro.sub": "กรอกแคลอรี่และมาโครด้วยตัวเอง",
       "nutrition.recent": "ล่าสุด",
       "nutrition.noMatch": "ไม่พบอาหารที่ตรงกับ \"{query}\"",
 
