@@ -148,6 +148,8 @@
 <script src="{{ asset_url('analyze_chat_widget.js') }}"></script>
 <script>
   AnalyzeChatWidget.init({
+    id: {{ result_id | tojson }},
+    created_at_ms: {{ created_at_ms | tojson }},
     exercise_label: {{ exercise_label | tojson }},
     overall_score: {{ overall_score | tojson }},
     stretch_score: {{ stretch_score | tojson }},

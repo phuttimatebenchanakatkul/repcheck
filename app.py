@@ -1911,6 +1911,7 @@ def analyze():
         # Anonymous/local-only use has no account to store against, so
         # everything is deleted as before.
         user = current_user()
+        new_result_id = None
         if user:
             video_filename = None
             try:
@@ -1918,7 +1919,7 @@ def analyze():
                 trimmed_path.replace(ANALYZE_VIDEOS_DIR / video_filename)
             except OSError:
                 video_filename = None  # analysis still saves, just without a replayable clip
-            save_analyze_result(
+            new_result_id = save_analyze_result(
                 user["id"], result["exercise_label"], result["overall_score"],
                 result["stretch_score"], result["squeeze_score"], result["favored"],
                 result["reps"], result["feedback"], video_filename,
@@ -1931,9 +1932,17 @@ def analyze():
                 except OSError:
                     pass
 
+        # This instant is, for all practical purposes, this analysis's
+        # created_at (the DB row was just inserted above) -- used by the
+        # AI chat widget to scope its own per-analysis chat thread and
+        # start its 24h prompting window (see analyze_chat_widget.js).
+        new_result_created_at_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+
         if wants_json:
             return jsonify({
                 "ok": True,
+                "id": new_result_id,
+                "created_at_ms": new_result_created_at_ms,
                 "exercise_label": result["exercise_label"],
                 "overall_score": result["overall_score"],
                 "stretch_score": result["stretch_score"],
@@ -1946,6 +1955,8 @@ def analyze():
 
         return render_template(
             "result.html",
+            result_id=new_result_id,
+            created_at_ms=new_result_created_at_ms,
             exercise_label=result["exercise_label"],
             overall_score=result["overall_score"],
             stretch_score=result["stretch_score"],
@@ -1983,6 +1994,8 @@ def analyze_latest():
     sections = split_feedback_sections(row["feedback_text"], row["overall_score"])
     return render_template(
         "result.html",
+        result_id=row["id"],
+        created_at_ms=_analyze_created_at_ms(row["created_at"]),
         exercise_label=row["exercise_label"],
         overall_score=row["overall_score"],
         stretch_score=row["stretch_score"],
@@ -1999,6 +2012,16 @@ def analyze_latest():
 
 def _analyze_video_available(row):
     return bool(row.get("video_filename")) and (ANALYZE_VIDEOS_DIR / row["video_filename"]).exists()
+
+
+def _analyze_created_at_ms(created_at_str):
+    # analyze_results.created_at is stored as SQLite's datetime('now')
+    # (UTC, "YYYY-MM-DD HH:MM:SS") -- converted to epoch ms here so the AI
+    # chat widget can compare it against Date.now() client-side without
+    # any date-string parsing of its own (see analyze_chat_widget.js's
+    # 24h prompting-window lockout).
+    dt = datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
 
 
 @app.route("/api/analyze/history", methods=["GET"])
@@ -2047,6 +2070,7 @@ def api_analyze_history_detail(result_id):
         "sections": split_feedback_sections(row["feedback_text"], row["overall_score"]),
         "feedback_text": row["feedback_text"],
         "created_at": row["created_at"],
+        "created_at_ms": _analyze_created_at_ms(row["created_at"]),
         "video_url": url_for("analyze_video", result_id=row["id"]) if _analyze_video_available(row) else None,
     })
 

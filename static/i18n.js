@@ -478,6 +478,8 @@
       "analyzeChat.limitReached": "Limit reached — resets in {time}",
       "analyzeChat.limitReachedPlaceholder": "Message limit reached",
       "analyzeChat.errorReaching": "Something went wrong reaching the assistant. Please try again.",
+      "analyzeChat.closed": "This chat closed 24 hours after the analysis — history is still here to read.",
+      "analyzeChat.closedPlaceholder": "This chat is closed",
 
       "coaching.title": "Personalized coaching",
       "coaching.setup.lead": "Get a calorie and macro target built for you.",
@@ -1241,6 +1243,8 @@
       "analyzeChat.limitReached": "ครบจำนวนที่กำหนดแล้ว — รีเซ็ตใน {time}",
       "analyzeChat.limitReachedPlaceholder": "ครบจำนวนข้อความที่กำหนดแล้ว",
       "analyzeChat.errorReaching": "เกิดข้อผิดพลาดในการติดต่อผู้ช่วย กรุณาลองใหม่อีกครั้ง",
+      "analyzeChat.closed": "แชทนี้ปิดแล้วหลังจากผ่านไป 24 ชั่วโมงนับจากผลวิเคราะห์ — ยังอ่านประวัติได้ตามปกติ",
+      "analyzeChat.closedPlaceholder": "แชทนี้ปิดแล้ว",
 
       "coaching.title": "การโค้ชเฉพาะบุคคล",
       "coaching.setup.lead": "รับเป้าหมายแคลอรี่และสารอาหารที่ออกแบบมาเพื่อคุณ",

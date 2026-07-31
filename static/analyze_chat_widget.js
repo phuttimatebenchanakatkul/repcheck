@@ -46,6 +46,45 @@
     return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   }
 
+  // Each analyzed workout gets its own permanent chat thread, keyed by its
+  // server-side analyze_results row id (context.id) -- so asking a
+  // question on one analysis never shows up on (or is affected by)
+  // another's chat, and reopening the SAME analysis later still has the
+  // conversation right where it was left. Anonymous/local-only use (no
+  // context.id -- /api/analyze-chat itself requires login anyway) just
+  // falls back to the old page-view-only behavior, nothing persisted.
+  const STORAGE_PREFIX = "repcheck_analyze_chat_v1_";
+  const LOCK_AFTER_MS = 24 * 60 * 60 * 1000;
+  // How long a thread's storage key is kept around after its 24h
+  // prompting window closes -- history stays readable for a while after
+  // a revisit, but without this a chat key would otherwise live in
+  // localStorage forever, once per analysis, for as long as the account
+  // exists (analyze_results rows themselves get pruned server-side; nothing
+  // ever pruned the matching localStorage key to match).
+  const RETAIN_AFTER_LOCK_MS = 30 * 24 * 60 * 60 * 1000;
+
+  function loadJson(key, fallback) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key));
+      return parsed === null || parsed === undefined ? fallback : parsed;
+    } catch (err) { return fallback; }
+  }
+
+  // Opportunistic sweep of old threads well past their retention window --
+  // runs once per widget init, cheap (a handful of keys at most), and is
+  // the only place anything ever removes a repcheck_analyze_chat_v1_* key.
+  function pruneStaleChatThreads() {
+    const now = Date.now();
+    Object.keys(localStorage).forEach((key) => {
+      if (!key.startsWith(STORAGE_PREFIX)) return;
+      const stored = loadJson(key, null);
+      const createdAtMs = stored && stored.createdAtMs;
+      if (typeof createdAtMs === "number" && now - createdAtMs > LOCK_AFTER_MS + RETAIN_AFTER_LOCK_MS) {
+        localStorage.removeItem(key);
+      }
+    });
+  }
+
   function init(context) {
     const t = RepCheckI18n.t;
     const dockEl = document.getElementById("ac-dock");
@@ -57,7 +96,21 @@
     const subEl = document.getElementById("ac-header-sub");
     if (!dockEl || !formEl || !threadEl) return; // widget markup not on this page
 
-    let history = [];
+    pruneStaleChatThreads();
+
+    const storageKey = context.id != null ? `${STORAGE_PREFIX}${context.id}` : null;
+    const stored = storageKey ? loadJson(storageKey, null) : null;
+    let history = (stored && stored.history) || [];
+
+    function persistHistory() {
+      if (!storageKey) return;
+      localStorage.setItem(storageKey, JSON.stringify({
+        createdAtMs: context.created_at_ms || Date.now(),
+        history,
+      }));
+    }
+
+    const isLocked = typeof context.created_at_ms === "number" && (Date.now() - context.created_at_ms > LOCK_AFTER_MS);
     let isSending = false;
 
     // ---- Binary open / close (no in-between) ----
@@ -190,7 +243,10 @@
       if (!history.length) {
         // Empty state: a couple of tappable starter questions above the bar,
         // iOS-Spotlight-suggestion style. The thread panel stays hidden.
+        // Skipped once locked -- there's nothing useful to suggest asking
+        // in a chat that can no longer accept prompts.
         threadEl.innerHTML = "";
+        if (isLocked) { suggestEl.innerHTML = ""; return; }
         const keys = ["analyzeChat.suggestion1", "analyzeChat.suggestion2"];
         suggestEl.innerHTML = keys.map((key) => {
           const q = t(key);
@@ -264,13 +320,17 @@
 
     async function sendMessage() {
       const message = inputEl.value.trim();
-      if (!message || isSending) return;
+      // isLocked is permanent (no countdown to wait out, unlike the rate
+      // limit below) -- guarded here too, not just via the disabled input,
+      // since a suggestion chip click bypasses the input entirely.
+      if (!message || isSending || isLocked) return;
 
       isSending = true;
       sendBtn.disabled = true;
       inputEl.value = "";
 
       history.push({ role: "user", text: message });
+      persistHistory();
       renderMessages();
       showTyping();
 
@@ -284,6 +344,7 @@
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || t("analyzeChat.errorReaching"));
         history.push({ role: "assistant", text: reply });
+        persistHistory();
         renderMessages();
         if (data.ok && data.limited) {
           applyLimitLockout(data.retry_after_seconds);
@@ -291,6 +352,7 @@
       } catch (err) {
         hideTyping();
         history.push({ role: "assistant", text: t("analyzeChat.errorReaching") });
+        persistHistory();
         renderMessages();
       } finally {
         isSending = false;
@@ -306,8 +368,22 @@
       sendMessage();
     });
 
+    // Permanent, unlike applyLimitLockout() above -- there's no countdown
+    // to wait out, so the input/button just stay disabled and the history
+    // (if any) stays exactly as readable as it was before locking.
+    function applyClosedState() {
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+      inputEl.placeholder = t("analyzeChat.closedPlaceholder");
+      if (subEl) subEl.textContent = t("analyzeChat.closed");
+    }
+
+    if (isLocked) applyClosedState();
     renderMessages();
-    document.addEventListener("repcheck:language-changed", renderMessages);
+    document.addEventListener("repcheck:language-changed", () => {
+      renderMessages();
+      if (isLocked) applyClosedState();
+    });
   }
 
   window.AnalyzeChatWidget = { init };

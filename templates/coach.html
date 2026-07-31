@@ -289,9 +289,27 @@
     const clearBtn = document.getElementById("cc-clear-btn");
     const statusEl = document.getElementById("cc-status");
 
+    function toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    // A conversation only ever spans one calendar day -- once the last
+    // saved turn is from a previous day, start fresh instead of quietly
+    // continuing an old thread (or piling up forever). Turns without a
+    // date (saved before this existed) fall into the same "different
+    // day" case and get cleared the same way.
     function loadHistory() {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-      catch (err) { return []; }
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        if (stored.length) {
+          const lastDate = stored[stored.length - 1].date;
+          if (lastDate !== toIsoDate(new Date())) return [];
+        }
+        return stored;
+      } catch (err) { return []; }
     }
     function saveHistory(history) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-60)));
@@ -429,7 +447,8 @@
       sendBtn.disabled = true;
       inputEl.value = "";
 
-      history.push({ role: "user", text: message });
+      const todayIso = toIsoDate(new Date());
+      history.push({ role: "user", text: message, date: todayIso });
       saveHistory(history);
       renderMessages();
       showTyping();
@@ -443,7 +462,7 @@
         const data = await response.json();
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
-        history.push({ role: "coach", text: reply });
+        history.push({ role: "coach", text: reply, date: todayIso });
         saveHistory(history);
         renderMessages();
         if (data.ok && data.limited) {
@@ -451,7 +470,7 @@
         }
       } catch (err) {
         hideTyping();
-        history.push({ role: "coach", text: RepCheckI18n.t("coach.errorReaching") });
+        history.push({ role: "coach", text: RepCheckI18n.t("coach.errorReaching"), date: todayIso });
         saveHistory(history);
         renderMessages();
       } finally {
