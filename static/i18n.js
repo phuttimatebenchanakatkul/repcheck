@@ -146,6 +146,7 @@
       "home.macros.title": "Calories & macros",
       "home.macros.fullStats": "Full stats",
       "home.macros.todaysIntake": "Today's intake",
+      "home.macros.left": "{n} left",
 
       "home.weight.title": "Weight",
       "home.weight.lastLogged": "Last logged {date}",
@@ -393,6 +394,7 @@
       "nutrition.searchToAdd": "Search for a food to add it.",
       "nutrition.manualMacro.title": "Can't find it?",
       "nutrition.manualMacro.sub": "Enter calories & macros directly",
+      "nutrition.manualMacro.button": "Log macros",
 
       "settings.loginTitle": "Log in to manage settings",
       "settings.loginSub": "Your account, subscription, and unit preferences live on your account.",
@@ -509,6 +511,9 @@
       "coaching.logging.viewFullMonth": "View full month →",
       "page.loggingHistory.heading": "Logging History",
       "loggingHistory.backToNutrition": "← Back to Nutrition",
+      "page.fullStats.heading": "Weekly Stats",
+      "fullStats.backToNutrition": "← Back to Nutrition",
+      "fullStats.sub": "Calories & macros for each day this week",
       "loggingHistory.summary.logged": "logged",
       "loggingHistory.summary.fasting": "fasting",
       "loggingHistory.summary.incomplete": "incomplete",
@@ -910,6 +915,7 @@
       "home.macros.title": "แคลอรี่และสารอาหาร",
       "home.macros.fullStats": "ดูทั้งหมด",
       "home.macros.todaysIntake": "ที่ทานวันนี้",
+      "home.macros.left": "เหลืออีก {n}",
 
       "home.weight.title": "น้ำหนัก",
       "home.weight.lastLogged": "บันทึกล่าสุด {date}",
@@ -1149,6 +1155,7 @@
       "nutrition.searchToAdd": "ค้นหาอาหารเพื่อเพิ่ม",
       "nutrition.manualMacro.title": "หาไม่เจอใช่ไหม?",
       "nutrition.manualMacro.sub": "กรอกแคลอรี่และมาโครด้วยตัวเอง",
+      "nutrition.manualMacro.button": "กรอกมาโคร",
       "nutrition.recent": "ล่าสุด",
       "nutrition.noMatch": "ไม่พบอาหารที่ตรงกับ \"{query}\"",
 
@@ -1267,6 +1274,9 @@
       "coaching.logging.viewFullMonth": "ดูทั้งเดือน →",
       "page.loggingHistory.heading": "ประวัติการบันทึก",
       "loggingHistory.backToNutrition": "← กลับไปหน้าโภชนาการ",
+      "page.fullStats.heading": "สถิติรายสัปดาห์",
+      "fullStats.backToNutrition": "← กลับไปหน้าโภชนาการ",
+      "fullStats.sub": "แคลอรี่และมาโครของแต่ละวันในสัปดาห์นี้",
       "loggingHistory.summary.logged": "บันทึกแล้ว",
       "loggingHistory.summary.fasting": "อดอาหาร",
       "loggingHistory.summary.incomplete": "ไม่ครบ",

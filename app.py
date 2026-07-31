@@ -1214,6 +1214,17 @@ def logging_history():
     return render_template("logging_history.html", active_nav="nutrition", i18n_page="loggingHistory")
 
 
+@app.route("/nutrition/full-stats", methods=["GET"])
+def nutrition_full_stats():
+    # Same "client-side rendered from localStorage" pattern as
+    # /weight-history above -- reads repcheck_nutrition_log_v1 and
+    # repcheck_nutrition_goals_v1 directly. Linked from the home page's
+    # "Calories & macros" card ("Full stats" pill) -- the full 7-day,
+    # day-by-day macro/calorie chart that card only shows a single-day
+    # snapshot of.
+    return render_template("full_stats.html", active_nav="nutrition", i18n_page="fullStats")
+
+
 @app.route("/streaks", methods=["GET"])
 def streaks():
     # Same "client-side rendered from localStorage" pattern as

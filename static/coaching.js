@@ -529,11 +529,16 @@
         if (!c.alreadyLoggedToday && c.weightInput) {
           const kg = RepCheckUnits.displayToKg(c.weightInput);
           if (kg && kg > 0 && kg <= 400) {
-            const weightLog = loadWeightLog();
             const entry = { kg, loggedAt: Date.now() };
-            weightLog[c.todayIso] = entry;
-            saveJson(WEIGHT_LOG_KEY, weightLog);
-            await this.persistWeightEntry(c.todayIso, entry);
+            if (window.REPCHECK_LOGGED_IN) {
+              // persistWeightEntry() writes localStorage itself, from the
+              // server's authoritative response -- see that function.
+              await this.persistWeightEntry(c.todayIso, entry);
+            } else {
+              const weightLog = loadWeightLog();
+              weightLog[c.todayIso] = entry;
+              saveJson(WEIGHT_LOG_KEY, weightLog);
+            }
           }
         }
 
@@ -713,6 +718,10 @@
         });
         const data = await response.json();
         if (!data.ok) throw new Error(data.error || "Save failed");
+        // Adopt the server's response as the canonical log instead of
+        // trusting this device's own locally-computed blob -- see the
+        // identical fix (and reasoning) in base.html's "Log weight" sheet.
+        if (data.weight_log) saveJson(WEIGHT_LOG_KEY, data.weight_log);
         showSaveToast(t("coaching.weight.saved"), false);
       } catch (err) {
         showSaveToast(t("coaching.weight.saveError"), true);
@@ -1839,7 +1848,7 @@
             </div>
 
             <div class="pc-ck-section">
-              ${this.ckSectionHead("pc-ck-chip-green", CAL_SVG, t("coaching.checkin.daysLabel"), t("coaching.checkin.daysSub"))}
+              ${this.ckSectionHead("pc-ck-chip-green", CAL_SVG, t("coaching.checkin.daysLabel"))}
               ${this.renderCheckinDayGrid()}
             </div>
 
@@ -1856,7 +1865,7 @@
             </div>
 
             <div class="pc-ck-section">
-              ${this.ckSectionHead("pc-ck-chip-purple", CAM_SVG, t("coaching.checkin.photosLabel"), t("coaching.checkin.photosSub"))}
+              ${this.ckSectionHead("pc-ck-chip-purple", CAM_SVG, t("coaching.checkin.photosLabel"))}
               <div class="pc-checkin-photo-row">
                 ${this.renderCheckinPhotoSlot("front")}
                 ${this.renderCheckinPhotoSlot("back")}
@@ -1916,33 +1925,81 @@
           </div>
         `);
       }
+      // For a real adjustment (not the plain "on track" result), the
+      // calorie delta gets its own hero moment before the rest of the
+      // screen appears: a huge count-up number covers the result body on
+      // its own, then shrinks/fades away into the number's normal small
+      // spot while everything else (badge, title, macros, reason, done
+      // button) reveals underneath, top to bottom. See
+      // runCheckinResultReveal() below for the actual sequencing --
+      // every element that should stay hidden until then carries
+      // .pc-ck-reveal-item.
       const wrap = el(`
         <div class="pc-ck">
-          <div class="pc-wizard-body pc-ck-body pc-ck-result">
-            <div class="pc-ck-done-badge">
+          <div class="pc-wizard-body pc-ck-body pc-ck-result${adj ? " pc-ck-result-revealing" : ""}">
+            ${adj ? `
+              <div class="pc-ck-hero-overlay" id="pc-ck-hero-overlay">
+                <div class="pc-ck-hero-delta" id="pc-ck-hero-delta-num">0</div>
+                <div class="pc-ck-hero-delta-label">${t("coaching.wizard.kcalPerDay")}</div>
+              </div>
+            ` : ""}
+            <div class="pc-ck-done-badge pc-ck-reveal-item">
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-            <div class="pc-ck-hero-title">${t("coaching.checkin.doneTitle")}</div>
+            <div class="pc-ck-hero-title pc-ck-reveal-item">${t("coaching.checkin.doneTitle")}</div>
             ${adj ? `
-              <div class="pc-ck-delta" id="pc-ck-delta-num">0</div>
-              <div class="pc-ck-delta-label">${t("coaching.wizard.kcalPerDay")}</div>
-              <div class="pc-ck-new-target">${t("coaching.checkin.newTarget", { n: adj.calories })}</div>
-              <div class="pc-ck-macros-title">${t("coaching.checkin.macrosTitle")}</div>
-              <div class="pc-ck-macros">${this.renderCheckinMacroRows(adj, prev)}</div>
-              <div class="pc-ck-reason">${adj.reason}</div>
+              <div class="pc-ck-delta pc-ck-reveal-item" id="pc-ck-delta-num">${adj.delta > 0 ? "+" : ""}${adj.delta}</div>
+              <div class="pc-ck-delta-label pc-ck-reveal-item">${t("coaching.wizard.kcalPerDay")}</div>
+              <div class="pc-ck-new-target pc-ck-reveal-item">${t("coaching.checkin.newTarget", { n: adj.calories })}</div>
+              <div class="pc-ck-macros-title pc-ck-reveal-item">${t("coaching.checkin.macrosTitle")}</div>
+              <div class="pc-ck-macros pc-ck-reveal-item">${this.renderCheckinMacroRows(adj, prev)}</div>
+              <div class="pc-ck-reason pc-ck-reveal-item">${adj.reason}</div>
             ` : `
               <div class="pc-ck-ontrack-title">${t("coaching.checkin.onTrack")}</div>
               <div class="pc-ck-ontrack-sub">${t("coaching.checkin.onTrackSub")}</div>
             `}
-            <button type="button" class="pc-ck-submit" data-action="checkin-done">${t("common.done")}</button>
+            <button type="button" class="pc-ck-submit pc-ck-reveal-item" data-action="checkin-done">${t("common.done")}</button>
           </div>
         </div>
       `);
-      if (adj) {
-        const deltaEl = wrap.querySelector("#pc-ck-delta-num");
-        if (deltaEl) this.animateDelta(deltaEl, adj.delta);
-      }
+      if (adj) this.runCheckinResultReveal(wrap, adj.delta);
       return wrap;
+    }
+
+    // Orchestrates the result screen's "hero number first" entrance: the
+    // calorie delta counts up huge and alone (covering everything else
+    // via .pc-ck-hero-overlay), then shrinks/fades away once it's landed,
+    // revealing the real (already-built, just hidden) result content
+    // underneath in a top-to-bottom stagger. Everything here is additive
+    // choreography on top of the DOM renderCheckinResult() already
+    // built -- no separate render pass.
+    runCheckinResultReveal(wrap, delta) {
+      const overlay = wrap.querySelector("#pc-ck-hero-overlay");
+      const heroDeltaEl = wrap.querySelector("#pc-ck-hero-delta-num");
+      const resultBody = wrap.querySelector(".pc-ck-result");
+      const revealItems = wrap.querySelectorAll(".pc-ck-reveal-item");
+      if (!overlay || !resultBody) return;
+
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        overlay.remove();
+        resultBody.classList.remove("pc-ck-result-revealing");
+        return;
+      }
+
+      // Stagger each item's entrance so they're ready to animate in
+      // sequence, top to bottom, the instant .is-revealed is added below.
+      revealItems.forEach((item, i) => {
+        item.style.transitionDelay = `${i * 70}ms`;
+      });
+
+      if (heroDeltaEl) this.animateDelta(heroDeltaEl, delta);
+
+      const HOLD_MS = 900; // the ~800ms count-up, plus a brief beat to let it land
+      setTimeout(() => {
+        overlay.classList.add("is-leaving");
+        resultBody.classList.add("is-revealed");
+        overlay.addEventListener("transitionend", () => overlay.remove(), { once: true });
+      }, HOLD_MS);
     }
 
     // Counts from 0 up (or down) to the final delta over ~800ms with an

@@ -518,7 +518,36 @@
 .pc-ck-submit:disabled { opacity: 0.6; cursor: default; transform: none; }
 
 /* Result screen: a small celebration, not a report. */
-.pc-ck-result { text-align: center; }
+.pc-ck-result { text-align: center; position: relative; }
+
+/* ---------- Hero-number-first reveal (a real adjustment result only) ----------
+   Sequence: the hero overlay (huge count-up delta, covering everything
+   else) plays alone, then shrinks/fades out while the real content
+   underneath -- each .pc-ck-reveal-item, pre-staggered via inline
+   transition-delay in runCheckinResultReveal() -- fades/slides up into
+   place. See coaching.js for the timing that drives these classes. */
+.pc-ck-hero-overlay {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--card-bg);
+  opacity: 1; transform: scale(1);
+  transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1), transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pc-ck-hero-overlay.is-leaving { opacity: 0; transform: scale(0.6) translateY(-16px); pointer-events: none; }
+.pc-ck-hero-delta { font-size: 68px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; }
+.pc-ck-hero-delta-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px; }
+
+.pc-ck-result-revealing .pc-ck-reveal-item {
+  opacity: 0; transform: translateY(14px); pointer-events: none;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.pc-ck-result-revealing.is-revealed .pc-ck-reveal-item {
+  opacity: 1; transform: none; pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-ck-hero-overlay { transition: none; }
+  .pc-ck-result-revealing .pc-ck-reveal-item { transition: none; }
+}
 .pc-ck-done-badge {
   width: 62px; height: 62px; border-radius: 50%; margin: 6px auto 14px;
   display: flex; align-items: center; justify-content: center; color: #fff;
@@ -531,8 +560,10 @@
 
 /* Pop-then-settle scale that plays alongside animateDelta()'s count-up
    (see coaching.js) -- the number arriving reads as an event, not just
-   text appearing. */
-.pc-ck-delta.pc-ck-delta-pop { animation: pc-ck-delta-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+   text appearing. Not scoped to .pc-ck-delta specifically since
+   animateDelta() also drives .pc-ck-hero-delta (the hero overlay) during
+   the check-in result's big-number-first reveal. */
+.pc-ck-delta-pop { animation: pc-ck-delta-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes pc-ck-delta-pop {
   0% { transform: scale(0.55); opacity: 0; }
   45% { transform: scale(1.16); opacity: 1; }

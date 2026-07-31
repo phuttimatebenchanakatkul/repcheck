@@ -646,13 +646,11 @@
           msgEl.classList.add("is-error");
           return;
         }
-        const weightLog = loadWeightLog();
+        if (saveBtn.disabled) return; // guards a rapid double-tap firing save() twice
         const todayIso = toIsoDate(new Date());
         const entry = { kg, loggedAt: Date.now() };
-        weightLog[todayIso] = entry;
-        localStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(weightLog));
-
         saveBtn.disabled = true;
+
         if (window.REPCHECK_LOGGED_IN) {
           try {
             const response = await fetch("/api/weight/log-entry", {
@@ -662,12 +660,24 @@
             });
             const data = await response.json();
             if (!data.ok) throw new Error(data.error || "Save failed");
+            // Adopt the server's response as the canonical log rather than
+            // trusting this device's own locally-computed blob -- if a
+            // hydration pull or another device's write landed between this
+            // sheet opening and Save being tapped, a purely-local write
+            // could silently diverge from (and keep losing to) whatever
+            // the server considers today's real value. This is what
+            // guarantees "today's entry is exactly what was just saved".
+            localStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(data.weight_log));
           } catch (err) {
             saveBtn.disabled = false;
             msgEl.textContent = RepCheckI18n.t("coaching.weight.saveError") || "Couldn't save. Try again.";
             msgEl.classList.add("is-error");
             return;
           }
+        } else {
+          const weightLog = loadWeightLog();
+          weightLog[todayIso] = entry;
+          localStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(weightLog));
         }
         saveBtn.disabled = false;
         // Deferred until this sheet's own close-cleanup finishes (via the

@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Weekly Stats{% endblock %}
+{% block heading %}Weekly Stats{% endblock %}
+
+{% block content %}
+<!-- Full 7-day macro/calorie breakdown -- linked from the home page's
+     "Calories & macros" card ("Full stats" pill), which itself only
+     shows a single day's totals. This is the same .pc-week-* chart
+     component nutrition.html's Personalized Coaching card uses (tap a
+     day column, toggle Consumed/Remaining), just given its own page
+     instead of being folded into another card. -->
+<link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
+
+<a href="{{ url_for('nutrition') }}" class="fs-back" data-i18n="fullStats.backToNutrition">&larr; Back to Nutrition</a>
+
+<div class="fs-head">
+  <div class="fs-title" data-i18n="page.fullStats.heading">Weekly Stats</div>
+  <div class="fs-sub" data-i18n="fullStats.sub">Calories & macros for each day this week</div>
+</div>
+
+<div class="card fs-card">
+  <div id="fs-week-chart"></div>
+</div>
+
+<style>
+  .fs-back { display: inline-block; margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-decoration: none; }
+  .fs-back:hover { color: var(--text); }
+  .fs-head { margin-bottom: 14px; }
+  .fs-title { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  .fs-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+  .fs-card { max-width: 560px; padding: 18px; }
+</style>
+
+<script>
+  (function () {
+    const t = RepCheckI18n.t;
+
+    function toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    function loadJson(key, fallback) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        return parsed === null || parsed === undefined ? fallback : parsed;
+      } catch (err) { return fallback; }
+    }
+
+    const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
+    const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
+
+    function sumMacrosForDay(entries) {
+      const totals = { protein: 0, fat: 0, carbs: 0 };
+      if (!Array.isArray(entries)) return totals;
+      entries.forEach((entry) => {
+        const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
+        items.forEach((item) => {
+          const scale = item.grams / 100;
+          totals.protein += item.baseProtein * scale;
+          totals.fat += item.baseFat * scale;
+          totals.carbs += item.baseCarbs * scale;
+        });
+      });
+      return totals;
+    }
+
+    // ---------- Calories & macros week chart ----------
+    // Ported from the same .pc-week-* component coaching.js's
+    // CoachingApp.renderWeekChart uses on the Nutrition page (identical
+    // markup/classes/coaching.css), so this page and that card always
+    // look and behave the same. Owns its own tiny bit of UI state
+    // (Consumed/Remaining mode + selected day) since it isn't part of
+    // that class.
+    const WEEKDAY_LETTERS_MON_FIRST = ["M", "T", "W", "T", "F", "S", "S"];
+    let weekChartMode = "remaining";
+    let weekChartSelectedDay = toIsoDate(new Date());
+
+    function startOfWeekMonday(date) {
+      const d = new Date(date);
+      const diff = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - diff);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function weekChartDays() {
+      const todayIso = toIsoDate(new Date());
+      const weekStart = startOfWeekMonday(new Date());
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+        const dateIso = toIsoDate(d);
+        const eaten = sumMacrosForDay(nutritionLog[dateIso]);
+        return {
+          dateIso,
+          letter: WEEKDAY_LETTERS_MON_FIRST[i],
+          isToday: dateIso === todayIso,
+          isSelected: dateIso === weekChartSelectedDay,
+          consumed: {
+            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
+            protein: Math.round(eaten.protein),
+            fat: Math.round(eaten.fat),
+            carbs: Math.round(eaten.carbs),
+          },
+        };
+      });
+    }
+
+    function weekChartMetrics() {
+      const calories = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
+      return [
+        { key: "calories", label: t("common.calories"), target: calories, unit: "kcal" },
+        { key: "protein", label: t("common.protein"), target: nutritionGoals.protein, unit: "g" },
+        { key: "fat", label: t("common.fat"), target: nutritionGoals.fat, unit: "g" },
+        { key: "carbs", label: t("common.carbs"), target: nutritionGoals.carbs, unit: "g" },
+      ];
+    }
+
+    function weekChartFillPct(target, consumed) {
+      if (target <= 0) return consumed > 0 ? 100 : 0;
+      if (weekChartMode === "consumed") return Math.max(0, Math.min(100, (consumed / target) * 100));
+      return Math.max(0, Math.min(100, ((target - consumed) / target) * 100));
+    }
+
+    function renderWeekChart() {
+      const mount = document.getElementById("fs-week-chart");
+      if (!mount) return;
+
+      const isConsumedMode = weekChartMode === "consumed";
+      const days = weekChartDays();
+      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
+      const metrics = weekChartMetrics();
+
+      mount.innerHTML = `
+        <div class="pc-week-card">
+          <div class="pc-week-grid">
+            ${metrics.map((m) => {
+              const selectedValue = isConsumedMode
+                ? selectedDay.consumed[m.key]
+                : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
+              return `
+                <div class="pc-week-row">
+                  <div class="pc-week-row-label">
+                    <span class="pc-week-dot pc-week-dot-${m.key}"></span>${m.label}
+                  </div>
+                  <div class="pc-week-row-bars">
+                    ${days.map((d) => `
+                      <button
+                        type="button"
+                        class="pc-week-bar-col ${d.isSelected ? "is-selected" : ""}"
+                        data-week-action="select-day"
+                        data-date="${d.dateIso}"
+                        aria-label="${d.dateIso}"
+                      >
+                        <span class="pc-week-bar-track">
+                          <span class="pc-week-bar-fill pc-week-bar-${m.key}" data-metric="${m.key}" data-date="${d.dateIso}" style="height:${weekChartFillPct(m.target, d.consumed[m.key])}%;"></span>
+                        </span>
+                      </button>
+                    `).join("")}
+                  </div>
+                  <div class="pc-week-row-total">
+                    <span class="pc-week-row-total-value" data-metric-total="${m.key}">${selectedValue}${m.unit === "g" ? "g" : ""}</span>
+                    <span class="pc-week-row-total-of">${t("coaching.week.of", { n: Math.round(m.target) })}</span>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+            <div class="pc-week-row pc-week-daylabels-row">
+              <div class="pc-week-row-label"></div>
+              <div class="pc-week-row-bars">
+                ${days.map((d) => `
+                  <button type="button" class="pc-week-daylabel ${d.isSelected ? "is-selected" : ""} ${d.isToday ? "is-today" : ""}" data-week-action="select-day" data-date="${d.dateIso}">${d.letter}</button>
+                `).join("")}
+              </div>
+              <div class="pc-week-row-total"></div>
+            </div>
+          </div>
+          <div class="pc-week-toggle">
+            <button type="button" class="pc-week-toggle-btn ${isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="consumed">${t("coaching.week.consumed")}</button>
+            <button type="button" class="pc-week-toggle-btn ${!isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="remaining">${t("coaching.week.remaining")}</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Updates the existing bars/numbers/selection in place instead of
+    // calling renderWeekChart() again -- see home.html's identical fix
+    // (and its fuller explanation) for why a full re-render can't animate
+    // the bar-height transition.
+    function updateWeekChart() {
+      const mount = document.getElementById("fs-week-chart");
+      if (!mount || !mount.querySelector(".pc-week-card")) {
+        renderWeekChart();
+        return;
+      }
+
+      const isConsumedMode = weekChartMode === "consumed";
+      const days = weekChartDays();
+      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
+
+      weekChartMetrics().forEach((m) => {
+        days.forEach((d) => {
+          const fillEl = mount.querySelector(`.pc-week-bar-fill[data-metric="${m.key}"][data-date="${d.dateIso}"]`);
+          if (fillEl) fillEl.style.height = `${weekChartFillPct(m.target, d.consumed[m.key])}%`;
+        });
+        const selectedValue = isConsumedMode
+          ? selectedDay.consumed[m.key]
+          : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
+        const totalEl = mount.querySelector(`.pc-week-row-total-value[data-metric-total="${m.key}"]`);
+        if (totalEl) totalEl.textContent = `${selectedValue}${m.unit === "g" ? "g" : ""}`;
+      });
+
+      mount.querySelectorAll(".pc-week-bar-col").forEach((btn) => {
+        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
+      });
+      mount.querySelectorAll(".pc-week-daylabel").forEach((btn) => {
+        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
+      });
+      mount.querySelectorAll(".pc-week-toggle-btn").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.mode === weekChartMode);
+      });
+    }
+
+    const weekChartMount = document.getElementById("fs-week-chart");
+    if (weekChartMount) {
+      weekChartMount.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-week-action]");
+        if (!target) return;
+        if (target.dataset.weekAction === "select-day") weekChartSelectedDay = target.dataset.date;
+        else if (target.dataset.weekAction === "set-mode") weekChartMode = target.dataset.mode;
+        updateWeekChart();
+      });
+    }
+
+    renderWeekChart();
+    document.addEventListener("repcheck:language-changed", renderWeekChart);
+    document.addEventListener("repcheck:units-changed", renderWeekChart);
+  })();
+</script>
+{% endblock %}
