@@ -366,8 +366,8 @@
      block fill visually emphasizes) -- so both numbers are on screen at
      once instead of one being toggle-only. */
   .hm-macro-bar-value { width: 66px; flex-shrink: 0; text-align: right; line-height: 1.25; }
-  .hm-macro-bar-value-consumed { display: block; font-size: 12px; font-weight: 800; color: var(--text); }
-  .hm-macro-bar-value-left { display: block; font-size: 10px; font-weight: 700; color: var(--text-secondary); margin-top: 1px; }
+  .hm-macro-bar-value-primary { display: block; font-size: 12px; font-weight: 800; color: var(--text); }
+  .hm-macro-bar-value-secondary { display: block; font-size: 10px; font-weight: 700; color: var(--text-secondary); margin-top: 1px; }
   .hm-macro-bar-fill { display: block; height: 100%; transition: width 0.4s ease; }
 
   .hm-macro-axis { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
@@ -783,6 +783,21 @@
       return macroCardMode === "consumed" ? consumedPct : Math.max(0, 100 - consumedPct);
     }
 
+    // The bold/primary number actually changes with the toggle (previously
+    // both "consumed" and "left" were always shown at once, so tapping
+    // Remaining visibly changed nothing -- read as "remaining shows the
+    // same value as consumed"). Consumed mode leads with the raw amount;
+    // Remaining mode leads with what's left, each with the other value as
+    // a small secondary caption.
+    function macroCardValueText(r, isConsumedMode) {
+      const unitSuffix = r.unit === "g" ? "g" : "";
+      const consumedText = `${r.value}${unitSuffix}`;
+      const leftText = t("home.macros.left", { n: `${Math.max(0, Math.round(r.goal - r.value))}${unitSuffix}` });
+      return isConsumedMode
+        ? { primaryHtml: consumedText, secondaryHtml: leftText }
+        : { primaryHtml: leftText, secondaryHtml: `${consumedText} ${t("coaching.week.consumed").toLowerCase()}` };
+    }
+
     function macroCardRows() {
       const eaten = sumMacrosForDay(nutritionLog[toIsoDate(new Date())]);
       const eatenKcal = Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4);
@@ -815,8 +830,7 @@
       const barRowsHtml = rows.map((r) => {
         const consumedPct = r.goal > 0 ? Math.max(0, Math.min(100, (r.value / r.goal) * 100)) : (r.value > 0 ? 100 : 0);
         const fillPct = macroCardFillPct(consumedPct);
-        const unitSuffix = r.unit === "g" ? "g" : "";
-        const leftValue = Math.max(0, Math.round(r.goal - r.value));
+        const { primaryHtml, secondaryHtml } = macroCardValueText(r, isConsumedMode);
         return `
           <div class="hm-macro-bar-row">
             <span class="hm-macro-bar-label">${r.label}</span>
@@ -824,8 +838,8 @@
               <span class="hm-macro-bar-fill ${r.cls}" data-metric="${r.key}" style="width:${fillPct}%;"></span>
             </span>
             <span class="hm-macro-bar-value">
-              <span class="hm-macro-bar-value-consumed" data-metric-consumed="${r.key}">${r.value}${unitSuffix}</span>
-              <span class="hm-macro-bar-value-left" data-metric-left="${r.key}">${t("home.macros.left", { n: `${leftValue}${unitSuffix}` })}</span>
+              <span class="hm-macro-bar-value-primary" data-metric-primary="${r.key}">${primaryHtml}</span>
+              <span class="hm-macro-bar-value-secondary" data-metric-secondary="${r.key}">${secondaryHtml}</span>
             </span>
           </div>
         `;
@@ -857,10 +871,16 @@
         return;
       }
       const { rows } = macroCardRows();
+      const isConsumedMode = macroCardMode === "consumed";
       rows.forEach((r) => {
         const consumedPct = r.goal > 0 ? Math.max(0, Math.min(100, (r.value / r.goal) * 100)) : (r.value > 0 ? 100 : 0);
         const fillEl = barsMount.querySelector(`.hm-macro-bar-fill[data-metric="${r.key}"]`);
         if (fillEl) fillEl.style.width = `${macroCardFillPct(consumedPct)}%`;
+        const { primaryHtml, secondaryHtml } = macroCardValueText(r, isConsumedMode);
+        const primaryEl = barsMount.querySelector(`[data-metric-primary="${r.key}"]`);
+        const secondaryEl = barsMount.querySelector(`[data-metric-secondary="${r.key}"]`);
+        if (primaryEl) primaryEl.innerHTML = primaryHtml;
+        if (secondaryEl) secondaryEl.innerHTML = secondaryHtml;
       });
       barsMount.querySelectorAll(".pc-week-toggle-btn").forEach((btn) => {
         btn.classList.toggle("is-active", btn.dataset.macroMode === macroCardMode);

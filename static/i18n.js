@@ -395,7 +395,7 @@
       "nutrition.searchToAdd": "Search for a food to add it.",
       "nutrition.manualMacro.title": "Can't find it?",
       "nutrition.manualMacro.sub": "Enter calories & macros directly",
-      "nutrition.manualMacro.button": "Log macros",
+      "nutrition.manualMacro.button": "Quick add",
 
       "settings.loginTitle": "Log in to manage settings",
       "settings.loginSub": "Your account, subscription, and unit preferences live on your account.",
@@ -1159,7 +1159,7 @@
       "nutrition.searchToAdd": "ค้นหาอาหารเพื่อเพิ่ม",
       "nutrition.manualMacro.title": "หาไม่เจอใช่ไหม?",
       "nutrition.manualMacro.sub": "กรอกแคลอรี่และมาโครด้วยตัวเอง",
-      "nutrition.manualMacro.button": "กรอกมาโคร",
+      "nutrition.manualMacro.button": "เพิ่มด่วน",
       "nutrition.recent": "ล่าสุด",
       "nutrition.noMatch": "ไม่พบอาหารที่ตรงกับ \"{query}\"",
 
