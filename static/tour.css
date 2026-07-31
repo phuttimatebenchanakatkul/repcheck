@@ -43,6 +43,33 @@
   100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 0%, transparent); }
 }
 
+/* An explicit, bouncing arrow sitting in the gap between the card and the
+   highlighted control, pointing straight at it -- proximity alone (the
+   card just sitting nearby) isn't an obvious enough cue for a genuinely
+   first-time user to know exactly what "tap here" refers to. Points down
+   by default (card below target); .is-up flips it for the card-above
+   case. tour.js positions it via left/top or left/bottom directly. */
+.tour-arrow {
+  position: fixed;
+  z-index: 241;
+  width: 26px; height: 26px;
+  color: var(--tour-accent);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.tour-arrow.is-visible { opacity: 1; animation: tour-arrow-bounce 1.3s ease-in-out infinite; }
+.tour-arrow.is-up { transform: rotate(180deg); }
+.tour-arrow.is-up.is-visible { animation-name: tour-arrow-bounce-up; }
+@keyframes tour-arrow-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+@keyframes tour-arrow-bounce-up {
+  0%, 100% { transform: rotate(180deg) translateY(0); }
+  50% { transform: rotate(180deg) translateY(5px); }
+}
+
 /* The card: pinned right next to the highlighted control (tour.js's
    placeCard sets top/bottom/left directly), or centred for the one
    no-target (welcome) step. */
@@ -158,4 +185,5 @@
   .tour-spotlight.has-target::after { animation: none; }
   .tour-card { animation: none; }
   .tour-mini-dot { animation: none; }
+  .tour-arrow.is-visible, .tour-arrow.is-up.is-visible { animation: none; }
 }

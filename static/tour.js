@@ -23,6 +23,14 @@
  * multi-page tour requires. Skippable at any point; Settings can replay it.
  */
 (function () {
+  // Guards against this script's whole body ever running more than once
+  // for the same document -- some environments (prerendering, a stray
+  // duplicate <script> tag, etc.) can end up evaluating a deferred script
+  // twice, which without this would attach two independent click
+  // listeners and double- (or triple-) advance the step on a single tap.
+  if (window.__repcheckTourInit) return;
+  window.__repcheckTourInit = true;
+
   var ACTIVE_KEY = "repcheck_pending_tour";
   var STEP_KEY = "repcheck_tour_step";
   if (localStorage.getItem(ACTIVE_KEY) !== "1") return;
@@ -61,7 +69,7 @@
       localStorage.removeItem(STEP_KEY);
     }
 
-    var overlay, spotlight, card, stepCountEl, titleEl, bodyEl, welcomeBtn;
+    var overlay, spotlight, arrowEl, card, stepCountEl, titleEl, bodyEl, welcomeBtn;
     var miniEl = null;
     var currentTarget = null;
     var pollTimer = null;
@@ -92,6 +100,7 @@
       overlay.setAttribute("aria-modal", "true");
       overlay.innerHTML =
         '<div class="tour-spotlight"></div>' +
+        '<div class="tour-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M5 13l7 7 7-7"/></svg></div>' +
         '<div class="tour-card">' +
           '<div class="tour-top">' +
             '<span class="tour-step-count"></span>' +
@@ -106,6 +115,7 @@
       document.body.appendChild(overlay);
 
       spotlight = overlay.querySelector(".tour-spotlight");
+      arrowEl = overlay.querySelector(".tour-arrow");
       card = overlay.querySelector(".tour-card");
       stepCountEl = overlay.querySelector(".tour-step-count");
       titleEl = overlay.querySelector(".tour-title");
@@ -142,22 +152,24 @@
 
     function placeCard(target) {
       if (!target) {
-        // No-target (welcome) step: a calm, centred card.
+        // No-target (welcome) step: a calm, centred card, no pointing arrow.
         card.classList.add("is-centered");
         card.style.top = "";
         card.style.bottom = "";
         card.style.left = "";
+        arrowEl.classList.remove("is-visible");
         return;
       }
       card.classList.remove("is-centered");
       var r = target.getBoundingClientRect();
       var cardH = card.offsetHeight;
       var vh = window.innerHeight;
-      var margin = 14;
+      var margin = 26; // leaves room for the arrow between card and target
+      var cardBelow = r.bottom + margin + cardH <= vh - 12;
       // Sit right next to the highlighted control -- below it if there's
       // room, above it otherwise -- rather than pinned to a screen edge,
       // so the card always reads as "about that thing right there".
-      if (r.bottom + margin + cardH <= vh - 12) {
+      if (cardBelow) {
         card.style.top = (r.bottom + margin) + "px";
         card.style.bottom = "auto";
       } else {
@@ -167,6 +179,21 @@
       var left = r.left + r.width / 2 - card.offsetWidth / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - card.offsetWidth - 12));
       card.style.left = left + "px";
+
+      // A real arrow sitting in the gap, pointing straight at the
+      // highlighted control -- explicit, not just implied by proximity,
+      // so a brand-new user has no doubt what "tap here" refers to.
+      arrowEl.classList.add("is-visible");
+      arrowEl.classList.toggle("is-up", !cardBelow);
+      var arrowCenter = Math.max(24, Math.min(r.left + r.width / 2, window.innerWidth - 24));
+      arrowEl.style.left = (arrowCenter - 13) + "px";
+      if (cardBelow) {
+        arrowEl.style.top = (r.bottom + 2) + "px";
+        arrowEl.style.bottom = "auto";
+      } else {
+        arrowEl.style.bottom = (vh - r.top + 2) + "px";
+        arrowEl.style.top = "auto";
+      }
     }
 
     function reposition() {
