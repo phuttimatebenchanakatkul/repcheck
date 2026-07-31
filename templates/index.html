@@ -958,10 +958,7 @@
     };
 
     const overall = data.overall_score;
-    const stretch = data.stretch_score;
-    const squeeze = data.squeeze_score;
     const favored = data.favored;
-    const reps = data.reps;
 
     // A one-line verdict that ties the score to what the sections show:
     // low scores lead the user to the problems/injury risks, high scores to
@@ -1000,33 +997,13 @@
     return `
       ${agDockHtml()}
       ${data.video_url ? videoCard + tutorialCard : tutorialCard}
-      <div class="card">
-        <div class="an-result-hero">
-          <div class="an-result-hero-icon">${ANALYZE_ICONS.check}</div>
-          <div class="an-result-hero-title">${t("analyze.resultHeroTitle")}</div>
+      <div class="card an-hero-card">
+        <div class="an-score-ring ${scoreClass(overall)}">
+          <div class="an-score-value">${overall ?? "—"}</div>
+          <div class="an-score-outof">/ 100</div>
         </div>
-        <div class="stat-row">
-          <div class="stat score-stat ${scoreClass(overall)}">
-            <div class="stat-icon-chip">${ANALYZE_ICONS.target}</div>
-            <div class="stat-label">${t("analyze.overallFormTechnique")}</div>
-            <div class="stat-value">${overall ?? "—"}<span class="score-out-of">/100</span></div>
-          </div>
-          <div class="stat score-stat ${scoreClass(stretch)}">
-            <div class="stat-icon-chip">${ANALYZE_ICONS.expand}</div>
-            <div class="stat-label">${t("analyze.stretch")}</div>
-            <div class="stat-value">${stretch ?? "—"}<span class="score-out-of">/100</span></div>
-          </div>
-          <div class="stat score-stat ${scoreClass(squeeze)}">
-            <div class="stat-icon-chip">${ANALYZE_ICONS.contract}</div>
-            <div class="stat-label">${t("analyze.squeeze")}</div>
-            <div class="stat-value">${squeeze ?? "—"}<span class="score-out-of">/100</span></div>
-          </div>
-          <div class="stat stat-purple">
-            <div class="stat-icon-chip stat-icon-chip-purple">${ANALYZE_ICONS.repeat}</div>
-            <div class="stat-label">${t("analyze.repsCounted")}</div>
-            <div class="stat-value">${reps ?? "—"}</div>
-          </div>
-        </div>
+        <div class="an-score-label">${t("analyze.overallFormTechnique")}</div>
+        ${verdictHtml}
         ${favorNoteHtml}
       </div>
       <div class="card">
@@ -1034,7 +1011,6 @@
           <div class="fb-head-title">${t("analyze.formBreakdownFor", { exercise: data.exercise_label })}</div>
           <div class="fb-head-sub">${t("analyze.breakdownHint")}</div>
         </div>
-        ${verdictHtml}
         <div class="fb-list">${sections}</div>
       </div>
       <div class="an-again">

@@ -49,35 +49,21 @@
     </a>
   {% endif %}
 </div>
-<div class="card">
-  <div class="an-result-hero">
-    <div class="an-result-hero-icon">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-    </div>
-    <div class="an-result-hero-title" data-i18n="analyze.resultHeroTitle">Analysis complete!</div>
+<div class="card an-hero-card">
+  <div class="an-score-ring {{ 'score-good' if overall_score and overall_score >= 80 else 'score-ok' if overall_score and overall_score >= 50 else 'score-bad' }}">
+    <div class="an-score-value">{{ overall_score if overall_score is not none else '—' }}</div>
+    <div class="an-score-outof">/ 100</div>
   </div>
-  <div class="stat-row">
-    <div class="stat score-stat score-{{ 'good' if overall_score and overall_score >= 80 else 'ok' if overall_score and overall_score >= 50 else 'bad' }}">
-      <div class="stat-icon-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg></div>
-      <div class="stat-label" data-i18n="analyze.overallFormTechnique">Overall Form &amp; Technique</div>
-      <div class="stat-value">{{ overall_score if overall_score is not none else '—' }}<span class="score-out-of">/100</span></div>
-    </div>
-    <div class="stat score-stat score-{{ 'good' if stretch_score and stretch_score >= 80 else 'ok' if stretch_score and stretch_score >= 50 else 'bad' }}">
-      <div class="stat-icon-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></div>
-      <div class="stat-label" data-i18n="analyze.stretch">Stretch</div>
-      <div class="stat-value">{{ stretch_score if stretch_score is not none else '—' }}<span class="score-out-of">/100</span></div>
-    </div>
-    <div class="stat score-stat score-{{ 'good' if squeeze_score and squeeze_score >= 80 else 'ok' if squeeze_score and squeeze_score >= 50 else 'bad' }}">
-      <div class="stat-icon-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg></div>
-      <div class="stat-label" data-i18n="analyze.squeeze">Squeeze</div>
-      <div class="stat-value">{{ squeeze_score if squeeze_score is not none else '—' }}<span class="score-out-of">/100</span></div>
-    </div>
-    <div class="stat stat-purple">
-      <div class="stat-icon-chip stat-icon-chip-purple"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
-      <div class="stat-label" data-i18n="analyze.repsCounted">Reps Counted</div>
-      <div class="stat-value">{{ reps if reps is not none else '—' }}</div>
-    </div>
-  </div>
+  <div class="an-score-label" data-i18n="analyze.overallFormTechnique">Overall Form &amp; Technique</div>
+  {% if overall_score is not none %}
+    {% if overall_score < 50 %}
+      <div class="fb-verdict fb-verdict-bad" data-i18n="analyze.verdictBad">The issues outweighed what went well — start with the fixes below.</div>
+    {% elif overall_score >= 80 %}
+      <div class="fb-verdict fb-verdict-good" data-i18n="analyze.verdictGood">Strong set — keep it up and push a little further.</div>
+    {% else %}
+      <div class="fb-verdict fb-verdict-ok" data-i18n="analyze.verdictOk">A mixed set — what worked and what to tighten up.</div>
+    {% endif %}
+  {% endif %}
 
   {% if favored %}
     <div class="favor-note" data-favored="{{ favored }}"></div>
@@ -89,15 +75,6 @@
     <div class="fb-head-title" id="fb-title">{{ exercise_label }} — Form breakdown</div>
     <div class="fb-head-sub" data-i18n="analyze.breakdownHint">Tap a card to see the details</div>
   </div>
-  {% if overall_score is not none %}
-    {% if overall_score < 50 %}
-      <div class="fb-verdict fb-verdict-bad" data-i18n="analyze.verdictBad">The issues outweighed what went well — start with the fixes below.</div>
-    {% elif overall_score >= 80 %}
-      <div class="fb-verdict fb-verdict-good" data-i18n="analyze.verdictGood">Strong set — keep it up and push a little further.</div>
-    {% else %}
-      <div class="fb-verdict fb-verdict-ok" data-i18n="analyze.verdictOk">A mixed set — what worked and what to tighten up.</div>
-    {% endif %}
-  {% endif %}
   <div class="fb-list">
     {% for section in sections %}
       <div class="fb-item fb-{{ section.css_class }}{% if section.emphasis == 'muted' %} fb-item-muted{% endif %}{% if section.detail_html %} is-expandable{% endif %}">
