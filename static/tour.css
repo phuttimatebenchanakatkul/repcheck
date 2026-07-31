@@ -1,28 +1,30 @@
-/* First-run guided tour (see tour.js). Kept deliberately minimal so a new
-   user is never overwhelmed: a light dim, a ring around the one control
-   being described, and a small bottom card with one sentence and a single
-   Next button. One brand accent throughout. Skippable. */
+/* First-run guided tour (see tour.js) -- MyFitnessPal-style: one dim
+   overlay, a bright cutout + ring around the single control being
+   described, and a small card sitting right next to it with a bold
+   title and one line of body copy. No page-blocking: the overlay and
+   card are pointer-events:none, so every click still reaches the real
+   page underneath (see tour.js's onAnyClick). */
 
 .tour-overlay {
   position: fixed;
   inset: 0;
   z-index: 240;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.25s ease;
   --tour-accent: #2f66e8;
   --tour-accent-2: #4d7ff5;
 }
 .tour-overlay.is-visible { opacity: 1; }
 
-/* The spotlight: a window over the highlighted control with a light dim
-   around it. Collapses to nothing at centre for no-target steps. The
-   overlay swallows clicks so nothing on the page fires mid-tour. */
+/* The spotlight: a window over the highlighted control with a dim
+   backdrop around it (box-shadow trick, no real DOM hole -- clicks pass
+   through everywhere because the overlay itself is pointer-events:none). */
 .tour-spotlight {
   position: absolute;
   border-radius: 14px;
-  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.30);
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.45);
   transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
-  pointer-events: none;
 }
 .tour-spotlight.has-target {
   outline: 3px solid var(--tour-accent);
@@ -41,15 +43,12 @@
   100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 0%, transparent); }
 }
 
-/* Small card pinned to the bottom, out of the way of the highlighted
-   control (which tour.js scrolls into the upper part of the screen). */
+/* The card: pinned right next to the highlighted control (tour.js's
+   placeCard sets top/bottom/left directly), or centred for the one
+   no-target (welcome) step. */
 .tour-card {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: 16px;
-  margin: 0 auto;
-  max-width: 380px;
+  width: min(320px, calc(100vw - 24px));
   z-index: 241;
   background: var(--card-bg);
   color: var(--text);
@@ -58,14 +57,26 @@
   padding: 14px 16px;
   animation: tour-card-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.tour-card.is-centered {
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%);
+  width: min(340px, calc(100vw - 32px));
+}
 @keyframes tour-card-in {
-  from { opacity: 0; transform: translateY(18px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+.tour-card.is-centered { animation: tour-card-in-centered 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes tour-card-in-centered {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 .tour-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .tour-step-count { font-size: 10.5px; font-weight: 800; color: var(--tour-accent); text-transform: uppercase; letter-spacing: 0.05em; }
 .tour-skip {
+  pointer-events: auto;
   background: none; border: none;
   color: var(--text-secondary);
   font-size: 12.5px; font-weight: 700; font-family: inherit;
@@ -76,9 +87,9 @@
 .tour-title { font-size: 16.5px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }
 .tour-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px; }
 
-.tour-foot { display: flex; justify-content: flex-end; margin-top: 13px; }
-
+.tour-welcome-foot { display: flex; justify-content: flex-end; margin-top: 13px; }
 .tour-next {
+  pointer-events: auto;
   border: none;
   border-radius: 12px;
   background: linear-gradient(135deg, var(--tour-accent), var(--tour-accent-2));
@@ -91,8 +102,60 @@
 }
 .tour-next:active { transform: scale(0.96); }
 
+/* ---------- Low-key "still going" pill ----------
+   Shown instead of the full overlay once the current step's page isn't
+   where the user actually is (including right after acknowledging a
+   step) -- deliberately small and out of the way, never blocking
+   anything, but still visibly there so the tour doesn't just vanish. */
+.tour-mini {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 8px);
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 8px 8px 14px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.tour-mini.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.tour-mini-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--tour-accent);
+  animation: tour-mini-pulse 1.8s ease-in-out infinite;
+}
+@keyframes tour-mini-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.tour-mini-text {
+  font-size: 12px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tour-mini-skip {
+  flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: none; background: var(--bg); color: var(--text-secondary);
+  font-size: 15px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.tour-mini-skip:hover { color: var(--text); }
+
+/* Clears the fixed bottom tab bar (.mobile-tabbar, style.css) instead of
+   sitting underneath/behind it. */
+@media (max-width: 720px) {
+  .tour-mini { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tour-spotlight { transition: none; }
   .tour-spotlight.has-target::after { animation: none; }
   .tour-card { animation: none; }
+  .tour-mini-dot { animation: none; }
 }
