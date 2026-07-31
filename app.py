@@ -643,12 +643,12 @@ def split_summary_and_detail(html):
 def section_emphasis(css_class, overall_score):
     """How prominently to show a feedback section, driven by the overall
     score. A poor set (<50) should confront the lifter with what went wrong
-    and how to avoid injury rather than flatter them with positives, so the
-    positives are shown only in a limited/muted form and the neutral
-    sections (summary/improvements/progress) are dropped entirely. A strong
-    set (>=80) should lead with what they nailed and how to progress, with
-    everything else kept as secondary. A middling set (50-79) shows every
-    section evenly. Returns "featured", "muted", or "hidden".
+    and how to avoid injury rather than flatter them with positives, so
+    positives are dropped entirely along with the neutral sections
+    (summary/improvements/progress). A strong set (>=80) should lead with
+    what they nailed and how to progress, with everything else kept as
+    secondary. A middling set (50-79) shows every section evenly. Returns
+    "featured", "muted", or "hidden".
 
     Note: the full, unfiltered feedback text is still sent to the client for
     the AI chatbot's context (see the analyze route), so hiding a section
@@ -658,8 +658,6 @@ def section_emphasis(css_class, overall_score):
     if overall_score < 50:
         if css_class in ("negatives", "injury"):
             return "featured"
-        if css_class == "positives":
-            return "muted"
         return "hidden"
     if overall_score >= 80:
         if css_class in ("positives", "progress"):

@@ -626,12 +626,13 @@ input[type="file"], select {
 .favor-note strong { text-transform: capitalize; }
 
 /* ---------- Analyze results: Apple-Intelligence-style "ask" bar ----------
-   Replaces the old boxed chatbot. A frosted-glass pill pinned to the
-   bottom that fades in once you scroll to the last section; asking a
-   question grows a translucent thread panel upward from it. The same
-   AnalyzeChatWidget.init(context) drives it, shared by index.html (AJAX)
-   and result.html (fallback). Scoped to one analysis, no persistence --
-   context is re-sent with every message, like coach_chat.py's history. */
+   Replaces the old boxed chatbot. A frosted-glass pill in normal flow at
+   the top of the results; asking a question grows a translucent thread
+   panel downward from it, pushing the rest of the results down to make
+   room. The same AnalyzeChatWidget.init(context) drives it, shared by
+   index.html (AJAX) and result.html (fallback). Scoped to one analysis,
+   no persistence -- context is re-sent with every message, like
+   coach_chat.py's history. */
 
 /* "Analyze another" is a normal button at the end of the content --
    given real room above it so it reads as a deliberate next step, not
@@ -658,7 +659,11 @@ input[type="file"], select {
 
 /* The pill: collapsed it's a small, quiet centered circle. On .is-open it
    widens into the full centered bar; overflow-hidden clips the input row
-   until it's grown. */
+   until it's grown. A slow, subtle breathing glow on the collapsed circle
+   (same idea as the "+" FAB's mt-fab-breathe -- a proven "quietly invites
+   a tap without being distracting" pattern already used elsewhere in this
+   app) so the dock doesn't read as just an inert icon -- recognizable as
+   something to tap, without any loud color or permanent motion once open. */
 .ag-bar {
   align-self: center;
   position: relative;
@@ -672,6 +677,7 @@ input[type="file"], select {
   backdrop-filter: blur(22px) saturate(1.6);
   border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: ag-bar-breathe 3.6s ease-in-out infinite;
   transition: width 0.44s cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 0.34s ease, border-color 0.2s ease,
               background-color 0.34s ease;
@@ -682,7 +688,25 @@ input[type="file"], select {
   background: color-mix(in srgb, var(--card-bg) 55%, transparent);
   border-color: color-mix(in srgb, var(--text) 12%, transparent);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22);
+  animation: none;
 }
+@keyframes ag-bar-breathe {
+  0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
+  50% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 5px color-mix(in srgb, var(--purple) 14%, transparent); }
+}
+
+/* Small persistent caption under the dock naming what it is -- the bare
+   sparkle icon alone reads as decoration more than a button; a couple
+   words of muted text fix that without adding any color or size. Fades
+   out once open, when the input/panel take over the same job. */
+.ag-dock-label {
+  margin-top: 6px;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--text-secondary);
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+.ag-dock.is-open .ag-dock-label { opacity: 0; pointer-events: none; }
 
 /* The sparkle circle IS the toggle button: tap to open, tap again to close. */
 .ag-spark {
@@ -744,7 +768,7 @@ input[type="file"], select {
 }
 .ag-dock.is-open .ag-panel-inner { padding-top: 10px; }
 @media (prefers-reduced-motion: reduce) {
-  .ag-bar, .ag-panel { transition: none; }
+  .ag-bar, .ag-panel { transition: none; animation: none; }
 }
 
 /* Conversation thread: see-through glass panel below the bar. */
