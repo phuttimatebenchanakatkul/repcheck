@@ -554,18 +554,21 @@ input[type="file"], select {
    full-width rectangle so the grid never leaves a hole (with 3 sections:
    one rectangle + two blocks). The verdict stays a single quiet dot-led
    line so only the tiles carry color. */
-.fb-head { margin-bottom: 4px; }
-.fb-head-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
-.fb-head-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; font-weight: 500; }
+.fb-head { margin-bottom: 8px; }
+.fb-head-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.35; }
+.fb-head-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 5px; font-weight: 500; }
 
-.fb-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fb-list { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
 /* One-line verdict tying the score to what the sections show: a small
-   colored dot + short colored sentence, no filled banner. */
+   colored dot + short colored sentence, no filled banner. Generous
+   padding on mobile so it doesn't read as glued to the subhead above or
+   the cards below -- this is the line that sets up the whole breakdown,
+   so it needs room to breathe like a paragraph, not a label. */
 .fb-verdict {
   display: flex; align-items: flex-start; gap: 8px;
-  font-size: 15px; font-weight: 600; line-height: 1.5;
-  padding: 8px 2px 14px;
+  font-size: 15px; font-weight: 600; line-height: 1.55;
+  padding: 12px 2px 22px;
 }
 .fb-verdict::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%;
@@ -592,16 +595,20 @@ input[type="file"], select {
 .fb-item-muted { opacity: 0.62; }
 
 /* Square-ish blocks stack icon-over-text; the full-width rectangle lays
-   out as a classic icon-beside-text row. */
+   out as a classic icon-beside-text row. Padding widened (mobile-first --
+   this app is used almost exclusively on phones) so the icon/label/
+   summary don't feel shrink-wrapped against the tile edge; the extra
+   room also gives the summary sentence itself space to read as a short
+   paragraph instead of a caption crammed under its label. */
 .fb-item-main {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
-  width: 100%; padding: 14px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
+  width: 100%; padding: 18px 16px;
   background: none; border: none; text-align: left; font-family: inherit; color: var(--text);
 }
 .fb-item:first-child:nth-last-child(odd) .fb-item-main {
-  flex-direction: row; align-items: flex-start; gap: 12px;
+  flex-direction: row; align-items: flex-start; gap: 14px;
 }
-.fb-item.is-expandable .fb-item-main { cursor: pointer; padding-right: 34px; }
+.fb-item.is-expandable .fb-item-main { cursor: pointer; padding-right: 36px; }
 .fb-item.is-expandable .fb-item-main:active { transform: scale(0.98); }
 
 .fb-item-icon {
@@ -612,25 +619,29 @@ input[type="file"], select {
 
 .fb-item-text { flex: 1; min-width: 0; }
 .fb-item-title {
-  font-size: 10.5px; font-weight: 800; margin-bottom: 4px;
+  font-size: 10.5px; font-weight: 800; margin-bottom: 7px;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
-.fb-item-summary { font-size: 15px; font-weight: 500; line-height: 1.5; color: var(--text); }
+.fb-item-summary { font-size: 15px; font-weight: 500; line-height: 1.55; color: var(--text); }
 .fb-item-summary p { margin: 0; }
 
 .fb-item-chevron {
-  position: absolute; top: 12px; right: 12px;
+  position: absolute; top: 16px; right: 14px;
   color: var(--text-secondary); opacity: 0.7;
   transition: transform 0.25s ease;
 }
 .fb-item.is-expanded .fb-item-chevron { transform: rotate(180deg); }
 
-.fb-item-detail { display: none; padding: 0 14px 14px; }
+/* A visible rule (not just padding) so the expanded detail reads as a
+   distinct "here's more" block under the headline, not text that just
+   continues on with no boundary -- the zero top-padding this used to
+   have made the two run together. */
+.fb-item-detail { display: none; padding: 14px 16px 18px; border-top: 1px solid var(--border); }
 .fb-item.is-expanded .fb-item-detail { display: block; animation: fb-reveal 0.24s ease; }
 .fb-item-detail ul { margin: 0; padding-left: 17px; }
-.fb-item-detail li { font-size: 15px; line-height: 1.6; color: var(--text); margin-bottom: 6px; }
+.fb-item-detail li { font-size: 15px; line-height: 1.65; color: var(--text); margin-bottom: 10px; }
 .fb-item-detail li:last-child { margin-bottom: 0; }
-.fb-item-detail p { margin: 0; font-size: 15px; line-height: 1.6; }
+.fb-item-detail p { margin: 0; font-size: 15px; line-height: 1.65; }
 @keyframes fb-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 /* Pale pastel tile per category + small solid icon chip (flat, no
@@ -687,8 +698,10 @@ input[type="file"], select {
    and result.html (fallback). Scoped to one analysis, no persistence --
    context is re-sent with every message, like coach_chat.py's history. */
 
-/* "Analyze another" is a normal button at the end of the content. */
-.an-again { display: flex; justify-content: center; margin-top: 24px; }
+/* "Analyze another" is a normal button at the end of the content --
+   given real room above it so it reads as a deliberate next step, not
+   text that happens to have a button stuck to the bottom of it. */
+.an-again { display: flex; justify-content: center; margin-top: 36px; }
 .an-again .btn-primary { margin-top: 0; max-width: 320px; }
 
 /* The dock sits in normal flow in the MIDDLE at the top of the results as a

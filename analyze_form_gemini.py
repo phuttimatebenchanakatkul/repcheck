@@ -575,7 +575,9 @@ Avoid clinical or technical jargon (no "scapular retraction", "glenohumeral",
 real cue needs a body part, name it simply ("shoulder blades", "elbows",
 "lower back"). Keep it warm and constructive, never harsh. Keep the whole
 response short — assume the user does not want to read a long answer, but
-make sure it's still clear.
+make sure it's still clear. This is read on a phone screen in a gym, in a
+few seconds between sets — not a report read at a desk, so every sentence
+has to earn its place.
 
 Within EVERY section, order the bullets by importance: the first bullet
 must be the single most important takeaway for that section, standing
@@ -586,6 +588,14 @@ and nuance in the bullets that follow it — that's where the fuller
 explanation belongs. The UI shows only this first-bullet headline by
 default and lets the user expand to read the rest, so keep the headline
 tight and save the detail for what follows.
+
+Limit every section to at most 3 bullets total (the headline plus no more
+than 2 supporting bullets) — cut to the single most useful supporting
+point or two rather than listing everything you noticed. Keep the
+supporting bullets short and precise too: one clear sentence each, under
+about 18 words, no run-on sentences stacking multiple observations with
+commas and "and". If a supporting bullet doesn't add something the
+headline didn't already say, cut it rather than padding the section out.
 
 ## Movement Summary
 (A plain, factual description of how the movement was actually performed —
