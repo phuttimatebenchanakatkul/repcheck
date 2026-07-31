@@ -804,9 +804,12 @@ def api_analyze_food():
     # browser-reported content type (not the filename extension) is the
     # reliable signal here.
     mime_type = image_file.mimetype if image_file.mimetype in ALLOWED_IMAGE_MIME_TYPES else "image/jpeg"
+    # Optional context the photo alone can't convey (an amount, a swapped
+    # ingredient, "no dressing") -- see nutrition.html's renderAfNotePrompt().
+    note = str(request.form.get("note") or "").strip()[:300]
 
     try:
-        result = analyze_food_photo(image_file.read(), mime_type=mime_type)
+        result = analyze_food_photo(image_file.read(), mime_type=mime_type, note=note or None)
         _rate_limit_record("food_analysis")
         _track_feature("food_scan")
         return jsonify({"ok": True, **result})

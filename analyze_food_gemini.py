@@ -178,10 +178,18 @@ def _validate(parsed):
     }
 
 
-def analyze_food_photo(image_bytes, mime_type="image/jpeg"):
+def analyze_food_photo(image_bytes, mime_type="image/jpeg", note=None):
     """Returns a dict: food_name, confidence, note, ingredients (list of
     {name, grams, calories, protein, fat, carbs} where the macros are
     per-100g), plus calories/protein/fat/carbs summed totals for display.
+
+    `note` is optional free text the user typed after picking the photo
+    but before it was sent here (see nutrition.html's renderAfNotePrompt())
+    -- a correction or detail the photo alone can't convey, e.g. an actual
+    weighed amount or a swapped/omitted ingredient. Told to Gemini as an
+    instruction to defer to over its own visual guess, not just contextual
+    flavor text, since a visual portion/ingredient estimate is often the
+    least accurate part of this whole flow.
 
     Raises FoodAnalysisError if the photo can't be analyzed (missing API
     key, Gemini error, or an unparseable response) — callers should catch
@@ -204,6 +212,15 @@ def analyze_food_photo(image_bytes, mime_type="image/jpeg"):
             SYSTEM_PROMPT,
             types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
         ]
+        note = str(note or "").strip()
+        if note:
+            contents.append(
+                "The user who took this photo added the following note about it -- "
+                "treat it as more reliable than your own visual read and use it to "
+                "correct or refine your estimate (e.g. an actual amount in grams, an "
+                "ingredient that's missing/extra/swapped, how it was cooked): "
+                f'"{note}"'
+            )
         response = client.models.generate_content(model=GEMINI_MODEL, contents=contents)
         parsed = _extract_json(response.text)
         return _validate(parsed)

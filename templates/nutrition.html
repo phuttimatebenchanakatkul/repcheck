@@ -627,6 +627,22 @@
     margin-bottom: 14px;
   }
 
+  /* Optional context field shown after a photo is picked, before it's
+     sent to Gemini -- e.g. an amount or correction the photo alone can't
+     convey ("chicken was ~200g", "no dressing"). */
+  .af-note-field { margin-bottom: 14px; }
+  .af-note-label { display: block; font-size: 12.5px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
+  .af-note-input {
+    width: 100%; box-sizing: border-box;
+    border: 1.5px solid var(--border); border-radius: 12px;
+    background: var(--bg); color: var(--text);
+    padding: 11px 13px; font-size: 14px; font-family: inherit; line-height: 1.5;
+    resize: vertical;
+    transition: border-color 0.15s ease;
+  }
+  .af-note-input:focus { outline: none; border-color: var(--blue); }
+  .af-note-input::placeholder { color: var(--text-secondary); }
+
   /* ---------- Scan result: a calm "here's your plate" reveal ----------
      The result reads top-down like a moment, not a form: hero photo with
      a soft confidence badge, the dish name as a big editable title, then
@@ -2124,6 +2140,7 @@
   let afImageBlob = null;   // the photo (captured or uploaded) waiting to be analyzed
   let afPreviewUrl = null;  // object URL for the preview <img>, revoked on close
   let afResult = null;      // last successful analysis, kept for logging
+  let afNote = "";          // optional user-written context, sent to Gemini alongside the photo
 
   // Every step of the photo-analysis flow (choice screen -> loading spinner
   // -> result/error) replaces afModalBody.innerHTML wholesale -- there are
@@ -2153,6 +2170,7 @@
         if (afPreviewUrl) { URL.revokeObjectURL(afPreviewUrl); afPreviewUrl = null; }
         afImageBlob = null;
         afResult = null;
+        afNote = "";
         stopLiveBarcodeScan();
       });
     } else {
@@ -2160,6 +2178,7 @@
       if (afPreviewUrl) { URL.revokeObjectURL(afPreviewUrl); afPreviewUrl = null; }
       afImageBlob = null;
       afResult = null;
+      afNote = "";
       stopLiveBarcodeScan();
     }
   }
@@ -2348,8 +2367,34 @@
     afImageBlob = blobOrFile;
     if (afPreviewUrl) URL.revokeObjectURL(afPreviewUrl);
     afPreviewUrl = URL.createObjectURL(blobOrFile);
-    renderAfLoading();
-    analyzeAfPhoto();
+    renderAfNotePrompt();
+  }
+
+  // Shown after a photo is captured/picked but before it's sent to
+  // Gemini -- a chance to add anything the photo alone can't tell it
+  // (an amount, a swapped ingredient, "no dressing", etc.), since a
+  // visual estimate is often the one part of this flow furthest from
+  // the truth. Entirely optional; an empty note changes nothing.
+  function renderAfNotePrompt() {
+    afModalBody.innerHTML = `
+      <img class="af-result-photo" src="${afPreviewUrl}" alt="">
+      <div class="af-note-field">
+        <label class="af-note-label" for="af-note-input">Anything to add? (optional)</label>
+        <textarea id="af-note-input" class="af-note-input" rows="2" maxlength="300" placeholder="e.g. the chicken was about 200g, no rice, extra sauce..."></textarea>
+      </div>
+      <div class="af-actions">
+        <button type="button" class="af-secondary-btn" id="af-note-back-btn" style="flex:1;">Retake</button>
+        <button type="button" class="nl-save-goals-btn" id="af-note-continue-btn" style="flex:2;">Analyze</button>
+      </div>
+    `;
+    const noteInput = document.getElementById("af-note-input");
+    noteInput.value = afNote;
+    document.getElementById("af-note-back-btn").addEventListener("click", renderAfChoice);
+    document.getElementById("af-note-continue-btn").addEventListener("click", () => {
+      afNote = noteInput.value.trim();
+      renderAfLoading();
+      analyzeAfPhoto();
+    });
   }
 
   function renderAfLoading() {
@@ -2366,6 +2411,7 @@
     try {
       const formData = new FormData();
       formData.append("image", afImageBlob, "photo.jpg");
+      if (afNote) formData.append("note", afNote);
       const response = await fetch("{{ url_for('api_analyze_food') }}", { method: "POST", body: formData });
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || "Analysis failed");
@@ -2441,14 +2487,15 @@
   }
 
   // ---------- Live in-app barcode scanning (no photo upload needed) ----------
-  // DISABLED FOR NOW: getUserMedia (needed for a live camera feed) only
-  // works in a "secure context" (HTTPS, or plain HTTP on localhost only),
-  // and the self-signed HTTPS cert this required on the LAN was too much
-  // friction for now (browser trust warnings on every device). Commented
-  // out rather than deleted so it's easy to re-enable later --
-  // startBarcodeScan()'s button handler below calls the file-input
-  // photo-capture flow directly instead, which works everywhere.
-  /*
+  // getUserMedia (needed for a live camera feed) only works in a "secure
+  // context" (HTTPS, or plain HTTP on localhost) -- the deployed site is
+  // real HTTPS, so this works there; the try/catch below falls back to
+  // the photo-capture flow automatically anywhere it doesn't (plain-HTTP
+  // LAN testing, no BarcodeDetector support, camera permission denied).
+  // A live feed is what actually fixes "scanning is hit or miss": it
+  // keeps trying frames continuously until one decodes cleanly, instead
+  // of a single static photo living or dying on one shot's focus/angle/
+  // glare with no automatic retry.
   let barcodeLiveStream = null;
   let barcodeLiveRafId = null;
 
@@ -2537,14 +2584,6 @@
       document.getElementById("af-retry-btn").addEventListener("click", renderAfChoice);
     }
   }
-  */
-  function startLiveBarcodeScan() {
-    // Live camera scanning is disabled for now (see comment block above)
-    // -- go straight to the photo-capture flow, which decodes the
-    // barcode server-side with pyzbar and works over plain HTTP.
-    afBarcodeInput.click();
-  }
-  function stopLiveBarcodeScan() {} // no-op while live scanning is disabled; kept so closeAnalyzeFoodModal()'s call is harmless
 
   // Grams-per-unit for the amount editor below. "serving" isn't fixed —
   // it's whatever grams the scan itself reported as one serving/portion

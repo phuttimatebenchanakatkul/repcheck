@@ -81,19 +81,51 @@ def decode_barcode(image_bytes):
 
 
 def _parse_serving_grams(product):
-    """Open Food Facts' serving_size is a free-text field like "30 g" or
-    "1 bar (45g)" -- pull the first gram amount out of it if present,
-    otherwise fall back to a single 100g reference serving."""
+    """Open Food Facts' serving_size is a free-text field like "30 g",
+    "1 bar (45g)", "355 ml", or "12 fl oz" -- pull a gram-equivalent
+    amount out of it if present, otherwise fall back to a single 100g
+    reference serving. Getting this wrong silently produces a badly-off
+    logged total even when the underlying per-100g data is correct (e.g.
+    a 355ml can defaulting to a 100g serving would under-report a full
+    can's calories by more than half), so ml/oz are converted too, not
+    just g."""
     serving_size = product.get("serving_size") or ""
+
     match = re.search(r"([\d.]+)\s*g\b", serving_size, flags=re.IGNORECASE)
     if match:
-        try:
-            grams = float(match.group(1))
-            if grams > 0:
-                return round(grams)
-        except ValueError:
-            pass
+        grams = _positive_float(match.group(1))
+        if grams:
+            return round(grams)
+
+    # "fl oz" (volume) before plain "oz" (weight) -- "12 fl oz" must not
+    # be caught by the weight-ounce pattern first.
+    match = re.search(r"([\d.]+)\s*fl\.?\s*oz\b", serving_size, flags=re.IGNORECASE)
+    if match:
+        fl_oz = _positive_float(match.group(1))
+        if fl_oz:
+            return round(fl_oz * 29.5735)  # ~1g per ml for typical (mostly-water) drinks
+
+    match = re.search(r"([\d.]+)\s*ml\b", serving_size, flags=re.IGNORECASE)
+    if match:
+        ml = _positive_float(match.group(1))
+        if ml:
+            return round(ml)  # same ~1g-per-ml approximation
+
+    match = re.search(r"([\d.]+)\s*oz\b", serving_size, flags=re.IGNORECASE)
+    if match:
+        oz = _positive_float(match.group(1))
+        if oz:
+            return round(oz * 28.3495)
+
     return 100
+
+
+def _positive_float(raw):
+    try:
+        value = float(raw)
+        return value if value > 0 else None
+    except ValueError:
+        return None
 
 
 def _lookup_product(barcode):
@@ -134,6 +166,46 @@ def _brand_name(product):
     return str(brands or "").strip().split(",")[0].strip()
 
 
+KJ_PER_KCAL = 4.184
+# Physically impossible/implausible per-100g bounds -- a real product can
+# never report more than 100g of a macro per 100g of itself, and even
+# pure fat/oil tops out around 884 kcal/100g, so anything past this is a
+# corrupted entry (a common Open Food Facts data-quality problem, being
+# crowd-sourced), not a real product worth showing the user as fact.
+MAX_PLAUSIBLE_MACRO_G = 100
+MAX_PLAUSIBLE_KCAL = 900
+
+
+def _sanitize_per_100g(per_100g, food_name, source):
+    """Catches the two most common Open Food Facts data-entry problems
+    instead of quietly handing the user a wrong number: a calorie value
+    that's actually in kJ (not kcal -- OFF stores both, and the two get
+    mixed up on entry more often than you'd hope), and flatly impossible
+    values (e.g. "1043"g of protein per 100g, a typo for "10.43"). The kJ
+    mix-up is corrected in place since it's specific and mechanically
+    verifiable against the macros; anything past the plausible bounds is
+    rejected outright rather than guessed at."""
+    macro_kcal = per_100g["protein"] * 4 + per_100g["fat"] * 9 + per_100g["carbs"] * 4
+    reported = per_100g["calories"]
+    if macro_kcal > 0 and reported > macro_kcal * 3:
+        corrected = reported / KJ_PER_KCAL
+        if abs(corrected - macro_kcal) <= max(macro_kcal * 0.25, 20):
+            per_100g["calories"] = corrected
+
+    for key in ("protein", "fat", "carbs"):
+        if per_100g[key] > MAX_PLAUSIBLE_MACRO_G:
+            raise BarcodeScanError(
+                f"The nutrition data for \"{food_name}\" on {source} looks incorrect "
+                "(an implausible amount per 100g) -- try searching for it manually instead."
+            )
+    if per_100g["calories"] > MAX_PLAUSIBLE_KCAL:
+        raise BarcodeScanError(
+            f"The nutrition data for \"{food_name}\" on {source} looks incorrect "
+            "(an implausible calorie count) -- try searching for it manually instead."
+        )
+    return per_100g
+
+
 def _validate(barcode, product, source="Open Food Facts"):
     name = str(product.get("product_name") or "").strip()
     brand = _brand_name(product)
@@ -160,6 +232,7 @@ def _validate(barcode, product, source="Open Food Facts"):
         raise BarcodeScanError(
             f"Found \"{food_name}\" but it has no nutrition data on {source}."
         )
+    per_100g = _sanitize_per_100g(per_100g, food_name, source)
 
     grams = _parse_serving_grams(product)
     scale = grams / 100
