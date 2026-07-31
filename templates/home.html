@@ -104,26 +104,32 @@
 
 {% if current_user %}
 <!--
-  Challenges: same functionality and element IDs as before (the script
-  below and the record/leaderboard modals depend on them) — only the
-  presentation is simplified to match the new page.
+  Challenges: moved off the page and behind the "+" Quick Actions menu
+  (base.html) as its own bottom sheet -- opened via window.openChallengesSheet()
+  (defined below) or the ?quick=challenges deep link (see handleQuickAction()
+  further down), same convention as nutrition.html's "Scan a meal"/"barcode"
+  quick actions. Every element id below is unchanged from the old always-
+  visible card, so the leaderboard/record/result script further down keeps
+  working untouched -- only the top-level presentation + entry point moved.
 -->
-<div class="ch-card" id="ch-card">
-  <div class="ch-head">
-    <div class="ch-title-row">
-      <div class="ch-title" data-i18n="challenges.title">🏆 Challenges</div>
-      <div class="ch-title-chevron">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+<div class="log-sheet-overlay" id="ch-quick-overlay">
+  <div class="log-sheet ch-quick-sheet">
+    <div class="log-sheet-handle"></div>
+    <div class="ch-quick-hero">
+      <button type="button" class="log-sheet-close ch-quick-close" id="ch-quick-close" aria-label="Close">&times;</button>
+      <div class="ch-quick-trophy">🏆</div>
+      <div class="ch-quick-title" data-i18n="challenges.title">Challenges</div>
+      <div class="ch-today-exercise" id="ch-today-exercise"></div>
+    </div>
+    <div class="log-sheet-body ch-quick-body">
+      <div class="ch-lb-scope-label" id="ch-lb-scope-label" data-i18n="challenges.globalLeaderboard">🌍 Global leaderboard</div>
+      <div class="ch-lb-preview" id="ch-lb-preview"></div>
+      <div id="ch-lb-me-preview"></div>
+      <div class="ch-actions">
+        <button type="button" class="ch-btn-primary" id="ch-record-btn" data-i18n="challenges.recordAttempt">Record an attempt</button>
+        <button type="button" class="ch-btn-secondary" id="ch-view-full-btn" data-i18n="challenges.viewFullLeaderboard">View full leaderboard →</button>
       </div>
     </div>
-    <div class="ch-today-exercise" id="ch-today-exercise"></div>
-  </div>
-  <div class="ch-lb-scope-label" id="ch-lb-scope-label" data-i18n="challenges.globalLeaderboard">🌍 Global leaderboard</div>
-  <div class="ch-lb-preview" id="ch-lb-preview"></div>
-  <div id="ch-lb-me-preview"></div>
-  <div class="ch-actions">
-    <button type="button" class="ch-btn-primary" id="ch-record-btn" data-i18n="challenges.recordAttempt">Record an attempt</button>
-    <button type="button" class="ch-btn-secondary" id="ch-view-full-btn" data-i18n="challenges.viewFullLeaderboard">View full leaderboard →</button>
   </div>
 </div>
 
@@ -376,31 +382,52 @@
   .hm-cta-purple { color: var(--purple); }
   .hm-cta-slate { color: var(--text); }
 
-  /* ---------- Challenges (functionality unchanged; presentation refreshed) ---------- */
-  .ch-card {
-    background: var(--card-bg); color: var(--text);
-    border-radius: 20px; box-shadow: var(--shadow);
-    padding: 20px; margin-bottom: 22px; cursor: pointer;
-    transition: transform 0.13s ease, box-shadow 0.15s ease;
+  /* ---------- Challenges: bottom sheet opened from Quick Actions ----------
+     Built on the shared .log-sheet-* shell (base.html's openBottomSheet/
+     closeBottomSheet/bindSheetDrag) with its own amber "trophy" hero up
+     top -- same visual language as the goal-achieved celebration sheet
+     (base.html) and the check-in result screen (coaching.css), just in
+     this feature's own gold/amber accent instead of green/blue. */
+  .ch-quick-sheet { max-width: 480px; }
+  .ch-quick-hero {
+    position: relative;
+    background: linear-gradient(150deg, #f7b25c 0%, #e8832f 75%);
+    color: #fff;
+    text-align: center;
+    padding: 2px 24px 22px;
   }
-  .ch-card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
-  .ch-head { margin-bottom: 16px; }
-  .ch-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .ch-title { font-size: 16px; font-weight: 800; letter-spacing: -0.015em; flex: 1; min-width: 0; }
-  .ch-title-chevron {
-    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-    background: var(--amber-bg); color: var(--amber);
-    display: flex; align-items: center; justify-content: center;
+  .ch-quick-close {
+    position: absolute; top: 6px; right: 14px;
+    background: rgba(255, 255, 255, 0.22); color: #fff;
   }
+  .ch-quick-close:hover { background: rgba(255, 255, 255, 0.32); }
+  .ch-quick-close:active { transform: scale(0.9); }
+  .ch-quick-trophy {
+    font-size: 42px; line-height: 1; margin: 14px 0 8px;
+    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.22));
+    animation: ch-trophy-pop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards;
+  }
+  @keyframes ch-trophy-pop {
+    0% { opacity: 0; transform: scale(0.5) rotate(-8deg); }
+    70% { opacity: 1; transform: scale(1.12) rotate(3deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ch-quick-trophy { animation: none; }
+  }
+  .ch-quick-title { font-size: 21px; font-weight: 800; letter-spacing: -0.015em; margin-bottom: 12px; }
+  .ch-quick-body { padding-top: 18px; }
   /* One exercise rotates in per day for everybody (push-ups -> sit-ups ->
      pull-ups -> repeat) instead of the user picking one -- this just
-     shows which exercise today's attempt counts for. */
+     shows which exercise today's attempt counts for. Sits on the amber
+     hero here, so it's a translucent white pill (its own amber gradient
+     would disappear against the matching background) instead of the
+     amber-on-card treatment it'd otherwise use. */
   .ch-today-exercise {
     display: inline-flex; align-items: center; gap: 6px;
-    background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
+    background: rgba(255, 255, 255, 0.24); color: #fff;
     border-radius: 999px; padding: 7px 15px;
     font-size: 12px; font-weight: 800;
-    box-shadow: 0 5px 12px rgba(185, 131, 42, 0.3);
   }
 
   .ch-lb-scope-label {
@@ -1409,9 +1436,6 @@
       event.stopPropagation();
       openLeaderboardModal();
     });
-    // The whole card is clickable too (matches "make the challenges
-    // section clickable" — not just a small link inside it).
-    document.getElementById("ch-card").addEventListener("click", openLeaderboardModal);
 
     // ---------- Cosmetic "analyzing" pose overlay (MediaPipe) ----------
     // Purely visual — draws a live pose skeleton over the user's own
@@ -1815,6 +1839,38 @@
         loadFullLeaderboard();
       }
     });
+
+    // ---------- Challenges quick-action sheet ----------
+    // Opened from the "+" Quick Actions menu (base.html) rather than
+    // always sitting inline on the page -- same shared bottom-sheet
+    // system (openBottomSheet/closeBottomSheet/bindSheetDrag) every other
+    // sheet in the app uses. Exposed as window.openChallengesSheet so it
+    // could be triggered from elsewhere too, matching the precedent set by
+    // base.html's window.openLogWeightModal/openGoalAchievedSheet.
+    const chQuickOverlay = document.getElementById("ch-quick-overlay");
+    function openChallengesSheet() {
+      window.openBottomSheet(chQuickOverlay, ".ch-quick-sheet");
+    }
+    function closeChallengesSheet() {
+      window.closeBottomSheet(chQuickOverlay, ".ch-quick-sheet");
+    }
+    window.openChallengesSheet = openChallengesSheet;
+    document.getElementById("ch-quick-close").addEventListener("click", closeChallengesSheet);
+    chQuickOverlay.addEventListener("click", (event) => {
+      if (event.target === chQuickOverlay) closeChallengesSheet();
+    });
+    window.bindSheetDrag(chQuickOverlay, ".ch-quick-sheet", ".log-sheet-handle", closeChallengesSheet);
+
+    // Deep link from the FAB's "Challenges" tile (?quick=challenges) --
+    // same convention as nutrition.html's handleQuickAction() for "Scan a
+    // meal"/"barcode". Only meaningful on this page since the feature
+    // still lives entirely here, not in base.html.
+    (function handleQuickAction() {
+      const quick = new URLSearchParams(location.search).get("quick");
+      if (quick !== "challenges") return;
+      history.replaceState(null, "", location.pathname); // don't re-trigger on refresh
+      openChallengesSheet();
+    })();
   })();
 </script>
 {% endif %}

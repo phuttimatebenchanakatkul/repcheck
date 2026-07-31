@@ -452,6 +452,59 @@
     return wrap.firstElementChild;
   }
 
+  function showHistorySaveError(message) {
+    const existing = document.querySelector(".hx-save-error-toast");
+    if (existing) existing.remove();
+    const toast = el(`<div class="hx-save-error-toast">${message}</div>`);
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+  }
+
+  // Confirms a finished race is durably saved server-side (see POST
+  // /api/hyrox/history-entry in app.py). The generic account_sync.js blob
+  // sync (which saveHistory() also triggers via the wrapped localStorage
+  // .setItem) is fire-and-forget and re-sends the *whole* history on
+  // every write -- until now that was the ONLY path a finished race ever
+  // went through, which could silently lose it if that write raced with
+  // another save (e.g. closing the tab right after the finish screen).
+  // Not awaited by finishRace() -- the finish screen should feel instant;
+  // a failure here just surfaces a toast instead of blocking it.
+  async function persistHistoryEntry(entry) {
+    if (!window.REPCHECK_LOGGED_IN) return;
+    try {
+      const response = await fetch("/api/hyrox/history-entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entry }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Save failed");
+    } catch (err) {
+      showHistorySaveError(t("hyrox.history.saveError"));
+    }
+  }
+
+  // Authoritative counterpart to persistHistoryEntry() above -- confirms a
+  // removed race is actually gone server-side too. Needed now that the
+  // generic sync route merges the HYROX history instead of overwriting it
+  // (see database.py's MERGE_LOG_KEYS, added so a stale full-blob push can
+  // never silently erase races the server already had) -- a merge can
+  // only ever bring entries back, never remove one.
+  async function persistRemoveHistoryEntry(entryId) {
+    if (!window.REPCHECK_LOGGED_IN) return;
+    try {
+      const response = await fetch("/api/hyrox/history-entry", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entry_id: entryId }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Delete failed");
+    } catch (err) {
+      showHistorySaveError(t("hyrox.history.deleteError"));
+    }
+  }
+
   function loadJson(key, fallback) {
     try {
       const raw = localStorage.getItem(key);
@@ -877,6 +930,7 @@
       this.history = this.history.filter((r) => r.id !== id);
       this.saveHistory();
       this.render();
+      persistRemoveHistoryEntry(id);
     }
 
     // ---------- Leaderboard ----------
@@ -1021,6 +1075,7 @@
       // skip flagged, so junk times can't become a "best" or hit the board.
       this.history.push(record);
       this.saveHistory();
+      persistHistoryEntry(record);
       if (!flagged) {
         this.submitHyroxResult(record);
       }

@@ -361,9 +361,88 @@ def get_all_user_data(user_id):
     return {row["key"]: json.loads(row["value"]) for row in rows}
 
 
+# Keys representing append-only logs of dated/identified entries (workouts,
+# nutrition, weigh-ins, day statuses, HYROX races, lift analyses). The
+# generic sync route (POST/PUT /api/sync/<key> in app.py) used to overwrite
+# a user's whole blob for these keys with whatever the client last pushed --
+# fine for most keys, but for these it meant a client push racing behind a
+# newer write (from another device, or just a stale in-memory copy in a tab
+# that had been open a while) could silently DELETE entries the server
+# already had, since a plain overwrite has no way to tell "the client meant
+# to remove this" from "the client just doesn't know about it yet" (this is
+# the real cause behind entries like a logged meal quietly vanishing).
+# set_user_data() below now merges (union by date + id) with whatever's
+# already stored for these keys instead, so this route can only ever GAIN
+# entries, never lose them. Deletions still work: they go through their own
+# atomic per-entry endpoint instead (see remove_nutrition_log_entry() below
+# and DELETE /api/nutrition/log-entry in app.py), which edits the stored
+# value directly rather than depending on a diff against a possibly-stale
+# client blob. Mirrors static/account_sync.js's identical client-side merge
+# (MERGE_LOG_KEYS/mergeLog) -- keep both lists in sync.
+LOG_MERGE_ARRAY_KEYS = {"repcheck_hyrox_history_v1", "repcheck_analyze_log_v1"}
+LOG_MERGE_DATE_KEYED_KEYS = {
+    "repcheck_workout_log_v2",
+    "repcheck_nutrition_log_v1",
+    "repcheck_weight_log_v1",
+    "repcheck_day_status_v1",
+}
+MERGE_LOG_KEYS = LOG_MERGE_ARRAY_KEYS | LOG_MERGE_DATE_KEYED_KEYS
+
+
+def _merge_by_id(incoming, existing):
+    """Union two lists of entries by 'id' (falling back to full-value
+    identity for entries without one), incoming taking precedence on an id
+    collision -- mirrors account_sync.js's mergeById exactly."""
+    seen = set()
+    out = []
+    for item in list(incoming) + list(existing):
+        if isinstance(item, dict) and item.get("id") is not None:
+            marker = ("id", item["id"])
+        else:
+            marker = ("json", json.dumps(item, sort_keys=True))
+        if marker not in seen:
+            seen.add(marker)
+            out.append(item)
+    return out
+
+
+def _merge_date_keyed(incoming, existing):
+    """Union a date-keyed dict (date -> entry array, e.g. nutrition/workout
+    logs; or date -> scalar, e.g. weight/day-status). Every date on either
+    side is kept; arrays are id-merged, scalars prefer the incoming value on
+    a conflict. Mirrors account_sync.js's mergeDateKeyed exactly."""
+    incoming = incoming if isinstance(incoming, dict) else {}
+    existing = existing if isinstance(existing, dict) else {}
+    out = {}
+    for date_key in set(incoming) | set(existing):
+        iv, ev = incoming.get(date_key), existing.get(date_key)
+        if isinstance(iv, list) or isinstance(ev, list):
+            out[date_key] = _merge_by_id(iv if isinstance(iv, list) else [], ev if isinstance(ev, list) else [])
+        elif date_key in incoming:
+            out[date_key] = iv
+        else:
+            out[date_key] = ev
+    return out
+
+
 def set_user_data(user_id, key, value):
-    payload = json.dumps(value)
+    """Sets a synced key's value. For MERGE_LOG_KEYS, merges with whatever
+    is already stored instead of overwriting it outright -- see that
+    constant's comment above for why."""
     with get_db() as conn:
+        if key in MERGE_LOG_KEYS:
+            row = conn.execute(
+                "SELECT value FROM user_data WHERE user_id = ? AND key = ?", (user_id, key)
+            ).fetchone()
+            existing = json.loads(row["value"]) if row else None
+            if key in LOG_MERGE_ARRAY_KEYS:
+                value = _merge_by_id(
+                    value if isinstance(value, list) else [],
+                    existing if isinstance(existing, list) else [],
+                )
+            else:
+                value = _merge_date_keyed(value, existing)
+        payload = json.dumps(value)
         conn.execute(
             """INSERT INTO user_data (user_id, key, value, updated_at)
                VALUES (?, ?, ?, datetime('now'))
@@ -412,6 +491,34 @@ def append_nutrition_log_entry(user_id, date_iso, entry):
         return day_entries
 
 
+def remove_nutrition_log_entry(user_id, date_iso, entry_id):
+    """Atomically removes one entry (by id) from a user's nutrition log for
+    a given date -- the authoritative counterpart to
+    append_nutrition_log_entry() above (see DELETE /api/nutrition/log-entry
+    in app.py). Needed as its own endpoint now that set_user_data() merges
+    rather than overwrites for this key (see MERGE_LOG_KEYS): a merge can
+    only ever add entries back from an older stored copy, never remove one,
+    so a deletion has to edit the stored value directly instead of relying
+    on the generic sync route noticing an entry is now missing from a
+    pushed blob. Returns the updated list for that date."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM user_data WHERE user_id = ? AND key = ?",
+            (user_id, NUTRITION_LOG_KEY),
+        ).fetchone()
+        log = json.loads(row["value"]) if row else {}
+        day_entries = [e for e in log.get(date_iso, []) if e.get("id") != entry_id]
+        log[date_iso] = day_entries
+        payload = json.dumps(log)
+        conn.execute(
+            """INSERT INTO user_data (user_id, key, value, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (user_id, NUTRITION_LOG_KEY, payload),
+        )
+        return day_entries
+
+
 WEIGHT_LOG_KEY = "repcheck_weight_log_v1"
 
 
@@ -442,6 +549,67 @@ def set_weight_log_entry(user_id, date_iso, entry):
             (user_id, WEIGHT_LOG_KEY, payload),
         )
         return log
+
+
+HYROX_HISTORY_KEY = "repcheck_hyrox_history_v1"
+
+
+def append_hyrox_history_entry(user_id, entry):
+    """Atomically appends one finished race to a user's HYROX history,
+    entirely server-side -- same authoritative-write pattern as
+    append_nutrition_log_entry() above (see POST /api/hyrox/history-entry
+    in app.py). Until now a finished race went through the generic
+    localStorage-blob sync alone (hyrox.js's saveHistory() is a plain
+    localStorage.setItem, with no per-race server write of its own), which
+    is fire-and-forget and, being a whole-blob overwrite, could silently
+    lose a race if two saves raced (last write wins) -- exactly how a
+    logged time could vanish. This does a real read-modify-write inside
+    one transaction, so the race is durably recorded before the client
+    treats it as saved. Returns the updated history list."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM user_data WHERE user_id = ? AND key = ?",
+            (user_id, HYROX_HISTORY_KEY),
+        ).fetchone()
+        history = json.loads(row["value"]) if row else []
+        if not isinstance(history, list):
+            history = []
+        history.append(entry)
+        payload = json.dumps(history)
+        conn.execute(
+            """INSERT INTO user_data (user_id, key, value, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (user_id, HYROX_HISTORY_KEY, payload),
+        )
+        return history
+
+
+def remove_hyrox_history_entry(user_id, entry_id):
+    """Atomically removes one race (by id) from a user's HYROX history --
+    the authoritative counterpart to append_hyrox_history_entry() above
+    (see DELETE /api/hyrox/history-entry in app.py). Needed as its own
+    endpoint now that set_user_data() merges rather than overwrites this
+    key (see MERGE_LOG_KEYS): a merge can only ever bring entries back
+    from an older stored copy, never remove one, so a deletion has to edit
+    the stored value directly. Returns the updated history list."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM user_data WHERE user_id = ? AND key = ?",
+            (user_id, HYROX_HISTORY_KEY),
+        ).fetchone()
+        history = json.loads(row["value"]) if row else []
+        if not isinstance(history, list):
+            history = []
+        history = [r for r in history if r.get("id") != entry_id]
+        payload = json.dumps(history)
+        conn.execute(
+            """INSERT INTO user_data (user_id, key, value, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (user_id, HYROX_HISTORY_KEY, payload),
+        )
+        return history
 
 
 def update_account(user_id, name=None, email=None):

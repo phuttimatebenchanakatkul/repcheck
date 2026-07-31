@@ -73,10 +73,10 @@ ACTIVITY_PROTEIN_MULTIPLIER = {
 
 ASPIRATION_ADJUSTMENT = {
     # Fraction of TDEE to add/subtract for goals that aren't rate-driven.
-    # "lose" is handled separately via the user-chosen weekly loss rate
-    # (see LOSS_RATE_* below) instead of a flat fraction.
+    # "lose" and "gain" are both handled via a user-chosen weekly rate
+    # instead (see LOSS_RATE_*/GAIN_RATE_* below); "maintain" has no rate
+    # to choose from, so it stays a flat 0.
     "maintain": 0.0,
-    "gain": 0.12,
 }
 
 # User-facing slider range for "how fast do you want to lose weight",
@@ -100,6 +100,23 @@ LOSS_RATE_DEFAULT_PCT = 1.5
 # is anchored to a 20% TDEE cut to match the previously-tuned default.
 LOSS_RATE_DEFICIT_FRACTION_MIN = 0.12  # at LOSS_RATE_MIN_PCT (gentler cut)
 LOSS_RATE_DEFICIT_FRACTION_MAX = 0.28  # at LOSS_RATE_MAX_PCT (aggressive but still sane)
+
+# Same rate-slider idea as LOSS_RATE_* above, mirrored for "gain". Range is
+# narrower and lower than the loss side on purpose: a lean bulk (minimizing
+# fat gain while still building muscle) is typically targeted at roughly
+# 0.25-0.5% of bodyweight per week in sports nutrition guidance, well below
+# what's sustainable/sane on the loss side.
+GAIN_RATE_MIN_PCT = 0.25
+GAIN_RATE_MAX_PCT = 0.5
+GAIN_RATE_DEFAULT_PCT = 0.35
+
+# Same reasoning as LOSS_RATE_DEFICIT_FRACTION_*, mirrored for a surplus:
+# maps the slider to a bounded fraction of TDEE rather than a flat kcal
+# number, so it scales sanely with bodyweight. The default (0.35%) lands
+# close to the previous flat 12% surplus this replaced, so existing
+# profiles don't see a big jump in their calculated target.
+GAIN_RATE_SURPLUS_FRACTION_MIN = 0.08  # at GAIN_RATE_MIN_PCT (lean/conservative bulk)
+GAIN_RATE_SURPLUS_FRACTION_MAX = 0.20  # at GAIN_RATE_MAX_PCT (faster gain, more fat gain risk)
 
 # Grams of protein per kg of LEAN body mass (not total body weight).
 # Protein need tracks the amount of tissue actually doing metabolic/
@@ -210,7 +227,8 @@ def _range_midpoint(gender, body_fat_range_id):
 def calculate_targets(profile):
     """profile: {aspiration, weight_kg, gender, body_fat_range_id,
     activity_level, protein_preference, loss_rate_pct (only used when
-    aspiration == "lose")}. Returns calories/protein/fat/carbs (grams)
+    aspiration == "lose"), gain_rate_pct (only used when
+    aspiration == "gain")}. Returns calories/protein/fat/carbs (grams)
     plus the intermediate bmr/tdee for transparency."""
     weight_kg = float(profile["weight_kg"])
     gender = profile["gender"]
@@ -231,6 +249,15 @@ def calculate_targets(profile):
             LOSS_RATE_DEFICIT_FRACTION_MAX - LOSS_RATE_DEFICIT_FRACTION_MIN
         )
         raw_calories = tdee * (1 - deficit_fraction)
+    elif profile["aspiration"] == "gain":
+        gain_rate_pct = float(profile.get("gain_rate_pct") or GAIN_RATE_DEFAULT_PCT)
+        gain_rate_pct = max(GAIN_RATE_MIN_PCT, min(GAIN_RATE_MAX_PCT, gain_rate_pct))
+        rate_span = GAIN_RATE_MAX_PCT - GAIN_RATE_MIN_PCT
+        rate_t = (gain_rate_pct - GAIN_RATE_MIN_PCT) / rate_span if rate_span else 0.5
+        surplus_fraction = GAIN_RATE_SURPLUS_FRACTION_MIN + rate_t * (
+            GAIN_RATE_SURPLUS_FRACTION_MAX - GAIN_RATE_SURPLUS_FRACTION_MIN
+        )
+        raw_calories = tdee * (1 + surplus_fraction)
     else:
         adjustment = ASPIRATION_ADJUSTMENT.get(profile["aspiration"], 0.0)
         raw_calories = tdee * (1 + adjustment)

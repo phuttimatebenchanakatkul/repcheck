@@ -1147,7 +1147,8 @@ input[type="file"], select {
   .mt-sheet-overlay.is-open .qa-tile:nth-child(3) { animation-delay: 0.15s; }
   .mt-sheet-overlay.is-open .qa-tile:nth-child(4) { animation-delay: 0.20s; }
   .mt-sheet-overlay.is-open .qa-tile:nth-child(5) { animation-delay: 0.25s; }
-  .mt-sheet-overlay.is-open .qa-cancel { animation: qa-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1) 0.30s backwards; }
+  .mt-sheet-overlay.is-open .qa-tile:nth-child(6) { animation-delay: 0.30s; }
+  .mt-sheet-overlay.is-open .qa-cancel { animation: qa-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards; }
   @keyframes qa-pop {
     from { opacity: 0; transform: translateY(14px) scale(0.94); }
     to { opacity: 1; transform: none; }

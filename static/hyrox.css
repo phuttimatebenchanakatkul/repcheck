@@ -1087,3 +1087,30 @@
   .hx-hero-title { font-size: 26px; }
   .hx-hero-station-icon { width: 30px; height: 30px; }
 }
+
+/* Error toast for a failed authoritative save/delete (see
+   persistHistoryEntry/persistRemoveHistoryEntry in hyrox.js) -- same
+   look as nutrition.html's .nl-save-error-toast, duplicated here since
+   this page's styles live in their own stylesheet rather than a
+   template's inline <style> block. */
+.hx-save-error-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 90px;
+  transform: translateX(-50%);
+  background: var(--red);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 12px 18px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  z-index: 400;
+  max-width: 90vw;
+  text-align: center;
+  animation: hx-toast-fade-in 0.15s ease;
+}
+@keyframes hx-toast-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}

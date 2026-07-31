@@ -56,6 +56,15 @@
   // actually enforces it (this is just faster feedback).
   const MIN_WEIGHT_KG = 35;
   const MAX_WEIGHT_KG = 400;
+  // Mirrors coaching_engine.py's LOSS_RATE_*/GAIN_RATE_* constants exactly
+  // -- keep these in sync if those ever change. Gain's range sits lower
+  // than loss's (see that file's GAIN_RATE_* comment for why).
+  const LOSS_RATE_MIN_PCT = 1.0;
+  const LOSS_RATE_MAX_PCT = 2.0;
+  const LOSS_RATE_DEFAULT_PCT = 1.5;
+  const GAIN_RATE_MIN_PCT = 0.25;
+  const GAIN_RATE_MAX_PCT = 0.5;
+  const GAIN_RATE_DEFAULT_PCT = 0.35;
 
   const ASPIRATION_IDS = ["lose", "maintain", "gain"];
   const ACTIVITY_IDS = ["lift_and_cardio", "cardio_only", "lift_only", "none"];
@@ -244,7 +253,8 @@
     proteinPreference: null,
     dietPreference: "balanced",
     distribution: "stable",
-    lossRatePct: 1.5,
+    lossRatePct: LOSS_RATE_DEFAULT_PCT,
+    gainRatePct: GAIN_RATE_DEFAULT_PCT,
     gymExperience: null,
     location: null,
     splitType: null,
@@ -388,32 +398,6 @@
     };
     updateWeightHint();
 
-    let updateKgHint = null;
-    if (w.aspiration === "lose") {
-      const rateField = el(`
-        <div class="ob-field">
-          <label for="ob-loss-rate">${t("coaching.wizard.lossRate")} <span id="ob-loss-rate-value">${w.lossRatePct.toFixed(1)}</span>${t("coaching.wizard.perWeek")}</label>
-          <input type="range" id="ob-loss-rate" min="1" max="2" step="0.1" value="${w.lossRatePct}">
-          <div class="ob-field-hint" id="ob-loss-rate-kg"></div>
-        </div>
-      `);
-      const slider = rateField.querySelector("#ob-loss-rate");
-      const valueLabel = rateField.querySelector("#ob-loss-rate-value");
-      const kgLabel = rateField.querySelector("#ob-loss-rate-kg");
-      updateKgHint = () => {
-        const wv = parseFloat(w.weightKg) || 0;
-        kgLabel.textContent = wv > 0
-          ? t("coaching.wizard.lossRateHint", { rate: RepCheckUnits.formatWeightKg(w.lossRatePct / 100 * wv), weight: RepCheckUnits.formatWeightKg(wv) })
-          : "";
-      };
-      slider.addEventListener("input", (e) => {
-        w.lossRatePct = parseFloat(e.target.value);
-        valueLabel.textContent = w.lossRatePct.toFixed(1);
-        updateKgHint();
-      });
-      updateKgHint();
-      wrap.appendChild(rateField);
-    }
     const canProceed = () => {
       const wv = parseFloat(w.weightKg);
       return wv >= MIN_WEIGHT_KG && wv <= MAX_WEIGHT_KG;
@@ -423,7 +407,6 @@
     weightInput.addEventListener("input", (e) => {
       w.weightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
       updateWeightHint();
-      if (updateKgHint) updateKgHint();
       nextBtn.disabled = !canProceed();
     });
     return wrap;
@@ -456,6 +439,48 @@
         : "";
     };
     updateHint();
+
+    // Rate-of-change slider: only meaningful when actually moving away
+    // from the current weight, so it lives here (not the earlier weight
+    // step) as part of "how fast to reach this goal weight" --
+    // direction-specific (loss vs gain) since the safe/sane range differs
+    // each way (see coaching_engine.py's LOSS_RATE_*/GAIN_RATE_* comments).
+    if (w.aspiration === "lose" || w.aspiration === "gain") {
+      const isLose = w.aspiration === "lose";
+      const rateKey = isLose ? "lossRatePct" : "gainRatePct";
+      const min = isLose ? LOSS_RATE_MIN_PCT : GAIN_RATE_MIN_PCT;
+      const max = isLose ? LOSS_RATE_MAX_PCT : GAIN_RATE_MAX_PCT;
+      const step = isLose ? 0.1 : 0.05;
+      const decimals = isLose ? 1 : 2;
+      const label = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
+      const rateField = el(`
+        <div class="ob-field">
+          <label for="ob-rate-slider">${label} <span id="ob-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
+          <input type="range" id="ob-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
+          <div class="ob-field-hint" id="ob-rate-hint"></div>
+        </div>
+      `);
+      const slider = rateField.querySelector("#ob-rate-slider");
+      const valueLabel = rateField.querySelector("#ob-rate-value");
+      const rateHintEl = rateField.querySelector("#ob-rate-hint");
+      const updateRateHint = () => {
+        const wv = parseFloat(w.weightKg) || 0;
+        rateHintEl.textContent = wv > 0
+          ? t("coaching.wizard.rateHint", {
+              rate: RepCheckUnits.formatWeightKg(w[rateKey] / 100 * wv),
+              weight: RepCheckUnits.formatWeightKg(wv),
+            })
+          : "";
+      };
+      slider.addEventListener("input", (e) => {
+        w[rateKey] = parseFloat(e.target.value);
+        valueLabel.textContent = w[rateKey].toFixed(decimals);
+        updateRateHint();
+      });
+      updateRateHint();
+      wrap.appendChild(rateField);
+    }
+
     const canProceed = () => {
       const gv = parseFloat(w.goalWeightKg);
       return gv >= MIN_WEIGHT_KG && gv <= MAX_WEIGHT_KG;
@@ -763,6 +788,7 @@
           diet_preference: w.dietPreference,
           distribution: w.distribution,
           loss_rate_pct: w.aspiration === "lose" ? w.lossRatePct : null,
+          gain_rate_pct: w.aspiration === "gain" ? w.gainRatePct : null,
           training_days: trainingDays,
         }),
       });
@@ -926,6 +952,7 @@
       dietPreference: w.dietPreference,
       distribution: w.distribution,
       lossRatePct: w.aspiration === "lose" ? w.lossRatePct : null,
+      gainRatePct: w.aspiration === "gain" ? w.gainRatePct : null,
       createdAt: todayIso,
       lastAdjustmentDate: todayIso,
     };

@@ -45,6 +45,9 @@ from coach_chat import get_coach_reply
 from checkin_analyzer import CheckinAnalysisError, analyze_checkin
 from coaching_engine import (
     FEMALE_BODY_FAT_RANGES,
+    GAIN_RATE_DEFAULT_PCT,
+    GAIN_RATE_MAX_PCT,
+    GAIN_RATE_MIN_PCT,
     LOSS_RATE_DEFAULT_PCT,
     LOSS_RATE_MAX_PCT,
     LOSS_RATE_MIN_PCT,
@@ -57,6 +60,7 @@ from coaching_engine import (
 from database import (
     DB_PATH,
     add_friendship,
+    append_hyrox_history_entry,
     append_nutrition_log_entry,
     create_challenge,
     create_custom_exercise,
@@ -93,6 +97,8 @@ from database import (
     prune_analyze_results,
     rate_limit_consume,
     rate_limit_peek,
+    remove_hyrox_history_entry,
+    remove_nutrition_log_entry,
     save_analyze_result,
     save_submission,
     set_user_data,
@@ -481,6 +487,32 @@ def api_nutrition_log_entry():
 
     day_entries = append_nutrition_log_entry(user["id"], date_iso, entry)
     _track_feature("food_logged")
+    return jsonify({"ok": True, "date": date_iso, "day_entries": day_entries})
+
+
+@app.route("/api/nutrition/log-entry", methods=["DELETE"])
+def api_nutrition_log_entry_delete():
+    # Authoritative, synchronous "remove one food entry" write path --
+    # counterpart to the POST above. Needed as its own endpoint (rather
+    # than just relying on the generic /api/sync/<key> route) now that
+    # that route merges the nutrition log instead of overwriting it (see
+    # database.py's MERGE_LOG_KEYS): a merge can only ever bring entries
+    # back from an older stored copy, never remove one, so a deletion has
+    # to edit the stored value directly.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    date_iso = str(payload.get("date") or "").strip()
+    entry_id = payload.get("entry_id")
+
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    if not entry_id:
+        return jsonify({"ok": False, "error": "Invalid entry."}), 400
+
+    day_entries = remove_nutrition_log_entry(user["id"], date_iso, str(entry_id))
     return jsonify({"ok": True, "date": date_iso, "day_entries": day_entries})
 
 
@@ -1428,6 +1460,50 @@ HYROX_FORMATS = {"singles", "doubles"}
 HYROX_MIN_PLAUSIBLE_SECONDS = 20 * 60
 
 
+@app.route("/api/hyrox/history-entry", methods=["POST"])
+def api_hyrox_history_entry():
+    # Authoritative, synchronous "save one finished race" write path.
+    # hyrox.js's saveHistory() previously only wrote to localStorage,
+    # which the generic /api/sync/<key> route then re-sends as a whole-
+    # blob PUT, fire-and-forget from the browser -- good enough for most
+    # synced data, but it was the only path a finished race ever went
+    # through, making it vulnerable to quietly vanishing if that write
+    # raced with another save. finishRace() now calls this directly for
+    # every race, so a time is only durably "saved" once the server has
+    # actually confirmed it.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    entry = payload.get("entry")
+    if not isinstance(entry, dict) or not entry.get("id"):
+        return jsonify({"ok": False, "error": "Invalid entry."}), 400
+
+    history = append_hyrox_history_entry(user["id"], entry)
+    return jsonify({"ok": True, "history": history})
+
+
+@app.route("/api/hyrox/history-entry", methods=["DELETE"])
+def api_hyrox_history_entry_delete():
+    # Authoritative "remove one race" path -- counterpart to the POST
+    # above. Needed as its own endpoint now that the generic /api/sync/<key>
+    # route merges the HYROX history instead of overwriting it (see
+    # database.py's MERGE_LOG_KEYS): a merge can only ever bring entries
+    # back from an older stored copy, never remove one.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    entry_id = payload.get("entry_id")
+    if not entry_id:
+        return jsonify({"ok": False, "error": "Invalid entry."}), 400
+
+    history = remove_hyrox_history_entry(user["id"], str(entry_id))
+    return jsonify({"ok": True, "history": history})
+
+
 @app.route("/api/hyrox/results", methods=["POST"])
 def api_create_hyrox_result():
     user = current_user()
@@ -1677,6 +1753,15 @@ def _validate_coaching_profile(payload):
         except (TypeError, ValueError):
             return None, "Please choose a realistic weekly weight loss rate."
 
+    gain_rate_pct = None
+    if aspiration == "gain":
+        try:
+            gain_rate_pct = float(payload.get("gain_rate_pct", GAIN_RATE_DEFAULT_PCT))
+            if not GAIN_RATE_MIN_PCT - 0.01 <= gain_rate_pct <= GAIN_RATE_MAX_PCT + 0.01:
+                raise ValueError
+        except (TypeError, ValueError):
+            return None, "Please choose a realistic weekly weight gain rate."
+
     return {
         "aspiration": aspiration,
         "gender": gender,
@@ -1687,6 +1772,7 @@ def _validate_coaching_profile(payload):
         "weight_kg": weight_kg,
         "height_cm": height_cm,
         "loss_rate_pct": loss_rate_pct,
+        "gain_rate_pct": gain_rate_pct,
     }, None
 
 

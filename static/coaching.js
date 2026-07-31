@@ -131,6 +131,15 @@
   // Same bounds as onboarding.js's identical goal-weight step.
   const MIN_WEIGHT_KG = 35;
   const MAX_WEIGHT_KG = 400;
+  // Mirrors coaching_engine.py's LOSS_RATE_*/GAIN_RATE_* constants exactly
+  // -- keep these in sync if those ever change. Gain's range sits lower
+  // than loss's (see that file's GAIN_RATE_* comment for why).
+  const LOSS_RATE_MIN_PCT = 1.0;
+  const LOSS_RATE_MAX_PCT = 2.0;
+  const LOSS_RATE_DEFAULT_PCT = 1.5;
+  const GAIN_RATE_MIN_PCT = 0.25;
+  const GAIN_RATE_MAX_PCT = 0.5;
+  const GAIN_RATE_DEFAULT_PCT = 0.35;
 
   // ---------- Small local helpers ----------
   function toIsoDate(date) {
@@ -593,6 +602,7 @@
               protein_preference: this.profile.proteinPreference,
               diet_preference: this.profile.dietPreference,
               loss_rate_pct: this.profile.lossRatePct,
+              gain_rate_pct: this.profile.gainRatePct,
               current_targets: currentTargets,
               week_weight_entries: weekWeightEntries,
               week_calorie_days: weekCalorieDays,
@@ -748,7 +758,8 @@
         proteinPreference: p ? p.proteinPreference : null,
         dietPreference: p ? p.dietPreference : "balanced",
         distribution: p ? p.distribution : "stable",
-        lossRatePct: (p && p.lossRatePct) || 1.5,
+        lossRatePct: (p && p.lossRatePct) || LOSS_RATE_DEFAULT_PCT,
+        gainRatePct: (p && p.gainRatePct) || GAIN_RATE_DEFAULT_PCT,
         result: null,
         computing: false,
         error: null,
@@ -841,6 +852,7 @@
               diet_preference: w.dietPreference,
               distribution: w.distribution,
               loss_rate_pct: w.aspiration === "lose" ? w.lossRatePct : null,
+              gain_rate_pct: w.aspiration === "gain" ? w.gainRatePct : null,
               training_days: getTrainingDaysFromSplitPlan(),
             }),
           });
@@ -888,6 +900,7 @@
         dietPreference: w.dietPreference,
         distribution: w.distribution,
         lossRatePct: w.aspiration === "lose" ? w.lossRatePct : null,
+        gainRatePct: w.aspiration === "gain" ? w.gainRatePct : null,
         createdAt: (this.profile && this.profile.createdAt) || todayIso,
         lastAdjustmentDate: todayIso,
       };
@@ -1454,40 +1467,8 @@
       );
       wrap.appendChild(genderGrid);
 
-      let updateKgHint = null;
-      if (w.aspiration === "lose") {
-        const rateField = el(`
-          <div class="pc-field">
-            <label for="pc-loss-rate">${t("coaching.wizard.lossRate")} <span id="pc-loss-rate-value">${w.lossRatePct.toFixed(1)}</span>${t("coaching.wizard.perWeek")}</label>
-            <input type="range" id="pc-loss-rate" min="1" max="2" step="0.1" value="${w.lossRatePct}">
-            <div class="pc-field-hint" id="pc-loss-rate-kg"></div>
-          </div>
-        `);
-        const slider = rateField.querySelector("#pc-loss-rate");
-        const valueLabel = rateField.querySelector("#pc-loss-rate-value");
-        const kgLabel = rateField.querySelector("#pc-loss-rate-kg");
-        updateKgHint = () => {
-          const wv = parseFloat(w.weightKg) || 0;
-          kgLabel.textContent = wv > 0
-            ? t("coaching.wizard.lossRateHint", {
-                rate: RepCheckUnits.formatWeightKg(w.lossRatePct / 100 * wv),
-                weight: RepCheckUnits.formatWeightKg(wv),
-              })
-            : "";
-        };
-        slider.addEventListener("click", (e) => e.stopPropagation());
-        slider.addEventListener("input", (e) => {
-          w.lossRatePct = parseFloat(e.target.value);
-          valueLabel.textContent = w.lossRatePct.toFixed(1);
-          updateKgHint();
-        });
-        updateKgHint();
-        wrap.appendChild(rateField);
-      }
-
       weightInput.addEventListener("input", (e) => {
         w.weightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
-        if (updateKgHint) updateKgHint();
       });
 
       wrap.appendChild(this.renderWizardActions());
@@ -1530,6 +1511,49 @@
           : "";
       };
       updateHint();
+
+      // Rate-of-change slider: only meaningful when actually moving away
+      // from the current weight, so it lives here (not the earlier
+      // weight/gender step) as part of "how fast to reach this goal
+      // weight" -- direction-specific (loss vs gain) since the safe/sane
+      // range differs each way (see coaching_engine.py's LOSS_RATE_* vs
+      // GAIN_RATE_* comments).
+      if (w.aspiration === "lose" || w.aspiration === "gain") {
+        const isLose = w.aspiration === "lose";
+        const rateKey = isLose ? "lossRatePct" : "gainRatePct";
+        const min = isLose ? LOSS_RATE_MIN_PCT : GAIN_RATE_MIN_PCT;
+        const max = isLose ? LOSS_RATE_MAX_PCT : GAIN_RATE_MAX_PCT;
+        const step = isLose ? 0.1 : 0.05;
+        const decimals = isLose ? 1 : 2;
+        const label = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
+        const rateField = el(`
+          <div class="pc-field">
+            <label for="pc-rate-slider">${label} <span id="pc-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
+            <input type="range" id="pc-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
+            <div class="pc-field-hint" id="pc-rate-hint"></div>
+          </div>
+        `);
+        const slider = rateField.querySelector("#pc-rate-slider");
+        const valueLabel = rateField.querySelector("#pc-rate-value");
+        const rateHintEl = rateField.querySelector("#pc-rate-hint");
+        const updateRateHint = () => {
+          const wv = parseFloat(w.weightKg) || 0;
+          rateHintEl.textContent = wv > 0
+            ? t("coaching.wizard.rateHint", {
+                rate: RepCheckUnits.formatWeightKg(w[rateKey] / 100 * wv),
+                weight: RepCheckUnits.formatWeightKg(wv),
+              })
+            : "";
+        };
+        slider.addEventListener("click", (e) => e.stopPropagation());
+        slider.addEventListener("input", (e) => {
+          w[rateKey] = parseFloat(e.target.value);
+          valueLabel.textContent = w[rateKey].toFixed(decimals);
+          updateRateHint();
+        });
+        updateRateHint();
+        wrap.appendChild(rateField);
+      }
 
       wrap.appendChild(this.renderWizardActions());
       const nextBtn = wrap.querySelector('[data-action="wizard-next"]');

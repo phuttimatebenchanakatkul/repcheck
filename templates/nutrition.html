@@ -1579,6 +1579,28 @@
     }
   }
 
+  // Authoritative counterpart to persistLogEntry() above -- confirms a
+  // removed entry is actually gone server-side too. Needed now that the
+  // generic account_sync.js blob sync merges the nutrition log on the
+  // server instead of overwriting it (see database.py's MERGE_LOG_KEYS,
+  // added so a stale full-blob push can never silently erase entries the
+  // server already had) -- a merge can only ever bring entries back, never
+  // remove one, so a deletion needs this dedicated endpoint instead.
+  async function persistRemoveLogEntry(dateIso, entryId) {
+    if (!window.REPCHECK_LOGGED_IN) return;
+    try {
+      const response = await fetch("{{ url_for('api_nutrition_log_entry_delete') }}", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: dateIso, entry_id: entryId }),
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Delete failed");
+    } catch (err) {
+      showLogSaveError();
+    }
+  }
+
   function showLogSaveError() {
     const existing = document.querySelector(".nl-save-error-toast");
     if (existing) existing.remove();
@@ -2292,7 +2314,7 @@
     // The direct-camera quick action (?quick=barcode) clicks afBarcodeInput
     // without ever opening the modal overlay first, so make sure it's
     // visible here before showing the loading/result screen in it.
-    afModalOverlay.style.display = "flex";
+    window.openBottomSheet(afModalOverlay, ".af-modal");
     afImageBlob = blobOrFile;
     if (afPreviewUrl) URL.revokeObjectURL(afPreviewUrl);
     afPreviewUrl = URL.createObjectURL(blobOrFile);
@@ -2921,7 +2943,7 @@
   function openScannedResultModal(result) {
     afPreviewUrl = null;
     afResult = result;
-    afModalOverlay.style.display = "flex";
+    window.openBottomSheet(afModalOverlay, ".af-modal");
     renderAfResult(result);
   }
 
@@ -3444,11 +3466,13 @@
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
         const id = btn.dataset.removeEntry;
-        log[selectedDate] = (log[selectedDate] || []).filter((e) => e.id !== id);
+        const dateForEntry = selectedDate;
+        log[dateForEntry] = (log[dateForEntry] || []).filter((e) => e.id !== id);
         EXPANDED.delete(id);
         saveLog();
         renderTimeline();
         renderSummary();
+        persistRemoveLogEntry(dateForEntry, id);
       });
     });
 
@@ -3774,7 +3798,7 @@
       // The FAB/home "Scan a meal" tile only needs the two photo paths
       // plus recent re-logging -- barcode/create-food/log-macros stay
       // reachable from the full "Analyze a food photo" button instead.
-      afModalOverlay.style.display = "flex";
+      window.openBottomSheet(afModalOverlay, ".af-modal");
       renderAfMealQuickChoice();
       return;
     }
@@ -3786,7 +3810,7 @@
       // the camera input directly while still on this page); this path
       // only runs when a navigation from another page was unavoidable,
       // so show one single-tap prompt instead of a silent no-op.
-      afModalOverlay.style.display = "flex";
+      window.openBottomSheet(afModalOverlay, ".af-modal");
       renderAfBarcodeQuickPrompt();
       return;
     }

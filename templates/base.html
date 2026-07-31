@@ -347,10 +347,14 @@
           <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
           <span class="qa-tile-title" data-i18n="mobile.logWeight">Log today's weight</span>
         </button>
-        <button type="button" class="qa-tile qa-tile-wide qa-purple" id="mt-fab-scan-barcode" data-nutrition-href="{{ url_for('nutrition') }}?quick=barcode">
+        <button type="button" class="qa-tile qa-purple" id="mt-fab-scan-barcode" data-nutrition-href="{{ url_for('nutrition') }}?quick=barcode">
           <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
           <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
         </button>
+        <a href="{{ url_for('home') }}?quick=challenges" class="qa-tile qa-amber">
+          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg></span>
+          <span class="qa-tile-title" data-i18n="mobile.challenges">Challenges</span>
+        </a>
       </div>
 
       <!-- "Explore" — the pages that used to live behind the bar's "More"
