@@ -147,6 +147,7 @@
       "home.macros.title": "Calories & macros",
       "home.macros.fullStats": "Full stats",
       "home.macros.todaysIntake": "Today's intake",
+      "home.macros.remainingToday": "Remaining today",
       "home.macros.left": "{n} left",
 
       "home.weight.title": "Weight",
@@ -919,6 +920,7 @@
       "home.macros.title": "แคลอรี่และสารอาหาร",
       "home.macros.fullStats": "ดูทั้งหมด",
       "home.macros.todaysIntake": "ที่ทานวันนี้",
+      "home.macros.remainingToday": "คงเหลือวันนี้",
       "home.macros.left": "เหลืออีก {n}",
 
       "home.weight.title": "น้ำหนัก",

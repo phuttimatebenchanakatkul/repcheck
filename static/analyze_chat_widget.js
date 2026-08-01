@@ -96,7 +96,25 @@
     const subEl = document.getElementById("ac-header-sub");
     if (!dockEl || !formEl || !threadEl) return; // widget markup not on this page
 
+    let lockoutInterval = null;
+    let lockoutTimeout = null;
+
     pruneStaleChatThreads();
+
+    // This markup (and inputEl/sendBtn) is reused across multiple init()
+    // calls on the AJAX result view (index.html re-renders into the same
+    // #ac-dock for every fresh analysis or history entry viewed) -- a
+    // PREVIOUS call locking the input (rate limit, or a >24h-old chat)
+    // never got explicitly undone, so a later, perfectly fresh chat could
+    // silently inherit "can't type anything" from whatever was viewed
+    // before it. Always start clean; applyClosedState() below re-locks
+    // it only if *this* context actually warrants it.
+    clearInterval(lockoutInterval);
+    clearTimeout(lockoutTimeout);
+    inputEl.disabled = false;
+    sendBtn.disabled = false;
+    inputEl.placeholder = t("analyzeChat.inputPlaceholder");
+    if (subEl) subEl.textContent = "";
 
     const storageKey = context.id != null ? `${STORAGE_PREFIX}${context.id}` : null;
     const stored = storageKey ? loadJson(storageKey, null) : null;
@@ -282,9 +300,6 @@
       const row = document.getElementById("ac-typing-row");
       if (row) row.remove();
     }
-
-    let lockoutInterval = null;
-    let lockoutTimeout = null;
 
     function formatCountdown(seconds) {
       seconds = Math.max(seconds, 0);

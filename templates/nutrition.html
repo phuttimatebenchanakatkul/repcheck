@@ -418,17 +418,18 @@
   .nl-scan-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
   .nl-scan-btn:active { transform: translateY(0) scale(0.99); }
 
-  /* Secondary sibling to .nl-scan-btn -- a smaller, calmer tinted chip
-     (not an equal-width twin) so "Analyze a food photo" still reads as
-     the primary action, sized to its own short label and vertically
-     centered against it (row has align-items:center so this doesn't
-     stretch to match the taller primary button's height). */
+  /* Secondary sibling to .nl-scan-btn -- same column width (flex:1, so
+     the two sit evenly matched in the row) but a shorter, calmer tinted
+     treatment so "Analyze a food photo" still reads as the primary
+     action. Row has align-items:center so this shorter button doesn't
+     get stretched to match the taller primary button's height. */
   .nl-macro-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    flex: 0 0 auto;
+    flex: 1;
+    min-width: 0;
     padding: 10px 14px;
     border: none;
     border-radius: 13px;

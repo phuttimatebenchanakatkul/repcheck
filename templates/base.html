@@ -238,12 +238,36 @@
           }
         };
 
+        // iOS Safari quirk this pair also has to work around: `overflow:
+        // hidden` on <html>/<body> alone does NOT stop the page from
+        // panning when a text input inside a position:fixed sheet is
+        // focused -- the OS's own "scroll the focused element into view"
+        // behavior operates on the visual viewport regardless of CSS
+        // overflow, so a sheet's search box could intermittently slide
+        // out from under the keyboard mid-type. Pinning <body> itself to
+        // position:fixed at its current scroll offset removes any
+        // scrollable area for iOS to pan into; scroll position is
+        // restored on close. window.__pcSheetLockCount is a nesting
+        // counter (not a boolean) so a sheet closing while ANOTHER sheet
+        // opened in response (the afterClose-callback pattern several
+        // sheets already use) can never unlock the body out from under
+        // the still-open one.
+        window.__pcSheetLockCount = window.__pcSheetLockCount || 0;
+
         window.openBottomSheet = function(overlayEl, sheetSelector) {
           if (!overlayEl) return;
           if (overlayEl.parentElement !== document.body) {
             document.body.appendChild(overlayEl);
           }
           overlayEl.style.display = "";
+          if (window.__pcSheetLockCount === 0) {
+            window.__pcScrollLockY = window.scrollY;
+            document.body.style.position = "fixed";
+            document.body.style.top = `-${window.__pcScrollLockY}px`;
+            document.body.style.left = "0";
+            document.body.style.right = "0";
+          }
+          window.__pcSheetLockCount++;
           document.documentElement.classList.add("pc-sheet-locked");
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
@@ -268,6 +292,14 @@
             if (cleaned) return;
             cleaned = true;
             document.documentElement.classList.remove("pc-sheet-locked");
+            window.__pcSheetLockCount = Math.max(0, window.__pcSheetLockCount - 1);
+            if (window.__pcSheetLockCount === 0) {
+              document.body.style.position = "";
+              document.body.style.top = "";
+              document.body.style.left = "";
+              document.body.style.right = "";
+              window.scrollTo(0, window.__pcScrollLockY || 0);
+            }
             if (typeof callback === "function") callback();
           };
 
