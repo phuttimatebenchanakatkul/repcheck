@@ -365,7 +365,7 @@ MICRONUTRIENTS = {
   },
   "Egg White": {
     "sodium_mg": 160,
-    "sugar_g": 1.0
+    "sugar_g": 0.7
   },
   "Egg Yolk": {
     "sodium_mg": 50,
@@ -761,7 +761,7 @@ MICRONUTRIENTS = {
   },
   "Zucchini": {
     "sodium_mg": 8,
-    "sugar_g": 3.2
+    "sugar_g": 1.7
   },
   "Cauliflower": {
     "sodium_mg": 30,
@@ -877,7 +877,7 @@ MICRONUTRIENTS = {
   },
   "Oyster Sauce": {
     "sodium_mg": 2800,
-    "sugar_g": 14.0
+    "sugar_g": 9.0
   },
   "Tamarind Paste": {
     "sodium_mg": 25,
@@ -969,7 +969,7 @@ MICRONUTRIENTS = {
   },
   "Teriyaki Sauce": {
     "sodium_mg": 2500,
-    "sugar_g": 20.0
+    "sugar_g": 14.0
   },
   "Katsu Sauce": {
     "sodium_mg": 1200,
@@ -1297,7 +1297,7 @@ MICRONUTRIENTS = {
   },
   "Duck Sauce": {
     "sodium_mg": 500,
-    "sugar_g": 45.0
+    "sugar_g": 30.0
   },
   "Mandarin Pancake": {
     "sodium_mg": 200,
@@ -1389,7 +1389,7 @@ MICRONUTRIENTS = {
   },
   "Halloumi Cheese": {
     "sodium_mg": 1200,
-    "sugar_g": 2.5
+    "sugar_g": 0.5
   },
   "Grape Leaves": {
     "sodium_mg": 350,
@@ -1516,7 +1516,7 @@ MICRONUTRIENTS = {
   },
   "McFlurry with M&Ms": {
     "sodium_mg": 120,
-    "sugar_g": 32.0
+    "sugar_g": 22.0
   },
   "KFC Original Recipe Chicken Breast": {
     "sodium_mg": 680,
@@ -1596,7 +1596,7 @@ MICRONUTRIENTS = {
   },
   "Shake Shack Vanilla Shake": {
     "sodium_mg": 110,
-    "sugar_g": 22.0
+    "sugar_g": 18.0
   },
   "Chagee Classic Milk Tea": {
     "sodium_mg": 40,
