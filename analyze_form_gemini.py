@@ -32,6 +32,7 @@ import os
 import re
 import sys
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -464,8 +465,20 @@ flag and why they matter, but don't quote it verbatim or cite papers to
 the user):
 {config["research_notes"]}
 '''}
-First, on their own lines before anything else, output exactly these five
-lines with no extra text, no bold, no markdown around them:
+BEFORE scoring anything, check that the clip actually shows a person
+performing this exercise. If the video is empty/black, shows no person, is
+too short or too corrupted to make out any reps, or shows something that
+is clearly not a set of {config['label']} being performed, then do NOT
+invent a score. Instead output exactly this single line and nothing else:
+UNSCORABLE: <one short sentence saying what you actually saw>
+
+Never guess a score to fill in the format. A plausible-looking number
+attached to footage you couldn't actually assess is far worse than
+admitting the clip can't be graded. Only continue to the scores below if
+you can genuinely see the set.
+
+Otherwise, on their own lines before anything else, output exactly these
+five lines with no extra text, no bold, no markdown around them:
 STRETCH_SCORE: <integer 0-100>
 SQUEEZE_SCORE: <integer 0-100>
 OVERALL_SCORE: <integer 0-100>
@@ -668,7 +681,26 @@ def strip_score_lines(feedback_text):
     )
 
 
-def call_gemini(video_bytes, config, duration_seconds):
+# The trimmed clip keeps the source upload's extension, and ffmpeg's
+# `-c copy` keeps its original container -- so a .mov/.avi/.mkv upload is
+# genuinely NOT an mp4. Labeling everything "video/mp4" handed Gemini a
+# mislabeled byte stream it may decode poorly or not at all, which is
+# another way footage can go ungraded-but-scored.
+_VIDEO_MIME_TYPES = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+    ".webm": "video/webm",
+}
+
+
+def video_mime_type(path):
+    return _VIDEO_MIME_TYPES.get(Path(path).suffix.lower(), "video/mp4")
+
+
+def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4"):
     try:
         from google import genai
         from google.genai import types
@@ -686,7 +718,7 @@ def call_gemini(video_bytes, config, duration_seconds):
 
     prompt = build_prompt(config, duration_seconds)
     video_part = types.Part(
-        inline_data=types.Blob(data=video_bytes, mime_type="video/mp4"),
+        inline_data=types.Blob(data=video_bytes, mime_type=mime_type),
         video_metadata=types.VideoMetadata(fps=GEMINI_VIDEO_SAMPLE_FPS),
     )
 

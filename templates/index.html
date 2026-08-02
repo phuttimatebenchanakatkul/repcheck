@@ -533,7 +533,16 @@
     }
   }
 
+  // Tracks whether an analysis is still on screen. The landmarker's first
+  // load pulls a WASM bundle + multi-MB model off a CDN, so
+  // getPoseLandmarker() can resolve AFTER the analysis already finished --
+  // at which point stopPoseLoop() has run and starting a loop would leave
+  // an orphaned rAF running forever on a hidden canvas, with the skeleton
+  // never appearing. Guarding on this makes the late resolve a no-op.
+  let poseWanted = false;
+
   function startPoseLoop() {
+    if (!poseWanted) return;
     function loop() {
       if (poseLandmarker && previewVideo.readyState >= 2 && previewVideo.videoWidth) {
         if (poseCanvas.width !== previewVideo.videoWidth) {
@@ -549,6 +558,7 @@
   }
 
   function stopPoseLoop() {
+    poseWanted = false;
     if (poseRafId) {
       cancelAnimationFrame(poseRafId);
       poseRafId = null;
@@ -1111,6 +1121,7 @@
     uploadView.style.display = "none";
     analyzingView.style.display = "block";
     cycleStatus();
+    poseWanted = true;
     getPoseLandmarker().then((pl) => { if (pl) startPoseLoop(); });
 
     const formData = new FormData();

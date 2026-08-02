@@ -22,6 +22,7 @@ Requires:
         GEMINI_API_KEY=...
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from analyze_form_gemini import (
     parse_scores,
     resolve_exercise,
     strip_score_lines,
+    video_mime_type,
 )
 from trim_video import DURATION_SECONDS, get_video_duration, trim_video
 
@@ -66,14 +68,38 @@ def run_pipeline(input_video, exercise, trimmed_path=None):
     # A short source upload trims to less than DURATION_SECONDS -- fall back
     # to the target length only if ffprobe genuinely couldn't be found/run,
     # so Gemini is still told a real, plausible clip length either way.
-    duration_seconds = get_video_duration(trimmed_path) or DURATION_SECONDS
+    # Explicit `is None`, NOT `or`: a 0.0-second (frameless) clip is falsy,
+    # so `or` quietly reported it to Gemini as a full 75-second lift --
+    # asking the model to grade a set it had no footage of.
+    measured_duration = get_video_duration(trimmed_path)
+    duration_seconds = DURATION_SECONDS if measured_duration is None else measured_duration
     print(f"\nAnalyzing {trimmed_path} ({duration_seconds}s) as {config['label']}...")
     print(f"Sending video to {GEMINI_MODEL}...\n")
 
     with open(trimmed_path, "rb") as f:
         video_bytes = f.read()
-    raw_feedback = call_gemini(video_bytes, config, duration_seconds)
+    raw_feedback = call_gemini(
+        video_bytes, config, duration_seconds, video_mime_type(trimmed_path)
+    )
+
+    # The model reports UNSCORABLE when the clip shows no assessable set
+    # (see build_prompt) -- surface that instead of pretending we graded it.
+    unscorable = re.search(r"UNSCORABLE:\s*(.*)", raw_feedback)
+    if unscorable:
+        reason = unscorable.group(1).strip()
+        sys.exit(
+            "We couldn't analyze that video"
+            + (f" — {reason}" if reason else ".")
+            + " Please upload a clear clip of your full set and try again."
+        )
+
     stretch_score, squeeze_score, overall_score, favored, reps = parse_scores(raw_feedback)
+    # A response with no parsable OVERALL_SCORE means the grading didn't
+    # actually happen -- failing loudly beats showing feedback with a
+    # missing or misleading number attached to it.
+    if overall_score is None:
+        sys.exit("We couldn't score that video. Please try uploading it again.")
+
     feedback = strip_score_lines(raw_feedback)
 
     return {

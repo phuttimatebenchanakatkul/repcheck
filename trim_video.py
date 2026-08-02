@@ -24,6 +24,9 @@ from pathlib import Path
 
 START_SECONDS = 5
 DURATION_SECONDS = 75
+# Below this, there isn't enough footage to judge a set -- grading it would
+# mean inventing a score from almost nothing (see trim_video()).
+MIN_USABLE_SECONDS = 3
 
 # Extra places to look for ffmpeg.exe if it's not resolvable via PATH yet
 # (e.g. it was just installed and this process's PATH hasn't refreshed).
@@ -56,10 +59,21 @@ def trim_video(input_path, output_path):
     if not Path(input_path).exists():
         sys.exit(f"Input video not found: {input_path}")
 
+    # Only skip the lead-in if doing so actually leaves a usable clip.
+    # Skipping unconditionally silently destroys short uploads: ffmpeg
+    # given `-ss 5` on a 3-second source writes a valid-but-FRAMELESS
+    # container and still exits 0, so nothing downstream noticed and the
+    # analysis ran against no video at all -- which is exactly how a
+    # bad-form set could come back with a confident, invented score.
+    source_duration = get_video_duration(input_path)
+    start_seconds = START_SECONDS
+    if source_duration is not None and source_duration < START_SECONDS + MIN_USABLE_SECONDS:
+        start_seconds = 0
+
     cmd = [
         ffmpeg_path,
         "-y",  # overwrite output without prompting
-        "-ss", str(START_SECONDS),
+        "-ss", str(start_seconds),
         "-i", str(input_path),
         "-t", str(DURATION_SECONDS),
         "-c", "copy",
@@ -67,11 +81,23 @@ def trim_video(input_path, output_path):
     ]
 
     print(f"Trimming {input_path} -> {output_path} "
-          f"(skip first {START_SECONDS}s, keep {DURATION_SECONDS}s)")
+          f"(skip first {start_seconds}s, keep {DURATION_SECONDS}s)")
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         sys.exit(f"ffmpeg failed:\n{result.stderr}")
+
+    # ffmpeg's exit code alone is not proof the clip is usable (see above),
+    # so verify the output independently before anything grades it.
+    if not Path(output_path).exists():
+        sys.exit("Couldn't process that video. Please try uploading it again.")
+
+    trimmed_duration = get_video_duration(output_path)
+    if trimmed_duration is not None and trimmed_duration < MIN_USABLE_SECONDS:
+        sys.exit(
+            "That clip is too short to analyze. Please upload a video of at "
+            f"least {MIN_USABLE_SECONDS:g} seconds showing your full set."
+        )
 
     print(f"Done: {output_path}")
 
