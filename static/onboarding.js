@@ -39,6 +39,11 @@
   const GOALS_KEY = "repcheck_nutrition_goals_v1";
   const DISTRIBUTION_KEY = "repcheck_coaching_distribution_v1";
   const SPLIT_PLAN_KEY = "repcheck_split_plan_v1";
+  // Goal-achievement state, cleared when save() writes a new goal -- see
+  // there. Same keys as coaching.js/base.html; declared here too since this
+  // file is a standalone IIFE with no shared module scope.
+  const ACHIEVED_KEY = "repcheck_coaching_goal_achieved_v1";
+  const ACHIEVED_HANDLED_KEY = "repcheck_coaching_goal_achieved_handled_v1";
 
   const MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   // Same "not actually i18n'd" convention already used for these labels in
@@ -968,6 +973,15 @@
     // reload lands before the awaited PUTs below finish.
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
     localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+    // Mirrors coaching.js's wizardSave(): a freshly-set goal is a new
+    // milestone, so neither the pending-achievement flag nor the
+    // already-acted-on marker from a PREVIOUS goal may carry into it.
+    // Without this, someone who used the app anonymously, hit a goal and
+    // completed that check-in, then created an account and re-entered the
+    // same goal would find the congrats sheet never fires again and the
+    // check-in never force-readies for it -- suppressed by a stale marker.
+    localStorage.removeItem(ACHIEVED_KEY);
+    localStorage.removeItem(ACHIEVED_HANDLED_KEY);
     if (w.nutritionResult.distribution) {
       localStorage.setItem(DISTRIBUTION_KEY, JSON.stringify(w.nutritionResult.distribution));
     } else {
