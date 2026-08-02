@@ -151,26 +151,24 @@
       const wasOpen = isOpen();
       if (!wasOpen) { dockEl.classList.add("is-open"); openedAt = Date.now(); }
       if (!focusNow) return;
-      // iOS only raises the keyboard for focus() called SYNCHRONOUSLY in a
-      // user gesture AND on a visible, non-zero-size field. Ours is clipped
-      // to ~0 width until the widen animation runs, so: force the OPEN width
-      // (transition off, layout only, never painted), focus to raise the
-      // keyboard, then snap back to the collapsed width and restore the
-      // transition -- the widen now animates from the circle with the field
-      // already focused (the keyboard stays up).
+      // iOS only reliably raises the keyboard for a focus() call that's
+      // both synchronous within the user gesture AND lands on an
+      // already-rendered, non-zero-size field -- ours starts clipped to
+      // ~0 width inside the collapsed circle, widening only once the
+      // .is-open transition above actually plays. A previous version of
+      // this pre-widened the bar with transitions switched off, focused,
+      // then snapped back to the collapsed width so the "real" transition
+      // could take over -- several synchronous style/reflow flips packed
+      // into one tick, which is exactly the kind of DOM thrashing real
+      // mobile Safari has been seen to mishandle (dropping the focus, or
+      // the transition, or both) even though it reads as fine in any
+      // desktop or automated test. A double requestAnimationFrame defers
+      // focus() until the widen transition .is-open just triggered has
+      // actually had a real frame painted -- the standard, low-risk
+      // pattern for "focus a field that was just revealed" -- without any
+      // manual style manipulation that could itself go wrong.
       if (barEl && rowEl && !wasOpen) {
-        barEl.style.transition = "none";
-        rowEl.style.transition = "none";
-        rowEl.style.opacity = "1";
-        barEl.style.width = "min(480px, 100%)";
-        void barEl.offsetWidth;
-        focusInput();
-        barEl.style.width = "44px";
-        void barEl.offsetWidth;
-        barEl.style.transition = "";
-        rowEl.style.transition = "";
-        barEl.style.width = "";
-        rowEl.style.opacity = "";
+        requestAnimationFrame(() => requestAnimationFrame(focusInput));
       } else {
         focusInput();
       }
