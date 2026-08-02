@@ -143,32 +143,48 @@
     let openedAt = 0;
     const barEl = inputEl.closest(".ag-bar");
     const rowEl = inputEl.closest(".ag-inputrow");
-    function focusInput() {
-      try { inputEl.focus({ preventScroll: true }); } catch (e) { inputEl.focus(); }
-    }
+    // Plain focus(), no { preventScroll: true } -- that option has a
+    // known class of iOS Safari bugs where it silently fails to actually
+    // focus the element (or raise the keyboard) instead of throwing, so a
+    // try/catch around it never falls back to anything. A harmless auto-
+    // scroll into view is a fine trade for the keyboard reliably showing.
+    function focusInput() { inputEl.focus(); }
     function isOpen() { return dockEl.classList.contains("is-open"); }
     function open(focusNow) {
       const wasOpen = isOpen();
       if (!wasOpen) { dockEl.classList.add("is-open"); openedAt = Date.now(); }
       if (!focusNow) return;
-      // iOS only reliably raises the keyboard for a focus() call that's
-      // both synchronous within the user gesture AND lands on an
-      // already-rendered, non-zero-size field -- ours starts clipped to
-      // ~0 width inside the collapsed circle, widening only once the
-      // .is-open transition above actually plays. A previous version of
-      // this pre-widened the bar with transitions switched off, focused,
-      // then snapped back to the collapsed width so the "real" transition
-      // could take over -- several synchronous style/reflow flips packed
-      // into one tick, which is exactly the kind of DOM thrashing real
-      // mobile Safari has been seen to mishandle (dropping the focus, or
-      // the transition, or both) even though it reads as fine in any
-      // desktop or automated test. A double requestAnimationFrame defers
-      // focus() until the widen transition .is-open just triggered has
-      // actually had a real frame painted -- the standard, low-risk
-      // pattern for "focus a field that was just revealed" -- without any
-      // manual style manipulation that could itself go wrong.
+      // iOS only reliably raises the keyboard for a focus() call that is
+      // (a) synchronous within the user gesture and (b) lands on a field
+      // that's ALREADY laid out at a real, non-zero size -- ours starts
+      // clipped to ~0 width inside the collapsed circle. Neither a bare
+      // classList.add() (doesn't force a synchronous layout recalc, so
+      // the field can still measure as 0-size when focus() runs) nor
+      // deferring focus() via requestAnimationFrame (which can land
+      // outside iOS's user-activation window entirely, silently
+      // preventing the keyboard from ever appearing -- the strongest
+      // suspect for this surviving an earlier fix attempt) reliably
+      // satisfies both. So: force the full width directly, force a
+      // synchronous reflow by reading a layout property, THEN focus --
+      // all still inside the same synchronous click handler, nothing
+      // deferred before the focus() call itself. The transition/inline
+      // overrides are cleared a frame LATER (not immediately, unlike an
+      // earlier version of this code), so the field stays at its real,
+      // focused size for at least one full frame instead of being
+      // snapped back down out from under the keyboard mid-raise.
       if (barEl && rowEl && !wasOpen) {
-        requestAnimationFrame(() => requestAnimationFrame(focusInput));
+        barEl.style.transition = "none";
+        rowEl.style.transition = "none";
+        rowEl.style.opacity = "1";
+        barEl.style.width = "min(480px, 100%)";
+        void barEl.offsetWidth;
+        focusInput();
+        requestAnimationFrame(() => {
+          barEl.style.transition = "";
+          rowEl.style.transition = "";
+          barEl.style.width = "";
+          rowEl.style.opacity = "";
+        });
       } else {
         focusInput();
       }
