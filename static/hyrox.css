@@ -200,6 +200,48 @@
   box-shadow: 0 6px 16px rgba(47, 102, 232, 0.14);
 }
 .hx-choice-title { font-size: 14px; font-weight: 700; color: var(--text); }
+/* Optional second line on a choice card (Half/Full spells out what each
+   actually means, since "Half" alone doesn't say half of WHAT). */
+.hx-choice-sub { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-top: 3px; }
+
+/* ---------- Race agenda: the whole race, in order, before the clock
+   starts. Runs are deliberately quieter than stations so the 8 stations
+   read as the landmarks and the runs as the connective tissue. ---------- */
+.hx-agenda { margin-top: 18px; }
+.hx-agenda-summary {
+  display: flex; gap: 10px; margin-bottom: 12px;
+}
+.hx-agenda-summary-item {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  background: var(--bg); border-radius: 14px; padding: 10px 12px;
+}
+.hx-agenda-summary-value { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; }
+.hx-agenda-summary-label { font-size: 10.5px; font-weight: 600; color: var(--text-secondary); margin-top: 3px; }
+
+.hx-agenda-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.hx-agenda-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 12px;
+  background: var(--bg);
+}
+.hx-agenda-row.is-run { background: none; padding-top: 4px; padding-bottom: 4px; }
+.hx-agenda-num {
+  flex-shrink: 0; width: 20px;
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.hx-agenda-icon {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blue-bg); color: var(--blue);
+}
+.hx-agenda-row.is-run .hx-agenda-icon { background: none; color: var(--text-secondary); }
+.hx-agenda-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hx-agenda-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.hx-agenda-row.is-run .hx-agenda-name { font-weight: 600; color: var(--text-secondary); }
+.hx-agenda-detail { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-top: 1px; }
+.hx-agenda-row.is-run .hx-agenda-detail { display: none; }
 
 .hx-primary-btn {
   padding: 14px 24px;

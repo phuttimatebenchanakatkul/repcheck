@@ -126,16 +126,46 @@
   // below) -- SkiErg/Row/Run/Burpee Broad Jumps/Wall Balls are continuous
   // efforts without a "how many did each partner do" breakdown that means
   // anything in this app.
-  function totalRoundUnits(key) {
-    const spec = STATION_SPECS[key];
-    if (key === "sledPush" || key === "sledPull") return Math.round(spec.distanceM / spec.splitM);
-    if (key === "farmersCarry" || key === "lunges") return spec.distanceM;
-    return null;
+  // The full race's 1km runs, halved in a Half race. Single source of
+  // truth -- runTitle()/the agenda/the race screen all read it via
+  // runDistanceM(scale) rather than hardcoding 1000 in several places.
+  const RUN_DISTANCE_M = 1000;
+  function runDistanceM(scale) {
+    return scale === "half" ? RUN_DISTANCE_M / 2 : RUN_DISTANCE_M;
   }
-  // "rounds" for the sled stations (each unit = one 12.5m split), raw
-  // meters for farmers carry/lunges (they have no natural discrete round).
-  function roundUnitLabel(key) {
-    return (key === "sledPush" || key === "sledPull") ? t("hyrox.doublesSplit.unit.rounds") : t("hyrox.doublesSplit.unit.meters");
+  // Station distances and Wall Balls reps halve too; weights never do (a
+  // Half race is half the VOLUME at the same standard load).
+  function scaledStationDistanceM(key, scale) {
+    const spec = STATION_SPECS[key];
+    if (!spec || typeof spec.distanceM !== "number") return null;
+    return scale === "half" ? spec.distanceM / 2 : spec.distanceM;
+  }
+  function scaledWallBallReps(gender, scale) {
+    const reps = STATION_SPECS.wallBalls.reps[gender];
+    return scale === "half" ? Math.round(reps / 2) : reps;
+  }
+
+  // Every station is expressed in ROUNDS -- the sleds in their own 12.5m
+  // segments, farmers carry/lunges as laps of the user's lane. They used
+  // to be reported in raw meters, which read as a nonsensical "200 rounds
+  // to split" next to the sleds' "4", and gave a Doubles pair a number
+  // they couldn't act on. laneM is required for the carry stations since
+  // "one round" there only means something relative to the lane walked.
+  function totalRoundUnits(key, laneM, scale) {
+    if (!PRO_ADJUSTABLE_STATIONS.includes(key)) return null;
+    const dist = scaledStationDistanceM(key, scale);
+    if (dist == null) return null;
+    // Lane laps for EVERY splittable station, sleds included. The sleds
+    // used to count in HYROX's own 12.5m marker segments, which meant one
+    // Doubles screen showed "rounds" measured two different ways -- 12.5m
+    // segments for the sleds, lane laps for the carries -- and neither
+    // matched the lap count Singles shows for the same station. One
+    // definition: a round is one length of YOUR lane.
+    return Math.max(1, Math.ceil(dist / (laneM || DEFAULT_LANE_M)));
+  }
+  // Every splittable station now counts in rounds -- see totalRoundUnits.
+  function roundUnitLabel() {
+    return t("hyrox.doublesSplit.unit.rounds");
   }
 
   function getDefaultStationWeightKg(key, gender, category) {
@@ -152,9 +182,15 @@
   // in the same ballpark as the real standard — then rounded up to a
   // whole number of splits so it's still a clean distance to actually
   // walk out on a track/turf lane.
+  // roundToM quantises the result to a whole number of segments (the sleds,
+  // where a "round" IS a 12.5m segment). Pass null to leave the scaled
+  // distance exact -- for the carry stations, whose round count is decided
+  // later against the user's own lane, quantising here as well meant
+  // rounding twice and reporting lap counts that didn't match the weight.
   function scaledDistanceM(defaultDistanceM, defaultWeightKg, currentWeightKg, roundToM) {
     if (!currentWeightKg || currentWeightKg >= defaultWeightKg) return defaultDistanceM;
     const scaled = defaultDistanceM * (defaultWeightKg / currentWeightKg);
+    if (!roundToM) return scaled;
     return Math.ceil(scaled / roundToM) * roundToM;
   }
 
@@ -167,11 +203,11 @@
   function formatWeight(kg) {
     return RepCheckUnits.formatWeightKg(kg);
   }
-  function runTitle() {
-    return `${formatDistanceMeters(1000)} Run`;
+  function runTitle(scale) {
+    return `${formatDistanceMeters(runDistanceM(scale))} Run`;
   }
-  function stationTitle(entry) {
-    return entry.type === "run" ? runTitle() : entry.title;
+  function stationTitle(entry, scale) {
+    return entry.type === "run" ? runTitle(scale) : entry.title;
   }
 
   // Doubles pairs move the exact same weight AND the exact same total
@@ -415,6 +451,13 @@
   const CATEGORY_IDS = ["open", "pro"];
   const FORMAT_IDS = ["singles", "doubles"];
   const GENDER_IDS = ["men", "women"];
+  // "Half" halves the whole race -- every run, every station distance, and
+  // the Wall Balls rep count -- for a shorter session that keeps the full
+  // race's shape and every weight standard untouched (the loads are the
+  // standard; only the volume changes). Singles only: a Doubles pair is
+  // already dividing the work between two people, so halving on top of
+  // that stops resembling the race at all. See raceScale().
+  const SCALE_IDS = ["full", "half"];
 
   function categoryTitle(id) { return t(`hyrox.category.${id}.title`); }
   function formatTitle(id) { return t(`hyrox.format.${id}.title`); }
@@ -561,6 +604,8 @@
 
       this.root.addEventListener("click", (event) => this.handleClick(event));
       this.root.addEventListener("change", (event) => this.handleChange(event));
+      this.root.addEventListener("focusin", (event) => this.handleFocusIn(event));
+      this.root.addEventListener("focusout", (event) => this.handleFocusOut(event));
       // Re-render on language change so all dynamically-built text switches.
       // Skip while a race is actively running so the live timer isn't reset.
       document.addEventListener("repcheck:language-changed", () => {
@@ -599,7 +644,10 @@
       const bestByCombo = new Map();
       this.history.forEach((record) => {
         if (record.flagged) return; // never send unrealistic times to the leaderboard
-        const key = this.pbKeyFor(record.category, record.format, record.gender);
+        // The board ranks full races only -- it has no scale dimension,
+        // so a half-distance time would sit there looking superhuman.
+        if (record.scale === "half") return;
+        const key = this.pbKeyFor(record.category, record.format, record.gender, record.scale);
         const existing = bestByCombo.get(key);
         if (!existing || record.totalSeconds < existing.totalSeconds) bestByCombo.set(key, record);
       });
@@ -628,6 +676,9 @@
       this.category = null;
       this.format = null;
       this.gender = null;
+      // "full" | "half" -- see SCALE_IDS. Always reset to full so a Half
+      // session never silently carries into the next race.
+      this.scale = "full";
       this.stationIndex = 0;
       this.splits = [];
       this.startTime = null;
@@ -672,16 +723,20 @@
     // A "personal best" is scoped to one exact category+format+gender
     // combo — a Pro Singles time isn't comparable to an Open Doubles
     // time, so mixing them into one overall PB would be meaningless.
-    pbKeyFor(category, format, gender) {
-      return `${category}|${format}|${gender}`;
+    // Scale is part of the identity: a Half race covers half the distance,
+    // so ranking it against Full times would make every Half look like a
+    // massive PB. Records written before Half existed have no `scale` and
+    // are all Full races, hence the default.
+    pbKeyFor(category, format, gender, scale) {
+      return `${category}|${format}|${gender}|${scale || "full"}`;
     }
 
-    getPersonalBest(category, format, gender) {
-      const key = this.pbKeyFor(category, format, gender);
+    getPersonalBest(category, format, gender, scale) {
+      const key = this.pbKeyFor(category, format, gender, scale);
       let best = null;
       this.history.forEach((r) => {
         if (r.flagged) return; // flagged (unrealistic) times never count as a PB
-        if (this.pbKeyFor(r.category, r.format, r.gender) !== key) return;
+        if (this.pbKeyFor(r.category, r.format, r.gender, r.scale) !== key) return;
         if (!best || r.totalSeconds < best.totalSeconds) best = r;
       });
       return best;
@@ -694,7 +749,7 @@
       const bestByKey = new Map();
       this.history.forEach((r) => {
         if (r.flagged) return;
-        const key = this.pbKeyFor(r.category, r.format, r.gender);
+        const key = this.pbKeyFor(r.category, r.format, r.gender, r.scale);
         const existing = bestByKey.get(key);
         if (!existing || r.totalSeconds < existing.totalSeconds) bestByKey.set(key, r);
       });
@@ -710,6 +765,7 @@
       if (action === "set-category") return this.setCategory(target.dataset.value);
       if (action === "set-format") return this.setFormat(target.dataset.value);
       if (action === "set-gender") return this.setGender(target.dataset.value);
+      if (action === "set-scale") return this.setScale(target.dataset.value);
       if (action === "start-race") return this.startRace();
       if (action === "complete-segment") return this.completeSegment();
       if (action === "cancel-race") return this.cancelRace();
@@ -753,6 +809,30 @@
       this.render();
     }
 
+    // Tapping a number field should let you just type the new value, not
+    // make you clear 3 digits first -- so it blanks on focus. The old
+    // value is stashed on the element and put back on blur if nothing was
+    // typed, so tapping in and back out never silently changes anything.
+    // Bound via focusin/focusout (which bubble, unlike focus/blur) so this
+    // survives the sheet's innerHTML being rebuilt on every render.
+    handleFocusIn(event) {
+      const input = event.target.closest("[data-clear-on-focus]");
+      if (!input) return;
+      input.dataset.prevValue = input.value;
+      input.value = "";
+    }
+
+    handleFocusOut(event) {
+      const input = event.target.closest("[data-clear-on-focus]");
+      if (!input) return;
+      if (input.value.trim() === "" && input.dataset.prevValue != null) {
+        input.value = input.dataset.prevValue;
+        // Nothing changed, so no setter runs and no re-render is needed --
+        // restoring the text is the whole job.
+      }
+      delete input.dataset.prevValue;
+    }
+
     handleChange(event) {
       const weightInput = event.target.closest("[data-station-weight-input]");
       if (weightInput) return this.setStationWeight(weightInput.dataset.station, weightInput.value);
@@ -773,7 +853,30 @@
     setFormat(value) {
       this.format = value;
       this.doublesSplit = {}; // switching formats invalidates any "my rounds" split
+      // Half is Singles-only, so switching to Doubles must drop it rather
+      // than silently racing a half-length Doubles nobody selected.
+      if (value !== "singles") this.scale = "full";
       this.render();
+    }
+
+    // Half vs full race. Singles-only (see SCALE_IDS); guarded here too so
+    // it can't be set from a stale button after a format switch.
+    setScale(value) {
+      if (!SCALE_IDS.includes(value)) return;
+      if (value === "half" && this.format !== "singles") return;
+      this.scale = value;
+      // Round totals change with the scale, so any "my rounds" split
+      // measured against the old totals is no longer meaningful.
+      this.doublesSplit = {};
+      this.render();
+    }
+
+    // True once the user has actually moved something away from the
+    // standard -- drives the practice-mode caveat, which is noise until
+    // there's an adjustment for it to caveat.
+    hasAdjustments() {
+      return Object.keys(this.stationWeights).length > 0
+        || Object.keys(this.doublesSplit).length > 0;
     }
 
     setGender(value) {
@@ -824,7 +927,7 @@
     // split of the fixed total until the user overrides "my rounds" --
     // the partner's share is always just whatever's left.
     getDoublesSplit(key) {
-      const total = totalRoundUnits(key);
+      const total = totalRoundUnits(key, this.getFacilityLane(), this.scale);
       if (total === null) return null;
       const stored = this.doublesSplit[key];
       const mine = (typeof stored === "number" && stored >= 0 && stored <= total) ? stored : Math.round(total / 2);
@@ -832,7 +935,7 @@
     }
 
     setDoublesSplit(key, rawValue) {
-      const total = totalRoundUnits(key);
+      const total = totalRoundUnits(key, this.getFacilityLane(), this.scale);
       if (total === null || this.format !== "doubles") return;
       let v = Math.round(parseFloat(rawValue));
       if (!isFinite(v) || v < 0) v = 0;
@@ -845,7 +948,7 @@
     // count sets "mine" to whatever's left of the fixed total, the same
     // relationship as the other direction in setDoublesSplit() above.
     setDoublesSplitPartner(key, rawValue) {
-      const total = totalRoundUnits(key);
+      const total = totalRoundUnits(key, this.getFacilityLane(), this.scale);
       if (total === null || this.format !== "doubles") return;
       let partner = Math.round(parseFloat(rawValue));
       if (!isFinite(partner) || partner < 0) partner = 0;
@@ -892,20 +995,33 @@
     // (see scaledDistanceM). Guards against gender/category not being
     // chosen yet so it's safe to call from the setup card.
     effectiveDistanceM(key) {
-      const spec = STATION_SPECS[key];
-      if (!this.gender || !this.category) return spec.distanceM;
+      // Half-scale first, so a lighter practice weight scales the HALVED
+      // distance rather than the full one.
+      const baseM = scaledStationDistanceM(key, this.scale);
+      if (baseM == null) return null;
+      if (!this.gender || !this.category) return baseM;
       const defaultW = getDefaultStationWeightKg(key, this.gender, this.category);
-      if (defaultW === null) return spec.distanceM; // burpees etc. -- no weight to scale by
+      if (defaultW === null) return baseM; // burpees etc. -- no weight to scale by
       const w = this.getStationWeight(key);
-      const roundToM = (key === "sledPush" || key === "sledPull") ? spec.splitM : 10;
-      return scaledDistanceM(spec.distanceM, defaultW, w, roundToM);
+      // Sleds keep the 12.5m-segment quantisation because a sled round IS
+      // a segment. The carry stations don't: they used to be forced to a
+      // 10m grid here and THEN divided by the lane and rounded up again,
+      // and that double-rounding is what made adjusted weights produce
+      // visibly wrong lap counts. Now the scaled distance stays exact and
+      // rounding happens once, in roundsFor(), against the real lane.
+      const isSled = key === "sledPush" || key === "sledPull";
+      return scaledDistanceM(baseM, defaultW, w, isSled ? STATION_SPECS[key].splitM : null);
     }
 
     // How many laps of the user's gym lane it takes to cover the station's
     // distance -- "first line to last line and back counts as one lap."
-    // e.g. an 80m station in a 10m lane => 8 laps.
+    // e.g. an 80m station in a 10m lane => 8 laps. Rounds up exactly once,
+    // against the real lane, from an unquantised distance (see
+    // effectiveDistanceM) so an adjusted weight yields an honest count.
     roundsFor(key) {
-      return Math.max(1, Math.ceil(this.effectiveDistanceM(key) / this.getFacilityLane()));
+      const dist = this.effectiveDistanceM(key);
+      if (dist == null) return null;
+      return Math.max(1, Math.ceil(dist / this.getFacilityLane()));
     }
 
     // ---------- Weight-standards reference list (renderWeightsCard) ----------
@@ -1039,7 +1155,7 @@
       if (this.screen !== "running") return;
       const segment = STATIONS[this.stationIndex];
       const now = (performance.now() - this.startTime) / 1000;
-      this.splits.push({ key: segment.key, title: stationTitle(segment), atSeconds: now });
+      this.splits.push({ key: segment.key, title: stationTitle(segment, this.scale), atSeconds: now });
 
       if (this.stationIndex >= STATIONS.length - 1) {
         this.finishRace(now);
@@ -1052,7 +1168,7 @@
     finishRace(totalSeconds) {
       this.stopTicking();
       const flagged = totalSeconds <= (FLAG_THRESHOLD_SECONDS[this.flagKeyFor(this.format, this.gender)] || Infinity);
-      const priorPb = this.getPersonalBest(this.category, this.format, this.gender);
+      const priorPb = this.getPersonalBest(this.category, this.format, this.gender, this.scale);
       const isNewPb = !flagged && (!priorPb || totalSeconds < priorPb.totalSeconds);
 
       const record = {
@@ -1061,6 +1177,7 @@
         category: this.category,
         format: this.format,
         gender: this.gender,
+        scale: this.scale,
         totalSeconds,
         splits: this.splits,
         flagged,
@@ -1097,6 +1214,10 @@
     // this fails), this is purely the leaderboard's copy.
     async submitHyroxResult(record) {
       if (!window.REPCHECK_LOGGED_IN) return;
+      // Half races cover half the distance and the leaderboard has no
+      // scale dimension to separate them, so submitting one would rank a
+      // fundamentally different effort against full races.
+      if (record.scale === "half") return;
       // Whatever gender was just raced under becomes the standing
       // leaderboard identity too, same as picking it anywhere else.
       this.leaderboardGender = record.gender;
@@ -1297,6 +1418,8 @@
           this.handleClick(event);
         });
         overlay.addEventListener("change", (event) => this.handleChange(event));
+        overlay.addEventListener("focusin", (event) => this.handleFocusIn(event));
+        overlay.addEventListener("focusout", (event) => this.handleFocusOut(event));
         window.bindSheetDrag(overlay, ".log-sheet", ".log-sheet-handle", () => this.closeSetupSheet());
       }
       this.setupSheetOpen = true;
@@ -1331,8 +1454,10 @@
           <div class="hx-step-label">${t("hyrox.step.format")}</div>
           <div class="hx-choice-grid" data-group="format"></div>
           <div id="hx-gender-block"></div>
+          <div id="hx-scale-block"></div>
           <div id="hx-training-space-block"></div>
           <div id="hx-pro-adjust-block"></div>
+          <div id="hx-agenda-block"></div>
           <div style="margin-top:6px;">
             <button type="button" class="hx-primary-btn" data-action="start-race" style="width:100%;" ${this.canStart() ? "" : "disabled"}>${t("hyrox.startRace")}</button>
           </div>
@@ -1371,16 +1496,29 @@
         genderBlock.appendChild(genderGrid);
       }
 
-      // Weight practice-adjustment is Singles-only: in Doubles the weight
-      // is never yours alone to lighten -- it's the shared, fixed
-      // standard, and what a Doubles pair actually controls is how they
-      // split the (also fixed) rounds between themselves, not the load.
-      // That split gets its own step instead, for either category.
-      // Open Singles has no adjustable step -- its standards are already
-      // shown by the Weight Standards card up top, so we don't repeat them
-      // here after Step 3.
-      // "Your training space" sits right after Step 3 (gender), inside
-      // this same sheet, once category + gender are chosen.
+      // Half/full race length. Singles only (see SCALE_IDS) -- a Doubles
+      // pair already halves the work between two people.
+      const scaleBlock = wrap.querySelector("#hx-scale-block");
+      if (this.format === "singles" && this.gender) {
+        scaleBlock.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.scale")}</div>`));
+        const scaleGrid = el(`<div class="hx-choice-grid" data-group="scale"></div>`);
+        SCALE_IDS.forEach((id) => {
+          scaleGrid.appendChild(el(`
+            <button type="button" class="hx-choice-card ${this.scale === id ? "is-selected" : ""}" data-action="set-scale" data-value="${id}">
+              <div class="hx-choice-title">${t(`hyrox.scale.${id}.title`)}</div>
+              <div class="hx-choice-sub">${t(`hyrox.scale.${id}.sub`)}</div>
+            </button>
+          `));
+        });
+        scaleBlock.appendChild(scaleGrid);
+      }
+
+      // "Your training space" sits right after the format/gender steps.
+      // Doubles deliberately skips the per-station list: its own split
+      // step below covers the same stations, and showing both duplicated
+      // every station twice on one screen. The lane question itself still
+      // matters in Doubles (the split totals are lane-derived), so that
+      // part is kept -- see renderTrainingSpaceCard's own `showStations`.
       const trainingSpaceBlock = wrap.querySelector("#hx-training-space-block");
       if (this.category && this.gender) {
         trainingSpaceBlock.appendChild(this.renderTrainingSpaceCard());
@@ -1395,9 +1533,15 @@
         proAdjustBlock.appendChild(this.renderDoublesSplitStep());
       }
 
+      // The whole race, in order, once there's enough context to state it.
+      const agendaBlock = wrap.querySelector("#hx-agenda-block");
+      if (this.category && this.format && this.gender) {
+        agendaBlock.appendChild(this.renderRaceAgenda());
+      }
+
       const startRow = wrap.querySelector('[data-action="start-race"]').parentElement;
       if (this.canStart()) {
-        const pb = this.getPersonalBest(this.category, this.format, this.gender);
+        const pb = this.getPersonalBest(this.category, this.format, this.gender, this.scale);
         if (pb) {
           const dateLabel = new Date(pb.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
           startRow.insertAdjacentElement("beforebegin", el(`
@@ -1442,11 +1586,11 @@
               <div class="hx-pro-weight-stat-label">${t("hyrox.weightAdjust.weightLabel")}</div>
             </div>
             <div class="hx-pro-weight-stat hx-pro-weight-stat-editable ${isUneven ? "is-scaled" : ""}">
-              <input type="number" inputmode="numeric" step="1" min="0" max="${split.total}" value="${split.mine}" data-doubles-round-input data-station="${key}" class="hx-pro-weight-stat-input">
+              <input type="number" inputmode="numeric" step="1" min="0" max="${split.total}" value="${split.mine}" data-doubles-round-input data-clear-on-focus data-station="${key}" class="hx-pro-weight-stat-input">
               <div class="hx-pro-weight-stat-label">${t("hyrox.doublesSplit.you")} (${unit})</div>
             </div>
             <div class="hx-pro-weight-stat hx-pro-weight-stat-editable">
-              <input type="number" inputmode="numeric" step="1" min="0" max="${split.total}" value="${split.partner}" data-doubles-round-partner-input data-station="${key}" class="hx-pro-weight-stat-input">
+              <input type="number" inputmode="numeric" step="1" min="0" max="${split.total}" value="${split.partner}" data-doubles-round-partner-input data-clear-on-focus data-station="${key}" class="hx-pro-weight-stat-input">
               <div class="hx-pro-weight-stat-label">${t("hyrox.doublesSplit.partner")} (${unit})</div>
               ${isUneven ? `<button type="button" class="hx-weight-reset" data-action="reset-doubles-split" data-station="${key}">${t("hyrox.weightAdjust.reset")}</button>` : ""}
             </div>
@@ -1454,6 +1598,79 @@
         `));
       });
       wrap.appendChild(grid);
+      return wrap;
+    }
+
+    // What one station actually commits you to, as a short phrase for the
+    // agenda -- machine metres, wall-ball reps, or lane rounds + load.
+    agendaDetailFor(key) {
+      const spec = STATION_SPECS[key];
+      if (key === "wallBalls") {
+        return t("hyrox.agenda.detail.wallBalls", {
+          reps: scaledWallBallReps(this.gender, this.scale),
+          weight: formatWeight(spec.ballKg[this.gender]),
+          target: `${spec.targetFt[this.gender]}ft`,
+        });
+      }
+      if (key === "skierg" || key === "row") {
+        return formatStationMeters(scaledStationDistanceM(key, this.scale));
+      }
+
+      const rounds = this.roundsFor(key);
+      const dist = Math.round(this.effectiveDistanceM(key));
+      // In Doubles the number that matters to YOU is your own share, not
+      // the pair's combined total -- same reasoning as the race screen's
+      // hero value.
+      const split = this.format === "doubles" ? this.getDoublesSplit(key) : null;
+      const shown = split ? Math.max(1, Math.round(rounds * (split.mine / split.total))) : rounds;
+      const base = t("hyrox.agenda.detail.rounds", { rounds: shown, distance: formatStationMeters(dist) });
+
+      const w = this.getStationWeight(key);
+      return w ? `${base} · ${formatWeight(w)}` : base;
+    }
+
+    // The whole race in order, start to finish, so the commitment is
+    // legible BEFORE the clock starts rather than revealed one segment at
+    // a time. Runs and stations alternate exactly as STATIONS declares, so
+    // this stays correct automatically if that order ever changes.
+    renderRaceAgenda() {
+      const runM = runDistanceM(this.scale);
+      const runCount = STATIONS.filter((s) => s.type === "run").length;
+      const totalRunM = runM * runCount;
+
+      const wrap = el(`
+        <div class="hx-agenda">
+          <div class="hx-step-label">${t("hyrox.step.agenda")}</div>
+          <div class="hx-agenda-summary">
+            <div class="hx-agenda-summary-item">
+              <span class="hx-agenda-summary-value">${formatDistanceMeters(totalRunM)}</span>
+              <span class="hx-agenda-summary-label">${t("hyrox.agenda.totalRunning", { n: runCount, each: formatDistanceMeters(runM) })}</span>
+            </div>
+            <div class="hx-agenda-summary-item">
+              <span class="hx-agenda-summary-value">${STATION_ORDER.length}</span>
+              <span class="hx-agenda-summary-label">${t("hyrox.agenda.stations")}</span>
+            </div>
+          </div>
+          <ol class="hx-agenda-list" data-agenda-list></ol>
+        </div>
+      `);
+
+      const listEl = wrap.querySelector("[data-agenda-list]");
+      STATIONS.forEach((entry, i) => {
+        const isRun = entry.type === "run";
+        const detail = isRun ? formatDistanceMeters(runM) : this.agendaDetailFor(entry.key);
+        listEl.appendChild(el(`
+          <li class="hx-agenda-row ${isRun ? "is-run" : "is-station"}">
+            <span class="hx-agenda-num">${i + 1}</span>
+            <span class="hx-agenda-icon">${stationIconSvg(isRun ? "run" : entry.key, 20)}</span>
+            <span class="hx-agenda-body">
+              <span class="hx-agenda-name">${stationTitle(entry, this.scale)}</span>
+              <span class="hx-agenda-detail">${detail}</span>
+            </span>
+          </li>
+        `));
+      });
+
       return wrap;
     }
 
@@ -1565,12 +1782,11 @@
         </div>
       `);
 
-      // Pro Singles is the only place a weight can be dialled down, so it's
-      // the only place that needs the "this is practice, race day is fixed"
-      // caveat -- without it the app would quietly imply you can trade load
-      // for extra rounds on race day, which you can't. (This used to live on
-      // the separate Pro step that's now folded into this list.)
-      if (this.format === "singles" && this.category === "pro") {
+      // The "practice mode, race day is fixed" caveat only earns its space
+      // once the user has ACTUALLY moved something off the standard -- until
+      // then it's a warning about something they haven't done, sitting on
+      // top of every setup. hasAdjustments() gates it.
+      if (this.format === "singles" && this.category === "pro" && this.hasAdjustments()) {
         card.querySelector("[data-race-fixed-note]").appendChild(el(`
           <div class="hx-race-fixed-banner">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/></svg>
@@ -1589,7 +1805,12 @@
       const showWeight = this.format === "singles";
       const weightEditable = showWeight && this.category === "pro";
 
+      // Doubles gets the lane question but NOT the per-station list: the
+      // Doubles Round Split step below covers the very same stations, and
+      // rendering both listed every station twice on one screen.
       const listEl = card.querySelector("[data-space-list]");
+      if (this.format === "doubles") return card;
+
       TRAVERSAL_STATIONS.forEach((key) => {
         const title = STATIONS.find((s) => s.key === key).title;
         const rounds = this.roundsFor(key);
@@ -1604,7 +1825,7 @@
             weightHtml = `
               <div class="hx-space-weight is-editable ${isScaled ? "is-scaled" : ""}">
                 <input type="number" inputmode="decimal" step="0.5" min="${minW}" max="${defaultW}"
-                       value="${currentW}" data-station-weight-input data-station="${key}"
+                       value="${currentW}" data-station-weight-input data-clear-on-focus data-station="${key}"
                        class="hx-space-weight-input" aria-label="${title} ${t("hyrox.weightAdjust.weightLabel")}">
                 <span class="hx-space-weight-label">kg</span>
               </div>
@@ -1713,7 +1934,7 @@
 
       if (key === "wallBalls") {
         return `<div class="hx-now-chips">
-          ${chip(spec.reps[this.gender], t("hyrox.space.chip.reps"))}
+          ${chip(scaledWallBallReps(this.gender, this.scale), t("hyrox.space.chip.reps"))}
           ${chip(formatWeight(spec.ballKg[this.gender]), t("hyrox.space.chip.ball"))}
           ${chip(`${spec.targetFt[this.gender]}ft`, t("hyrox.space.chip.target"))}
         </div>`;
@@ -1723,7 +1944,7 @@
         // was machine-damper jargon that didn't tell the lifter anything
         // actionable.
         return `<div class="hx-now-chips">
-          ${chip(formatStationMeters(spec.distanceM), t("hyrox.space.chip.distance"))}
+          ${chip(formatStationMeters(scaledStationDistanceM(key, this.scale)), t("hyrox.space.chip.distance"))}
         </div>`;
       }
 
@@ -1798,7 +2019,7 @@
           <div class="hx-now">
             <div class="hx-now-kicker">${t("hyrox.running.upNow")}</div>
             <div class="hx-now-badge">${stationIconSvg(iconKey, 48)}</div>
-            <div class="hx-now-title">${stationTitle(segment)}</div>
+            <div class="hx-now-title">${stationTitle(segment, this.scale)}</div>
             ${detailHtml}
             ${segment.type === "station" ? `
               <button type="button" class="hx-now-info" data-action="show-station-info" data-station="${segment.key}">
@@ -1826,7 +2047,7 @@
       const dotsEl = card.querySelector("[data-dots]");
       STATIONS.forEach((s, i) => {
         const cls = i < this.stationIndex ? "is-done" : i === this.stationIndex ? "is-current" : "";
-        dotsEl.appendChild(el(`<div class="hx-progress-dot ${cls}" title="${stationTitle(s)}"></div>`));
+        dotsEl.appendChild(el(`<div class="hx-progress-dot ${cls}" title="${stationTitle(s, this.scale)}"></div>`));
       });
 
       const headEl = card.querySelector("[data-splits-head]");
