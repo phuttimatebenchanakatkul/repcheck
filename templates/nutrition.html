@@ -394,7 +394,12 @@
 
   /* ---------- Analyze-a-photo + manual-macro entry points + modal ---------- */
 
-  .nl-quick-actions-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  /* align-items: stretch (the flex default) -- not center -- so both
+     buttons render at the SAME height. With center, each button sizes to
+     its own content, and "Analyze a food photo" wraps to two lines while
+     "Quick add" stays on one, leaving them visually mismatched in height
+     even with identical padding/font-size/radius. */
+  .nl-quick-actions-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 16px; }
 
   .nl-scan-btn {
     display: flex;
