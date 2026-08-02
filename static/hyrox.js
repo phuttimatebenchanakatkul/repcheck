@@ -1560,9 +1560,24 @@
             ${isCustom ? `<button type="button" class="hx-weight-reset hx-space-reset" data-action="reset-facility-lane">${t("hyrox.weightAdjust.reset")}</button>` : ""}
           </div>
 
+          <div data-race-fixed-note></div>
           <div class="hx-space-list" data-space-list></div>
         </div>
       `);
+
+      // Pro Singles is the only place a weight can be dialled down, so it's
+      // the only place that needs the "this is practice, race day is fixed"
+      // caveat -- without it the app would quietly imply you can trade load
+      // for extra rounds on race day, which you can't. (This used to live on
+      // the separate Pro step that's now folded into this list.)
+      if (this.format === "singles" && this.category === "pro") {
+        card.querySelector("[data-race-fixed-note]").appendChild(el(`
+          <div class="hx-race-fixed-banner">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/></svg>
+            <div>${t("hyrox.weightAdjust.raceFixedWarning")}</div>
+          </div>
+        `));
+      }
 
       // Singles carries its weight here, immediately left of the lap count,
       // so one list answers both "how heavy" and "how many laps of MY lane"

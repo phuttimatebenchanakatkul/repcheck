@@ -27,6 +27,11 @@ DURATION_SECONDS = 75
 # Below this, there isn't enough footage to judge a set -- grading it would
 # mean inventing a score from almost nothing (see trim_video()).
 MIN_USABLE_SECONDS = 3
+# Tool-free sanity floor, used ONLY when ffprobe can't measure a duration.
+# A frameless/header-only container runs ~1-2KB (measured), so this sits
+# just above that -- low enough that a real but small/low-bitrate clip is
+# never wrongly rejected, since a false reject blocks a legitimate upload.
+MIN_USABLE_BYTES = 5_000
 
 # Extra places to look for ffmpeg.exe if it's not resolvable via PATH yet
 # (e.g. it was just installed and this process's PATH hasn't refreshed).
@@ -93,7 +98,16 @@ def trim_video(input_path, output_path):
         sys.exit("Couldn't process that video. Please try uploading it again.")
 
     trimmed_duration = get_video_duration(output_path)
-    if trimmed_duration is not None and trimmed_duration < MIN_USABLE_SECONDS:
+    if trimmed_duration is None:
+        # ffprobe couldn't measure it (missing, or the file is unreadable).
+        # Fall back to a tool-free size floor so a corrupt/frameless output
+        # can't slip past unchecked -- without it, an unmeasurable clip
+        # skipped this guard entirely and got graded as a full-length lift.
+        # Deliberately low: it should only catch header-only containers
+        # (~1-2KB), never a real, legitimately short set.
+        if Path(output_path).stat().st_size < MIN_USABLE_BYTES:
+            sys.exit("Couldn't read that video. Please upload a clear clip of your full set.")
+    elif trimmed_duration < MIN_USABLE_SECONDS:
         sys.exit(
             "That clip is too short to analyze. Please upload a video of at "
             f"least {MIN_USABLE_SECONDS:g} seconds showing your full set."

@@ -82,10 +82,16 @@ def run_pipeline(input_video, exercise, trimmed_path=None):
         video_bytes, config, duration_seconds, video_mime_type(trimmed_path)
     )
 
+    stretch_score, squeeze_score, overall_score, favored, reps = parse_scores(raw_feedback)
+
     # The model reports UNSCORABLE when the clip shows no assessable set
     # (see build_prompt) -- surface that instead of pretending we graded it.
-    unscorable = re.search(r"UNSCORABLE:\s*(.*)", raw_feedback)
-    if unscorable:
+    # Anchored to the start (the prompt says emit that line "and nothing
+    # else") and only honoured when no score actually parsed, so a normal,
+    # fully-scored response that merely mentions the word somewhere in its
+    # prose can't throw away a perfectly good analysis.
+    unscorable = re.match(r"\s*UNSCORABLE:\s*(.*)", raw_feedback)
+    if unscorable and overall_score is None:
         reason = unscorable.group(1).strip()
         sys.exit(
             "We couldn't analyze that video"
@@ -93,7 +99,6 @@ def run_pipeline(input_video, exercise, trimmed_path=None):
             + " Please upload a clear clip of your full set and try again."
         )
 
-    stretch_score, squeeze_score, overall_score, favored, reps = parse_scores(raw_feedback)
     # A response with no parsable OVERALL_SCORE means the grading didn't
     # actually happen -- failing loudly beats showing feedback with a
     # missing or misleading number attached to it.

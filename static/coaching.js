@@ -664,6 +664,17 @@
 
         this.profile.lastAdjustmentDate = c.todayIso;
         saveJson(PROFILE_KEY, this.profile);
+        // ANY completed check-in retires the "ready early" override, not
+        // just the goal-achieved one. Clearing it only on that branch left
+        // a real hole: achieve the goal, dismiss the congrats sheet, drift
+        // back off-goal, then check in. checkGoalAchievedNow() is false by
+        // then, so this normal path ran -- and the stale flag kept
+        // checkinDaysRemaining() pinned at 0, so the home banner and the
+        // nutrition button stayed "ready" forever. (The flag would only
+        // self-clear on the next weigh-in through base.html's modal; the
+        // weight saved inside the check-in itself doesn't dispatch
+        // repcheck:weight-logged, so it never ran that check.)
+        localStorage.removeItem(ACHIEVED_KEY);
 
         c.result = adjustment;
         c.resultPrevious = previousTargets;

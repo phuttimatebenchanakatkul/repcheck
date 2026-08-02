@@ -543,7 +543,16 @@
 
   function startPoseLoop() {
     if (!poseWanted) return;
+    // getPoseLandmarker() hands back the SAME pending promise to every
+    // caller, so two submits before it resolves would fire two .then()s and
+    // start two rAF chains -- while poseRafId can only ever cancel the last
+    // one, leaving the other running detectForVideo() every frame for the
+    // rest of the session. Bail if a loop is already live.
+    if (poseRafId) return;
     function loop() {
+      // Re-checked per frame, not just on entry, so a stop that lands
+      // mid-flight can't be outlived by an already-scheduled callback.
+      if (!poseWanted) { poseRafId = null; return; }
       if (poseLandmarker && previewVideo.readyState >= 2 && previewVideo.videoWidth) {
         if (poseCanvas.width !== previewVideo.videoWidth) {
           poseCanvas.width = previewVideo.videoWidth;
