@@ -254,6 +254,29 @@
         // the still-open one.
         window.__pcSheetLockCount = window.__pcSheetLockCount || 0;
 
+        // Separate mobile-keyboard quirk from the body-lock above: a sheet
+        // overlay sized via `inset: 0` lays itself out against the full,
+        // un-shrunk layout viewport, not the visual viewport the on-screen
+        // keyboard leaves visible. So a bottom-anchored sheet's bottom edge
+        // ends up behind the keyboard, pushing anything pinned near the
+        // sheet's TOP (a search box right under the handle) up out of the
+        // visible area as the keyboard opens/resizes -- even though the
+        // page itself is no longer panning. Tracking the real visible
+        // viewport via the VisualViewport API and feeding it back as CSS
+        // vars lets sheet overlays size themselves against what's actually
+        // on screen instead of the full layout viewport.
+        function updatePcViewportVars() {
+          const vv = window.visualViewport;
+          if (!vv) return;
+          document.documentElement.style.setProperty("--pc-vvh", `${vv.height}px`);
+          document.documentElement.style.setProperty("--pc-vvt", `${vv.offsetTop}px`);
+        }
+        if (window.visualViewport) {
+          updatePcViewportVars();
+          window.visualViewport.addEventListener("resize", updatePcViewportVars);
+          window.visualViewport.addEventListener("scroll", updatePcViewportVars);
+        }
+
         window.openBottomSheet = function(overlayEl, sheetSelector) {
           if (!overlayEl) return;
           if (overlayEl.parentElement !== document.body) {

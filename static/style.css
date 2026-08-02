@@ -1179,7 +1179,15 @@ input[type="file"], select {
    see the ".pc-sheet-active .app" rule above, same as every other sheet. */
 .log-sheet-overlay {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  /* top/height (not `inset: 0`) so this stays pinned to the real visible
+     viewport -- see base.html's visualViewport tracking -- instead of the
+     full layout viewport, which on mobile stays un-shrunk behind an open
+     keyboard and would otherwise push a bottom-anchored sheet's pinned-top
+     search box up out of view as the keyboard opens. */
+  top: var(--pc-vvt, 0px);
+  height: var(--pc-vvh, 100vh);
   z-index: 400;
   display: flex;
   align-items: flex-end;
@@ -1195,7 +1203,12 @@ input[type="file"], select {
   pointer-events: auto;
   width: 100%;
   max-width: 560px;
-  max-height: 92vh;
+  /* Capped against the tracked visible viewport (falls back to 92vh
+     when unsupported), not a bare 92vh -- otherwise, with the keyboard
+     open and the overlay above now sized to the shrunk visible area, the
+     sheet could still want to be taller than what's actually on screen
+     and push its own pinned-top search box off the top edge. */
+  max-height: calc(var(--pc-vvh, 100vh) * 0.92);
   display: flex;
   flex-direction: column;
   background: var(--card-bg);
