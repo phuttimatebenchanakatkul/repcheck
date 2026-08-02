@@ -31,6 +31,10 @@
   // back off-goal. Its only job is letting checkinDaysRemaining() force
   // check-in "ready" ahead of the normal 7-day cadence.
   const ACHIEVED_KEY = "repcheck_coaching_goal_achieved_v1";
+  // Set once the user has completed the check-in for a given goal, so the
+  // achievement doesn't re-fire on every subsequent weigh-in. Mirrors
+  // base.html's constant of the same name -- see there for the full why.
+  const ACHIEVED_HANDLED_KEY = "repcheck_coaching_goal_achieved_handled_v1";
   const GOALS_KEY = "repcheck_nutrition_goals_v1";          // shared with nutrition.html
   const NUTRITION_LOG_KEY = "repcheck_nutrition_log_v1";    // shared, read-only here
   const SPLIT_PLAN_KEY = "repcheck_split_plan_v1";          // shared with workouts.html, read-only here
@@ -547,10 +551,26 @@
           // they'd have nothing left to be analyzed for) entirely: the
           // goal is met, so the only meaningful next step is re-running
           // the full wizard, not a macro tweak. lastAdjustmentDate still
-          // advances as normal so the 7-day cadence stays in sync; only
-          // ACHIEVED_KEY governs "ready for new goals" and it's cleared
-          // independently (see base.html) the moment they drift back off.
-          localStorage.setItem(ACHIEVED_KEY, JSON.stringify({ goalWeightKg: parseFloat(this.profile.goalWeightKg), aspiration: this.profile.aspiration }));
+          // advances as normal so the 7-day cadence stays in sync.
+          //
+          // ACHIEVED_KEY is CLEARED here, not set: it exists purely to
+          // force check-in "ready" ahead of the 7-day cadence once the
+          // goal is hit (checkinDaysRemaining() returns 0 while it's
+          // present). Setting it at submit time meant that override never
+          // switched off -- the home banner kept advertising a check-in
+          // that was already done, and the nutrition button stayed
+          // clickable forever. Completing the check-in IS the thing it
+          // was waiting for, so it has done its job. Re-running the
+          // wizard is driven by the result screen's own "Set new goals"
+          // button, not by this flag.
+          localStorage.removeItem(ACHIEVED_KEY);
+          // ...and remember they've acted on THIS goal, so the next
+          // weigh-in (still at goal, naturally) doesn't immediately
+          // re-fire the congrats sheet and re-ready the check-in.
+          localStorage.setItem(ACHIEVED_HANDLED_KEY, JSON.stringify({
+            goalWeightKg: parseFloat(this.profile.goalWeightKg),
+            aspiration: this.profile.aspiration,
+          }));
           this.profile.lastAdjustmentDate = c.todayIso;
           saveJson(PROFILE_KEY, this.profile);
           c.result = "goal-achieved";
@@ -914,6 +934,11 @@
         lastAdjustmentDate: todayIso,
       };
       saveJson(PROFILE_KEY, this.profile);
+      // Fresh goal -- reaching it is a new milestone, so let the
+      // achievement flow fire again rather than staying suppressed by
+      // whatever the user already acted on for the previous goal.
+      localStorage.removeItem(ACHIEVED_KEY);
+      localStorage.removeItem(ACHIEVED_HANDLED_KEY);
       saveJson(GOALS_KEY, {
         protein: w.result.targets.protein,
         fat: w.result.targets.fat,

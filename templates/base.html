@@ -773,6 +773,14 @@
 
       const PROFILE_KEY = "repcheck_coaching_profile_v1";
       const ACHIEVED_KEY = "repcheck_coaching_goal_achieved_v1";
+      // Remembers which goal the user has ALREADY acted on (completed the
+      // check-in for). Without it, clearing ACHIEVED_KEY on check-in
+      // completion would let the very next weigh-in -- still at goal, of
+      // course -- re-fire the congrats sheet and re-ready the check-in,
+      // nagging every single time they step on the scale. Keyed by the
+      // goal itself, so setting a NEW goal in the wizard celebrates
+      // again as it should.
+      const ACHIEVED_HANDLED_KEY = "repcheck_coaching_goal_achieved_handled_v1";
       const WEIGHT_LOG_KEY = "repcheck_weight_log_v1";
 
       function loadJson(key) {
@@ -821,13 +829,20 @@
         const goal = parseFloat(profile.goalWeightKg);
         const achieved = profile.aspiration === "lose" ? latest <= goal : latest >= goal;
         const flag = loadJson(ACHIEVED_KEY);
+        const handled = loadJson(ACHIEVED_HANDLED_KEY);
+        const alreadyHandled = !!handled
+          && parseFloat(handled.goalWeightKg) === goal
+          && handled.aspiration === profile.aspiration;
         if (achieved) {
-          if (!flag) {
+          if (!flag && !alreadyHandled) {
             localStorage.setItem(ACHIEVED_KEY, JSON.stringify({ goalWeightKg: goal, aspiration: profile.aspiration }));
             window.openGoalAchievedSheet(goal);
           }
-        } else if (flag) {
-          localStorage.removeItem(ACHIEVED_KEY);
+        } else {
+          if (flag) localStorage.removeItem(ACHIEVED_KEY);
+          // Drifting back off-goal makes the next re-achievement a genuine
+          // new milestone worth celebrating again.
+          if (handled) localStorage.removeItem(ACHIEVED_HANDLED_KEY);
         }
       };
 
