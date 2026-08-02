@@ -331,16 +331,6 @@
 }
 .hx-race-fixed-banner svg { flex-shrink: 0; margin-top: 1px; }
 
-/* Same loud treatment as the banner above, but blue instead of amber --
-   this one isn't a "practice mode, not real rules" caution, it's a
-   straightforward "here's what to actually do" instruction, so it reads
-   as informational rather than a warning. */
-.hx-doubles-banner {
-  background: var(--blue-bg);
-  color: var(--blue);
-  border-color: var(--blue);
-}
-
 .hx-pro-weight-grid { display: flex; flex-direction: column; gap: 12px; }
 .hx-pro-weight-row {
   display: flex;
@@ -596,6 +586,37 @@
 }
 .hx-space-laps-value { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--blue); }
 .hx-space-laps-label { font-size: 9px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 3px; }
+
+/* Station load, sitting immediately left of the lap count (Singles only).
+   Deliberately neutral-toned, not blue like the lap box, so the lap count
+   -- the thing the lane question actually answers -- still leads. Editable
+   in Pro, where practising a lighter weight is allowed. */
+.hx-space-weight {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  min-width: 58px;
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 6px 8px;
+}
+.hx-space-weight-value { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.hx-space-weight-label { font-size: 9px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 3px; }
+.hx-space-weight-input {
+  width: 100%; min-width: 0; padding: 0; margin: 0;
+  background: none; border: none;
+  border-bottom: 1px dashed var(--text-secondary);
+  border-radius: 0;
+  text-align: center;
+  font-family: inherit;
+  /* 16px so iOS Safari doesn't zoom the page when it's focused. */
+  font-size: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
+  color: var(--text); font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.hx-space-weight-input::-webkit-inner-spin-button,
+.hx-space-weight-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.hx-space-weight-input:focus { outline: none; color: var(--blue); border-bottom-color: var(--blue); border-bottom-style: solid; }
+/* Practising below the standard -- flagged so it never silently looks official. */
+.hx-space-weight.is-scaled { background: var(--amber-bg); border-color: transparent; }
+.hx-space-weight.is-scaled .hx-space-weight-input { color: var(--amber); border-bottom-color: var(--amber); }
 
 /* ---------- Redesigned "standards" card: clear rounds / distance /
    weight chips per station, always visible (no tap to expand). ---------- */

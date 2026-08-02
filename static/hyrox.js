@@ -1386,10 +1386,12 @@
         trainingSpaceBlock.appendChild(this.renderTrainingSpaceCard());
       }
 
+      // Singles has no separate step any more -- weight (editable in Pro)
+      // and the lane-aware lap count both live in the training-space list
+      // above, so there's exactly one place showing each station's numbers
+      // instead of two that disagreed with each other.
       const proAdjustBlock = wrap.querySelector("#hx-pro-adjust-block");
-      if (this.gender && this.format === "singles" && this.category === "pro") {
-        proAdjustBlock.appendChild(this.renderProAdjustStep());
-      } else if (this.gender && this.format === "doubles") {
+      if (this.gender && this.format === "doubles") {
         proAdjustBlock.appendChild(this.renderDoublesSplitStep());
       }
 
@@ -1410,86 +1412,16 @@
       return wrap;
     }
 
-    // Step 4, Pro-only: a focused view of just the 4 stations whose weight
-    // can be practiced lighter (see PRO_ADJUSTABLE_STATIONS), leading with
-    // the number that actually matters day-to-day -- how many rounds that
-    // buys you -- instead of burying it in the full 8-station reference
-    // table below.
-    renderProAdjustStep() {
-      const wrap = el(`<div></div>`);
-      wrap.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.proWeights")}</div>`));
-      wrap.appendChild(el(`
-        <div class="hx-race-fixed-banner">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/></svg>
-          <div>${t("hyrox.weightAdjust.raceFixedWarning")}</div>
-        </div>
-      `));
-
-      const grid = el(`<div class="hx-pro-weight-grid"></div>`);
-      PRO_ADJUSTABLE_STATIONS.forEach((key) => {
-        const spec = STATION_SPECS[key];
-        const title = STATIONS.find((s) => s.key === key).title;
-        const defaultW = getDefaultStationWeightKg(key, this.gender, this.category);
-        const currentW = this.getStationWeight(key);
-        const minW = Math.round(defaultW * 0.1 * 10) / 10;
-        // Only the sled stations have a real "rounds" count -- Farmers
-        // Carry and Sandbag Lunges are one continuous carry, so what a
-        // lighter practice weight buys you there is less *distance*, not
-        // fewer "rounds" (see renderOpenStandardsStep()'s comment for the
-        // same distinction on the read-only Open version of this screen).
-        const isSledStation = key === "sledPush" || key === "sledPull";
-        const roundToM = isSledStation ? spec.splitM : 10;
-        const baseAmount = isSledStation ? Math.round(spec.distanceM / roundToM) : spec.distanceM;
-        const dist = scaledDistanceM(spec.distanceM, defaultW, currentW, roundToM);
-        const amount = isSledStation ? Math.round(dist / roundToM) : Math.round(dist);
-        const amountLabel = isSledStation ? t("hyrox.weightAdjust.roundsLabel") : t("hyrox.weightAdjust.distanceLabel");
-        const amountValue = isSledStation ? amount : `${amount}m`;
-        const baseAmountLabel = isSledStation
-          ? t("hyrox.weightAdjust.roundsBase", { n: baseAmount })
-          : t("hyrox.weightAdjust.distanceBase", { n: baseAmount });
-        const isScaled = currentW < defaultW;
-
-        grid.appendChild(el(`
-          <div class="hx-pro-weight-row">
-            <div class="hx-pro-weight-icon">${stationIconSvg(key, 32)}</div>
-            <div class="hx-pro-weight-info">
-              <div class="hx-pro-weight-title">${title}</div>
-            </div>
-            <div class="hx-pro-weight-stat hx-pro-weight-stat-editable ${isScaled ? "is-scaled" : ""}">
-              <input type="number" inputmode="decimal" step="0.5" min="${minW}" max="${defaultW}" value="${currentW}" data-station-weight-input data-station="${key}" class="hx-pro-weight-stat-input">
-              <div class="hx-pro-weight-stat-label">${t("hyrox.weightAdjust.weightLabel")} (kg)</div>
-              ${isScaled ? `<button type="button" class="hx-weight-reset" data-action="reset-station-weight" data-station="${key}">${t("hyrox.weightAdjust.reset")}</button>` : ""}
-            </div>
-            <div class="hx-pro-weight-stat ${isScaled ? "is-scaled" : ""}">
-              <div class="hx-pro-weight-stat-value">${amountValue}</div>
-              <div class="hx-pro-weight-stat-label">${amountLabel}</div>
-              ${isScaled ? `<div class="hx-pro-weight-stat-base">${baseAmountLabel}</div>` : ""}
-            </div>
-          </div>
-        `));
-      });
-      wrap.appendChild(grid);
-      return wrap;
-    }
-
-    // Doubles-only, either category: same layout as renderProAdjustStep
-    // above (icon, title, standard reference line, an input) but the
-    // number being adjusted is "how many rounds am I doing" instead of
-    // weight -- the weight is fixed (shown as its own prominent, but
-    // unadjustable, stat box) and what's actually editable is how the
-    // rounds split between the two of you. Leads with three large,
+    // Doubles-only, either category. The weight is fixed (shown as its own
+    // prominent, but unadjustable, stat box) and what's actually editable
+    // is how the rounds split between the two of you. Three large,
     // side-by-side stat boxes (weight / you / your partner) so the full
     // commitment -- how much load, how many rounds each -- is impossible
-    // to miss, not just clauses in a sentence.
+    // to miss. Singles gets no step of its own: its weight and lane-aware
+    // lap count both live in the training-space list above instead.
     renderDoublesSplitStep() {
       const wrap = el(`<div></div>`);
       wrap.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.doublesSplit")}</div>`));
-      wrap.appendChild(el(`
-        <div class="hx-race-fixed-banner hx-doubles-banner">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <div>${t("hyrox.doublesSplit.intro")}</div>
-        </div>
-      `));
 
       const grid = el(`<div class="hx-pro-weight-grid"></div>`);
       PRO_ADJUSTABLE_STATIONS.forEach((key) => {
@@ -1517,55 +1449,6 @@
               <input type="number" inputmode="numeric" step="1" min="0" max="${split.total}" value="${split.partner}" data-doubles-round-partner-input data-station="${key}" class="hx-pro-weight-stat-input">
               <div class="hx-pro-weight-stat-label">${t("hyrox.doublesSplit.partner")} (${unit})</div>
               ${isUneven ? `<button type="button" class="hx-weight-reset" data-action="reset-doubles-split" data-station="${key}">${t("hyrox.weightAdjust.reset")}</button>` : ""}
-            </div>
-          </div>
-        `));
-      });
-      wrap.appendChild(grid);
-      return wrap;
-    }
-
-    // Open Singles: same at-a-glance layout as renderProAdjustStep (icon,
-    // title, standard line, big weight + rounds numbers) but read-only
-    // end to end -- Open has no practice-lighter-weight option, so
-    // there's nothing to input, just the fixed weight and fixed rounds
-    // for each of the 4 weighted stations, shown with the same
-    // prominence Pro Singles gets instead of only being buried in the
-    // reference table below.
-    renderOpenStandardsStep() {
-      const wrap = el(`<div></div>`);
-      wrap.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.openStandards")}</div>`));
-
-      const grid = el(`<div class="hx-pro-weight-grid"></div>`);
-      PRO_ADJUSTABLE_STATIONS.forEach((key) => {
-        const spec = STATION_SPECS[key];
-        const title = STATIONS.find((s) => s.key === key).title;
-        const defaultW = getDefaultStationWeightKg(key, this.gender, this.category);
-        // Only the sled stations actually have a "rounds" count (50m
-        // covered as fixed-length reps) -- Farmers Carry and Sandbag
-        // Lunges are a single continuous carry, so totalRoundUnits() just
-        // returns their raw meters, which read as a bogus 200/100
-        // "rounds to do" if labeled the same way. Show those as distance
-        // instead, matching how the Weight Standards reference list
-        // below already tells them apart (stationStandardsSummary()).
-        const isSledStation = key === "sledPush" || key === "sledPull";
-        const amount = isSledStation ? totalRoundUnits(key) : spec.distanceM;
-        const amountLabel = isSledStation ? t("hyrox.weightAdjust.roundsLabel") : t("hyrox.weightAdjust.distanceLabel");
-        const amountValue = isSledStation ? amount : `${amount}m`;
-
-        grid.appendChild(el(`
-          <div class="hx-pro-weight-row">
-            <div class="hx-pro-weight-icon">${stationIconSvg(key, 32)}</div>
-            <div class="hx-pro-weight-info">
-              <div class="hx-pro-weight-title">${title}</div>
-            </div>
-            <div class="hx-pro-weight-stat">
-              <div class="hx-pro-weight-stat-value">${formatWeight(defaultW)}</div>
-              <div class="hx-pro-weight-stat-label">${t("hyrox.weightAdjust.weightLabel")}</div>
-            </div>
-            <div class="hx-pro-weight-stat">
-              <div class="hx-pro-weight-stat-value">${amountValue}</div>
-              <div class="hx-pro-weight-stat-label">${amountLabel}</div>
             </div>
           </div>
         `));
@@ -1681,15 +1564,51 @@
         </div>
       `);
 
+      // Singles carries its weight here, immediately left of the lap count,
+      // so one list answers both "how heavy" and "how many laps of MY lane"
+      // -- instead of a second, bulkier grid repeating the same stations
+      // with lap counts derived from HYROX's fixed 12.5m splits, which
+      // never responded to the lane above it at all (the bug this fixes).
+      // Doubles deliberately opts out: its own split step already shows
+      // weight prominently alongside each partner's share.
+      const showWeight = this.format === "singles";
+      const weightEditable = showWeight && this.category === "pro";
+
       const listEl = card.querySelector("[data-space-list]");
       TRAVERSAL_STATIONS.forEach((key) => {
         const title = STATIONS.find((s) => s.key === key).title;
         const rounds = this.roundsFor(key);
+        const defaultW = getDefaultStationWeightKg(key, this.gender, this.category);
+
+        let weightHtml = "";
+        if (showWeight && defaultW) {
+          const currentW = this.getStationWeight(key);
+          const isScaled = currentW < defaultW;
+          if (weightEditable) {
+            const minW = Math.round(defaultW * 0.1 * 10) / 10;
+            weightHtml = `
+              <div class="hx-space-weight is-editable ${isScaled ? "is-scaled" : ""}">
+                <input type="number" inputmode="decimal" step="0.5" min="${minW}" max="${defaultW}"
+                       value="${currentW}" data-station-weight-input data-station="${key}"
+                       class="hx-space-weight-input" aria-label="${title} ${t("hyrox.weightAdjust.weightLabel")}">
+                <span class="hx-space-weight-label">kg</span>
+              </div>
+            `;
+          } else {
+            weightHtml = `
+              <div class="hx-space-weight">
+                <span class="hx-space-weight-value">${formatWeight(defaultW)}</span>
+                <span class="hx-space-weight-label">${t("hyrox.weightAdjust.weightLabel")}</span>
+              </div>
+            `;
+          }
+        }
 
         listEl.appendChild(el(`
           <div class="hx-space-row">
             <span class="hx-space-icon">${stationIconSvg(key, 24)}</span>
             <span class="hx-space-name">${title}</span>
+            ${weightHtml}
             <div class="hx-space-laps">
               <span class="hx-space-laps-value">${rounds}</span>
               <span class="hx-space-laps-label">${t("hyrox.space.laps")}</span>
