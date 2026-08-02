@@ -418,35 +418,33 @@
   .nl-scan-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
   .nl-scan-btn:active { transform: translateY(0) scale(0.99); }
 
-  /* Secondary sibling to .nl-scan-btn -- same column width (flex:1, so
-     the two sit evenly matched in the row) but a shorter, calmer tinted
-     treatment so "Analyze a food photo" still reads as the primary
-     action. Row has align-items:center so this shorter button doesn't
-     get stretched to match the taller primary button's height. */
+  /* Secondary sibling to .nl-scan-btn -- same width, padding, radius,
+     and type scale so the two buttons match exactly in size, just a
+     calmer tinted treatment so "Analyze a food photo" still reads as
+     the primary action. */
   .nl-macro-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 9px;
     flex: 1;
     min-width: 0;
-    padding: 10px 14px;
+    padding: 15px;
     border: none;
-    border-radius: 13px;
+    border-radius: 16px;
     background: var(--blue-bg);
     color: var(--blue);
-    font-size: 12.5px;
+    font-size: 14px;
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
     transition: opacity 0.15s ease, transform 0.1s ease;
   }
-  .nl-macro-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
   .nl-macro-btn:hover { opacity: 0.85; transform: translateY(-1px); }
   .nl-macro-btn:active { transform: translateY(0) scale(0.99); }
 
   @media (max-width: 380px) {
-    .nl-scan-btn { font-size: 12.5px; padding: 12px; }
+    .nl-scan-btn, .nl-macro-btn { font-size: 12.5px; padding: 12px; }
   }
 
   .af-modal-overlay {
