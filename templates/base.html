@@ -160,7 +160,15 @@
         // this file) left them undefined at the moment content-block pages
         // called them, so window.bindSheetDrag(...) silently no-op'd and
         // swipe-to-dismiss never actually bound on those sheets.
-        window.bindSheetDrag = function(overlay, sheetSelector, handleSelector, closeCb) {
+        // opts.strict: for a sheet whose body isn't a real scroll container
+        // (bodyScrollEl() below then reports scrollTop <= 0 permanently),
+        // the close-drag arms from anywhere in the sheet, not just the
+        // handle -- any accidental downward finger movement while tapping
+        // a button can dismiss it. Strict mode requires an actual
+        // deliberate swipe (either genuinely far, or genuinely fast) rather
+        // than any slow drag past a low, fixed distance, without changing
+        // the feel of every other sheet in the app.
+        window.bindSheetDrag = function(overlay, sheetSelector, handleSelector, closeCb, opts) {
           if (!overlay || overlay._dragBound) return;
           overlay._dragBound = true;
 
@@ -168,10 +176,13 @@
           const handle = overlay.querySelector(handleSelector);
           if (!sheet) return;
 
+          const strict = !!(opts && opts.strict);
           const DEADZONE = 6;
-          const CLOSE_PX = 120;
+          const CLOSE_PX = strict ? 220 : 120;
+          const CLOSE_VELOCITY = 0.7; // px/ms -- only checked in strict mode
           let dragging = false;
           let startY = 0;
+          let startTime = 0;
           let dy = 0;
 
           const bodyScrollEl = () => {
@@ -186,6 +197,7 @@
             if (!fromHandle && !atTop) return;
             dragging = true;
             startY = touch.clientY;
+            startTime = Date.now();
             dy = 0;
             sheet.style.transition = "none";
           };
@@ -210,7 +222,11 @@
             if (!dragging) return;
             dragging = false;
             sheet.style.transition = "";
-            const passed = dy > CLOSE_PX;
+            const elapsedMs = Math.max(1, Date.now() - startTime);
+            const velocity = dy / elapsedMs;
+            const passed = strict
+              ? (dy > CLOSE_PX || velocity > CLOSE_VELOCITY)
+              : dy > CLOSE_PX;
             sheet.style.transform = "";
             if (passed && typeof closeCb === "function") {
               closeCb();
@@ -562,7 +578,13 @@
           if (event.target === overlay) close();
         });
 
-        window.bindSheetDrag(overlay, ".mt-sheet", ".mt-sheet-handle", close);
+        // strict: true -- .qa-grid (see bodyScrollEl above) is a plain
+        // icon grid, not a real scroll container, so it permanently reads
+        // scrollTop <= 0 and the close-drag arms from anywhere in the
+        // sheet, not just the handle. Without a stricter bar, any
+        // accidental downward finger movement while tapping a quick-action
+        // button could dismiss the whole sheet.
+        window.bindSheetDrag(overlay, ".mt-sheet", ".mt-sheet-handle", close, { strict: true });
       }
       wireSheet("mt-fab-btn", "mt-fab-overlay", "mt-fab-cancel");
     })();
