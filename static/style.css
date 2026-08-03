@@ -1507,3 +1507,296 @@ input[type="file"], select {
 @media (prefers-reduced-motion: reduce) {
   .ga-hero-icon { animation: none; }
 }
+
+/* ================================================================
+   Analyze result: video-led layout
+   ================================================================
+   The results screen used to be a stack of white cards on the cool
+   grey --bg, which read as chips on a circuit board once the tutorial
+   card, hero card and breakdown card were all on screen at once. This
+   replaces that with one surface: a frame of the lifter's own clip
+   fills the top, and a warm paper sheet slides up over it carrying the
+   score and the feedback.
+
+   Everything here is scoped to html.an-result so no other page is
+   touched. result.html sets it server-side; index.html's AJAX view
+   toggles it when the result swaps in -- that page never navigates, so
+   a page-level rule alone would either strand the class on the upload
+   view or never apply at all. */
+
+:root {
+  --paper: #f7f6f4;
+  --paper-line: #e6e3dd;
+  --paper-dim: #9a978f;
+}
+:root[data-theme="dark"] {
+  /* Warm near-black, deliberately not --bg's #0b0b0c: a pure cold black
+     puts back exactly the sterile feel this layout exists to remove. */
+  --paper: #141312;
+  --paper-line: #2a2724;
+  --paper-dim: #8b8781;
+}
+
+html.an-result, html.an-result body { background: var(--paper); }
+/* Full bleed: the stage has to reach the screen edges, and the app
+   shell's padding/gap/sidebar all fight that. */
+html.an-result .app { padding: 0; gap: 0; display: block; overflow-x: clip; }
+html.an-result .sidebar { display: none; }
+html.an-result .main { max-width: none; padding-bottom: 0; }
+/* The page's own topbar is replaced by .an-bar, which sits over the video. */
+html.an-result .topbar { display: none; }
+/* An analysis is an active task, not a destination -- same reasoning as
+   the html.pc-sheet-active rule above, which already hides the tab bar
+   while a sheet is open. Exits are .an-back and the "Analyze another
+   video" row, both of which land on /analyze where the bar lives. */
+html.an-result .mobile-tabbar { display: none; }
+
+.an-wrap { position: relative; max-width: 520px; margin: 0 auto; }
+
+/* ---------- Stage: the lifter's own clip ---------- */
+/* position:sticky (not fixed) gives the parallax -- the sheet scrolls up
+   over a stage that stays put -- without taking the stage out of flow, so
+   the wrap still sizes normally and the max-width centering keeps working
+   on desktop. */
+.an-stage {
+  position: sticky; top: 0; z-index: 0;
+  height: 56vh; min-height: 260px;
+  overflow: hidden;
+  background: #14171e;
+}
+/* With no clip there is nothing to look at, so the stage stops being the
+   point and shrinks to a header band -- 56vh of empty gradient just pushes
+   the score below the fold for no gain. Tall enough to still carry the
+   back chevron and title. */
+.an-stage.is-empty { height: 24vh; min-height: 128px; }
+.an-stage-media, .an-stage-media video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* No clip on disk (anonymous analyses never store one): a calm neutral
+   field rather than a broken-looking black box. */
+.an-stage-empty {
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 30% 15%, #3d4657 0%, #232833 55%, #14171e 100%);
+}
+/* Four stops, not two: dark at the top so the back chevron and title stay
+   legible over any footage, clear through the middle so the lift is
+   actually visible, then paper at the bottom so the sheet edge dissolves
+   into the video instead of cutting a hard line across it. */
+.an-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+    rgba(10, 12, 16, 0.55) 0%,
+    rgba(10, 12, 16, 0) 30%,
+    rgba(10, 12, 16, 0) 58%,
+    var(--paper) 100%);
+  pointer-events: none;
+}
+.an-play {
+  position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+  width: 54px; height: 54px; border-radius: 50%; border: none; padding: 0;
+  background: rgba(255, 255, 255, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.34);
+  transition: transform 0.12s ease, opacity 0.2s ease;
+}
+.an-play svg { width: 19px; height: 19px; color: #101114; margin-left: 3px; }
+.an-play:active { transform: translate(-50%, -50%) scale(0.92); }
+.an-play[hidden] { display: none; }
+
+/* ---------- Bar over the video ---------- */
+/* Fixed, not absolute: the way out must not scroll away. */
+.an-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+  max-width: 520px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 12px;
+  pointer-events: none;
+}
+.an-bar > * { pointer-events: auto; }
+.an-bar-title {
+  font-size: 15px; font-weight: 700; color: #fff; margin: 0;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.an-glass {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.18);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 12px; font-weight: 700; text-decoration: none;
+  cursor: pointer; padding: 0;
+  transition: transform 0.1s ease, background-color 0.2s ease;
+}
+.an-glass svg { width: 17px; height: 17px; }
+.an-glass:active { transform: scale(0.92); }
+/* Balances the back chevron so the title stays optically centred, without
+   drawing an empty circle where nothing is tappable. */
+.an-glass-spacer { visibility: hidden; }
+
+/* ---------- Sheet ---------- */
+.an-sheet {
+  position: relative; z-index: 1;
+  margin-top: -8vh;               /* overlap the stage: one surface, not two boxes */
+  min-height: 52vh;
+  background: var(--paper);
+  border-radius: 26px 26px 0 0;
+  padding: 18px 22px calc(96px + env(safe-area-inset-bottom, 0px));
+}
+.an-grabber {
+  width: 36px; height: 4px; border-radius: 999px;
+  background: var(--paper-line);
+  margin: 0 auto 18px;
+}
+.an-score {
+  font-size: 56px; font-weight: 800; letter-spacing: -0.04em; line-height: 0.9;
+  color: var(--text);
+}
+.an-score.is-good { color: var(--green); }
+.an-score.is-ok { color: var(--amber); }
+.an-score.is-bad { color: var(--red); }
+.an-score-sub {
+  font-size: 10px; font-weight: 700; color: var(--paper-dim);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-top: 6px;
+}
+.an-verdict {
+  font-size: 14.5px; font-weight: 600; line-height: 1.5;
+  color: var(--text); margin-top: 15px;
+}
+.an-note {
+  margin-top: 14px; padding: 11px 14px; border-radius: var(--radius-md);
+  background: var(--blue-bg); color: var(--blue);
+  font-size: 13.5px; font-weight: 500;
+}
+.an-note strong { text-transform: capitalize; }
+
+/* Feedback sections: hairlines, not cards. The category colour survives on
+   the label alone, which is enough to tell them apart without giving every
+   section its own filled box. */
+.an-sec { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--paper-line); }
+.an-sec-label {
+  font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.07em; margin-bottom: 7px;
+}
+.an-sec-body { font-size: 14px; line-height: 1.55; color: var(--text); }
+.an-sec-body p { margin: 0 0 8px; }
+.an-sec-body p:last-child { margin-bottom: 0; }
+.an-sec-body ul { margin: 8px 0 0; padding-left: 18px; }
+.an-sec-body li { margin-bottom: 7px; }
+.an-sec-body li:last-child { margin-bottom: 0; }
+.an-sec-detail { margin-top: 10px; }
+.an-sec-detail[hidden] { display: none; }
+
+.an-sec-positives .an-sec-label { color: var(--green); }
+.an-sec-negatives .an-sec-label { color: var(--red); }
+.an-sec-improvements .an-sec-label { color: var(--blue); }
+.an-sec-injury .an-sec-label { color: var(--amber); }
+.an-sec-progress .an-sec-label { color: var(--purple); }
+.an-sec-summary .an-sec-label { color: var(--text-secondary); }
+
+/* Tap rows: "Full report", "Analyze another video". */
+.an-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 15px 0; margin: 0;
+  border: none; border-top: 1px solid var(--paper-line); background: none;
+  color: var(--text); font-family: inherit; font-size: 14px; font-weight: 700;
+  text-align: left; text-decoration: none; cursor: pointer;
+}
+.an-row:active { opacity: 0.6; }
+.an-row-chev { flex-shrink: 0; color: var(--paper-dim); transition: transform 0.24s ease; }
+.an-row-chev svg { width: 16px; height: 16px; display: block; }
+.an-row[aria-expanded="true"] .an-row-chev { transform: rotate(90deg); }
+.an-more[hidden] { display: none; }
+
+@media (max-width: 380px) {
+  .an-sheet { padding-left: 18px; padding-right: 18px; }
+  .an-score { font-size: 48px; }
+}
+
+/* ---------- Ask bar: the AI, pinned to the bottom ----------
+   Same #ac-* DOM and the same .is-open toggle the widget JS already
+   drives -- only the position and shape change. Collapsed it is a full
+   width input-looking pill (a bare sparkle circle reads as decoration,
+   which is why the old dock needed a caption under it); open, the panel
+   grows upward above it. */
+html.an-result .ag-dock {
+  position: fixed; z-index: 40;
+  left: 0; right: 0; bottom: 0;
+  max-width: 520px; margin: 0 auto;
+  flex-direction: column-reverse;   /* panel grows UP from the bar */
+  align-items: stretch;
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(247, 246, 244, 0) 0%, var(--paper) 46%);
+  transform: none;
+}
+html.an-result[data-theme="dark"] .ag-dock {
+  background: linear-gradient(180deg, rgba(20, 19, 18, 0) 0%, var(--paper) 46%);
+}
+html.an-result .ag-dock.is-open {
+  top: 0;
+  background: color-mix(in srgb, var(--paper) 97%, transparent);
+  -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
+  padding-top: calc(56px + env(safe-area-inset-top, 0px));
+}
+html.an-result .ag-bar {
+  width: 100%; height: auto; min-height: 48px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--paper-line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 0 6px 0 14px;
+  gap: 8px;
+  animation: none;                  /* no breathing glow: it is already visible */
+}
+html.an-result .ag-dock.is-open .ag-bar { width: 100%; height: auto; }
+/* The spark stops being the button and becomes the field's leading icon --
+   the whole bar is the target now. */
+html.an-result .ag-spark {
+  width: 20px; height: 20px; color: var(--purple);
+  pointer-events: none;
+}
+html.an-result .ag-spark svg { width: 18px; height: 18px; }
+html.an-result .ag-dock.is-open .ag-spark { width: 20px; height: 20px; }
+html.an-result .ag-dock.is-open .ag-spark svg { width: 18px; height: 18px; }
+html.an-result .ag-inputrow { opacity: 1; padding-right: 0; min-height: 46px; }
+html.an-result .ag-send { width: 34px; height: 34px; }
+html.an-result .ag-send svg { width: 16px; height: 16px; }
+/* The caption is redundant once the field itself says "Ask about your
+   form" -- the placeholder does that job. */
+html.an-result .ag-dock-label { display: none; }
+html.an-result .ag-panel { max-width: none; }
+html.an-result .ag-dock.is-open .ag-panel-inner { padding-top: 0; padding-bottom: 10px; }
+html.an-result .ag-thread {
+  max-height: none; flex: 1;
+  background: none; border: none; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  padding: 0 2px;
+}
+html.an-result .ag-suggest { justify-content: flex-start; }
+html.an-result .ag-chip {
+  background: var(--card-bg);
+  border-color: var(--paper-line);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html.an-result .ag-row-assistant .ag-bubble {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html.an-result .ag-row-user .ag-bubble {
+  background: var(--purple);
+  border-color: var(--purple);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+/* Close affordance, only meaningful once the panel is up. */
+html.an-result .ag-close { display: none; }
+html.an-result .ag-dock.is-open .ag-close {
+  position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: 14px;
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; border: none; padding: 0;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-secondary); cursor: pointer;
+}
+html.an-result .ag-close svg { width: 13px; height: 13px; }

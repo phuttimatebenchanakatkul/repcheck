@@ -223,23 +223,6 @@
   }
   .an-recent-date { font-size: 10px; color: var(--text-secondary); }
 
-  /* History detail: the clip the analysis was run on, leading the page. */
-  .an-replay-card { padding: 12px; }
-  .an-replay-video {
-    display: block;
-    width: 100%;
-    max-height: 420px;
-    border-radius: 14px;
-    background: #000;
-  }
-  .an-replay-meta {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-align: center;
-    margin-top: 10px;
-  }
-
   .ex-modal-overlay {
     position: fixed;
     inset: 0;
@@ -911,40 +894,6 @@
     return `https://www.youtube.com/results?search_query=${encodeURIComponent(name + " proper form tutorial")}`;
   }
 
-  // "How to perform it right" demo, shown at the very top of the results so
-  // the lifter can watch a proper-form tutorial right after their grade.
-  // Curated exercises get an in-app embed; anything else links out to a
-  // live YouTube search (which can't be iframed).
-  const PLAY_ICON = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
-  function tutorialCardHtml(exerciseLabel) {
-    const t = RepCheckI18n.t;
-    const vid = EXERCISE_VIDEOS[exerciseLabel];
-    const head = `
-      <div class="an-tutorial-head">
-        <div class="an-tutorial-head-icon">${PLAY_ICON}</div>
-        <div class="an-tutorial-head-text">
-          <div class="an-tutorial-title">${t("analyze.howToTitle")}</div>
-          <div class="an-tutorial-sub">${exerciseLabel}</div>
-        </div>
-      </div>`;
-    if (vid) {
-      return `
-        <div class="card an-tutorial-card">
-          ${head}
-          <div class="an-tutorial-frame">
-            <iframe src="https://www.youtube-nocookie.com/embed/${vid}?rel=0&modestbranding=1" title="${exerciseLabel} form tutorial" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
-          </div>
-        </div>`;
-    }
-    return `
-      <div class="card an-tutorial-card">
-        ${head}
-        <a class="an-tutorial-search" href="${youtubeSearchUrl(exerciseLabel)}" target="_blank" rel="noopener">
-          ${PLAY_ICON}${t("analyze.watchOnYoutube")}
-        </a>
-      </div>`;
-  }
-
   // "positives"/"progress" (What Went Well, Your Next Step) are the two
   // things worth seeing without an extra tap -- what happened, what to do
   // differently. Everything else (the raw set description, what to work
@@ -962,23 +911,19 @@
   // "Full report" tap: the user just chose to see it, so leaving it dim
   // reads as a rendering bug, not a hierarchy cue. suppressMuted forces
   // full brightness for anything rendered into the secondary list.
-  function fbItemHtml(s, t, suppressMuted) {
-    const hasDetail = !!s.detail_html;
-    const chevron = hasDetail
-      ? `<span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>`
-      : "";
-    const detail = hasDetail ? `<div class="fb-item-detail">${s.detail_html}</div>` : "";
-    const muted = (!suppressMuted && s.emphasis === "muted") ? " fb-item-muted" : "";
+  const CHEVRON = `<span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>`;
+
+  // A section on the paper sheet: a coloured label and its text, separated
+  // from the one above by a hairline. No icon chip and no filled tile --
+  // the label colour alone carries the category, which is what stops five
+  // or six sections reading as a grid of coloured boxes. Mirrors the
+  // an-sec markup in result.html.
+  function fbItemHtml(s, t) {
+    const detail = s.detail_html ? `<div class="an-sec-body an-sec-detail">${s.detail_html}</div>` : "";
     return `
-      <div class="fb-item fb-${s.css_class}${muted}${hasDetail ? " is-expandable" : ""}">
-        <button type="button" class="fb-item-main"${hasDetail ? "" : " disabled"}>
-          <span class="fb-item-icon">${s.icon}</span>
-          <span class="fb-item-text">
-            <span class="fb-item-title">${t(s.title_key)}</span>
-            <span class="fb-item-summary">${s.summary_html}</span>
-          </span>
-          ${chevron}
-        </button>
+      <div class="an-sec an-sec-${s.css_class}">
+        <div class="an-sec-label">${t(s.title_key)}</div>
+        <div class="an-sec-body">${s.summary_html}</div>
         ${detail}
       </div>
     `;
@@ -989,20 +934,13 @@
     const primary = data.sections.filter((s) => FB_ALWAYS_VISIBLE.includes(s.css_class));
     const secondary = data.sections.filter((s) => !FB_ALWAYS_VISIBLE.includes(s.css_class));
     const sections = primary.map((s) => fbItemHtml(s, t)).join("");
-    const secondarySections = secondary.map((s) => fbItemHtml(s, t, true)).join("");
-    const fullReportToggle = secondary.length ? `
-      <button type="button" class="fb-full-report-toggle" id="fb-full-report-toggle" aria-expanded="false">
-        <span>${t("analyze.fullReport")}</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="fb-list fb-list-secondary" id="fb-list-secondary" hidden>${secondarySections}</div>
-    ` : "";
+    const secondarySections = secondary.map((s) => fbItemHtml(s, t)).join("");
 
     const scoreClass = (score) => {
       if (score === null || score === undefined) return "";
-      if (score >= 80) return "score-good";
-      if (score >= 50) return "score-ok";
-      return "score-bad";
+      if (score >= 80) return "is-good";
+      if (score >= 50) return "is-ok";
+      return "is-bad";
     };
 
     const overall = data.overall_score;
@@ -1018,53 +956,76 @@
       if (overall < 50) { cls = "bad"; key = "analyze.verdictBad"; }
       else if (overall >= 80) { cls = "good"; key = "analyze.verdictGood"; }
       else { cls = "ok"; key = "analyze.verdictOk"; }
-      return `<div class="fb-verdict fb-verdict-${cls}">${t(key)}</div>`;
+      return `<div class="an-verdict an-verdict-${cls}">${t(key)}</div>`;
     })();
 
     let favorNoteHtml = "";
     if (favored === "balanced") {
-      favorNoteHtml = `<div class="favor-note">${t("analyze.balancedNote")}</div>`;
+      favorNoteHtml = `<div class="an-note">${t("analyze.balancedNote")}</div>`;
     } else if (favored === "stretch" || favored === "squeeze") {
       const other = favored === "stretch" ? t("analyze.squeeze") : t("analyze.stretch");
       const favoredLabel = favored === "stretch" ? t("analyze.stretch") : t("analyze.squeeze");
-      favorNoteHtml = `<div class="favor-note">${t("analyze.favorsNote", { favored: `<strong>${favoredLabel}</strong>`, other })}</div>`;
+      favorNoteHtml = `<div class="an-note">${t("analyze.favorsNote", { favored: `<strong>${favoredLabel}</strong>`, other })}</div>`;
     }
 
-    // History entries carry the clip the analysis was run on -- it leads,
-    // with the stored feedback reading top-to-bottom right after it.
-    // Fresh analyses have no video_url, so this card simply isn't there.
-    const videoCard = data.video_url ? `
-      <div class="card an-replay-card">
-        <video class="an-replay-video" src="${data.video_url}" controls playsinline preload="metadata"></video>
-        <div class="an-replay-meta">${data.exercise_label}${data.created_at ? ` · ${relativeDateLabel(historyTimestamp(data.created_at))}` : ""}</div>
+    // The clip the analysis ran on leads the screen. Anonymous runs never
+    // store one, so the stage falls back to a flat field -- the layout
+    // below is identical either way.
+    const stageInner = data.video_url ? `
+      <div class="an-stage-media">
+        <video id="an-video" src="${data.video_url}" playsinline preload="metadata" muted></video>
       </div>
+      <button type="button" class="an-play" id="an-play" aria-label="Play your set">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    ` : `<div class="an-stage-empty"></div>`;
+
+    const moreHtml = secondary.length ? `
+      <button type="button" class="an-row" id="an-full-report" aria-expanded="false" aria-controls="an-more">
+        <span>${t("analyze.fullReport")}</span>
+        ${CHEVRON}
+      </button>
+      <div class="an-more" id="an-more" hidden>${secondarySections}</div>
     ` : "";
 
-    const tutorialCard = tutorialCardHtml(data.exercise_label);
+    const vid = EXERCISE_VIDEOS[data.exercise_label];
+    const tutorialRow = `
+      <a class="an-row" href="${vid ? `https://www.youtube.com/watch?v=${vid}` : youtubeSearchUrl(data.exercise_label)}" target="_blank" rel="noopener">
+        <span>${vid ? t("analyze.howToTitle") : t("analyze.watchOnYoutube")}</span>
+        ${CHEVRON}
+      </a>`;
 
     return `
+      <div class="an-wrap">
+        <div class="an-bar">
+          <button type="button" class="an-glass" id="an-back" aria-label="Back to Analyze">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h1 class="an-bar-title">${data.exercise_label}</h1>
+          <span class="an-glass an-glass-spacer" aria-hidden="true"></span>
+        </div>
+
+        <div class="an-stage${data.video_url ? "" : " is-empty"}">
+          ${stageInner}
+          <div class="an-scrim"></div>
+        </div>
+
+        <div class="an-sheet">
+          <div class="an-grabber"></div>
+          <div class="an-score ${scoreClass(overall)}">${overall ?? "—"}</div>
+          <div class="an-score-sub">${t("analyze.overallFormTechnique")}</div>
+          ${verdictHtml}
+          ${favorNoteHtml}
+          ${sections}
+          ${moreHtml}
+          ${tutorialRow}
+          <button type="button" class="an-row" id="reset-btn">
+            <span>${t("analyze.analyzeAnother")}</span>
+            ${CHEVRON}
+          </button>
+        </div>
+      </div>
       ${agDockHtml()}
-      ${data.video_url ? videoCard + tutorialCard : tutorialCard}
-      <div class="card an-hero-card">
-        <div class="an-score-ring ${scoreClass(overall)}">
-          <div class="an-score-value">${overall ?? "—"}</div>
-          <div class="an-score-outof">/ 100</div>
-        </div>
-        <div class="an-score-label">${t("analyze.overallFormTechnique")}</div>
-        ${verdictHtml}
-        ${favorNoteHtml}
-      </div>
-      <div class="card">
-        <div class="fb-head">
-          <div class="fb-head-title">${t("analyze.formBreakdownFor", { exercise: data.exercise_label })}</div>
-          <div class="fb-head-sub">${t("analyze.breakdownHint")}</div>
-        </div>
-        <div class="fb-list">${sections}</div>
-        ${fullReportToggle}
-      </div>
-      <div class="an-again">
-        <button class="btn-primary" id="reset-btn">${t("analyze.analyzeAnother")}</button>
-      </div>
     `;
   }
 
@@ -1075,6 +1036,9 @@
     const t = RepCheckI18n.t;
     return `
       <div class="ag-dock" id="ac-dock">
+        <button type="button" class="ag-close" id="ac-close" aria-label="Close chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
         <div class="ag-bar">
           <button type="button" class="ag-spark" id="ac-toggle" aria-label="Ask AI about your analysis">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M11.4 3.5a.6.6 0 0 1 1.2 0l1.1 3.2a3 3 0 0 0 1.9 1.9l3.2 1.1a.6.6 0 0 1 0 1.1l-3.2 1.1a3 3 0 0 0-1.9 1.9l-1.1 3.2a.6.6 0 0 1-1.2 0l-1.1-3.2a3 3 0 0 0-1.9-1.9L5.2 11.9a.6.6 0 0 1 0-1.1l3.2-1.1a3 3 0 0 0 1.9-1.9z"/></svg>
@@ -1108,6 +1072,9 @@
     // Tear down the AI chat's topbar toggle + listeners before wiping the
     // results (the toggle lives in the topbar, outside #result-view).
     if (window.__agCleanup) { window.__agCleanup(); window.__agCleanup = null; }
+    // Must come off with the results, or the upload form keeps the
+    // full-bleed layout and loses its tab bar.
+    document.documentElement.classList.remove("an-result");
     resultView.style.display = "none";
     resultView.innerHTML = "";
     analyzingView.style.display = "none";
@@ -1127,19 +1094,35 @@
     analyzingView.style.display = "none";
     resultView.innerHTML = sectionsHtml(data);
     resultView.style.display = "block";
+    // This page never navigates -- the result swaps in over the upload
+    // form -- so the results-only chrome (full-bleed layout, hidden tab
+    // bar, bottom-docked ask bar) has to be toggled by class here and
+    // taken off again in resetToUpload. A page-level rule would either
+    // strand it on the upload view or never apply at all.
+    document.documentElement.classList.add("an-result");
+    window.scrollTo(0, 0);
     document.getElementById("reset-btn").addEventListener("click", resetToUpload);
-    resultView.querySelectorAll(".fb-item.is-expandable .fb-item-main").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        btn.closest(".fb-item").classList.toggle("is-expanded");
+    const backBtn = document.getElementById("an-back");
+    if (backBtn) backBtn.addEventListener("click", resetToUpload);
+
+    const video = document.getElementById("an-video");
+    const play = document.getElementById("an-play");
+    if (video && play) {
+      play.addEventListener("click", () => {
+        video.controls = true;
+        video.muted = false;
+        video.play();
+        play.hidden = true;
       });
-    });
-    const fullReportToggle = document.getElementById("fb-full-report-toggle");
+      video.addEventListener("pause", () => { if (video.currentTime === 0) play.hidden = false; });
+    }
+
+    const fullReportToggle = document.getElementById("an-full-report");
     if (fullReportToggle) {
       fullReportToggle.addEventListener("click", () => {
-        const list = document.getElementById("fb-list-secondary");
-        const nowOpen = list.hasAttribute("hidden");
-        list.toggleAttribute("hidden", !nowOpen);
-        fullReportToggle.classList.toggle("is-open", nowOpen);
+        const more = document.getElementById("an-more");
+        const nowOpen = more.hasAttribute("hidden");
+        more.toggleAttribute("hidden", !nowOpen);
         fullReportToggle.setAttribute("aria-expanded", String(nowOpen));
       });
     }
