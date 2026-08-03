@@ -1002,6 +1002,18 @@ def friends():
     )
 
 
+@app.route("/challenges", methods=["GET"])
+def challenges():
+    # Dedicated page for the daily rep-count challenge -- used to be a
+    # bottom sheet opened from Quick Actions (base.html's "+" menu); moved
+    # here so the hero + leaderboard have room to breathe instead of being
+    # crammed into one sheet. The backend contract (/api/challenges*,
+    # /api/leaderboard) is unchanged, only the entry point/presentation.
+    return render_template(
+        "challenges.html", active_nav="challenges", i18n_page="challenges",
+    )
+
+
 # ---------- Admin: signups list ----------
 # Own account, own eyes only -- see ADMIN_EMAILS. 404 (not 403) for
 # non-admins so the page's existence isn't revealed to anyone else; the
