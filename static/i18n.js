@@ -11,7 +11,7 @@
  *     overwrites it once the page loads if Thai is selected.)
  *   - Attributes: data-i18n-placeholder / data-i18n-aria-label / data-i18n-title
  *   - Dynamic strings built in JS: RepCheckI18n.t("home.streakDefault")
- *   - Vars: RepCheckI18n.t("home.moreCount", { n: 3 }) fills {n} in the string.
+ *   - Vars: RepCheckI18n.t("hyrox.hero.races", { n: 3, s: "" }) fills {n}/{s} in the string.
  *
  * Pages that build HTML dynamically (mini-lists, modals, chat, etc.) should
  * re-run their own render function on the "repcheck:language-changed" event
@@ -83,7 +83,7 @@
       "common.fat": "Fat",
       "common.carbs": "Carbs",
       "common.calories": "Calories",
-      "common.tapToSeeMore": "tap to see more",
+      "common.tapToSeeMore": "Tap to see more",
       "common.loading": "Loading...",
       "common.minimize": "Minimize",
       "common.switchToThai": "Switch to Thai",
@@ -136,7 +136,6 @@
       "streaks.emptyMonth": "No activity logged this month yet.",
 
       "home.streakCount": "{n} day streak",
-      "home.moreCount": "+{n} more · tap to see more",
 
       "home.analyze.emptyText": "Upload a set and get instant AI form feedback in seconds.",
       "home.analyze.emptyCta": "Analyze a lift →",
@@ -914,7 +913,6 @@
       "home.food.ofGoal": "จากเป้า {n} กิโลแคลอรี่วันนี้",
       "home.lastFormCheck": "เช็คฟอร์ม",
       "home.streakCount": "ต่อเนื่อง {n} วัน",
-      "home.moreCount": "+{n} เพิ่มเติม · แตะเพื่อดูเพิ่มเติม",
       "home.workouts.restDayTitle": "วันพัก",
       "home.workouts.restDaySub": "พักผ่อนให้เต็มที่ — พรุ่งนี้กลับมาลุยต่อ",
       "home.workouts.dayLabelSuffix": "เดย์",

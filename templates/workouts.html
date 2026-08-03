@@ -2360,7 +2360,7 @@
           </div>
         `).join("")}
       </div>
-      ${remaining > 0 ? `<button type="button" class="wl-plan-more${expanded ? " is-expanded" : ""}" id="wl-plan-more-btn">${expanded ? t("common.minimize") : t("home.moreCount", { n: remaining })}${PLAN_CHEVRON_SVG}</button>` : ""}
+      ${remaining > 0 ? `<button type="button" class="wl-plan-more${expanded ? " is-expanded" : ""}" id="wl-plan-more-btn">${expanded ? t("common.minimize") : t("common.tapToSeeMore")}${PLAN_CHEVRON_SVG}</button>` : ""}
     `;
     planBodyEl.querySelectorAll("[data-quick-add]").forEach((btn) => {
       btn.addEventListener("click", (event) => {
