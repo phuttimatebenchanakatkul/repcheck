@@ -39,10 +39,17 @@
 
   <div class="an-stage{{ '' if video_url else ' is-empty' }}">
     {% if video_url %}
+      {# Starts playing the moment the results land -- the set is the thing
+         being talked about, so it should already be moving. Muted and
+         playsinline because every browser blocks autoplay with sound, and
+         looped because these are a few seconds long and form is easier to
+         see on the second pass. The play button starts hidden and is only
+         revealed if autoplay is actually refused (iOS Low Power Mode and
+         some data-saver modes block even muted autoplay). #}
       <div class="an-stage-media">
-        <video id="an-video" src="{{ video_url }}" playsinline preload="metadata" muted></video>
+        <video id="an-video" src="{{ video_url }}" playsinline preload="auto" muted autoplay loop></video>
       </div>
-      <button type="button" class="an-play" id="an-play" aria-label="Play your set">
+      <button type="button" class="an-play" id="an-play" aria-label="Play your set" hidden>
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </button>
     {% else %}
@@ -181,19 +188,42 @@
     window.addEventListener("resize", sync);
   })();
 
-  // Tap the poster frame to play the set back; the button hides once it is
-  // running so it stops covering the lift.
+  // The clip autoplays muted (see the markup). Two things still need JS:
+  // recovering when a browser refuses that, and giving the user a way to
+  // get sound, since a muted autoplay has no affordance for it.
   (function () {
     const video = document.getElementById("an-video");
     const play = document.getElementById("an-play");
     if (!video || !play) return;
+
+    function showPlayButton() { play.hidden = false; }
+
+    // autoplay can be refused after the element is parsed, so react to the
+    // rejected promise rather than trusting the attribute.
+    const attempt = video.play();
+    if (attempt && typeof attempt.catch === "function") {
+      attempt.catch(showPlayButton);
+    }
+    // Belt and braces: some browsers resolve play() then immediately pause.
+    video.addEventListener("pause", () => {
+      if (!video.ended) showPlayButton();
+    });
+
     play.addEventListener("click", () => {
       video.controls = true;
       video.muted = false;
       video.play();
       play.hidden = true;
     });
-    video.addEventListener("pause", () => { if (video.currentTime === 0) play.hidden = false; });
+
+    // Tapping the clip itself hands over the native controls and sound --
+    // the only route to audio once it is already playing muted.
+    video.addEventListener("click", () => {
+      if (video.controls) return;
+      video.controls = true;
+      video.muted = false;
+      play.hidden = true;
+    });
   })();
 
   (function () {

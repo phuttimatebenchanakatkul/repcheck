@@ -1662,7 +1662,10 @@ html.an-result .mobile-tabbar { display: none; }
   min-height: 52vh;
   background: var(--paper);
   border-radius: 26px 26px 0 0;
-  padding: 18px 22px calc(96px + env(safe-area-inset-bottom, 0px));
+  /* Bottom clearance has to outrun the fixed ask bar (~70px including its
+     own padding and safe area) so the primary button is never tucked
+     under it. */
+  padding: 18px 22px calc(116px + env(safe-area-inset-bottom, 0px));
 }
 .an-grabber {
   width: 36px; height: 4px; border-radius: 999px;
@@ -1718,7 +1721,7 @@ html.an-result .mobile-tabbar { display: none; }
 /* Tap rows: "Full report", "Analyze another video". */
 .an-row {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  width: 100%; padding: 15px 0; margin: 0;
+  width: 100%; padding: 19px 0; margin: 0;
   border: none; border-top: 1px solid var(--paper-line); background: none;
   color: var(--text); font-family: inherit; font-size: 14px; font-weight: 700;
   text-align: left; text-decoration: none; cursor: pointer;
@@ -1758,7 +1761,11 @@ html.an-result .mobile-tabbar { display: none; }
   background: var(--card-bg);
   border: 1px solid var(--paper-line);
   color: var(--text);
-  margin-top: 18px;
+  /* Generous on both sides: this button sits between the verdict above and
+     the report below, and with only 18px of clearance the three of them
+     read as one cramped block rather than three separate things. */
+  margin-top: 26px;
+  margin-bottom: 20px;
 }
 .an-btn-secondary:hover { border-color: var(--text-secondary); }
 /* Same red play chip as the old tutorial card, so the link to "watch a
