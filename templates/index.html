@@ -955,13 +955,20 @@
   // categories are which.
   const FB_ALWAYS_VISIBLE = ["positives", "progress"];
 
-  function fbItemHtml(s, t) {
+  // "muted" (see section_emphasis in app.py) dims a section that's SHARING
+  // the screen with more important ones, on a strong set where positives/
+  // progress lead and the rest is secondary detail sitting right below.
+  // That reasoning stops applying once the section is behind a deliberate
+  // "Full report" tap: the user just chose to see it, so leaving it dim
+  // reads as a rendering bug, not a hierarchy cue. suppressMuted forces
+  // full brightness for anything rendered into the secondary list.
+  function fbItemHtml(s, t, suppressMuted) {
     const hasDetail = !!s.detail_html;
     const chevron = hasDetail
       ? `<span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>`
       : "";
     const detail = hasDetail ? `<div class="fb-item-detail">${s.detail_html}</div>` : "";
-    const muted = s.emphasis === "muted" ? " fb-item-muted" : "";
+    const muted = (!suppressMuted && s.emphasis === "muted") ? " fb-item-muted" : "";
     return `
       <div class="fb-item fb-${s.css_class}${muted}${hasDetail ? " is-expandable" : ""}">
         <button type="button" class="fb-item-main"${hasDetail ? "" : " disabled"}>
@@ -982,7 +989,7 @@
     const primary = data.sections.filter((s) => FB_ALWAYS_VISIBLE.includes(s.css_class));
     const secondary = data.sections.filter((s) => !FB_ALWAYS_VISIBLE.includes(s.css_class));
     const sections = primary.map((s) => fbItemHtml(s, t)).join("");
-    const secondarySections = secondary.map((s) => fbItemHtml(s, t)).join("");
+    const secondarySections = secondary.map((s) => fbItemHtml(s, t, true)).join("");
     const fullReportToggle = secondary.length ? `
       <button type="button" class="fb-full-report-toggle" id="fb-full-report-toggle" aria-expanded="false">
         <span>${t("analyze.fullReport")}</span>

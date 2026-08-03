@@ -108,7 +108,11 @@
     </button>
     <div class="fb-list fb-list-secondary" id="fb-list-secondary" hidden>
       {% for section in secondary_sections %}
-        <div class="fb-item fb-{{ section.css_class }}{% if section.emphasis == 'muted' %} fb-item-muted{% endif %}{% if section.detail_html %} is-expandable{% endif %}">
+        {# No fb-item-muted here, unlike the primary loop above -- "muted"
+           only makes sense for a section sharing the screen with a more
+           important one; once it's behind a deliberate "Full report" tap,
+           staying dim reads as broken rather than as a hierarchy cue. #}
+        <div class="fb-item fb-{{ section.css_class }}{% if section.detail_html %} is-expandable{% endif %}">
           <button type="button" class="fb-item-main"{% if not section.detail_html %} disabled{% endif %}>
             <span class="fb-item-icon">{{ section.icon | safe }}</span>
             <span class="fb-item-text">
