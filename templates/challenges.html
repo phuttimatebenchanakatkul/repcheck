@@ -1,0 +1,942 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Challenges{% endblock %}
+
+{# Custom topbar: same .topbar shell as every other page, plus a back
+   link to Home since this page is reached by navigating here (Quick
+   Actions' "Challenges" tile) rather than sitting on a persistent sidebar
+   nav item -- a plain back arrow gives a clear way out. #}
+{% block topbar %}
+<div class="topbar">
+  <div class="ch-topbar-left">
+    <a class="ch-back-btn" href="{{ url_for('home') }}" aria-label="Back to home">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </a>
+    <h1 data-i18n="page.challenges.heading">Challenges</h1>
+  </div>
+  {% if current_user %}
+  <a href="{{ url_for('settings') }}#account" class="topbar-avatar" aria-label="Account">{{ current_user.name[0]|upper }}</a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if current_user %}
+<!--
+  Challenges: own dedicated page (was a bottom sheet on Home, opened via
+  window.openChallengesSheet()/?quick=challenges -- see home.html's git
+  history). Every id below is unchanged from that sheet's markup so the
+  leaderboard/record/result script further down is a straight move, not a
+  rewrite -- only the top-level presentation (hero + inline leaderboard
+  instead of a sheet) and entry point (real navigation) changed.
+-->
+<div class="ch-hero">
+  <div class="ch-hero-top">
+    <div class="ch-hero-date" id="ch-hero-date"></div>
+    <div class="ch-streak-chip" id="ch-streak-chip">
+      <span class="ch-streak-flame">🔥</span><span id="ch-streak-count"></span>
+    </div>
+  </div>
+  <div class="ch-hero-exercise-row">
+    <span class="ch-hero-icon" id="ch-hero-icon"></span>
+    <span class="ch-hero-exercise-title" id="ch-hero-exercise-title"></span>
+  </div>
+  <button type="button" class="ch-btn-primary ch-hero-cta" id="ch-record-btn" data-i18n="challenges.recordAttempt">Record an attempt</button>
+</div>
+
+<div class="ch-section-title" data-i18n="challenges.leaderboard">Leaderboard</div>
+<div class="ch-lb-scope-tabs" id="ch-lb-scope-tabs">
+  <button type="button" data-scope="friends" data-i18n="challenges.friends">Friends</button>
+  <button type="button" data-scope="global" data-i18n="challenges.global">Global</button>
+</div>
+<div class="ch-lb-card">
+  <div class="ch-lb-full-list" id="ch-lb-full-list"></div>
+  <div id="ch-lb-me"></div>
+</div>
+
+<div class="ch-overlay" id="ch-record-overlay">
+  <div class="ch-modal ch-record-modal">
+    <div class="ch-modal-head">
+      <div class="ch-modal-title" id="ch-record-title" data-i18n="challenges.recordTitle">Record your attempt</div>
+      <button type="button" class="ch-close-btn" id="ch-record-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="ch-preview-wrap" id="ch-preview-wrap" style="display:none;">
+      <video id="ch-record-preview" class="ch-record-video" autoplay playsinline muted></video>
+      <div class="ch-countdown" id="ch-countdown" style="display:none;">
+        <div class="ch-countdown-num" id="ch-countdown-num">3</div>
+        <div class="ch-countdown-label" data-i18n="challenges.getReady">Get in position!</div>
+      </div>
+    </div>
+
+    <!--
+      Shown while the real submission is in flight: plays back the exact
+      clip the user just recorded/uploaded with a MediaPipe pose skeleton
+      drawn over it, plus a sweeping scan-line. Purely cosmetic — the
+      actual rep count comes from the /api/challenges/.../submit request
+      running in parallel (see submitAttempt()), not from anything
+      MediaPipe detects here. It exists so "analyzing your video" has
+      something concrete to look at instead of a blank spinner.
+    -->
+    <div class="ch-analyze-stage" id="ch-analyze-stage" style="display:none;">
+      <div class="ch-analyze-video-wrap">
+        <video id="ch-analyze-video" class="ch-analyze-video" muted playsinline loop autoplay></video>
+        <canvas id="ch-analyze-canvas" class="ch-analyze-canvas"></canvas>
+        <div class="ch-scan-line"></div>
+        <div class="ch-analyze-badge" data-i18n="challenges.analyzing">Analyzing form...</div>
+      </div>
+    </div>
+
+    <div class="ch-record-actions" id="ch-record-actions">
+      <button type="button" class="ch-btn-primary" id="ch-record-start-btn" data-i18n="challenges.startRecording">Start recording</button>
+      <button type="button" class="ch-btn-secondary" id="ch-record-stop-btn" style="display:none;" data-i18n="challenges.stopSubmit">Stop &amp; submit</button>
+    </div>
+    <div class="ch-record-status" id="ch-record-status"></div>
+  </div>
+</div>
+
+<!-- Shown after the AI finishes counting: the recorded clip to review, the
+     total reps attempted vs how many were counted (full range of motion),
+     and which exercise it was. -->
+<div class="ch-overlay" id="ch-result-overlay">
+  <div class="ch-modal ch-result-modal">
+    <div class="ch-modal-head">
+      <div class="ch-modal-title" id="ch-result-title"></div>
+      <button type="button" class="ch-close-btn" id="ch-result-close" aria-label="Close">&times;</button>
+    </div>
+    <video id="ch-result-video" class="ch-record-video ch-result-video" playsinline controls muted></video>
+    <div class="ch-result-stats">
+      <div class="ch-result-stat">
+        <div class="ch-result-stat-value" id="ch-result-total">0</div>
+        <div class="ch-result-stat-label" data-i18n="challenges.repsDone">Reps done</div>
+      </div>
+      <div class="ch-result-stat is-counted">
+        <div class="ch-result-stat-value" id="ch-result-counted">0</div>
+        <div class="ch-result-stat-label" data-i18n="challenges.repsCounted">Counted</div>
+        <div class="ch-result-stat-sub" data-i18n="challenges.repsCountedSub">full range of motion</div>
+      </div>
+    </div>
+    <div class="ch-result-note" id="ch-result-note"></div>
+    <button type="button" class="ch-btn-primary ch-result-done-btn" id="ch-result-done" data-i18n="challenges.done">Done</button>
+  </div>
+</div>
+
+<style>
+  /* ---------- Topbar back link ---------- */
+  .ch-topbar-left { display: flex; align-items: center; gap: 12px; }
+  .ch-back-btn {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card-bg); box-shadow: var(--shadow); color: var(--text);
+    text-decoration: none;
+  }
+  .ch-back-btn:hover { opacity: 0.85; }
+  .ch-back-btn:active { transform: scale(0.94); }
+
+  /* ---------- Hero: dark gradient card matching home.html's .hm-hero
+     treatment, with the day's rotating exercise + streak up top and one
+     clear "Record an attempt" call to action. ---------- */
+  .ch-hero {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(145deg, #263356 0%, #17181d 62%);
+    color: #fff;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    margin-bottom: 18px;
+  }
+  .ch-hero::before {
+    content: "";
+    position: absolute;
+    top: -70px; right: -50px;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(77, 127, 245, 0.4), transparent);
+    pointer-events: none;
+  }
+  .ch-hero > * { position: relative; }
+  .ch-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .ch-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+  .ch-streak-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(255, 255, 255, 0.1); color: #fff;
+    border-radius: 999px; padding: 6px 13px; min-height: 32px; box-sizing: border-box;
+    font-size: 13px; font-weight: 800;
+  }
+  .ch-streak-chip.is-active {
+    background: linear-gradient(135deg, #f5a94e, #e8832f);
+    box-shadow: 0 6px 14px rgba(232, 131, 47, 0.4);
+  }
+  .ch-hero-exercise-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 12px;
+  }
+  .ch-hero-icon { display: flex; flex-shrink: 0; }
+  .ch-hero-icon svg { display: block; }
+  .ch-hero-exercise-title { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+  .ch-hero-cta { width: 100%; margin-top: 16px; }
+
+  /* ---------- Leaderboard section (inline on the page now, not a sheet) ---------- */
+  .ch-section-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; margin: 0 4px 10px; }
+  .ch-lb-card {
+    background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 16px; margin-bottom: 18px;
+  }
+  .ch-lb-full-list { display: flex; flex-direction: column; gap: 8px; }
+  .ch-lb-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 14px 0; }
+
+  /* Each competitor's row: reps + name on the left, rank + total on the
+     right -- same layout language as the Hyrox leaderboard, so both
+     leaderboards in the app read as one consistent design. */
+  .ch-lb-entry-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 13px 16px; background: var(--bg); border-radius: 14px;
+    border: 1px solid transparent;
+  }
+  .ch-lb-entry-row.is-me { background: var(--blue-bg); border-color: rgba(52, 104, 224, 0.25); }
+  .ch-lb-entry-value { font-size: 17px; font-weight: 800; line-height: 1.15; }
+  .ch-lb-entry-name { font-size: 12px; color: var(--text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-lb-entry-right { text-align: right; flex-shrink: 0; }
+  .ch-lb-entry-rank { font-size: 14px; font-weight: 800; }
+  .ch-lb-entry-total { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+  /* The current user's own standing -- numbered badge (gold for top 3),
+     reps + name, trophy, plus a plain-language rank caption underneath. */
+  .ch-lb-me-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 13px 16px; margin-top: 8px;
+    background: var(--blue-bg); border-radius: 14px;
+  }
+  .ch-lb-me-badge {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; background: var(--card-bg); color: var(--text);
+  }
+  .ch-lb-me-badge.is-top { background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff; }
+  .ch-lb-me-info { flex: 1; min-width: 0; }
+  .ch-lb-me-value { font-size: 17px; font-weight: 800; line-height: 1.15; }
+  .ch-lb-me-name { font-size: 12px; color: var(--text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-lb-me-trophy { color: var(--blue); flex-shrink: 0; display: flex; }
+  .ch-lb-me-caption { margin-top: 10px; text-align: center; font-size: 11px; font-weight: 700; color: var(--blue); }
+
+  .ch-lb-scope-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .ch-lb-scope-tabs button {
+    flex: 1; min-height: 44px; padding: 10px; border: 1.5px solid var(--border); border-radius: 999px; cursor: pointer;
+    background: none; color: var(--text); font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .ch-lb-scope-tabs button.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
+
+  /* ---------- Shared buttons (record CTA, modal actions) ---------- */
+  .ch-btn-primary, .ch-btn-secondary {
+    min-height: 44px; box-sizing: border-box;
+    padding: 12px 14px; border-radius: 999px; font-size: 13px; font-weight: 800;
+    cursor: pointer; font-family: inherit; border: none;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; line-height: 1.3;
+    transition: opacity 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  }
+  .ch-btn-primary {
+    background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
+    box-shadow: 0 6px 14px rgba(47, 102, 232, 0.3);
+  }
+  .ch-btn-primary:hover { opacity: 0.92; }
+  .ch-btn-primary:active { transform: scale(0.97); }
+  .ch-btn-primary:disabled { background: var(--border); color: var(--text-secondary); box-shadow: none; cursor: default; opacity: 1; }
+  .ch-btn-primary:disabled:hover { opacity: 1; }
+  .ch-btn-secondary { background: none; border: 1.5px solid var(--border); color: var(--text); flex: 1; min-width: 0; }
+  .ch-btn-secondary:hover { border-color: var(--text-secondary); }
+  .ch-btn-secondary:disabled { color: var(--text-secondary); cursor: default; opacity: 0.55; }
+  .ch-btn-secondary:disabled:hover { border-color: var(--border); }
+
+  .ch-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+    display: none; align-items: center; justify-content: center; z-index: 220; padding: 16px;
+  }
+  .ch-overlay.is-open { display: flex; }
+  .ch-modal {
+    background: var(--card-bg); color: var(--text); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding: 20px;
+  }
+  .ch-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .ch-modal-title { font-size: 16px; font-weight: 700; }
+  .ch-close-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--bg);
+    color: var(--text-secondary); font-size: 18px; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .ch-record-video { width: 100%; border-radius: 12px; background: #000; margin-bottom: 12px; }
+
+  .ch-preview-wrap { position: relative; margin-bottom: 12px; }
+  .ch-preview-wrap .ch-record-video { margin-bottom: 0; display: block; }
+  .ch-countdown {
+    position: absolute; inset: 0; border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .ch-countdown-num {
+    font-size: 84px; font-weight: 900; color: #fff; line-height: 1;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+    animation: ch-count-pop 1s ease-out;
+  }
+  .ch-countdown-label { font-size: 14px; font-weight: 700; color: #fff; opacity: 0.9; }
+  @keyframes ch-count-pop {
+    0% { transform: scale(1.6); opacity: 0; }
+    30% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Result screen shown once the AI has counted the attempt. */
+  .ch-result-video { max-height: 46vh; object-fit: contain; }
+  .ch-result-stats { display: flex; gap: 10px; margin-bottom: 14px; }
+  .ch-result-stat {
+    flex: 1; text-align: center; padding: 14px 8px;
+    border-radius: 14px; background: var(--bg); border: 1px solid var(--border);
+  }
+  .ch-result-stat.is-counted { border-color: var(--green); background: var(--green-bg, rgba(34,197,94,0.10)); }
+  .ch-result-stat-value { font-size: 30px; font-weight: 900; letter-spacing: -0.02em; line-height: 1; }
+  .ch-result-stat.is-counted .ch-result-stat-value { color: var(--green); }
+  .ch-result-stat-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-top: 5px; }
+  .ch-result-stat-sub { font-size: 10.5px; color: var(--text-secondary); margin-top: 1px; }
+  .ch-result-note { font-size: 13px; color: var(--text-secondary); text-align: center; line-height: 1.5; margin-bottom: 14px; }
+  .ch-result-done-btn { width: 100%; flex: none; }
+
+  .ch-analyze-stage { margin-bottom: 12px; }
+  .ch-analyze-video-wrap {
+    position: relative; width: 100%; border-radius: 12px; overflow: hidden;
+    background: #000; aspect-ratio: 16 / 9;
+  }
+  .ch-analyze-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .ch-analyze-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ch-scan-line {
+    position: absolute; left: 0; right: 0; top: -25%; height: 25%;
+    background: linear-gradient(to bottom, rgba(52,144,224,0) 0%, rgba(80,180,255,0.65) 50%, rgba(52,144,224,0) 100%);
+    box-shadow: 0 0 14px 3px rgba(80,180,255,0.55);
+    animation: ch-scan-sweep 2.2s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes ch-scan-sweep {
+    0% { top: -25%; }
+    100% { top: 100%; }
+  }
+  .ch-analyze-badge {
+    position: absolute; top: 10px; left: 10px;
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(0,0,0,0.55); color: #fff; font-size: 11px; font-weight: 700;
+    padding: 5px 10px 5px 8px; border-radius: 999px; letter-spacing: 0.02em;
+  }
+  .ch-analyze-badge::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: #4ade80; flex-shrink: 0;
+    animation: ch-pulse-dot 1s ease-in-out infinite;
+  }
+  @keyframes ch-pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .ch-record-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ch-record-status { font-size: 12px; margin-top: 10px; }
+
+  @media (max-width: 720px) {
+    .ch-hero { padding: 14px; }
+  }
+</style>
+
+<script>
+  (function () {
+    "use strict";
+
+    function el(html) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html.trim();
+      return wrap.firstElementChild;
+    }
+
+    const t = RepCheckI18n.t;
+    function exerciseTitle(id) {
+      return t(`challenges.${id}`) || id;
+    }
+
+    function toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    function loadJson(key, fallback) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        return parsed === null || parsed === undefined ? fallback : parsed;
+      } catch (err) { return fallback; }
+    }
+
+    // ---------- Hero: date + streak ----------
+    // Mirrors home.html's own hero exactly (same localStorage-derived
+    // streak, since that's the single source of truth the app uses today
+    // -- there's no server-side streak endpoint to call instead).
+    const workoutLog = loadJson("repcheck_workout_log_v2", {});
+    const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
+    function hasActivityOn(iso) {
+      const w = workoutLog[iso];
+      const n = nutritionLog[iso];
+      return (Array.isArray(w) && w.length > 0) || (Array.isArray(n) && n.length > 0);
+    }
+    function computeStreak() {
+      const today = new Date();
+      let cursor = new Date(today);
+      if (!hasActivityOn(toIsoDate(cursor))) {
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      let streak = 0;
+      while (hasActivityOn(toIsoDate(cursor))) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      return streak;
+    }
+    function renderHeroTop() {
+      const dateEl = document.getElementById("ch-hero-date");
+      const locale = RepCheckI18n.getLang() === "th" ? "th-TH" : undefined;
+      dateEl.textContent = new Date().toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" });
+
+      const streak = computeStreak();
+      document.getElementById("ch-streak-count").textContent = t("home.streakCount", { n: streak });
+      document.getElementById("ch-streak-chip").classList.toggle("is-active", streak > 0);
+    }
+    document.addEventListener("repcheck:language-changed", renderHeroTop);
+    renderHeroTop();
+
+    // ---------- Today's rotating exercise + hero icon ----------
+    // One exercise is "live" per calendar day, rotating push-ups -> sit-ups
+    // -> pull-ups -> repeat (see get_todays_challenge_exercise() in
+    // app.py, the single source of truth this just mirrors for display).
+    const EXERCISE_HERO_ICONS = {
+      pushups: `<svg width="66" height="66" viewBox="0 0 88 88" aria-hidden="true">
+        <line x1="14" y1="60" x2="74" y2="60" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
+        <g stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <line x1="31" y1="40" x2="59" y2="42"/>
+          <path d="M31 40 L28 50 L31 60"/>
+          <line x1="59" y1="42" x2="71" y2="60"/>
+        </g>
+        <circle cx="24" cy="34" r="6" fill="#ffffff"/>
+      </svg>`,
+      situps: `<svg width="66" height="66" viewBox="0 0 88 88" aria-hidden="true">
+        <line x1="14" y1="62" x2="74" y2="62" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
+        <g stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M24 60 L40 46 L54 60"/>
+          <path d="M24 60 Q26 44 30 36"/>
+          <line x1="30" y1="36" x2="35" y2="41"/>
+        </g>
+        <circle cx="27" cy="30" r="6" fill="#ffffff"/>
+      </svg>`,
+      pullups: `<svg width="66" height="66" viewBox="0 0 88 88" aria-hidden="true">
+        <line x1="24" y1="16" x2="64" y2="16" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+        <g stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M31 16 L36 30"/>
+          <path d="M57 16 L52 30"/>
+          <line x1="44" y1="34" x2="44" y2="54"/>
+          <path d="M44 54 L36 68"/>
+          <path d="M44 54 L52 68"/>
+        </g>
+        <circle cx="44" cy="26" r="6" fill="#ffffff"/>
+      </svg>`,
+    };
+
+    let todaysExercise = "pushups";
+    let friendCount = 0;
+    let myUserId = null;
+    let activeChallengeId = null;
+
+    function renderTodaysExercise() {
+      document.getElementById("ch-hero-icon").innerHTML = EXERCISE_HERO_ICONS[todaysExercise] || EXERCISE_HERO_ICONS.pushups;
+      document.getElementById("ch-hero-exercise-title").textContent = exerciseTitle(todaysExercise);
+    }
+
+    // ---------- Friends/global leaderboard ----------
+    async function loadFriendCount() {
+      const res = await fetch("/api/friends");
+      const data = await res.json();
+      if (data.ok) {
+        friendCount = data.friends.length;
+        myUserId = data.me || myUserId;
+      }
+    }
+
+    // Row layout: reps + name on the left, rank + total on the right --
+    // same design language as the Hyrox leaderboard (see static/hyrox.js's
+    // renderLeaderboardCard), so both leaderboards in the app look and
+    // read as one consistent system.
+    function renderLeaderboardRows(container, rows, meId, totalEntries) {
+      container.innerHTML = "";
+      if (!rows.length) {
+        container.appendChild(el(`<div class="ch-lb-empty">${t("challenges.empty")}</div>`));
+        return;
+      }
+      rows.forEach((row, i) => {
+        const rank = i + 1;
+        container.appendChild(el(`
+          <div class="ch-lb-entry-row ${row.user_id === meId ? "is-me" : ""}">
+            <div>
+              <div class="ch-lb-entry-value">${row.total_reps} ${t("challenges.reps")}</div>
+              <div class="ch-lb-entry-name">${row.name}${row.user_id === meId ? t("challenges.you") : ""}</div>
+            </div>
+            <div class="ch-lb-entry-right">
+              <div class="ch-lb-entry-rank">#${rank}</div>
+              <div class="ch-lb-entry-total">${t("challenges.of", { n: totalEntries })}</div>
+            </div>
+          </div>
+        `));
+      });
+    }
+
+    // The current user's own standing -- a numbered badge (gold for a
+    // top-3 finish), reps + name, and a trophy, plus a rank caption
+    // underneath. Shown even when "myRank" falls outside whatever rows
+    // are displayed (see api_leaderboard's unlimited rank lookup).
+    function renderMeCard(container, myRank, totalEntries) {
+      container.innerHTML = "";
+      if (!myRank) return;
+      container.appendChild(el(`
+        <div>
+          <div class="ch-lb-me-card">
+            <div class="ch-lb-me-badge ${myRank.rank <= 3 ? "is-top" : ""}">${myRank.rank}</div>
+            <div class="ch-lb-me-info">
+              <div class="ch-lb-me-value">${myRank.total_reps} ${t("challenges.reps")}</div>
+              <div class="ch-lb-me-name">${myRank.name}</div>
+            </div>
+            <div class="ch-lb-me-trophy">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4M7 5H4a2 2 0 0 0-2 2v1a4 4 0 0 0 4 4"/></svg>
+            </div>
+          </div>
+          <div class="ch-lb-me-caption">${t("challenges.rankCaption", { rank: myRank.rank, total: totalEntries })}</div>
+        </div>
+      `));
+    }
+
+    // Default to Global -- everyone, not just friends -- so a new user
+    // immediately sees the real competition; Friends is one tap away.
+    let lbScope = "global";
+    function paintScopeTabs() {
+      document.querySelectorAll("#ch-lb-scope-tabs button").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.scope === lbScope);
+      });
+    }
+    async function loadFullLeaderboard() {
+      const listEl = document.getElementById("ch-lb-full-list");
+      const meEl = document.getElementById("ch-lb-me");
+      listEl.innerHTML = `<div class="ch-lb-empty">${t("common.loading")}</div>`;
+      meEl.innerHTML = "";
+      const res = await fetch(`/api/leaderboard?scope=${lbScope}&limit=50`);
+      const data = await res.json();
+      if (!data.ok) return;
+      myUserId = data.me;
+      renderLeaderboardRows(listEl, data.leaderboard, data.me, data.totalEntries);
+      renderMeCard(meEl, data.myRank, data.totalEntries);
+    }
+    document.querySelectorAll("#ch-lb-scope-tabs button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        lbScope = btn.dataset.scope;
+        paintScopeTabs();
+        loadFullLeaderboard();
+      });
+    });
+    paintScopeTabs();
+
+    // ---------- Cosmetic "analyzing" pose overlay (MediaPipe) ----------
+    // Purely visual — draws a live pose skeleton over the user's own
+    // clip while the REAL submission (see submitAttempt) is in flight.
+    // It never feeds anything back into the rep count; that number comes
+    // from the server-side Gemini analysis, same as before. This just
+    // gives the wait something to look at instead of a blank spinner.
+    let poseLandmarker = null;
+    let poseLoadPromise = null;
+    let poseRafId = null;
+
+    // Standard MediaPipe Pose 33-landmark topology (shoulders/arms/torso/
+    // legs) — used purely to know which detected points to connect with a
+    // line when drawing the skeleton.
+    const POSE_CONNECTIONS = [
+      [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+      [11, 23], [12, 24], [23, 24],
+      [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
+      [24, 26], [26, 28], [28, 30], [30, 32], [28, 32],
+    ];
+
+    async function ensurePoseLandmarker() {
+      if (poseLandmarker) return poseLandmarker;
+      if (!poseLoadPromise) {
+        poseLoadPromise = (async () => {
+          const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+          const fileset = await vision.FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+          );
+          poseLandmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numPoses: 1,
+          });
+          return poseLandmarker;
+        })().catch((err) => {
+          poseLoadPromise = null; // allow a retry next time, in case it was a transient network blip
+          throw err;
+        });
+      }
+      return poseLoadPromise;
+    }
+
+    function drawSkeleton(ctx, landmarks, width, height) {
+      ctx.lineWidth = Math.max(2, width * 0.006);
+      ctx.strokeStyle = "rgba(80, 200, 255, 0.9)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      POSE_CONNECTIONS.forEach(([a, b]) => {
+        const pa = landmarks[a], pb = landmarks[b];
+        if (!pa || !pb) return;
+        ctx.beginPath();
+        ctx.moveTo(pa.x * width, pa.y * height);
+        ctx.lineTo(pb.x * width, pb.y * height);
+        ctx.stroke();
+      });
+      const dotRadius = Math.max(2.5, width * 0.007);
+      landmarks.forEach((p) => {
+        ctx.beginPath();
+        ctx.arc(p.x * width, p.y * height, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    async function startPoseOverlay(videoEl, canvasEl) {
+      let landmarker;
+      try {
+        landmarker = await ensurePoseLandmarker();
+      } catch (err) {
+        // No network / blocked / unsupported browser — the scan-line and
+        // the real video playback alone still read as "processing", so
+        // this fails silently rather than showing the user an error for
+        // what is a purely decorative feature.
+        return;
+      }
+      const ctx = canvasEl.getContext("2d");
+      const tick = () => {
+        if (!canvasEl.isConnected) return; // modal was closed/torn down
+        const w = videoEl.videoWidth, h = videoEl.videoHeight;
+        if (w && h && videoEl.readyState >= 2) {
+          if (canvasEl.width !== w) canvasEl.width = w;
+          if (canvasEl.height !== h) canvasEl.height = h;
+          ctx.clearRect(0, 0, w, h);
+          try {
+            const result = landmarker.detectForVideo(videoEl, performance.now());
+            if (result.landmarks && result.landmarks[0]) {
+              drawSkeleton(ctx, result.landmarks[0], w, h);
+            }
+          } catch (err) { /* a dropped frame here and there doesn't matter for a cosmetic overlay */ }
+        }
+        poseRafId = requestAnimationFrame(tick);
+      };
+      poseRafId = requestAnimationFrame(tick);
+    }
+
+    function stopPoseOverlay() {
+      if (poseRafId) cancelAnimationFrame(poseRafId);
+      poseRafId = null;
+      const canvasEl = document.getElementById("ch-analyze-canvas");
+      if (canvasEl) canvasEl.getContext("2d").clearRect(0, 0, canvasEl.width, canvasEl.height);
+    }
+
+    // ---------- Record an attempt ----------
+    const recordOverlay = document.getElementById("ch-record-overlay");
+    let recordingStream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let analyzeVideoUrl = null;
+    // A clip stopped within the first couple of seconds is often too short
+    // for the recorder to have written a valid webm container yet, which
+    // fails at the ffmpeg-trim step with a cryptic, technical error the
+    // user can't act on. Disabling "Stop & submit" for a short cooldown
+    // after Start prevents that failure mode instead of just wording the
+    // error more nicely.
+    const MIN_RECORDING_MS = 2000;
+    let recordStopTimer = null;
+    // Set right before a deliberate stop-without-submit (closing the modal
+    // mid-recording) so the onstop handler below knows not to submit the
+    // partial clip it was about to produce.
+    let recordCancelled = false;
+    let countdownTimer = null;
+    let resultBlobUrl = null;
+
+    // Pick a container/codec the browser can BOTH record and play back --
+    // notably iOS Safari records mp4, not webm, and can't play a webm blob,
+    // so hardcoding "video/webm" left the review/analyze video a black
+    // screen there (and handed the server a mis-labelled file). Preferring
+    // mp4 where supported fixes both.
+    function pickRecorderMime() {
+      if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+      const candidates = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+      for (const c of candidates) { if (MediaRecorder.isTypeSupported(c)) return c; }
+      return "";
+    }
+
+    // ---------- Once-a-day attempt limit ----------
+    const recordBtn = document.getElementById("ch-record-btn");
+    let attemptedToday = false;
+
+    async function refreshTodaysChallenge() {
+      const res = await fetch("/api/challenges/today");
+      const data = await res.json();
+      if (!data.ok) return;
+      todaysExercise = data.exercise;
+      attemptedToday = data.attempted;
+      renderTodaysExercise();
+      recordBtn.disabled = attemptedToday;
+      recordBtn.textContent = attemptedToday ? t("challenges.alreadyAttemptedToday") : t("challenges.recordAttempt");
+    }
+
+    async function openRecordModal() {
+      if (attemptedToday) return;
+      // A fresh challenge instance is created per attempt (same pattern
+      // the old Friends-page flow used) — the leaderboard now sums every
+      // submission's reps into one running total instead of taking a
+      // single exercise's personal best, so this doesn't fragment
+      // anything, it just gives this attempt somewhere to submit to.
+      // The exercise itself isn't sent — the server decides it from
+      // today's rotation, same as refreshTodaysChallenge() above.
+      const res = await fetch("/api/challenges", { method: "POST" });
+      const data = await res.json();
+      if (!data.ok) {
+        if (data.limitReached) await refreshTodaysChallenge();
+        else alert(data.error || t("challenges.couldntProcess"));
+        return;
+      }
+      activeChallengeId = data.id;
+
+      document.getElementById("ch-record-title").textContent = t("challenges.recordTitleFor", { exercise: exerciseTitle(data.exercise) });
+      document.getElementById("ch-record-status").textContent = "";
+      recordOverlay.classList.add("is-open");
+    }
+    function closeRecordModal() {
+      // Closing mid-recording (or mid-countdown) must discard the clip, not
+      // submit it -- otherwise a recording abandoned seconds after Start
+      // would still fire off a submission (and very likely the same ffmpeg
+      // failure the cooldown above exists to avoid) after the modal is
+      // already gone from view.
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+      document.getElementById("ch-countdown").style.display = "none";
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        recordCancelled = true;
+        mediaRecorder.stop();
+      }
+      if (recordStopTimer) { clearTimeout(recordStopTimer); recordStopTimer = null; }
+      stopRecordingStream();
+      hideAnalyzeStage();
+      recordOverlay.classList.remove("is-open");
+    }
+    function showAnalyzeStage(blobOrFile) {
+      const stage = document.getElementById("ch-analyze-stage");
+      const actions = document.getElementById("ch-record-actions");
+      const analyzeVideo = document.getElementById("ch-analyze-video");
+      analyzeVideoUrl = URL.createObjectURL(blobOrFile);
+      analyzeVideo.src = analyzeVideoUrl;
+      document.getElementById("ch-preview-wrap").style.display = "none";
+      actions.style.display = "none";
+      stage.style.display = "block";
+      analyzeVideo.play().catch(() => {}); // autoplay+muted should already play; be explicit
+      startPoseOverlay(analyzeVideo, document.getElementById("ch-analyze-canvas"));
+    }
+    function hideAnalyzeStage() {
+      stopPoseOverlay();
+      const stage = document.getElementById("ch-analyze-stage");
+      const actions = document.getElementById("ch-record-actions");
+      const analyzeVideo = document.getElementById("ch-analyze-video");
+      if (stage) stage.style.display = "none";
+      if (actions) actions.style.display = "flex";
+      if (analyzeVideo) analyzeVideo.pause();
+      if (analyzeVideoUrl) {
+        URL.revokeObjectURL(analyzeVideoUrl);
+        analyzeVideoUrl = null;
+      }
+    }
+    function stopRecordingStream() {
+      if (recordingStream) recordingStream.getTracks().forEach((t) => t.stop());
+      recordingStream = null;
+      document.getElementById("ch-preview-wrap").style.display = "none";
+      document.getElementById("ch-record-preview").srcObject = null;
+      document.getElementById("ch-countdown").style.display = "none";
+      document.getElementById("ch-record-start-btn").style.display = "inline-block";
+      const stopBtn = document.getElementById("ch-record-stop-btn");
+      stopBtn.style.display = "none";
+      stopBtn.disabled = false;
+    }
+    recordBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openRecordModal();
+    });
+    document.getElementById("ch-record-close").addEventListener("click", closeRecordModal);
+    recordOverlay.addEventListener("click", (event) => {
+      if (event.target === recordOverlay) closeRecordModal();
+    });
+
+    // "Start recording" turns the camera on and shows a live preview with a
+    // 3-2-1 countdown so the user can get into position -- recording only
+    // actually begins after the countdown, instead of the instant, no-
+    // warning start it used to have.
+    document.getElementById("ch-record-start-btn").addEventListener("click", async () => {
+      const statusEl = document.getElementById("ch-record-status");
+      statusEl.textContent = "";
+      try {
+        recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (err) {
+        statusEl.textContent = t("challenges.cameraAccessDenied");
+        statusEl.style.color = "var(--red)";
+        return;
+      }
+      await normalizeCameraZoom(recordingStream);
+      const video = document.getElementById("ch-record-preview");
+      video.srcObject = recordingStream;
+      document.getElementById("ch-preview-wrap").style.display = "block";
+      document.getElementById("ch-record-start-btn").style.display = "none";
+      runCountdown(10, beginRecording);
+    });
+
+    // Some phones (notably iPhones with multiple rear lenses) hand back the
+    // 0.5x ultra-wide camera by default, which frames the lifter far too wide
+    // for rep counting. A zoom of 1.0 is the standard "1x" wide framing, so
+    // pull the track to 1x where the browser exposes zoom control. This is
+    // best-effort: many desktop webcams don't support zoom at all, in which
+    // case we just leave the stream as-is.
+    async function normalizeCameraZoom(stream) {
+      try {
+        const track = stream.getVideoTracks()[0];
+        if (!track || !track.getCapabilities) return;
+        const caps = track.getCapabilities();
+        if (!caps || typeof caps.zoom === "undefined") return;
+        let target = 1;
+        if (caps.zoom.min != null) target = Math.max(target, caps.zoom.min);
+        if (caps.zoom.max != null) target = Math.min(target, caps.zoom.max);
+        await track.applyConstraints({ advanced: [{ zoom: target }] });
+      } catch (e) { /* zoom control is best-effort; ignore if unsupported */ }
+    }
+
+    function runCountdown(seconds, done) {
+      const cd = document.getElementById("ch-countdown");
+      const numEl = document.getElementById("ch-countdown-num");
+      let remaining = seconds;
+      cd.style.display = "flex";
+      numEl.textContent = remaining;
+      // Re-trigger the pop animation on each tick.
+      numEl.style.animation = "none"; void numEl.offsetWidth; numEl.style.animation = "";
+      countdownTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(countdownTimer); countdownTimer = null;
+          cd.style.display = "none";
+          done();
+        } else {
+          numEl.textContent = remaining;
+          numEl.style.animation = "none"; void numEl.offsetWidth; numEl.style.animation = "";
+        }
+      }, 1000);
+    }
+
+    function beginRecording() {
+      if (!recordingStream) return; // modal was closed during the countdown
+      recordedChunks = [];
+      recordCancelled = false;
+      const mime = pickRecorderMime();
+      mediaRecorder = new MediaRecorder(recordingStream, mime ? { mimeType: mime } : {});
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        if (recordCancelled) return; // discarded via closeRecordModal(), not a real attempt
+        const type = (mediaRecorder && mediaRecorder.mimeType) || mime || "video/webm";
+        const blob = new Blob(recordedChunks, { type });
+        submitAttempt(blob, "attempt." + (type.indexOf("mp4") !== -1 ? "mp4" : "webm"));
+      };
+      mediaRecorder.start();
+      const stopBtn = document.getElementById("ch-record-stop-btn");
+      stopBtn.style.display = "inline-block";
+      // Briefly disabled: stopping within the first couple of seconds tends
+      // to hand ffmpeg a clip with no valid container data yet to trim.
+      stopBtn.disabled = true;
+      recordStopTimer = setTimeout(() => { stopBtn.disabled = false; }, MIN_RECORDING_MS);
+    }
+
+    document.getElementById("ch-record-stop-btn").addEventListener("click", () => {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+      stopRecordingStream();
+    });
+
+    async function submitAttempt(blob, filename) {
+      const statusEl = document.getElementById("ch-record-status");
+      statusEl.textContent = t("challenges.uploadingCounting");
+      statusEl.style.color = "var(--text-secondary)";
+      showAnalyzeStage(blob);
+      const formData = new FormData();
+      formData.append("video", blob, filename);
+      try {
+        const res = await fetch(`/api/challenges/${activeChallengeId}/submit`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || t("challenges.couldntProcess"));
+        await loadFullLeaderboard();
+        await refreshTodaysChallenge();
+        openResultPopup(data, blob);
+      } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.style.color = "var(--red)";
+        hideAnalyzeStage();
+      }
+    }
+
+    // ---------- Result screen ----------
+    function openResultPopup(data, blob) {
+      // Tear the recording modal down (stops the stream, hides the analyze
+      // stage) before showing the result so nothing keeps playing behind it.
+      closeRecordModal();
+
+      const counted = data.reps || 0;
+      const total = (data.total != null) ? data.total : counted + (data.rejected || 0);
+      const rejected = Math.max(0, total - counted);
+      const exId = data.exercise || todaysExercise;
+
+      document.getElementById("ch-result-title").textContent =
+        t("challenges.resultTitle", { exercise: exerciseTitle(exId) });
+      document.getElementById("ch-result-total").textContent = total;
+      document.getElementById("ch-result-counted").textContent = counted;
+      document.getElementById("ch-result-note").textContent = rejected > 0
+        ? t("challenges.resultRejected", { n: rejected, s: rejected === 1 ? "" : "s" })
+        : t("challenges.resultAllCounted");
+
+      if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
+      resultBlobUrl = URL.createObjectURL(blob);
+      const rv = document.getElementById("ch-result-video");
+      rv.src = resultBlobUrl;
+      rv.load();
+
+      document.getElementById("ch-result-overlay").classList.add("is-open");
+    }
+    function closeResultPopup() {
+      document.getElementById("ch-result-overlay").classList.remove("is-open");
+      const rv = document.getElementById("ch-result-video");
+      rv.pause();
+      rv.removeAttribute("src");
+      rv.load();
+      if (resultBlobUrl) { URL.revokeObjectURL(resultBlobUrl); resultBlobUrl = null; }
+    }
+    document.getElementById("ch-result-close").addEventListener("click", closeResultPopup);
+    document.getElementById("ch-result-done").addEventListener("click", closeResultPopup);
+    document.getElementById("ch-result-overlay").addEventListener("click", (event) => {
+      if (event.target === document.getElementById("ch-result-overlay")) closeResultPopup();
+    });
+
+    renderTodaysExercise();
+    loadFriendCount().then(loadFullLeaderboard);
+    refreshTodaysChallenge();
+
+    // Re-render whatever's currently visible when the language changes —
+    // the leaderboard rows/exercise title are built from JS strings via
+    // t(), not data-i18n, so applyI18n() alone can't reach them.
+    document.addEventListener("repcheck:language-changed", () => {
+      renderTodaysExercise();
+      refreshTodaysChallenge();
+      loadFullLeaderboard();
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

@@ -177,6 +177,7 @@
       "weight.emptyCta": "Log your weight",
 
       "challenges.title": "Challenges",
+      "challenges.leaderboard": "Leaderboard",
       "challenges.pushups": "Push-ups",
       "challenges.situps": "Sit-ups",
       "challenges.pullups": "Pull-ups",
@@ -780,6 +781,7 @@
       "hyrox.cancelThisRace": "Cancel this race",
 
       "page.friends.heading": "Friends",
+      "page.challenges.heading": "Challenges",
       "friends.loginTitle": "Log in to see friends",
       "friends.loginSub": "Friends, leaderboards, and challenges are tied to your account.",
       "friends.yourCode.title": "Your friend code",
@@ -961,6 +963,7 @@
       "weight.emptyCta": "บันทึกน้ำหนักของคุณ",
 
       "challenges.title": "ชาเลนจ์",
+      "challenges.leaderboard": "กระดานผู้นำ",
       "challenges.pushups": "วิดพื้น",
       "challenges.situps": "ซิทอัพ",
       "challenges.pullups": "ดึงข้อ",
@@ -1556,6 +1559,7 @@
       "hyrox.cancelThisRace": "ยกเลิกการแข่งนี้",
 
       "page.friends.heading": "เพื่อน",
+      "page.challenges.heading": "ชาเลนจ์",
       "friends.loginTitle": "เข้าสู่ระบบเพื่อดูเพื่อน",
       "friends.loginSub": "เพื่อน กระดานผู้นำ และชาเลนจ์ผูกกับบัญชีของคุณ",
       "friends.yourCode.title": "รหัสเพื่อนของคุณ",
