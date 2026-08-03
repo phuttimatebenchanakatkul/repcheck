@@ -988,11 +988,15 @@
       <div class="an-more" id="an-more" hidden>${secondarySections}</div>
     ` : "";
 
+    // Sits directly under the score and its verdict, not at the foot of
+    // the report: the moment a lifter reads what to tighten up is the
+    // moment a demo is worth offering. Secondary weight so it never
+    // competes with the primary action at the end. Mirrors result.html.
     const vid = EXERCISE_VIDEOS[data.exercise_label];
-    const tutorialRow = `
-      <a class="an-row" href="${vid ? `https://www.youtube.com/watch?v=${vid}` : youtubeSearchUrl(data.exercise_label)}" target="_blank" rel="noopener">
+    const tutorialBtn = `
+      <a class="an-btn an-btn-secondary" href="${vid ? `https://www.youtube.com/watch?v=${vid}` : youtubeSearchUrl(data.exercise_label)}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         <span>${vid ? t("analyze.howToTitle") : t("analyze.watchOnYoutube")}</span>
-        ${CHEVRON}
       </a>`;
 
     return `
@@ -1016,12 +1020,11 @@
           <div class="an-score-sub">${t("analyze.overallFormTechnique")}</div>
           ${verdictHtml}
           ${favorNoteHtml}
+          ${tutorialBtn}
           ${sections}
           ${moreHtml}
-          ${tutorialRow}
-          <button type="button" class="an-row" id="reset-btn">
+          <button type="button" class="an-btn an-btn-primary" id="reset-btn">
             <span>${t("analyze.analyzeAnother")}</span>
-            ${CHEVRON}
           </button>
         </div>
       </div>
@@ -1072,6 +1075,7 @@
     // Tear down the AI chat's topbar toggle + listeners before wiping the
     // results (the toggle lives in the topbar, outside #result-view).
     if (window.__agCleanup) { window.__agCleanup(); window.__agCleanup = null; }
+    if (window.__anBarCleanup) { window.__anBarCleanup(); window.__anBarCleanup = null; }
     // Must come off with the results, or the upload form keeps the
     // full-bleed layout and loses its tab bar.
     document.documentElement.classList.remove("an-result");
@@ -1104,6 +1108,24 @@
     document.getElementById("reset-btn").addEventListener("click", resetToUpload);
     const backBtn = document.getElementById("an-back");
     if (backBtn) backBtn.addEventListener("click", resetToUpload);
+
+    // Fixed bar over paper would be white-on-white past the video; swap it
+    // to an opaque header once the stage scrolls by. Mirrors result.html.
+    const bar = resultView.querySelector(".an-bar");
+    const stage = resultView.querySelector(".an-stage");
+    if (bar && stage) {
+      const syncBar = () => {
+        bar.classList.toggle("is-stuck", window.scrollY > stage.offsetHeight - 64);
+      };
+      syncBar();
+      window.addEventListener("scroll", syncBar, { passive: true });
+      window.addEventListener("resize", syncBar);
+      // resetToUpload() wipes #result-view, so drop the listeners with it.
+      window.__anBarCleanup = () => {
+        window.removeEventListener("scroll", syncBar);
+        window.removeEventListener("resize", syncBar);
+      };
+    }
 
     const video = document.getElementById("an-video");
     const play = document.getElementById("an-play");

@@ -1620,6 +1620,24 @@ html.an-result .mobile-tabbar { display: none; }
   font-size: 15px; font-weight: 700; color: #fff; margin: 0;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+/* Scrolled past the video, the bar is over paper, where white-on-white is
+   invisible and the glass circles have nothing to sit against. .is-stuck
+   (toggled by the scroll handler in result.html / index.html) turns it
+   into a normal opaque header. Colours transition so it reads as one bar
+   changing state rather than a second bar appearing. */
+.an-bar.is-stuck {
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--paper-line);
+}
+.an-bar.is-stuck .an-bar-title { color: var(--text); text-shadow: none; }
+.an-bar.is-stuck .an-glass {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border-color: transparent;
+  color: var(--text);
 }
 .an-glass {
   width: 34px; height: 34px; flex-shrink: 0;
@@ -1710,6 +1728,42 @@ html.an-result .mobile-tabbar { display: none; }
 .an-row-chev svg { width: 16px; height: 16px; display: block; }
 .an-row[aria-expanded="true"] .an-row-chev { transform: rotate(90deg); }
 .an-more[hidden] { display: none; }
+
+/* ---------- Sheet buttons ----------
+   Fully rounded pills, matching .btn-primary's 999px radius so they read
+   as the same control family as the rest of the app. Two weights: the
+   solid blue one is the page's single primary action ("Analyze another
+   video"), the outlined one is a helpful aside ("How to perform this
+   exercise") that sits under the verdict and must not compete with it. */
+.an-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 14px 18px; border: none; border-radius: 999px;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  text-align: center; text-decoration: none; cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease,
+              border-color 0.15s ease, background-color 0.15s ease;
+}
+.an-btn:active { transform: scale(0.98); }
+.an-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+.an-btn-primary {
+  background: linear-gradient(135deg, #4d7ff5, var(--blue));
+  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
+  color: #fff;
+  margin-top: 22px;
+}
+.an-btn-primary:hover { opacity: 0.92; box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
+
+.an-btn-secondary {
+  background: var(--card-bg);
+  border: 1px solid var(--paper-line);
+  color: var(--text);
+  margin-top: 18px;
+}
+.an-btn-secondary:hover { border-color: var(--text-secondary); }
+/* Same red play chip as the old tutorial card, so the link to "watch a
+   demo" survives the move out of that card. */
+.an-btn-secondary svg { color: #ff0000; }
 
 @media (max-width: 380px) {
   .an-sheet { padding-left: 18px; padding-right: 18px; }

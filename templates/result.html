@@ -75,6 +75,22 @@
       <div class="an-note favor-note" data-favored="{{ favored }}"></div>
     {% endif %}
 
+    {# Sits directly under the score and its verdict: the moment a lifter
+       reads "what to tighten up" is the moment a demo is worth offering,
+       not after they have scrolled the whole report. Secondary weight so
+       it never competes with the primary action at the end. #}
+    {% if tutorial_video_id %}
+      <a class="an-btn an-btn-secondary" href="https://www.youtube.com/watch?v={{ tutorial_video_id }}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span data-i18n="analyze.howToTitle">How to perform this exercise</span>
+      </a>
+    {% else %}
+      <a class="an-btn an-btn-secondary" href="https://www.youtube.com/results?search_query={{ (exercise_label ~ ' proper form tutorial') | urlencode }}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span data-i18n="analyze.watchOnYoutube">Watch a form tutorial on YouTube</span>
+      </a>
+    {% endif %}
+
     {# The lead section is what the user acts on, so it is the one thing
        shown without a tap. Everything else sits behind "Full report" --
        must stay in step with index.html's FB_ALWAYS_VISIBLE. #}
@@ -109,23 +125,11 @@
       </div>
     {% endif %}
 
-    {% if tutorial_video_id %}
-      <a class="an-row" href="https://www.youtube.com/watch?v={{ tutorial_video_id }}" target="_blank" rel="noopener">
-        <span data-i18n="analyze.howToTitle">How to perform this exercise</span>
-        <span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
-      </a>
-    {% else %}
-      <a class="an-row" href="https://www.youtube.com/results?search_query={{ (exercise_label ~ ' proper form tutorial') | urlencode }}" target="_blank" rel="noopener">
-        <span data-i18n="analyze.watchOnYoutube">Watch a form tutorial on YouTube</span>
-        <span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
-      </a>
-    {% endif %}
-
-    {# The labelled way out. Most people will use this rather than the
-       chevron, since it names what happens next. #}
-    <a class="an-row" href="{{ url_for('analyze_page') }}">
+    {# The labelled way out, and the page's one primary action. Most people
+       will use this rather than the back chevron, since it names what
+       happens next. #}
+    <a class="an-btn an-btn-primary" href="{{ url_for('analyze_page') }}">
       <span data-i18n="analyze.analyzeAnother">Analyze another video</span>
-      <span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
     </a>
   </div>
 </div>
@@ -159,6 +163,23 @@
 
 <script>
   const t = RepCheckI18n.t;
+
+  // The bar is fixed so the way out never scrolls away, but past the video
+  // it sits over paper where white text is invisible. Swap it to an opaque
+  // header once the stage has scrolled by.
+  (function () {
+    const bar = document.querySelector(".an-bar");
+    const stage = document.querySelector(".an-stage");
+    if (!bar || !stage) return;
+    function sync() {
+      // Switch a little before the stage fully clears, so the title never
+      // spends a frame as white-on-paper.
+      bar.classList.toggle("is-stuck", window.scrollY > stage.offsetHeight - 64);
+    }
+    sync();
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync);
+  })();
 
   // Tap the poster frame to play the set back; the button hides once it is
   // running so it stops covering the lift.
