@@ -945,29 +945,51 @@
       </div>`;
   }
 
+  // "positives"/"progress" (What Went Well, Your Next Step) are the two
+  // things worth seeing without an extra tap -- what happened, what to do
+  // differently. Everything else (the raw set description, what to work
+  // on, longer-form improvements/injury notes) used to render all at
+  // once and read as a wall of cards; it now sits behind "Full report"
+  // instead, collapsed by default. Shared list so index.html and
+  // result.html's server-rendered fallback can't drift apart on which
+  // categories are which.
+  const FB_ALWAYS_VISIBLE = ["positives", "progress"];
+
+  function fbItemHtml(s, t) {
+    const hasDetail = !!s.detail_html;
+    const chevron = hasDetail
+      ? `<span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>`
+      : "";
+    const detail = hasDetail ? `<div class="fb-item-detail">${s.detail_html}</div>` : "";
+    const muted = s.emphasis === "muted" ? " fb-item-muted" : "";
+    return `
+      <div class="fb-item fb-${s.css_class}${muted}${hasDetail ? " is-expandable" : ""}">
+        <button type="button" class="fb-item-main"${hasDetail ? "" : " disabled"}>
+          <span class="fb-item-icon">${s.icon}</span>
+          <span class="fb-item-text">
+            <span class="fb-item-title">${t(s.title_key)}</span>
+            <span class="fb-item-summary">${s.summary_html}</span>
+          </span>
+          ${chevron}
+        </button>
+        ${detail}
+      </div>
+    `;
+  }
+
   function sectionsHtml(data) {
     const t = RepCheckI18n.t;
-    const sections = data.sections.map((s) => {
-      const hasDetail = !!s.detail_html;
-      const chevron = hasDetail
-        ? `<span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>`
-        : "";
-      const detail = hasDetail ? `<div class="fb-item-detail">${s.detail_html}</div>` : "";
-      const muted = s.emphasis === "muted" ? " fb-item-muted" : "";
-      return `
-        <div class="fb-item fb-${s.css_class}${muted}${hasDetail ? " is-expandable" : ""}">
-          <button type="button" class="fb-item-main"${hasDetail ? "" : " disabled"}>
-            <span class="fb-item-icon">${s.icon}</span>
-            <span class="fb-item-text">
-              <span class="fb-item-title">${t(s.title_key)}</span>
-              <span class="fb-item-summary">${s.summary_html}</span>
-            </span>
-            ${chevron}
-          </button>
-          ${detail}
-        </div>
-      `;
-    }).join("");
+    const primary = data.sections.filter((s) => FB_ALWAYS_VISIBLE.includes(s.css_class));
+    const secondary = data.sections.filter((s) => !FB_ALWAYS_VISIBLE.includes(s.css_class));
+    const sections = primary.map((s) => fbItemHtml(s, t)).join("");
+    const secondarySections = secondary.map((s) => fbItemHtml(s, t)).join("");
+    const fullReportToggle = secondary.length ? `
+      <button type="button" class="fb-full-report-toggle" id="fb-full-report-toggle" aria-expanded="false">
+        <span>${t("analyze.fullReport")}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="fb-list fb-list-secondary" id="fb-list-secondary" hidden>${secondarySections}</div>
+    ` : "";
 
     const scoreClass = (score) => {
       if (score === null || score === undefined) return "";
@@ -1031,6 +1053,7 @@
           <div class="fb-head-sub">${t("analyze.breakdownHint")}</div>
         </div>
         <div class="fb-list">${sections}</div>
+        ${fullReportToggle}
       </div>
       <div class="an-again">
         <button class="btn-primary" id="reset-btn">${t("analyze.analyzeAnother")}</button>
@@ -1103,6 +1126,16 @@
         btn.closest(".fb-item").classList.toggle("is-expanded");
       });
     });
+    const fullReportToggle = document.getElementById("fb-full-report-toggle");
+    if (fullReportToggle) {
+      fullReportToggle.addEventListener("click", () => {
+        const list = document.getElementById("fb-list-secondary");
+        const nowOpen = list.hasAttribute("hidden");
+        list.toggleAttribute("hidden", !nowOpen);
+        fullReportToggle.classList.toggle("is-open", nowOpen);
+        fullReportToggle.setAttribute("aria-expanded", String(nowOpen));
+      });
+    }
     AnalyzeChatWidget.init({
       id: data.id,
       created_at_ms: data.created_at_ms,

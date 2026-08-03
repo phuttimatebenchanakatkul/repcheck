@@ -76,8 +76,14 @@
     <div class="fb-head-title" id="fb-title">{{ exercise_label }} — Form breakdown</div>
     <div class="fb-head-sub" data-i18n="analyze.breakdownHint">Tap a card to see the details</div>
   </div>
+  {# "positives"/"progress" (What Went Well, Your Next Step) are the two
+     things worth seeing without an extra tap. Everything else sits behind
+     "Full report", collapsed by default -- see index.html's FB_ALWAYS_VISIBLE,
+     which this list must match. #}
+  {% set primary_sections = sections | selectattr("css_class", "in", ["positives", "progress"]) | list %}
+  {% set secondary_sections = sections | rejectattr("css_class", "in", ["positives", "progress"]) | list %}
   <div class="fb-list">
-    {% for section in sections %}
+    {% for section in primary_sections %}
       <div class="fb-item fb-{{ section.css_class }}{% if section.emphasis == 'muted' %} fb-item-muted{% endif %}{% if section.detail_html %} is-expandable{% endif %}">
         <button type="button" class="fb-item-main"{% if not section.detail_html %} disabled{% endif %}>
           <span class="fb-item-icon">{{ section.icon | safe }}</span>
@@ -95,6 +101,31 @@
       </div>
     {% endfor %}
   </div>
+  {% if secondary_sections %}
+    <button type="button" class="fb-full-report-toggle" id="fb-full-report-toggle" aria-expanded="false">
+      <span data-i18n="analyze.fullReport">Full report</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="fb-list fb-list-secondary" id="fb-list-secondary" hidden>
+      {% for section in secondary_sections %}
+        <div class="fb-item fb-{{ section.css_class }}{% if section.emphasis == 'muted' %} fb-item-muted{% endif %}{% if section.detail_html %} is-expandable{% endif %}">
+          <button type="button" class="fb-item-main"{% if not section.detail_html %} disabled{% endif %}>
+            <span class="fb-item-icon">{{ section.icon | safe }}</span>
+            <span class="fb-item-text">
+              <span class="fb-item-title" data-i18n="{{ section.title_key }}">{{ section.heading }}</span>
+              <span class="fb-item-summary">{{ section.summary_html | safe }}</span>
+            </span>
+            {% if section.detail_html %}
+              <span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            {% endif %}
+          </button>
+          {% if section.detail_html %}
+            <div class="fb-item-detail">{{ section.detail_html | safe }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 </div>
 
 <div class="an-again">
@@ -109,6 +140,17 @@
       btn.closest(".fb-item").classList.toggle("is-expanded");
     });
   });
+
+  const fullReportToggle = document.getElementById("fb-full-report-toggle");
+  if (fullReportToggle) {
+    fullReportToggle.addEventListener("click", () => {
+      const list = document.getElementById("fb-list-secondary");
+      const nowOpen = list.hasAttribute("hidden");
+      list.toggleAttribute("hidden", !nowOpen);
+      fullReportToggle.classList.toggle("is-open", nowOpen);
+      fullReportToggle.setAttribute("aria-expanded", String(nowOpen));
+    });
+  }
 
   // The breakdown title needs the exercise name interpolated, which the
   // plain data-i18n textContent swap can't do -- localize it here (and on
