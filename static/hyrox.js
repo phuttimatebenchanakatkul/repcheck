@@ -105,12 +105,11 @@
   // adjust away from.
   const PRO_ADJUSTABLE_STATIONS = ["sledPush", "sledPull", "farmersCarry", "lunges"];
 
-  // Stations you physically travel across (as opposed to machine efforts
-  // like SkiErg/Row or the stationary Wall Balls). A gym's lane for each of
-  // these is almost never HYROX's exact distance, so the user can enter
-  // their own lane length and the app works out how many laps hit the
-  // HYROX total. See getFacilityLane/roundsFor and renderTrainingSpaceCard.
-  const TRAVERSAL_STATIONS = ["sledPush", "sledPull", "farmersCarry", "lunges", "burpeeBroadJump"];
+  // A gym's lane for a travelling station (sleds, carries, burpee broad
+  // jumps -- as opposed to machine efforts like SkiErg/Row or the
+  // stationary Wall Balls) is almost never HYROX's exact distance, so the
+  // user enters their own lane length once and the app works out how many
+  // laps hit the HYROX total. See getFacilityLane/roundsFor.
   // One shared lane length for every travelling station -- asked once
   // instead of per-station, since a home/garage gym almost always has one
   // usable stretch of floor, not a different one for each movement. New key
@@ -1601,32 +1600,74 @@
       return wrap;
     }
 
-    // What one station actually commits you to, as a short phrase for the
-    // agenda -- machine metres, wall-ball reps, or lane rounds + load.
-    agendaDetailFor(key) {
+    // The same stat-box design the training-space list used to show on its
+    // own (weight box immediately left of a lap-count box, same
+    // .hx-space-weight/.hx-space-laps classes) but now built once and
+    // reused inside the full race agenda, for every station type, in every
+    // category/format/gender -- one consistent way of stating "how heavy,
+    // how many" instead of a different treatment per screen. Weight is
+    // editable only for Pro Singles (the one case with a real practice-
+    // weight choice); everywhere else it's the fixed standard, same rule
+    // the old per-format lists already followed.
+    stationStatsHtml(key) {
       const spec = STATION_SPECS[key];
+      const title = STATIONS.find((s) => s.key === key).title;
+
       if (key === "wallBalls") {
-        return t("hyrox.agenda.detail.wallBalls", {
-          reps: scaledWallBallReps(this.gender, this.scale),
-          weight: formatWeight(spec.ballKg[this.gender]),
-          target: `${spec.targetFt[this.gender]}ft`,
-        });
+        const reps = scaledWallBallReps(this.gender, this.scale);
+        return {
+          stats: `
+            <div class="hx-space-laps">
+              <span class="hx-space-laps-value">${reps}</span>
+              <span class="hx-space-laps-label">${t("hyrox.space.chip.reps")}</span>
+            </div>
+          `,
+          caption: `${formatWeight(spec.ballKg[this.gender])} · ${spec.targetFt[this.gender]}ft ${t("hyrox.space.chip.target")}`,
+        };
       }
       if (key === "skierg" || key === "row") {
-        return formatStationMeters(scaledStationDistanceM(key, this.scale));
+        return {
+          stats: `
+            <div class="hx-space-weight">
+              <span class="hx-space-weight-value">${formatStationMeters(scaledStationDistanceM(key, this.scale))}</span>
+              <span class="hx-space-weight-label">${t("hyrox.space.chip.distance")}</span>
+            </div>
+          `,
+          caption: "",
+        };
       }
 
       const rounds = this.roundsFor(key);
-      const dist = Math.round(this.effectiveDistanceM(key));
-      // In Doubles the number that matters to YOU is your own share, not
-      // the pair's combined total -- same reasoning as the race screen's
-      // hero value.
-      const split = this.format === "doubles" ? this.getDoublesSplit(key) : null;
-      const shown = split ? Math.max(1, Math.round(rounds * (split.mine / split.total))) : rounds;
-      const base = t("hyrox.agenda.detail.rounds", { rounds: shown, distance: formatStationMeters(dist) });
-
-      const w = this.getStationWeight(key);
-      return w ? `${base} · ${formatWeight(w)}` : base;
+      const defaultW = getDefaultStationWeightKg(key, this.gender, this.category);
+      let weightBox = "";
+      if (defaultW) {
+        const currentW = this.getStationWeight(key);
+        const isScaled = currentW < defaultW;
+        const editable = this.format === "singles" && this.category === "pro";
+        weightBox = editable ? `
+          <div class="hx-space-weight is-editable ${isScaled ? "is-scaled" : ""}">
+            <input type="number" inputmode="decimal" step="0.5" min="${Math.round(defaultW * 0.1 * 10) / 10}" max="${defaultW}"
+                   value="${currentW}" data-station-weight-input data-clear-on-focus data-station="${key}"
+                   class="hx-space-weight-input" aria-label="${title} ${t("hyrox.weightAdjust.weightLabel")}">
+            <span class="hx-space-weight-label">kg</span>
+          </div>
+        ` : `
+          <div class="hx-space-weight">
+            <span class="hx-space-weight-value">${formatWeight(defaultW)}</span>
+            <span class="hx-space-weight-label">${t("hyrox.weightAdjust.weightLabel")}</span>
+          </div>
+        `;
+      }
+      return {
+        stats: `
+          ${weightBox}
+          <div class="hx-space-laps">
+            <span class="hx-space-laps-value">${rounds}</span>
+            <span class="hx-space-laps-label">${t("hyrox.space.laps")}</span>
+          </div>
+        `,
+        caption: "",
+      };
     }
 
     // The whole race in order, start to finish, so the commitment is
@@ -1655,18 +1696,25 @@
         </div>
       `);
 
+      // Runs need nothing beyond their own title (runTitle() already bakes
+      // the distance in, e.g. "1km Run"). Stations get the same box design
+      // the old per-format lists used -- weight box, then a rounds/reps/
+      // distance box -- so this one numbered list is the single place every
+      // combo states "how heavy, how many," instead of a different
+      // treatment depending on category/format.
       const listEl = wrap.querySelector("[data-agenda-list]");
       STATIONS.forEach((entry, i) => {
         const isRun = entry.type === "run";
-        const detail = isRun ? formatDistanceMeters(runM) : this.agendaDetailFor(entry.key);
+        const { stats, caption } = isRun ? { stats: "", caption: "" } : this.stationStatsHtml(entry.key);
         listEl.appendChild(el(`
           <li class="hx-agenda-row ${isRun ? "is-run" : "is-station"}">
-            <span class="hx-agenda-num">${i + 1}</span>
-            <span class="hx-agenda-icon">${stationIconSvg(isRun ? "run" : entry.key, 20)}</span>
-            <span class="hx-agenda-body">
+            <div class="hx-agenda-row-main">
+              <span class="hx-agenda-num">${i + 1}</span>
+              <span class="hx-agenda-icon">${stationIconSvg(isRun ? "run" : entry.key, 20)}</span>
               <span class="hx-agenda-name">${stationTitle(entry, this.scale)}</span>
-              <span class="hx-agenda-detail">${detail}</span>
-            </span>
+              ${stats ? `<div class="hx-agenda-stats">${stats}</div>` : ""}
+            </div>
+            ${caption ? `<div class="hx-agenda-caption">${caption}</div>` : ""}
           </li>
         `));
       });
@@ -1778,7 +1826,6 @@
           </div>
 
           <div data-race-fixed-note></div>
-          <div class="hx-space-list" data-space-list></div>
         </div>
       `);
 
@@ -1795,64 +1842,11 @@
         `));
       }
 
-      // Singles carries its weight here, immediately left of the lap count,
-      // so one list answers both "how heavy" and "how many laps of MY lane"
-      // -- instead of a second, bulkier grid repeating the same stations
-      // with lap counts derived from HYROX's fixed 12.5m splits, which
-      // never responded to the lane above it at all (the bug this fixes).
-      // Doubles deliberately opts out: its own split step already shows
-      // weight prominently alongside each partner's share.
-      const showWeight = this.format === "singles";
-      const weightEditable = showWeight && this.category === "pro";
-
-      // Doubles gets the lane question but NOT the per-station list: the
-      // Doubles Round Split step below covers the very same stations, and
-      // rendering both listed every station twice on one screen.
-      const listEl = card.querySelector("[data-space-list]");
-      if (this.format === "doubles") return card;
-
-      TRAVERSAL_STATIONS.forEach((key) => {
-        const title = STATIONS.find((s) => s.key === key).title;
-        const rounds = this.roundsFor(key);
-        const defaultW = getDefaultStationWeightKg(key, this.gender, this.category);
-
-        let weightHtml = "";
-        if (showWeight && defaultW) {
-          const currentW = this.getStationWeight(key);
-          const isScaled = currentW < defaultW;
-          if (weightEditable) {
-            const minW = Math.round(defaultW * 0.1 * 10) / 10;
-            weightHtml = `
-              <div class="hx-space-weight is-editable ${isScaled ? "is-scaled" : ""}">
-                <input type="number" inputmode="decimal" step="0.5" min="${minW}" max="${defaultW}"
-                       value="${currentW}" data-station-weight-input data-clear-on-focus data-station="${key}"
-                       class="hx-space-weight-input" aria-label="${title} ${t("hyrox.weightAdjust.weightLabel")}">
-                <span class="hx-space-weight-label">kg</span>
-              </div>
-            `;
-          } else {
-            weightHtml = `
-              <div class="hx-space-weight">
-                <span class="hx-space-weight-value">${formatWeight(defaultW)}</span>
-                <span class="hx-space-weight-label">${t("hyrox.weightAdjust.weightLabel")}</span>
-              </div>
-            `;
-          }
-        }
-
-        listEl.appendChild(el(`
-          <div class="hx-space-row">
-            <span class="hx-space-icon">${stationIconSvg(key, 24)}</span>
-            <span class="hx-space-name">${title}</span>
-            ${weightHtml}
-            <div class="hx-space-laps">
-              <span class="hx-space-laps-value">${rounds}</span>
-              <span class="hx-space-laps-label">${t("hyrox.space.laps")}</span>
-            </div>
-          </div>
-        `));
-      });
-
+      // The per-station weight+laps list used to live here on its own.
+      // It's now folded into the race agenda below (same box design,
+      // stationStatsHtml()), shown in full race order instead of just the
+      // 5 traveling stations -- one place stating "how heavy, how many"
+      // for every combo, not a version that varies by format.
       return card;
     }
 
