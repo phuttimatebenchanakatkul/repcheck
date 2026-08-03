@@ -554,11 +554,16 @@ your initial numbers:
   being cut (STRETCH_SCORE for a cut stretch, SQUEEZE_SCORE for a cut
   squeeze) MUST be 45 or lower. A half rep is a failing range-of-motion
   grade at that end — it is never an 80.
-- The scores and your written sections MUST agree. If the faults you list
-  under Negatives and Injury Prevention outweigh what you list under
-  Positives — more problems than strengths, or any real injury risk from
-  how the reps are executed — OVERALL_SCORE MUST be below 50. Never write
-  a warning-heavy report and attach a 75+ score to it.
+- Grade what you OBSERVED, not what you end up writing. Before composing
+  any section, count the distinct faults you actually saw in the frames
+  and the distinct things genuinely done well. If the faults outweigh the
+  strengths — more problems than strengths observed, or any real injury
+  risk from how the reps are executed — OVERALL_SCORE MUST be below 50.
+  This comparison is over what you SAW, not over how many bullets survive
+  the length limits further down: those limits control presentation only
+  and MUST NOT raise the score. A set with six faults where you only had
+  room to print two is still a set with six faults. Never write a
+  warning-heavy report and attach a 75+ score to it.
 - Do not soften the numbers to be encouraging. Encouragement belongs in
   the words; the lifter uses the numbers to track progress, and an
   inflated score on bad form teaches them to keep lifting in a way that
@@ -609,6 +614,12 @@ supporting bullets short and precise too: one clear sentence each, under
 about 18 words, no run-on sentences stacking multiple observations with
 commas and "and". If a supporting bullet doesn't add something the
 headline didn't already say, cut it rather than padding the section out.
+
+This 3-bullet cap is a PRESENTATION limit and has no effect on grading.
+Work out the three scores from everything you observed BEFORE trimming
+anything, then trim only the writing. If a section had more faults than
+fit, keep the most severe ones and let the score continue to reflect all
+of them. Trimming the report must never soften the number.
 
 ## Movement Summary
 (A plain, factual description of how the movement was actually performed —

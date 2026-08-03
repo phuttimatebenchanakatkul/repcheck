@@ -1,0 +1,8 @@
+# Dev-only dependencies. Deliberately NOT in requirements.txt: the
+# Dockerfile installs that file into the production image, and the test
+# runner has no business shipping to Render.
+#
+#   pip install -r requirements-dev.txt
+#   pytest
+-r requirements.txt
+pytest==8.4.2
