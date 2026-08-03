@@ -4,12 +4,138 @@
 {% block heading %}{{ exercise_label }}{% endblock %}
 
 {% block content %}
-<!-- AI "ask" dock at the very TOP of the results, in normal flow: a small
-     glass circle that, when tapped (or when you pull down at the top edge),
-     expands in place and pushes the results below it down to make room --
-     binary open/closed, never a resting in-between. See .ag-* in style.css
-     and the widget JS. -->
+{#
+  Video-led results screen. The lifter's own clip fills the top; the score
+  and feedback ride on a paper sheet that overlaps it. See the
+  "Analyze result: video-led layout" block in style.css.
+
+  index.html renders this same structure client-side for the AJAX path --
+  the two must not drift apart. In particular FB_ALWAYS_VISIBLE there and
+  primary_sections here have to agree on which sections lead.
+#}
+<script>
+  // Set before paint so the page never flashes the standard card layout
+  // (and the tab bar) before the redesign applies.
+  document.documentElement.classList.add("an-result");
+</script>
+
+<div class="an-wrap">
+
+  <div class="an-bar">
+    {# Goes to /analyze directly rather than history.back(): after a POST
+       that would re-trigger a form-resubmit prompt, and /analyze/latest
+       reached from a link or bookmark has no history to return to. Either
+       way this lands on the page that has the bottom tab bar. #}
+    <a class="an-glass" href="{{ url_for('analyze_page') }}" aria-label="Back to Analyze">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </a>
+    <h1 class="an-bar-title">{{ exercise_label }}</h1>
+    {% if current_user %}
+      <a class="an-glass" href="{{ url_for('settings') }}#account" aria-label="Account">{{ current_user.name[0]|upper }}</a>
+    {% else %}
+      <span class="an-glass an-glass-spacer" aria-hidden="true"></span>
+    {% endif %}
+  </div>
+
+  <div class="an-stage{{ '' if video_url else ' is-empty' }}">
+    {% if video_url %}
+      <div class="an-stage-media">
+        <video id="an-video" src="{{ video_url }}" playsinline preload="metadata" muted></video>
+      </div>
+      <button type="button" class="an-play" id="an-play" aria-label="Play your set">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    {% else %}
+      {# Anonymous analyses never store the clip -- a calm field, not an
+         empty black box, and the layout below is unchanged either way. #}
+      <div class="an-stage-empty"></div>
+    {% endif %}
+    <div class="an-scrim"></div>
+  </div>
+
+  <div class="an-sheet">
+    <div class="an-grabber"></div>
+
+    <div class="an-score {{ 'is-good' if overall_score and overall_score >= 80 else 'is-ok' if overall_score and overall_score >= 50 else 'is-bad' if overall_score is not none else '' }}">
+      {{ overall_score if overall_score is not none else '—' }}
+    </div>
+    <div class="an-score-sub" data-i18n="analyze.overallFormTechnique">Overall Form &amp; Technique</div>
+
+    {% if overall_score is not none %}
+      {% if overall_score < 50 %}
+        <div class="an-verdict" data-i18n="analyze.verdictBad">The issues outweighed what went well — start with the fixes below.</div>
+      {% elif overall_score >= 80 %}
+        <div class="an-verdict" data-i18n="analyze.verdictGood">Strong set — keep it up and push a little further.</div>
+      {% else %}
+        <div class="an-verdict" data-i18n="analyze.verdictOk">A mixed set — what worked and what to tighten up.</div>
+      {% endif %}
+    {% endif %}
+
+    {% if favored %}
+      <div class="an-note favor-note" data-favored="{{ favored }}"></div>
+    {% endif %}
+
+    {# The lead section is what the user acts on, so it is the one thing
+       shown without a tap. Everything else sits behind "Full report" --
+       must stay in step with index.html's FB_ALWAYS_VISIBLE. #}
+    {% set primary_sections = sections | selectattr("css_class", "in", ["positives", "progress"]) | list %}
+    {% set secondary_sections = sections | rejectattr("css_class", "in", ["positives", "progress"]) | list %}
+
+    {% for section in primary_sections %}
+      <div class="an-sec an-sec-{{ section.css_class }}">
+        <div class="an-sec-label" data-i18n="{{ section.title_key }}">{{ section.heading }}</div>
+        <div class="an-sec-body">{{ section.summary_html | safe }}</div>
+        {% if section.detail_html %}
+          <div class="an-sec-body an-sec-detail">{{ section.detail_html | safe }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    {% if secondary_sections %}
+      <button type="button" class="an-row" id="an-full-report" aria-expanded="false" aria-controls="an-more">
+        <span data-i18n="analyze.fullReport">Full report</span>
+        <span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+      </button>
+      <div class="an-more" id="an-more" hidden>
+        {% for section in secondary_sections %}
+          <div class="an-sec an-sec-{{ section.css_class }}">
+            <div class="an-sec-label" data-i18n="{{ section.title_key }}">{{ section.heading }}</div>
+            <div class="an-sec-body">{{ section.summary_html | safe }}</div>
+            {% if section.detail_html %}
+              <div class="an-sec-body an-sec-detail">{{ section.detail_html | safe }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if tutorial_video_id %}
+      <a class="an-row" href="https://www.youtube.com/watch?v={{ tutorial_video_id }}" target="_blank" rel="noopener">
+        <span data-i18n="analyze.howToTitle">How to perform this exercise</span>
+        <span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+      </a>
+    {% else %}
+      <a class="an-row" href="https://www.youtube.com/results?search_query={{ (exercise_label ~ ' proper form tutorial') | urlencode }}" target="_blank" rel="noopener">
+        <span data-i18n="analyze.watchOnYoutube">Watch a form tutorial on YouTube</span>
+        <span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+      </a>
+    {% endif %}
+
+    {# The labelled way out. Most people will use this rather than the
+       chevron, since it names what happens next. #}
+    <a class="an-row" href="{{ url_for('analyze_page') }}">
+      <span data-i18n="analyze.analyzeAnother">Analyze another video</span>
+      <span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+    </a>
+  </div>
+</div>
+
+{# Same #ac-* DOM the chat widget has always driven; only the CSS moves it
+   to the bottom of the screen and grows the panel upward. #}
 <div class="ag-dock" id="ac-dock">
+  <button type="button" class="ag-close" id="ac-close" aria-label="Close chat">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
   <div class="ag-bar">
     <button type="button" class="ag-spark" id="ac-toggle" aria-label="Ask AI about your analysis">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M11.4 3.5a.6.6 0 0 1 1.2 0l1.1 3.2a3 3 0 0 0 1.9 1.9l3.2 1.1a.6.6 0 0 1 0 1.1l-3.2 1.1a3 3 0 0 0-1.9 1.9l-1.1 3.2a.6.6 0 0 1-1.2 0l-1.1-3.2a3 3 0 0 0-1.9-1.9L5.2 11.9a.6.6 0 0 1 0-1.1l3.2-1.1a3 3 0 0 0 1.9-1.9z"/></svg>
@@ -31,140 +157,34 @@
   </div>
 </div>
 
-<div class="card an-tutorial-card">
-  <div class="an-tutorial-head">
-    <div class="an-tutorial-head-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-    <div class="an-tutorial-head-text">
-      <div class="an-tutorial-title" data-i18n="analyze.howToTitle">How to perform this exercise</div>
-      <div class="an-tutorial-sub">{{ exercise_label }}</div>
-    </div>
-  </div>
-  {% if tutorial_video_id %}
-    <div class="an-tutorial-frame">
-      <iframe src="https://www.youtube-nocookie.com/embed/{{ tutorial_video_id }}?rel=0&modestbranding=1" title="{{ exercise_label }} form tutorial" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
-    </div>
-  {% else %}
-    <a class="an-tutorial-search" href="https://www.youtube.com/results?search_query={{ (exercise_label ~ ' proper form tutorial') | urlencode }}" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      <span data-i18n="analyze.watchOnYoutube">Watch a form tutorial on YouTube</span>
-    </a>
-  {% endif %}
-</div>
-<div class="card an-hero-card">
-  <div class="an-score-ring {{ 'score-good' if overall_score and overall_score >= 80 else 'score-ok' if overall_score and overall_score >= 50 else 'score-bad' }}">
-    <div class="an-score-value">{{ overall_score if overall_score is not none else '—' }}</div>
-    <div class="an-score-outof">/ 100</div>
-  </div>
-  <div class="an-score-label" data-i18n="analyze.overallFormTechnique">Overall Form &amp; Technique</div>
-  {% if overall_score is not none %}
-    {% if overall_score < 50 %}
-      <div class="fb-verdict fb-verdict-bad" data-i18n="analyze.verdictBad">The issues outweighed what went well — start with the fixes below.</div>
-    {% elif overall_score >= 80 %}
-      <div class="fb-verdict fb-verdict-good" data-i18n="analyze.verdictGood">Strong set — keep it up and push a little further.</div>
-    {% else %}
-      <div class="fb-verdict fb-verdict-ok" data-i18n="analyze.verdictOk">A mixed set — what worked and what to tighten up.</div>
-    {% endif %}
-  {% endif %}
-
-  {% if favored %}
-    <div class="favor-note" data-favored="{{ favored }}"></div>
-  {% endif %}
-</div>
-
-<div class="card">
-  <div class="fb-head">
-    <div class="fb-head-title" id="fb-title">{{ exercise_label }} — Form breakdown</div>
-    <div class="fb-head-sub" data-i18n="analyze.breakdownHint">Tap a card to see the details</div>
-  </div>
-  {# "positives"/"progress" (What Went Well, Your Next Step) are the two
-     things worth seeing without an extra tap. Everything else sits behind
-     "Full report", collapsed by default -- see index.html's FB_ALWAYS_VISIBLE,
-     which this list must match. #}
-  {% set primary_sections = sections | selectattr("css_class", "in", ["positives", "progress"]) | list %}
-  {% set secondary_sections = sections | rejectattr("css_class", "in", ["positives", "progress"]) | list %}
-  <div class="fb-list">
-    {% for section in primary_sections %}
-      <div class="fb-item fb-{{ section.css_class }}{% if section.emphasis == 'muted' %} fb-item-muted{% endif %}{% if section.detail_html %} is-expandable{% endif %}">
-        <button type="button" class="fb-item-main"{% if not section.detail_html %} disabled{% endif %}>
-          <span class="fb-item-icon">{{ section.icon | safe }}</span>
-          <span class="fb-item-text">
-            <span class="fb-item-title" data-i18n="{{ section.title_key }}">{{ section.heading }}</span>
-            <span class="fb-item-summary">{{ section.summary_html | safe }}</span>
-          </span>
-          {% if section.detail_html %}
-            <span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-          {% endif %}
-        </button>
-        {% if section.detail_html %}
-          <div class="fb-item-detail">{{ section.detail_html | safe }}</div>
-        {% endif %}
-      </div>
-    {% endfor %}
-  </div>
-  {% if secondary_sections %}
-    <button type="button" class="fb-full-report-toggle" id="fb-full-report-toggle" aria-expanded="false">
-      <span data-i18n="analyze.fullReport">Full report</span>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-    </button>
-    <div class="fb-list fb-list-secondary" id="fb-list-secondary" hidden>
-      {% for section in secondary_sections %}
-        {# No fb-item-muted here, unlike the primary loop above -- "muted"
-           only makes sense for a section sharing the screen with a more
-           important one; once it's behind a deliberate "Full report" tap,
-           staying dim reads as broken rather than as a hierarchy cue. #}
-        <div class="fb-item fb-{{ section.css_class }}{% if section.detail_html %} is-expandable{% endif %}">
-          <button type="button" class="fb-item-main"{% if not section.detail_html %} disabled{% endif %}>
-            <span class="fb-item-icon">{{ section.icon | safe }}</span>
-            <span class="fb-item-text">
-              <span class="fb-item-title" data-i18n="{{ section.title_key }}">{{ section.heading }}</span>
-              <span class="fb-item-summary">{{ section.summary_html | safe }}</span>
-            </span>
-            {% if section.detail_html %}
-              <span class="fb-item-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            {% endif %}
-          </button>
-          {% if section.detail_html %}
-            <div class="fb-item-detail">{{ section.detail_html | safe }}</div>
-          {% endif %}
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-</div>
-
-<div class="an-again">
-  <a class="btn-primary" href="{{ url_for('analyze_page') }}" data-i18n="analyze.analyzeAnother">Analyze another video</a>
-</div>
-
 <script>
   const t = RepCheckI18n.t;
 
-  document.querySelectorAll(".fb-item.is-expandable .fb-item-main").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      btn.closest(".fb-item").classList.toggle("is-expanded");
+  // Tap the poster frame to play the set back; the button hides once it is
+  // running so it stops covering the lift.
+  (function () {
+    const video = document.getElementById("an-video");
+    const play = document.getElementById("an-play");
+    if (!video || !play) return;
+    play.addEventListener("click", () => {
+      video.controls = true;
+      video.muted = false;
+      video.play();
+      play.hidden = true;
     });
-  });
+    video.addEventListener("pause", () => { if (video.currentTime === 0) play.hidden = false; });
+  })();
 
-  const fullReportToggle = document.getElementById("fb-full-report-toggle");
-  if (fullReportToggle) {
-    fullReportToggle.addEventListener("click", () => {
-      const list = document.getElementById("fb-list-secondary");
-      const nowOpen = list.hasAttribute("hidden");
-      list.toggleAttribute("hidden", !nowOpen);
-      fullReportToggle.classList.toggle("is-open", nowOpen);
-      fullReportToggle.setAttribute("aria-expanded", String(nowOpen));
+  (function () {
+    const toggle = document.getElementById("an-full-report");
+    if (!toggle) return;
+    toggle.addEventListener("click", () => {
+      const more = document.getElementById("an-more");
+      const nowOpen = more.hasAttribute("hidden");
+      more.toggleAttribute("hidden", !nowOpen);
+      toggle.setAttribute("aria-expanded", String(nowOpen));
     });
-  }
-
-  // The breakdown title needs the exercise name interpolated, which the
-  // plain data-i18n textContent swap can't do -- localize it here (and on
-  // language change) with the variable filled in.
-  function renderBreakdownTitle() {
-    const el = document.getElementById("fb-title");
-    if (el) el.textContent = t("analyze.formBreakdownFor", { exercise: {{ exercise_label | tojson }} });
-  }
-  renderBreakdownTitle();
-  document.addEventListener("repcheck:language-changed", renderBreakdownTitle);
+  })();
 
   function renderFavorNote() {
     const note = document.querySelector(".favor-note");

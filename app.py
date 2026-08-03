@@ -1928,8 +1928,8 @@ def analyze():
         # everything is deleted as before.
         user = current_user()
         new_result_id = None
+        video_filename = None
         if user:
-            video_filename = None
             try:
                 video_filename = f"{user['id']}_{job_id}{suffix}"
                 trimmed_path.replace(ANALYZE_VIDEOS_DIR / video_filename)
@@ -1967,6 +1967,12 @@ def analyze():
                 "reps": result["reps"],
                 "sections": sections,
                 "feedback_text": result["feedback"],
+                # Lets the AJAX result view lead with the clip, the same way
+                # the server-rendered result.html and the history detail do.
+                "video_url": (
+                    url_for("analyze_video", result_id=new_result_id)
+                    if new_result_id and video_filename else None
+                ),
             })
 
         return render_template(
@@ -1982,6 +1988,13 @@ def analyze():
             sections=sections,
             feedback_text=result["feedback"],
             tutorial_video_id=get_exercise_video(result["exercise_label"]),
+            # Leads the results screen when the clip was kept (logged-in
+            # users only -- anonymous runs delete it, and the stage falls
+            # back to a flat field).
+            video_url=(
+                url_for("analyze_video", result_id=new_result_id)
+                if new_result_id and video_filename else None
+            ),
             active_nav="analyze",
             i18n_page="result",
         )
@@ -2021,6 +2034,11 @@ def analyze_latest():
         sections=sections,
         feedback_text=row["feedback_text"],
         tutorial_video_id=get_exercise_video(row["exercise_label"]),
+        # The clip the analysis ran on leads the results screen (see the
+        # .an-stage block in style.css). None when it is no longer on disk
+        # -- the layout falls back to a flat stage rather than a dead
+        # <video> element.
+        video_url=url_for("analyze_video", result_id=row["id"]) if _analyze_video_available(row) else None,
         active_nav="analyze",
         i18n_page="result",
     )

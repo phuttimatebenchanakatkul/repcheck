@@ -143,6 +143,13 @@
     let openedAt = 0;
     const barEl = inputEl.closest(".ag-bar");
     const rowEl = inputEl.closest(".ag-inputrow");
+    // The results screen docks this to the BOTTOM of the viewport as a
+    // full-width field that is always visible (see the html.an-result
+    // block in style.css). Several behaviours below only make sense for
+    // the original top-of-page collapsed circle: growing the bar out of a
+    // 44px circle before focusing, pull-down-to-open, and close-on-scroll
+    // (scrolling the report must not shut a chat the user opened).
+    const bottomMode = document.documentElement.classList.contains("an-result");
     // Plain focus(), no { preventScroll: true } -- that option has a
     // known class of iOS Safari bugs where it silently fails to actually
     // focus the element (or raise the keyboard) instead of throwing, so a
@@ -172,7 +179,12 @@
       // earlier version of this code), so the field stays at its real,
       // focused size for at least one full frame instead of being
       // snapped back down out from under the keyboard mid-raise.
-      if (barEl && rowEl && !wasOpen) {
+      if (bottomMode) {
+        // Already full width and laid out, so the reflow dance below is
+        // unnecessary -- and forcing an inline width here would fight the
+        // docked bar's own sizing.
+        focusInput();
+      } else if (barEl && rowEl && !wasOpen) {
         barEl.style.transition = "none";
         rowEl.style.transition = "none";
         rowEl.style.opacity = "1";
@@ -196,8 +208,34 @@
     }
 
     // 1) Tap the circle to open (+ focus, so the keyboard pops) or close.
+    //    In bottom mode the spark is just the field's leading icon (CSS
+    //    makes it pointer-events:none), so the field itself carries this.
     function onToggleClick() { isOpen() ? close() : open(true); }
     if (toggleEl) toggleEl.addEventListener("click", onToggleClick);
+
+    // Bottom mode: focusing the always-visible field is the open gesture,
+    // and an explicit close button dismisses the panel (there is no
+    // collapsed circle left to tap a second time).
+    function onInputFocus() { if (!isOpen()) open(false); }
+    const closeEl = document.getElementById("ac-close");
+    function onCloseClick() { close(); }
+    // The keyboard shrinks the visual viewport without moving a
+    // position:fixed element, so the bar would sit behind it. Offsetting
+    // by the hidden amount keeps the field above the keyboard.
+    const vv = window.visualViewport;
+    function onViewportResize() {
+      if (!vv) return;
+      const hidden = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      dockEl.style.transform = hidden > 0 ? `translateY(-${hidden}px)` : "";
+    }
+    if (bottomMode) {
+      inputEl.addEventListener("focus", onInputFocus);
+      if (closeEl) closeEl.addEventListener("click", onCloseClick);
+      if (vv) {
+        vv.addEventListener("resize", onViewportResize);
+        vv.addEventListener("scroll", onViewportResize);
+      }
+    }
 
     // 2) Pull down at the very top edge (the pull-to-refresh zone). While
     //    dragging it only PREVIEWS -- a small dip that follows the finger --
@@ -251,11 +289,14 @@
     const rootStyle = document.documentElement.style;
     const prevOverscroll = rootStyle.overscrollBehaviorY;
     rootStyle.overscrollBehaviorY = "contain";
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
-    document.addEventListener("touchcancel", onTouchEnd, { passive: true });
-    window.addEventListener("scroll", onScroll, { passive: true });
+    // Pull-to-open and close-on-scroll are top-dock behaviours only.
+    if (!bottomMode) {
+      document.addEventListener("touchstart", onTouchStart, { passive: true });
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
+      document.addEventListener("touchend", onTouchEnd, { passive: true });
+      document.addEventListener("touchcancel", onTouchEnd, { passive: true });
+      window.addEventListener("scroll", onScroll, { passive: true });
+    }
 
     window.__agCleanup = function () {
       if (toggleEl) toggleEl.removeEventListener("click", onToggleClick);
@@ -264,6 +305,13 @@
       document.removeEventListener("touchend", onTouchEnd);
       document.removeEventListener("touchcancel", onTouchEnd);
       window.removeEventListener("scroll", onScroll);
+      inputEl.removeEventListener("focus", onInputFocus);
+      if (closeEl) closeEl.removeEventListener("click", onCloseClick);
+      if (vv) {
+        vv.removeEventListener("resize", onViewportResize);
+        vv.removeEventListener("scroll", onViewportResize);
+      }
+      dockEl.style.transform = "";
       rootStyle.overscrollBehaviorY = prevOverscroll;
     };
 
