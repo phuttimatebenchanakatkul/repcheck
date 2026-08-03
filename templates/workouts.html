@@ -2402,7 +2402,18 @@
   const splitModalTitle = document.getElementById("split-modal-title");
   const planBtnEl = document.getElementById("wl-plan-btn");
 
-  let splitWizard = { type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
+  let splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
+
+  // Day-name seeds for "build it myself" mode when the user starts from one
+  // of the readymade split templates instead of typing custom day names --
+  // mirrors split_planner.py's SPLIT_DAY_TYPES so the labels line up with
+  // what the AI path would have called them.
+  const SELF_BUILD_DAY_LABELS = {
+    ppl: ["Push", "Pull", "Legs"],
+    upper_lower: ["Upper", "Lower"],
+    full_body: ["Full Body"],
+    bro_split: ["Chest", "Back", "Legs", "Shoulders", "Arms"],
+  };
 
   // This user's own invented exercises (never shared with other users) --
   // loaded once and cached, same pattern as customFoods in nutrition.html.
@@ -2431,21 +2442,48 @@
   }
 
   function openSplitModal() {
-    splitWizard = { type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
+    splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
     splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
     splitModalOverlay.style.display = "flex";
-    renderSplitStepType();
+    renderSplitStepMode();
   }
 
   function closeSplitModal() {
     splitModalOverlay.style.display = "none";
   }
 
-  function renderSplitStepType() {
+  function renderSplitStepMode() {
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.title");
     splitModalBody.innerHTML = `
-      <div class="split-step-label">${t("workouts.wizard.step1")}</div>
+      <div class="split-step-label">${t("workouts.wizard.stepMode")}</div>
+      <div class="split-type-grid">
+        <div class="split-type-card ${splitWizard.mode === "ai" ? "is-selected" : ""}" data-split-mode="ai">
+          <div class="split-type-card-title">${t("workouts.wizard.mode.ai.title")}</div>
+          <div class="split-type-card-sub">${t("workouts.wizard.mode.ai.sub")}</div>
+        </div>
+        <div class="split-type-card ${splitWizard.mode === "self" ? "is-selected" : ""}" data-split-mode="self">
+          <div class="split-type-card-title">${t("workouts.wizard.mode.self.title")}</div>
+          <div class="split-type-card-sub">${t("workouts.wizard.mode.self.sub")}</div>
+        </div>
+      </div>
+      <button type="button" class="split-primary-btn" id="split-mode-next-btn" ${splitWizard.mode ? "" : "disabled"}>${t("common.next")}</button>
+    `;
+    splitModalBody.querySelectorAll("[data-split-mode]").forEach((card) => {
+      card.addEventListener("click", () => {
+        splitWizard.mode = card.dataset.splitMode;
+        renderSplitStepMode();
+      });
+    });
+    document.getElementById("split-mode-next-btn").addEventListener("click", renderSplitStepType);
+  }
+
+  function renderSplitStepType() {
+    const t = RepCheckI18n.t;
+    const selfBuild = splitWizard.mode === "self";
+    splitModalTitle.textContent = t("workouts.wizard.title");
+    splitModalBody.innerHTML = `
+      <div class="split-step-label">${t("workouts.wizard.stepChooseSplit")}</div>
       <div class="split-type-grid">
         ${getSplitTypes().map((st) => `
           <div class="split-type-card ${splitWizard.type === st.id ? "is-selected" : ""}" data-split-type="${st.id}">
@@ -2453,25 +2491,33 @@
           </div>
         `).join("")}
       </div>
-      ${splitWizard.type === "custom" ? `
+      ${(splitWizard.type === "custom" || selfBuild) ? `
         <div class="split-custom-input-row">
           <input type="text" id="split-custom-input" data-i18n-placeholder="workouts.wizard.customPlaceholder" placeholder="e.g. Chest Day" autocomplete="off">
           <button type="button" class="split-custom-add-btn" id="split-custom-add-btn">${t("workouts.wizard.add")}</button>
         </div>
         <div class="split-custom-days" id="split-custom-days"></div>
       ` : ""}
-      <button type="button" class="split-primary-btn" id="split-next-btn" ${canProceedFromType() ? "" : "disabled"}>${splitWizard.type === "custom" ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
+      <button type="button" class="split-primary-btn" id="split-next-btn" ${canProceedFromType() ? "" : "disabled"}>${(splitWizard.type === "custom" || selfBuild) ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
     `;
     RepCheckI18n.applyI18n(splitModalBody);
 
     splitModalBody.querySelectorAll("[data-split-type]").forEach((card) => {
       card.addEventListener("click", () => {
-        splitWizard.type = card.dataset.splitType;
+        const newType = card.dataset.splitType;
+        // Self-build mode uses the readymade templates purely as a
+        // day-name starting point (never sent to the AI) -- switching
+        // templates reseeds the day list, same as picking a fresh one.
+        if (selfBuild && newType !== "custom" && splitWizard.type !== newType) {
+          splitWizard.customDays = [...(SELF_BUILD_DAY_LABELS[newType] || [])];
+          splitWizard.customDayExercises = {};
+        }
+        splitWizard.type = newType;
         renderSplitStepType();
       });
     });
 
-    if (splitWizard.type === "custom") {
+    if (splitWizard.type === "custom" || selfBuild) {
       renderCustomDays();
       const addBtn = document.getElementById("split-custom-add-btn");
       const input = document.getElementById("split-custom-input");
@@ -2491,7 +2537,7 @@
     }
 
     document.getElementById("split-next-btn").addEventListener("click", () => {
-      if (splitWizard.type === "custom") {
+      if (splitWizard.type === "custom" || selfBuild) {
         splitWizard.goal = "";
         splitWizard.daysPerWeek = Math.min(splitWizard.customDays.length, 7);
       }
@@ -2515,9 +2561,10 @@
   // strength-and-endurance/conditioning day blended into the split.
   function renderSplitStepLocation() {
     const t = RepCheckI18n.t;
+    const selfBuild = splitWizard.mode === "self";
     splitModalTitle.textContent = t("workouts.wizard.locationTitle");
     splitModalBody.innerHTML = `
-      <div class="split-step-label">${t("workouts.wizard.stepLocation")}</div>
+      <div class="split-step-label">${t("workouts.wizard.stepLocationEdit")}</div>
       <div class="split-type-grid">
         ${getTrainingLocations().map((loc) => `
           <div class="split-type-card ${splitWizard.location === loc.id ? "is-selected" : ""}" data-split-location="${loc.id}">
@@ -2525,7 +2572,7 @@
           </div>
         `).join("")}
       </div>
-      <button type="button" class="split-primary-btn" id="split-location-next-btn" ${splitWizard.location ? "" : "disabled"}>${splitWizard.type === "custom" ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
+      <button type="button" class="split-primary-btn" id="split-location-next-btn" ${splitWizard.location ? "" : "disabled"}>${(splitWizard.type === "custom" || selfBuild) ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
     `;
     splitModalBody.querySelectorAll("[data-split-location]").forEach((card) => {
       card.addEventListener("click", () => {
@@ -2534,13 +2581,13 @@
       });
     });
     document.getElementById("split-location-next-btn").addEventListener("click", () => {
-      // A custom split is already fully the user's own design (their own
-      // day names, and any exercises they hand-picked) -- there's
-      // nothing left to ask except where they train. Skip the goal and
-      // days-per-week questions entirely and go straight to the review
-      // page, one training day per custom day name (capped at 7, since a
-      // week only has 7 days).
-      if (splitWizard.type === "custom") {
+      // A custom (or self-built) split is already fully the user's own
+      // design (their own day names, and every exercise they hand-picked)
+      // -- there's nothing left to ask except where they train. Skip the
+      // goal and days-per-week questions entirely and go straight to
+      // generating the review page, one training day per day name
+      // (capped at 7, since a week only has 7 days).
+      if (splitWizard.type === "custom" || selfBuild) {
         generatePlan();
       } else {
         renderSplitStepGoal();
@@ -2552,7 +2599,7 @@
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.goalTitle");
     splitModalBody.innerHTML = `
-      <div class="split-step-label">${t("workouts.wizard.stepGoal")}</div>
+      <div class="split-step-label">${t("workouts.wizard.stepGoalEdit")}</div>
       <div class="split-goal-hint">${t("workouts.wizard.goalHint")}</div>
       <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${splitWizard.goal.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
       <button type="button" class="split-primary-btn" id="split-goal-next-btn">${t("common.next")}</button>
@@ -2565,6 +2612,12 @@
 
   function canProceedFromType() {
     if (!splitWizard.type) return false;
+    // Self-build never falls back to a guessed pool -- every day must have
+    // at least one manually picked exercise before moving on.
+    if (splitWizard.mode === "self") {
+      return splitWizard.customDays.length > 0 &&
+        splitWizard.customDays.every((name) => (splitWizard.customDayExercises[name] || []).length > 0);
+    }
     if (splitWizard.type === "custom") return splitWizard.customDays.length > 0;
     return true;
   }
@@ -2781,7 +2834,7 @@
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.chooseWeekTitle");
     splitModalBody.innerHTML = `
-      <div class="split-step-label">${t("workouts.wizard.step2")}</div>
+      <div class="split-step-label">${t("workouts.wizard.stepDaysEdit")}</div>
       <div class="split-days-grid">
         ${[1, 2, 3, 4, 5, 6, 7].map((n) => `
           <button type="button" class="split-day-btn ${splitWizard.daysPerWeek === n ? "is-selected" : ""}" data-days="${n}">${n}</button>
@@ -2800,12 +2853,14 @@
 
   async function generatePlan() {
     const t = RepCheckI18n.t;
+    const selfBuild = splitWizard.mode === "self";
     splitModalTitle.textContent = t("workouts.wizard.buildingTitle");
-    // A custom split is entirely the user's own design already -- no AI
-    // involved server-side (see generate_split_plan()'s early return for
-    // split_type "custom"), so this shouldn't claim otherwise.
+    // A custom (or self-built) split is entirely the user's own design
+    // already -- no AI involved server-side (see generate_split_plan()'s
+    // early return for split_type "custom"), so this shouldn't claim
+    // otherwise.
     splitModalBody.innerHTML = `<div class="split-loading">${
-      splitWizard.type === "custom"
+      (splitWizard.type === "custom" || selfBuild)
         ? t("workouts.wizard.buildingBodyCustom")
         : t("workouts.wizard.buildingBody", { n: splitWizard.daysPerWeek })
     }</div>`;
@@ -2814,7 +2869,14 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          split_type: splitWizard.type,
+          // Self-build always skips the AI server-side, even when the day
+          // names came from a readymade template (ppl/upper_lower/etc.) --
+          // only the literal "custom" split_type takes that no-AI path,
+          // so it's forced here regardless of which template seeded
+          // splitWizard.customDays. splitWizard.type is left alone (not
+          // mutated) so it still records which template the user started
+          // from.
+          split_type: selfBuild ? "custom" : splitWizard.type,
           days_per_week: splitWizard.daysPerWeek,
           custom_days: splitWizard.customDays,
           goal: splitWizard.goal,
@@ -2831,10 +2893,11 @@
     } catch (err) {
       splitModalBody.innerHTML = `<div class="split-loading">${t("workouts.wizard.errorBody")}</div>
         <button type="button" class="split-primary-btn" id="split-retry-btn">${t("common.back")}</button>`;
-      // Custom splits skip straight from the day-naming step to
-      // generation (no days-per-week step exists for them to return to).
+      // Custom and self-built splits skip straight from the day-naming
+      // step to generation (no days-per-week step exists for them to
+      // return to).
       document.getElementById("split-retry-btn").addEventListener("click",
-        splitWizard.type === "custom" ? renderSplitStepType : renderSplitStepDays);
+        (splitWizard.type === "custom" || selfBuild) ? renderSplitStepType : renderSplitStepDays);
     }
   }
 
