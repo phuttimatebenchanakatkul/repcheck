@@ -293,13 +293,49 @@
           window.visualViewport.addEventListener("scroll", updatePcViewportVars);
         }
 
+        // ---- Scroller shim ----
+        // On a phone the window scrolls. On a wide screen the app is drawn
+        // inside a device frame (see "Device frame" in style.css): <body>
+        // is a fixed-size box and `.app` is what actually scrolls, so
+        // window.scrollY is permanently 0 there. Anything that cares about
+        // scroll position must go through these instead of the window.
+        window.RepCheck = window.RepCheck || {};
+        RepCheck.framed = function () {
+          return window.matchMedia("(min-width: 721px)").matches;
+        };
+        // null means "the window is the scroller".
+        RepCheck.scroller = function () {
+          if (!RepCheck.framed()) return null;
+          return document.querySelector(".app") || document.querySelector(".auth-wrap");
+        };
+        RepCheck.scrollTop = function () {
+          const el = RepCheck.scroller();
+          return el ? el.scrollTop : window.scrollY;
+        };
+        RepCheck.scrollToTop = function () {
+          const el = RepCheck.scroller();
+          if (el) el.scrollTop = 0; else window.scrollTo(0, 0);
+        };
+        // Returns a teardown function, since the frame's scroller is a real
+        // element that can be replaced when a view swaps out.
+        RepCheck.onScroll = function (fn) {
+          const target = RepCheck.scroller() || window;
+          target.addEventListener("scroll", fn, { passive: true });
+          return function () { target.removeEventListener("scroll", fn); };
+        };
+
         window.openBottomSheet = function(overlayEl, sheetSelector) {
           if (!overlayEl) return;
           if (overlayEl.parentElement !== document.body) {
             document.body.appendChild(overlayEl);
           }
           overlayEl.style.display = "";
-          if (window.__pcSheetLockCount === 0) {
+          // Pinning <body> is the iOS fix for the page scrolling behind an
+          // open sheet. Inside the device frame <body> is the phone itself
+          // and does not scroll -- repositioning it would move the whole
+          // device -- so there the scroller is frozen by CSS instead
+          // (html.pc-sheet-locked .app { overflow: hidden }).
+          if (window.__pcSheetLockCount === 0 && !RepCheck.framed()) {
             window.__pcScrollLockY = window.scrollY;
             document.body.style.position = "fixed";
             document.body.style.top = `-${window.__pcScrollLockY}px`;
@@ -332,7 +368,7 @@
             cleaned = true;
             document.documentElement.classList.remove("pc-sheet-locked");
             window.__pcSheetLockCount = Math.max(0, window.__pcSheetLockCount - 1);
-            if (window.__pcSheetLockCount === 0) {
+            if (window.__pcSheetLockCount === 0 && !RepCheck.framed()) {
               document.body.style.position = "";
               document.body.style.top = "";
               document.body.style.left = "";

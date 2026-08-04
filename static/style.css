@@ -25,6 +25,11 @@
   --dark-card-text-secondary: #9a9ca6;
   --radius-lg: 20px;
   --radius-md: 14px;
+  /* Height of the app viewport. On a phone that is the real viewport; on
+     a wide screen the device frame redefines it, so anything sized to a
+     fraction of the screen tracks the frame instead of the desktop
+     window. Every rule that used vh for layout now derives from this. */
+  --app-h: 100vh;
   --shadow: 0 1px 2px rgba(16, 17, 20, 0.03), 0 8px 24px rgba(16, 17, 20, 0.05);
 }
 
@@ -96,7 +101,7 @@ body {
 
 .app {
   display: flex;
-  min-height: 100vh;
+  min-height: var(--app-h);
   gap: 20px;
   padding: 20px;
   align-items: flex-start;
@@ -122,6 +127,9 @@ body {
    motion -- the page behind the sheet scales back, rounds its corners,
    and dims, exactly like a native iOS sheet. */
 html.pc-sheet-locked, html.pc-sheet-locked body { overflow: hidden; }
+/* Inside the device frame `.app` is the scroller, so freezing html/body
+   alone leaves the page scrolling behind an open sheet. */
+html.pc-sheet-locked .app, html.pc-sheet-locked .auth-wrap { overflow: hidden; }
 html.pc-sheet-active .app {
   transform: scale(0.92) translateY(6px);
   transform-origin: top center;
@@ -794,7 +802,7 @@ input[type="file"], select {
 /* Conversation thread: see-through glass panel below the bar. */
 .ag-thread {
   width: 100%;
-  max-height: 46vh; overflow-y: auto;
+  max-height: calc(var(--app-h) * 0.46); overflow-y: auto;
   display: flex; flex-direction: column; gap: 10px;
   padding: 14px;
   border-radius: 22px;
@@ -888,10 +896,15 @@ input[type="file"], select {
   30% { transform: translateY(-3px); opacity: 1; }
 }
 
-/* ---------- Mobile bottom tab bar + FAB (hidden on desktop) ---------- */
-.mobile-tabbar, .mt-sheet-overlay { display: none; }
-
-@media (max-width: 720px) {
+/* ---------- Bottom tab bar + FAB ---------- */
+/* These used to be phone-only, with desktop getting the sidebar layout
+   instead. RepCheck is now phone-shaped at every width: on a wide screen
+   the app is drawn inside a device frame (see "Device frame" at the end of
+   this file) rather than being re-laid-out as a desktop app. So the phone
+   layout below is unconditional, and `@media all` is deliberate -- it
+   keeps the block's indentation and history intact rather than reflowing
+   250 lines to delete one line. */
+@media all {
   /* align-items: stretch (not the base rule's flex-start) so `main` fills
      the column's full width. With flex-start in a column flex, main is
      sized to its content's max-content width instead of the screen, which
@@ -1026,7 +1039,7 @@ input[type="file"], select {
        action tiles AND the folded-in "More" pages, so on shorter phones
        it can exceed the viewport -- without this the top rows (handle +
        first tiles) would be clipped off-screen with no way to reach them. */
-    max-height: 88vh;
+    max-height: calc(var(--app-h) * 0.88);
     overflow-y: auto;
     background: var(--card-bg);
     border-radius: 20px 20px 0 0;
@@ -1354,7 +1367,7 @@ input[type="file"], select {
   box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.42);
   width: 100%;
   max-width: 560px;
-  max-height: 92vh;
+  max-height: calc(var(--app-h) * 0.92);
   transform: translateY(100%);
   transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
   overflow: hidden;
@@ -1560,7 +1573,7 @@ html.an-result .mobile-tabbar { display: none; }
    on desktop. */
 .an-stage {
   position: sticky; top: 0; z-index: 0;
-  height: 56vh; min-height: 260px;
+  height: calc(var(--app-h) * 0.56); min-height: 260px;
   overflow: hidden;
   background: #14171e;
 }
@@ -1568,7 +1581,7 @@ html.an-result .mobile-tabbar { display: none; }
    point and shrinks to a header band -- 56vh of empty gradient just pushes
    the score below the fold for no gain. Tall enough to still carry the
    back chevron and title. */
-.an-stage.is-empty { height: 24vh; min-height: 128px; }
+.an-stage.is-empty { height: calc(var(--app-h) * 0.24); min-height: 128px; }
 .an-stage-media, .an-stage-media video {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
@@ -1658,8 +1671,8 @@ html.an-result .mobile-tabbar { display: none; }
 /* ---------- Sheet ---------- */
 .an-sheet {
   position: relative; z-index: 1;
-  margin-top: -8vh;               /* overlap the stage: one surface, not two boxes */
-  min-height: 52vh;
+  margin-top: calc(var(--app-h) * -0.08);               /* overlap the stage: one surface, not two boxes */
+  min-height: calc(var(--app-h) * 0.52);
   background: var(--paper);
   border-radius: 26px 26px 0 0;
   /* Bottom clearance has to outrun the fixed ask bar (~70px including its
@@ -1861,3 +1874,106 @@ html.an-result .ag-dock.is-open .ag-close {
   color: var(--text-secondary); cursor: pointer;
 }
 html.an-result .ag-close svg { width: 13px; height: 13px; }
+
+/* ================================================================
+   Device frame: RepCheck as a phone, on a desktop screen
+   ================================================================
+   RepCheck is a phone app. It used to grow a second, sidebar-based
+   layout above 720px, which meant every screen had to work twice and the
+   desktop version was always the neglected one. Instead the phone layout
+   is now the only layout (see the `@media all` block above) and a wide
+   screen simply draws it inside a device.
+
+   How this works, because it is load-bearing:
+
+   - <body> becomes the device: a fixed-size, non-scrolling box centred in
+     the window. It carries `transform`, which makes it the containing
+     block for every `position: fixed` descendant -- the tab bar, the "+"
+     sheets, the analyze ask bar. Without that they would pin to the
+     desktop window and float outside the phone entirely.
+   - .app becomes the scroller. Because the fixed chrome hangs off <body>
+     rather than .app, it stays pinned to the device while content scrolls
+     underneath, exactly as it does on a real phone.
+   - That moves the scrollport off the window, so JS that reads
+     window.scrollY has to ask the scroller instead. base.html exposes
+     RepCheck.scroller() / scrollTop() / scrollTo() for that, and the
+     handful of call sites use them.
+
+   Below 721px none of this applies: <body> scrolls, fixed means fixed,
+   and the app is just the app. */
+
+@media (min-width: 721px) {
+  html {
+    /* The desk the phone sits on. Deliberately not pure grey -- a flat
+       mid-grey behind a floating object reads as an unstyled default. */
+    background:
+      radial-gradient(120% 90% at 50% 0%, #2b2f3a 0%, #1b1e26 55%, #14161c 100%);
+    min-height: 100%;
+  }
+  :root[data-theme="dark"] html,
+  html[data-theme="dark"] {
+    background:
+      radial-gradient(120% 90% at 50% 0%, #23262e 0%, #15171c 55%, #101216 100%);
+  }
+
+  body {
+    /* --app-h drives everything that used to be sized in vh. Capped at
+       844 (a standard phone) but allowed to shrink on a short laptop
+       screen so the device is never taller than the window. */
+    --app-h: min(844px, calc(100vh - 96px));
+    width: 390px;
+    height: var(--app-h);
+    margin: 0 auto;
+    position: absolute;
+    top: 50%; left: 50%;
+    /* translate does the centring AND establishes the containing block
+       for fixed descendants. Both jobs, one property. */
+    transform: translate(-50%, -50%);
+    border-radius: 46px;
+    /* The bezel. A border rather than a wrapper element, so no page needs
+       extra markup to sit inside the device. */
+    border: 11px solid #0b0c0f;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 40px 80px rgba(0, 0, 0, 0.55),
+      0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  /* .app takes over scrolling from the window. */
+  .app {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .app::-webkit-scrollbar { display: none; }
+
+  /* The auth pages (login, signup, onboarding) do not use .app, so they
+     scroll on their own wrapper instead. */
+  .auth-body { display: block; }
+  .auth-wrap {
+    height: 100%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .auth-wrap::-webkit-scrollbar { display: none; }
+
+  /* Analyze results paint their own full-bleed surface, so the device has
+     to match or a paper-coloured sheet sits on a white body corner. */
+  html.an-result body { background: var(--paper); }
+
+  /* The sheet recede (html.pc-sheet-active) scales .app. Inside a device
+     that is correct -- the screen contents recede, the phone does not --
+     but the rounded corners have to come from the device, not the
+     content, or you get a rounded rectangle inside a rounded rectangle. */
+  html.pc-sheet-active .app { border-radius: 0; }
+}
+
+/* A short window would otherwise crop the device. Below this the phone
+   stops being a fixed 844 and just fills what is available. */
+@media (min-width: 721px) and (max-height: 700px) {
+  body { --app-h: calc(100vh - 32px); border-radius: 34px; border-width: 8px; }
+}
