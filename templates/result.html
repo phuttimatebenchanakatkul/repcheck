@@ -68,6 +68,17 @@
     </div>
     <div class="an-score-sub" data-i18n="analyze.overallFormTechnique">Overall Form &amp; Technique</div>
 
+    {# Truthiness, not `is not none`, so a zero count hides too: a response
+       missing the REPS line has nothing honest to show, and an explicit 0
+       (observed in practice) reads as "we watched and you did nothing"
+       sitting next to a real grade. #}
+    {% if reps %}
+      <div class="an-reps">
+        <span class="an-reps-value">{{ reps }}</span>
+        <span class="an-reps-label" data-i18n="analyze.repsCounted">Reps Counted</span>
+      </div>
+    {% endif %}
+
     {% if overall_score is not none %}
       {% if overall_score < 50 %}
         <div class="an-verdict" data-i18n="analyze.verdictBad">The issues outweighed what went well — start with the fixes below.</div>
