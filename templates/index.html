@@ -913,16 +913,17 @@
   // full brightness for anything rendered into the secondary list.
   const CHEVRON = `<span class="an-row-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>`;
 
-  // A section on the paper sheet: a coloured label and its text, separated
-  // from the one above by a hairline. No icon chip and no filled tile --
-  // the label colour alone carries the category, which is what stops five
-  // or six sections reading as a grid of coloured boxes. Mirrors the
-  // an-sec markup in result.html.
+  // A section on the paper sheet: a softly tinted card carrying its
+  // category's colour, with that category's icon beside the label, so the
+  // kind of feedback lands before the words do. Only positives/progress are
+  // ever above the fold (FB_ALWAYS_VISIBLE) and the rest sit behind "Full
+  // report", so this doesn't turn the sheet into a grid of coloured boxes.
+  // Mirrors the an-sec markup in result.html -- keep the two in step.
   function fbItemHtml(s, t) {
     const detail = s.detail_html ? `<div class="an-sec-body an-sec-detail">${s.detail_html}</div>` : "";
     return `
       <div class="an-sec an-sec-${s.css_class}">
-        <div class="an-sec-label">${t(s.title_key)}</div>
+        <div class="an-sec-label">${s.icon || ""}<span>${t(s.title_key)}</span></div>
         <div class="an-sec-body">${s.summary_html}</div>
         ${detail}
       </div>
