@@ -63,11 +63,17 @@ GEMINI_MODEL = "gemini-3.6-flash"
 # VideoMetadata.fps forces a denser sample. Unlike that file's sibling
 # video_trimmer.py (which re-encodes at a hard 15fps ceiling), this file's
 # trim_video.py stream-copies (-c copy, no re-encode), so the trimmed clip
-# keeps the source's original fps -- a 15fps request here is a real ask,
-# not capped by an upstream re-encode. Values above 15 weren't shown to
-# help and were observed elsewhere in this app to increase Gemini's safety
-# classifier flagging ordinary workout footage as prohibited content, so
-# this stays at the same proven-safe ceiling rather than pushing higher.
+# keeps the source's original fps (30 on every iPhone clip measured here),
+# so a 15fps request is a real ask, not capped by an upstream re-encode.
+#
+# Raising it does not help, and 30 is not even reachable: the API rejects
+# any fps above 24 outright --
+#   video_metadata.fps: [FIELD_INVALID] threshold must be less than or equal to 24
+# Sweeping the range that IS allowed, on one fixed 10.7s clip, showed no
+# accuracy gain from sampling denser: 10fps->4 reps, 15->4, 20->5, 24->3.
+# The densest legal setting counted the FEWEST reps, so there's no evidence
+# 15 undersamples. Rep counts wobble +/-1 run to run at a fixed fps anyway
+# (same clip, temperature=0), which swamps any difference between settings.
 GEMINI_VIDEO_SAMPLE_FPS = 15
 
 # How many times to retry a call Gemini's safety classifier blocked (empty
