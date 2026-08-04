@@ -345,23 +345,14 @@ def _chat_limit_response(retry_seconds):
     }
 
 
-# One-off, per user's explicit request: for this single account only, the
-# "Analyze" nav link (sidebar + mobile tab bar) jumps straight to their
-# most recent analysis result instead of the upload form. Deliberately not
-# a general feature -- every other account keeps landing on the upload
-# page. See analyze_latest() for the route this points at, and
-# save_analyze_result()/get_latest_analyze_result() in database.py for
-# where a result comes from (nothing existed to "jump to" before this —
-# analysis results were never persisted anywhere until this was added).
-ANALYZE_LATEST_REDIRECT_EMAIL = "phuttimatebenchanakatkul@gmail.com"
-
-
-@app.context_processor
-def inject_analyze_nav_href():
-    user = current_user()
-    if user and user["email"] == ANALYZE_LATEST_REDIRECT_EMAIL and get_latest_analyze_result(user["id"]):
-        return {"analyze_nav_href": url_for("analyze_latest")}
-    return {"analyze_nav_href": url_for("analyze_page")}
+# The "Analyze" nav used to jump one hardcoded account straight to its most
+# recent result instead of the upload form. Removed at that account owner's
+# request: tapping Analyze is how you start a new analysis, so landing on
+# the previous one made the primary action a back-navigation away. The nav
+# now goes to the upload page for everyone, and templates link
+# url_for('analyze_page') directly rather than through a context processor
+# that no longer decides anything. /analyze/latest still exists as a deep
+# link and self-heals to the upload page when there is no stored result.
 
 
 def asset_url(filename):
@@ -2007,13 +1998,12 @@ def analyze():
 
 @app.route("/analyze/latest", methods=["GET"])
 def analyze_latest():
-    # Jumps straight to a user's most recent analysis result instead of the
-    # upload form -- only reachable at all if analyze_results actually has
-    # a row for them (see inject_analyze_nav_href, which is what decides
-    # whether the nav even links here). Falls back to the normal upload
-    # page for anyone who lands on this URL directly without a stored
-    # result (logged out, or never analyzed anything yet), rather than
-    # erroring.
+    # Opens a user's most recent analysis result directly. Nothing in the
+    # UI links here any more -- the Analyze nav always goes to the upload
+    # form -- so this is a deep link (bookmark, notification, shared URL).
+    # Falls back to the upload page for anyone who lands on it without a
+    # stored result (logged out, or never analyzed anything yet), rather
+    # than erroring.
     user = current_user()
     if not user:
         return redirect(url_for("analyze_page"))
