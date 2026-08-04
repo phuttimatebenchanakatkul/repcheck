@@ -1097,20 +1097,47 @@
   }
   .nl-search-empty { padding: 26px 14px; font-size: 13px; color: var(--text-secondary); text-align: center; }
 
-  .nl-modal-section { margin: 0 0 18px; }
-  .nl-modal-section-title {
-    font-size: 11px;
-    font-weight: 800;
+  /* iOS-style segmented control (All / Favorites / Recent) replacing the
+     old stacked "FAVORITES" / "RECENT" section headers -- one filtered
+     list instead of three concatenated ones. Track + sliding light capsule
+     for the selected segment, matching UISegmentedControl rather than a
+     Material solid-fill tab bar. */
+  .nl-scope-seg {
+    display: flex; gap: 2px;
+    background: var(--sidebar-active);
+    border-radius: 9px;
+    padding: 2px;
+    margin: 2px 8px 12px;
+  }
+  .nl-scope-seg button {
+    flex: 1;
+    padding: 6px 4px;
+    border: none;
+    border-radius: 7px;
+    background: none;
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin: 0 8px 8px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .nl-scope-seg button.is-active {
+    background: var(--card-bg);
+    color: var(--text);
+    font-weight: 700;
+    box-shadow: var(--shadow);
   }
 
-  /* Scannable full-width list rows (icon + name + macro line + heart)
-     instead of a dense grid of tiny squares -- easier to read on a phone
-     and each result can show its macros without crowding. */
-  .nl-food-list { display: flex; flex-direction: column; gap: 2px; }
+  /* iOS grouped/inset list: one rounded card per list, hairline dividers
+     between rows, no per-row floating radius -- replaces the earlier
+     flat rows-with-gaps treatment. */
+  .nl-food-list {
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
   .nl-food-row {
     display: flex;
     align-items: center;
@@ -1118,16 +1145,17 @@
     width: 100%;
     padding: 8px 10px;
     border: none;
-    border-radius: 12px;
+    border-bottom: 1px solid var(--border);
     background: none;
     cursor: pointer;
     text-align: left;
     font-family: inherit;
     color: var(--text);
-    transition: background-color 0.13s ease, transform 0.08s ease;
+    transition: background-color 0.13s ease;
   }
+  .nl-food-row:last-child { border-bottom: none; }
   .nl-food-row:hover { background: var(--bg); }
-  .nl-food-row:active { transform: scale(0.99); background: var(--sidebar-active); }
+  .nl-food-row:active { background: var(--sidebar-active); }
   .nl-food-row-icon {
     flex-shrink: 0;
     width: 40px; height: 40px;
@@ -1151,21 +1179,27 @@
   }
   .nl-frm-cal { font-weight: 700; color: var(--text); }
   .nl-frm-cal::after { content: "·"; margin: 0 6px; color: var(--text-secondary); font-weight: 700; }
+  /* Demoted from a bordered 44px circle button to a small plain icon --
+     the row itself is the tappable thing (data-food on the whole button);
+     the heart is a secondary toggle, not a competing control. Kept at
+     32px (not the full 44px minimum) since it sits directly beside the
+     row's own much larger tap target, same trade-off real iOS list
+     accessories make (e.g. Reminders' flag icon). */
   .nl-food-row-fav {
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px;
+    width: 32px; height: 32px;
     border-radius: 50%;
-    background: var(--bg);
-    border: 1.5px solid var(--border);
+    background: none;
+    border: none;
     color: var(--text-secondary);
+    opacity: 0.7;
     cursor: pointer;
-    opacity: 0.85;
-    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+    transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
   }
-  .nl-food-row-fav:hover { opacity: 1; color: var(--red); background: var(--red-bg); border-color: rgba(209, 69, 59, 0.3); }
+  .nl-food-row-fav:hover { background: var(--sidebar-active); opacity: 1; }
   .nl-food-row-fav:active { transform: scale(0.85); }
-  .nl-food-row-fav.is-fav { color: var(--red); opacity: 1; background: var(--red-bg); border-color: rgba(209, 69, 59, 0.3); }
+  .nl-food-row-fav.is-fav { color: var(--red); opacity: 1; }
 
   /* Persistent "can't find it? enter macros" CTA at the bottom of the
      search sheet (see manualMacroCtaHtml()) -- dashed border + tinted
@@ -1983,6 +2017,7 @@
 
   function showModal() {
     modalSearchInput.value = "";
+    modalScope = "all";
     renderModalDefaultSections();
     if (window.openBottomSheet) window.openBottomSheet(modalOverlay, ".log-sheet");
     else modalOverlay.classList.add("is-open");
@@ -2981,16 +3016,6 @@
     `;
   }
 
-  function foodSectionHtml(title, names) {
-    if (!names.length) return "";
-    return `
-      <div class="nl-modal-section">
-        <div class="nl-modal-section-title">${title}</div>
-        <div class="nl-food-list">${names.map(foodRowHtml).join("")}</div>
-      </div>
-    `;
-  }
-
   // Persistent escape hatch, shown at the bottom of the search sheet
   // regardless of state (default view or live results) -- not every food
   // is in the library or Open Food Facts (a specific chain item, a home
@@ -3012,12 +3037,30 @@
     `;
   }
 
+  // Which of All / Favorites / Recent the default (no-query) view is
+  // showing. Reset to "all" every time the sheet opens fresh (showModal())
+  // so it never reopens on whatever tab was last picked in a prior session.
+  let modalScope = "all";
+
+  // Segmented control replacing the old stacked "FAVORITES" / "RECENT"
+  // section headers -- one filtered list instead of three concatenated
+  // ones, so the sheet stays one continuous scroll instead of growing with
+  // every section a user has content in. Only shown for the no-query
+  // default view; renderModalResults()'s live-search branch never calls
+  // this, so typing a query hides it the same way iOS search hides
+  // segmented controls once you start typing.
+  function scopeSegHtml() {
+    const t = RepCheckI18n.t;
+    const tabs = [["all", t("nutrition.scope.all")], ["favorites", t("nutrition.favorites")], ["recent", t("nutrition.recent")]];
+    return `
+      <div class="nl-scope-seg">
+        ${tabs.map(([key, label]) => `<button type="button" data-scope-tab="${key}" class="${modalScope === key ? "is-active" : ""}">${label}</button>`).join("")}
+      </div>
+    `;
+  }
+
   function renderModalDefaultSections() {
     const t = RepCheckI18n.t;
-    // Favorites first, per how the modal should prioritize them.
-    const sections = [
-      foodSectionHtml(t("nutrition.favorites"), Array.from(favorites)),
-    ];
     // "Top picks" hour comes from wherever the modal was opened: the
     // hour-row "+" pins it to that row's hour via pendingHour, while the
     // quick-add bar (which leaves pendingHour null so logging still uses
@@ -3026,13 +3069,23 @@
     const topPicksHour = modalMode && modalMode.type === "add-food" ? pendingHour
       : modalMode && modalMode.type === "quickadd" ? modalMode.topPicksHour
       : null;
-    if (topPicksHour !== null && topPicksHour !== undefined) {
-      sections.push(foodSectionHtml(t("nutrition.topPicksForHour", { hour: hourLabel(topPicksHour) }), getTopPicksForHour(topPicksHour, 8)));
-    }
-    sections.push(foodSectionHtml(t("nutrition.recent"), getRecentFoods(8)));
+    const topPicks = (topPicksHour !== null && topPicksHour !== undefined) ? getTopPicksForHour(topPicksHour, 8) : [];
+    const recent = getRecentFoods(8);
+    const favoritesList = Array.from(favorites);
 
-    const html = sections.join("");
-    modalResultsEl.innerHTML = (html || `<div class="nl-search-empty">${t("nutrition.searchToAdd")}</div>`) + manualMacroCtaHtml();
+    let names;
+    if (modalScope === "favorites") names = favoritesList;
+    else if (modalScope === "recent") names = recent;
+    else {
+      // "All" = favorites, then top picks, then recent, deduped in that
+      // priority order -- the same priority the old stacked sections used,
+      // just merged into one list instead of three labeled ones.
+      const seen = new Set();
+      names = [...favoritesList, ...topPicks, ...recent].filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
+    }
+
+    const listHtml = names.length ? `<div class="nl-food-list">${names.map(foodRowHtml).join("")}</div>` : `<div class="nl-search-empty">${t("nutrition.searchToAdd")}</div>`;
+    modalResultsEl.innerHTML = scopeSegHtml() + listHtml + manualMacroCtaHtml();
   }
 
   // ---------- Open Food Facts online search (extends FOOD_LIBRARY) ----------
@@ -3194,6 +3247,13 @@
   // once here rather than re-attached after every render, so a click
   // never gets lost to a stale/replaced element reference.
   modalResultsEl.addEventListener("click", (event) => {
+    const scopeTab = event.target.closest("[data-scope-tab]");
+    if (scopeTab) {
+      modalScope = scopeTab.dataset.scopeTab;
+      renderModalDefaultSections();
+      return;
+    }
+
     if (event.target.closest("[data-manual-macro]")) {
       closeModal();
       openQuickMacroModal();
