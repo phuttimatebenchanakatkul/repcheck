@@ -710,7 +710,7 @@
         const sparkValues = allEntries.slice(0, 10).map((e) => e.kg).reverse(); // oldest -> newest for the chart
 
         const rows = shown.map((entry, i) => {
-          const label = new Date(entry.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          const label = new Date(entry.date + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
           const older = allEntries[i + 1];
           let deltaHtml = "";
           if (older) {

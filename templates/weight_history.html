@@ -315,7 +315,7 @@
         const deltaClass = delta === null ? "" : delta > 0.05 ? "is-up" : delta < -0.05 ? "is-down" : "is-flat";
         const deltaText = delta === null ? "—" : `${delta > 0 ? "+" : ""}${RepCheckUnits.formatWeightKg(delta)}`;
         const d = new Date(entry.date + "T00:00:00");
-        const weekdayShort = d.toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { weekday: "short" });
+        const weekdayShort = d.toLocaleDateString(RepCheckI18n.locale(), { weekday: "short" });
         const dateLabel = `${d.getDate()} ${weekdayShort}`;
         container.appendChild(el(`
           <div class="wh-row">
@@ -509,7 +509,7 @@
     // ---------- Weight-on-this-day popup ----------
     function lhDateLabel(dateIso) {
       const d = new Date(dateIso + "T00:00:00");
-      const weekday = d.toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { weekday: "long" });
+      const weekday = d.toLocaleDateString(RepCheckI18n.locale(), { weekday: "long" });
       return `${weekday}, ${monthName(d.getMonth())} ${d.getDate()}`;
     }
 

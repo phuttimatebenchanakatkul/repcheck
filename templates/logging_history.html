@@ -238,7 +238,7 @@
       const dayStatusMap = loadJson(DAY_STATUS_KEY, {});
       const currentStatus = getDayStatus(dateIso, nutritionLog, dayStatusMap);
       const dateLabel = new Date(dateIso + "T00:00:00").toLocaleDateString(
-        RepCheckI18n.getLang() === "th" ? "th-TH" : undefined,
+        RepCheckI18n.locale(),
         { weekday: "long", month: "short", day: "numeric" }
       );
 

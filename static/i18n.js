@@ -1596,6 +1596,14 @@
     return localStorage.getItem(STORAGE_KEY) || DEFAULT_LANG;
   }
 
+  // BCP-47 tag for Intl / toLocaleDateString / toLocaleString.
+  // Always pass this rather than `undefined` or `[]`: both of those mean
+  // "use the OS locale", so a Thai-locale device rendered Thai dates and
+  // number formats even with the app set to English.
+  function locale() {
+    return getLang() === "th" ? "th-TH" : "en-US";
+  }
+
   function applyLangAttribute() {
     // Drives the Thai font swap in style.css (:root[data-lang="th"]).
     document.documentElement.setAttribute("data-lang", getLang());
@@ -1664,7 +1672,7 @@
     });
   }
 
-  global.RepCheckI18n = { getLang, setLang, t, applyI18n, initLanguageToggle };
+  global.RepCheckI18n = { getLang, locale, setLang, t, applyI18n, initLanguageToggle };
 
   document.addEventListener("DOMContentLoaded", () => {
     applyLangAttribute();
