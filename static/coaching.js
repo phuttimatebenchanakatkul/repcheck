@@ -1337,7 +1337,7 @@
       const nutritionLog = loadNutritionLog();
       const dayStatusMap = loadDayStatusMap();
       const currentStatus = getDayStatus(dateIso, nutritionLog, dayStatusMap);
-      const dateLabel = new Date(dateIso + "T00:00:00").toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+      const dateLabel = new Date(dateIso + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", month: "short", day: "numeric" });
 
       // A day with zero food entries can only be reset to "Not logged" or
       // marked "Fasting" -- "Incomplete" implies some logging happened, so
@@ -1833,7 +1833,7 @@
       const c = this.checkin;
       const days = c.weekDates.map((iso) => {
         const status = c.dayStatuses[iso];
-        const weekdayLetter = new Date(iso + "T00:00:00").toLocaleDateString([], { weekday: "narrow" });
+        const weekdayLetter = new Date(iso + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { weekday: "narrow" });
         return `
           <button type="button" class="pc-ck-day" data-action="cycle-checkin-day" data-date="${iso}" data-status="${status}">
             ${weekdayLetter}

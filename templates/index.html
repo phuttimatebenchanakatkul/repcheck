@@ -633,7 +633,7 @@
     if (days <= 0) return t("analyze.today");
     if (days === 1) return t("analyze.yesterday");
     if (days < 7) return t("analyze.daysAgo", { n: days });
-    return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return new Date(timestamp).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
   }
 
   // Server-side analysis history (logged-in only). Each entry is a full

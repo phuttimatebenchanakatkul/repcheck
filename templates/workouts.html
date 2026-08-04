@@ -1514,7 +1514,7 @@
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     if (selectedDate === toIsoDate(yesterday)) return t("workouts.day.yesterday");
-    return new Date(selectedDate + "T00:00:00").toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+    return new Date(selectedDate + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", day: "numeric", month: "short" });
   }
 
   // One set's reps for the summary line: a single number in both-sides

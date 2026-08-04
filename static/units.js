@@ -80,7 +80,7 @@
   }
   function formatTime(dateOrMs) {
     const d = dateOrMs instanceof Date ? dateOrMs : new Date(dateOrMs);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: hour12() });
+    return d.toLocaleTimeString(RepCheckI18n.locale(), { hour: "numeric", minute: "2-digit", hour12: hour12() });
   }
   function formatHourLabel(hour) {
     // "1 AM" / "13:00" style labels for the nutrition timeline.

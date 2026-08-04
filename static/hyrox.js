@@ -1330,7 +1330,7 @@
       const race = this.findRace(this.detailRaceId);
       if (!race) return el(`<div style="display:none;"></div>`);
       const combo = comboLabel(race.gender, race.category, race.format);
-      const dateLabel = new Date(race.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+      const dateLabel = new Date(race.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" });
 
       const overlay = el(`
         <div class="hx-modal-overlay">
@@ -1542,7 +1542,7 @@
       if (this.canStart()) {
         const pb = this.getPersonalBest(this.category, this.format, this.gender, this.scale);
         if (pb) {
-          const dateLabel = new Date(pb.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+          const dateLabel = new Date(pb.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" });
           startRow.insertAdjacentElement("beforebegin", el(`
             <div class="hx-pb-banner">
               <div class="hx-pb-banner-label">${t("hyrox.pb.setupLabel", { combo: comboLabel(this.gender, this.category, this.format) })}</div>
@@ -2375,7 +2375,7 @@
       `);
       const listEl = card.querySelector("[data-pb-list]");
       bests.forEach((r) => {
-        const dateLabel = new Date(r.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+        const dateLabel = new Date(r.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" });
         listEl.appendChild(el(`
           <div class="hx-pb-row">
             <div class="hx-pb-row-time">${formatClock(r.totalSeconds)}</div>
@@ -2543,7 +2543,7 @@
         `));
       } else {
         rows.forEach((r) => {
-          const dateLabel = new Date(r.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+          const dateLabel = new Date(r.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" });
           // The whole row opens the per-station breakdown + AI detail; the
           // nested × still removes (closest [data-action] resolves to it
           // first). role/tabindex so it's a real, keyboard-reachable button.
