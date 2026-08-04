@@ -106,7 +106,9 @@
 
     {% for section in primary_sections %}
       <div class="an-sec an-sec-{{ section.css_class }}">
-        <div class="an-sec-label" data-i18n="{{ section.title_key }}">{{ section.heading }}</div>
+        {# data-i18n sits on the inner span, not the label: i18n.js assigns
+           textContent, which would wipe the icon out of the label. #}
+        <div class="an-sec-label">{{ section.icon | safe }}<span data-i18n="{{ section.title_key }}">{{ section.heading }}</span></div>
         <div class="an-sec-body">{{ section.summary_html | safe }}</div>
         {% if section.detail_html %}
           <div class="an-sec-body an-sec-detail">{{ section.detail_html | safe }}</div>
@@ -122,7 +124,7 @@
       <div class="an-more" id="an-more" hidden>
         {% for section in secondary_sections %}
           <div class="an-sec an-sec-{{ section.css_class }}">
-            <div class="an-sec-label" data-i18n="{{ section.title_key }}">{{ section.heading }}</div>
+            <div class="an-sec-label">{{ section.icon | safe }}<span data-i18n="{{ section.title_key }}">{{ section.heading }}</span></div>
             <div class="an-sec-body">{{ section.summary_html | safe }}</div>
             {% if section.detail_html %}
               <div class="an-sec-body an-sec-detail">{{ section.detail_html | safe }}</div>

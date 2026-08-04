@@ -1707,14 +1707,25 @@ html.an-result .mobile-tabbar { display: none; }
 }
 .an-note strong { text-transform: capitalize; }
 
-/* Feedback sections: hairlines, not cards. The category colour survives on
-   the label alone, which is enough to tell them apart without giving every
-   section its own filled box. */
-.an-sec { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--paper-line); }
-.an-sec-label {
-  font-size: 9px; font-weight: 800; text-transform: uppercase;
-  letter-spacing: 0.07em; margin-bottom: 7px;
+/* Feedback sections: one softly tinted card per category, so a glance says
+   whether you're reading a win, a fix, or a safety warning before you've
+   read a word of it. Only two of these are ever above the fold (positives +
+   progress -- see FB_ALWAYS_VISIBLE); everything else sits behind "Full
+   report", so the sheet never becomes a grid of six coloured boxes. */
+.an-sec {
+  margin-top: 12px;
+  padding: 15px 16px;
+  border-radius: 14px;
+  background: var(--sidebar-active);
 }
+.an-sec-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 800; letter-spacing: -0.01em;
+  margin-bottom: 8px;
+}
+/* app.py ships these icons at 19px; the label wants them smaller, and
+   never squeezed by a long translated title. */
+.an-sec-label svg { width: 15px; height: 15px; flex-shrink: 0; }
 .an-sec-body { font-size: 14px; line-height: 1.55; color: var(--text); }
 .an-sec-body p { margin: 0 0 8px; }
 .an-sec-body p:last-child { margin-bottom: 0; }
@@ -1724,10 +1735,20 @@ html.an-result .mobile-tabbar { display: none; }
 .an-sec-detail { margin-top: 10px; }
 .an-sec-detail[hidden] { display: none; }
 
+/* Each category's tint + label colour. Same accent-on-soft-tint pairing
+   the rest of the app already uses (see .an-note above, .hm-pb-badge), so
+   these read as part of the set rather than a new palette. The dark theme
+   only re-tints the *-bg tokens, which keeps the pairing working there
+   without a second set of rules. */
+.an-sec-positives { background: var(--green-bg); }
 .an-sec-positives .an-sec-label { color: var(--green); }
+.an-sec-negatives { background: var(--red-bg); }
 .an-sec-negatives .an-sec-label { color: var(--red); }
+.an-sec-improvements { background: var(--blue-bg); }
 .an-sec-improvements .an-sec-label { color: var(--blue); }
+.an-sec-injury { background: var(--amber-bg); }
 .an-sec-injury .an-sec-label { color: var(--amber); }
+.an-sec-progress { background: var(--purple-bg); }
 .an-sec-progress .an-sec-label { color: var(--purple); }
 .an-sec-summary .an-sec-label { color: var(--text-secondary); }
 
