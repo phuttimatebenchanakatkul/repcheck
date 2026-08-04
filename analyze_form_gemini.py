@@ -47,7 +47,15 @@ load_dotenv()
 # 429), so it's not actually usable here — gemini-3.5-flash is the
 # strongest model that's both a real reasoning upgrade over 3.1-flash-lite
 # and actually accessible on this quota.
-GEMINI_MODEL = "gemini-3.5-flash"
+# Superseded gemini-3.5-flash, which measured catastrophically slow on this
+# workload: two back-to-back calls on an ordinary 45s clip sat for 262s and
+# 288s before failing with 503 "model is currently experiencing high
+# demand", and successful calls ranged 25-114s for the SAME request. That
+# variance is server-side, not payload-driven -- a 20s clip measured slower
+# (75s) than a 45s one (25s) -- so it cannot be tuned away by sending less
+# video. gemini-3.6-flash measured 4-20s on identical clips while still
+# correctly identifying the movement and holding the six-section format.
+GEMINI_MODEL = "gemini-3.6-flash"
 
 # See rep_form_analyzer.py's identical constant for the full story: Gemini
 # defaults to ~1fps video sampling unless told otherwise, which is nowhere
@@ -68,7 +76,34 @@ GEMINI_VIDEO_SAMPLE_FPS = 15
 # ordinary workout footage (same clip, same fps: blocked once, passed on
 # retry) rather than a real content violation, so retrying the identical
 # request is a legitimate fix here, not just papering over a real block.
+# Retries are additionally bounded by ANALYSIS_BUDGET_SECONDS below -- an
+# attempt that can't finish inside the remaining budget is never started.
 MAX_SAFETY_BLOCK_RETRIES = 2
+
+# Hard ceiling on how long a user waits for an analysis, covering the whole
+# call including retries -- not per attempt. Without it the retry loop above
+# is unbounded: three attempts with no timeout, measured at up to 114s each
+# on an identical request, is a ~5.7-minute wait for someone staring at a
+# spinner. Gemini's latency for the SAME request was measured between 25s
+# and 114s, so the wait can't be made predictable by sending less video
+# (clip length barely moved it; see GEMINI_VIDEO_SAMPLE_FPS on why sending
+# less is also the wrong trade). Bounding the total is the only thing that
+# actually caps what the user experiences.
+ANALYSIS_BUDGET_SECONDS = 60
+
+# Don't start another attempt unless enough budget remains for it to
+# plausibly succeed -- a 3-second window just burns the retry and returns
+# the same timeout error later, so the user waits longer for nothing.
+MIN_ATTEMPT_SECONDS = 12
+
+# gemini-3.5-flash reasons before answering, and its default thinking depth
+# is the single biggest controllable slice of the wait: measured at ~2,350
+# thinking tokens and ~97s on a 45s clip, versus ~600 tokens and ~45s at
+# LOW -- same rep count (8), same graded output. MINIMAL was measured too
+# and is NOT safe here: it stopped emitting the required STRETCH_SCORE /
+# OVERALL_SCORE / REPS lines entirely, which parse_scores() reads as an
+# unscorable response and turns into "We couldn't score that video".
+GEMINI_THINKING_LEVEL = "LOW"
 
 EXERCISES = {
     "bicep_curl": {
@@ -711,7 +746,18 @@ def video_mime_type(path):
     return _VIDEO_MIME_TYPES.get(Path(path).suffix.lower(), "video/mp4")
 
 
-def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4"):
+def _is_timeout(exc):
+    """True if exc is the SDK/transport giving up on a slow request, as
+    opposed to a real API rejection. The SDK wraps httpx, so the concrete
+    class varies by transport -- match on name/text rather than importing
+    httpx just for an isinstance check."""
+    if exc is None:
+        return False
+    return "timeout" in f"{type(exc).__name__} {exc}".lower()
+
+
+def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4",
+                budget_seconds=ANALYSIS_BUDGET_SECONDS):
     try:
         from google import genai
         from google.genai import types
@@ -733,8 +779,21 @@ def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4"):
         video_metadata=types.VideoMetadata(fps=GEMINI_VIDEO_SAMPLE_FPS),
     )
 
+    # Budget is wall-clock across every attempt, so a slow first attempt
+    # eats into what the retries are allowed to take rather than each one
+    # getting a fresh unbounded window.
+    started = time.monotonic()
+
+    def seconds_left():
+        return budget_seconds - (time.monotonic() - started)
+
     last_error = None
+    timed_out = False
     for attempt in range(MAX_SAFETY_BLOCK_RETRIES + 1):
+        remaining = seconds_left()
+        if remaining < MIN_ATTEMPT_SECONDS:
+            timed_out = True
+            break
         try:
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
@@ -742,16 +801,24 @@ def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4"):
                 # Judging form/reps should give the same answer every time given
                 # the same footage, not vary across calls -- see
                 # rep_form_analyzer.py's identical reasoning for temperature=0.
-                config=types.GenerateContentConfig(temperature=0),
+                config=types.GenerateContentConfig(
+                    temperature=0,
+                    thinking_config=types.ThinkingConfig(
+                        thinking_level=GEMINI_THINKING_LEVEL
+                    ),
+                    # Caps this attempt at whatever budget is left, so a
+                    # hung/queued request can't blow past the ceiling.
+                    http_options=types.HttpOptions(timeout=int(remaining * 1000)),
+                ),
             )
         except Exception as exc:
             # Transient API errors (e.g. a 503 "model is currently
             # experiencing high demand") are real and observed in practice,
             # not just theoretical -- worth a short pause before the next
             # attempt, unlike the empty-response case below which isn't
-            # time-dependent.
+            # time-dependent. Only pause if the budget can absorb it.
             last_error = exc
-            if attempt < MAX_SAFETY_BLOCK_RETRIES:
+            if attempt < MAX_SAFETY_BLOCK_RETRIES and seconds_left() > MIN_ATTEMPT_SECONDS + 2:
                 time.sleep(2)
             continue
         if response.text:
@@ -760,6 +827,16 @@ def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4"):
         # footage elsewhere in this app -- retry before giving up.
         last_error = None
 
+    # Ran out of budget rather than hitting a real failure: say so plainly
+    # instead of surfacing a raw timeout/transport error, which reads to the
+    # user like their video was the problem.
+    if timed_out or _is_timeout(last_error):
+        sys.exit(
+            "That analysis took longer than "
+            f"{budget_seconds:g} seconds, so we stopped waiting. "
+            "This is usually a busy moment on our end, not a problem with "
+            "your video -- please try again."
+        )
     if last_error is not None:
         sys.exit(f"Gemini request failed after retries: {last_error}")
     sys.exit("Gemini didn't return a usable response for this video. Please try again.")

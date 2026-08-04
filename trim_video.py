@@ -23,7 +23,13 @@ import sys
 from pathlib import Path
 
 START_SECONDS = 5
-DURATION_SECONDS = 75
+# Caps how much footage is graded. Deliberately shorter than the 75s this
+# used to keep: a normal working set runs ~20-40s, so 30s covers the great
+# majority of them, and the shorter clip is a smaller upload to Gemini.
+# Known trade: a set genuinely longer than 30s is truncated, and since the
+# rep count is read off the clip, those reps are simply not counted -- the
+# analysis grades the first 30s of the set, not all of it.
+DURATION_SECONDS = 30
 # Below this, there isn't enough footage to judge a set -- grading it would
 # mean inventing a score from almost nothing (see trim_video()).
 MIN_USABLE_SECONDS = 3
