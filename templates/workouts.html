@@ -402,15 +402,42 @@
   }
   .ex-modal-close:hover { color: var(--text); }
   .ex-modal-body { overflow-y: auto; padding: 16px; }
-  .ex-modal-section { margin-bottom: 20px; }
-  .ex-modal-section:last-child { margin-bottom: 0; }
-  .ex-modal-section-title {
-    font-size: 12px;
-    font-weight: 700;
+  /* iOS-style segmented control replacing the stacked FAVORITES / CUSTOM /
+     SUGGESTED / RECENT headers -- one filtered list instead of up to four
+     concatenated ones. Grey track + light sliding capsule for the selected
+     segment, matching UISegmentedControl rather than a Material tab bar. */
+  .ex-scope-seg {
+    display: flex; gap: 2px;
+    background: var(--sidebar-active);
+    border-radius: 9px;
+    padding: 2px;
+    margin: 0 0 12px;
+  }
+  .ex-scope-seg button {
+    flex: 1;
+    padding: 6px 4px;
+    border: none;
+    border-radius: 7px;
+    background: none;
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .ex-scope-seg button.is-active {
+    background: var(--card-bg);
+    color: var(--text);
+    font-weight: 700;
+    box-shadow: var(--shadow);
+  }
+
+  /* iOS grouped/inset list: one rounded card, hairline dividers between
+     rows, no per-row floating radius. */
+  .ex-modal-section {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
   }
   .ex-modal-result-item {
     display: flex;
@@ -420,8 +447,9 @@
     font-size: 14px;
     color: var(--text);
     cursor: pointer;
-    border-radius: 12px;
+    border-bottom: 1px solid var(--border);
   }
+  .ex-modal-result-item:last-child { border-bottom: none; }
   .ex-modal-result-item:hover { background: var(--bg); }
   .ex-modal-result-item:active { background: var(--sidebar-active); }
   .ex-modal-result-item span:nth-child(2) { flex: 1; }
@@ -442,22 +470,32 @@
   .ex-modal-empty { padding: 12px 10px; font-size: 13px; color: var(--text-secondary); }
 
   /* ---------- Create-a-custom-exercise button + form (in the log sheet) ---------- */
+  /* Demoted from a dashed full-width block pinned above the list to a plain
+     row inside it. Creating a custom exercise is the rare case; it no longer
+     costs the top of the sheet before a single exercise is visible. The small
+     filled circle + plus is the iOS "add" affordance (Contacts, Reminders). */
   .ex-create-btn {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
+    display: flex; align-items: center; gap: 12px;
     width: 100%;
-    margin: 4px 0 18px;
-    padding: 13px;
-    border: 1px dashed var(--border);
-    border-radius: 14px;
-    background: var(--bg);
+    padding: 12px 10px;
+    border: none;
+    background: none;
     color: var(--blue);
-    font-size: 14px; font-weight: 700; font-family: inherit;
+    font-size: 14px; font-weight: 500; font-family: inherit;
+    text-align: left;
     cursor: pointer;
-    transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+    transition: background-color 0.13s ease;
   }
-  .ex-create-btn:hover { border-color: var(--blue); background: var(--blue-bg); }
-  .ex-create-btn:active { transform: scale(0.98); }
-  .ex-create-btn svg { flex-shrink: 0; }
+  .ex-create-btn:hover { background: var(--bg); }
+  .ex-create-btn:active { background: var(--sidebar-active); }
+  .ex-create-btn svg {
+    flex-shrink: 0;
+    width: 20px; height: 20px;
+    padding: 3px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: #fff;
+  }
 
   .ex-create-form { padding: 2px 2px 8px; }
   .ex-create-back {
@@ -2093,54 +2131,58 @@
     return `<button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.button")}</span></button>`;
   }
 
-  function renderExerciseModalDefault() {
+  // Which of All / Favorites / Recent the default (no-query) view is showing.
+  // Reset to "all" every time the sheet opens so it never reopens on whatever
+  // tab was last picked.
+  let exModalScope = "all";
+
+  function exScopeSegHtml() {
     const t = RepCheckI18n.t;
-    // Always lead with the create button so making a custom exercise is one
-    // tap away from the log sheet (it used to be buried in the split wizard).
-    const parts = [createButtonHtml()];
-    if (exerciseFavorites.size) {
-      parts.push(`
-        <div class="ex-modal-section">
-          <div class="ex-modal-section-title">${t("nutrition.favorites")}</div>
-          ${Array.from(exerciseFavorites).map(exerciseRowHtml).join("")}
-        </div>
-      `);
-    }
-    if (customExercises.length) {
-      parts.push(`
-        <div class="ex-modal-section">
-          <div class="ex-modal-section-title">${t("workouts.wizard.customExercises")}</div>
-          ${customExercises.map((ex) => exerciseRowHtml(ex.name)).join("")}
-        </div>
-      `);
-    }
-    // Suggested: today's split when there is one, otherwise a sensible
-    // whole-body starter set -- so there's always something suggested.
-    const splitInfo = getTodaysSplitInfo();
-    const suggested = splitInfo && splitInfo.exercises.length ? splitInfo.exercises : getDefaultSuggestions(6);
-    const suggestedTitle = splitInfo && splitInfo.exercises.length
-      ? t("analyze.topPicksFor", { weekday: splitInfo.weekdayName, label: splitInfo.label })
-      : t("workouts.suggestedTitle");
-    if (suggested.length) {
-      parts.push(`
-        <div class="ex-modal-section">
-          <div class="ex-modal-section-title">${suggestedTitle}</div>
-          ${suggested.map(exerciseRowHtml).join("")}
-        </div>
-      `);
-    }
+    const tabs = [["all", t("nutrition.scope.all")], ["favorites", t("nutrition.favorites")], ["recent", t("analyze.recent")]];
+    return `
+      <div class="ex-scope-seg">
+        ${tabs.map(([key, label]) => `<button type="button" data-ex-scope="${key}" class="${exModalScope === key ? "is-active" : ""}">${label}</button>`).join("")}
+      </div>
+    `;
+  }
+
+  function renderExerciseModalDefault() {
+    const favoritesList = Array.from(exerciseFavorites);
     const recent = getRecentWorkouts(6);
-    if (recent.length) {
-      parts.push(`
-        <div class="ex-modal-section">
-          <div class="ex-modal-section-title">${t("analyze.recent")}</div>
-          ${recent.map(exerciseRowHtml).join("")}
-        </div>
-      `);
+
+    let names;
+    if (exModalScope === "favorites") names = favoritesList;
+    else if (exModalScope === "recent") names = recent;
+    else {
+      // "All" = favorites, then custom, then today's suggested split, then
+      // recent -- deduped in that priority order. Same priority the four
+      // stacked sections used, merged into one list.
+      const splitInfo = getTodaysSplitInfo();
+      const suggested = splitInfo && splitInfo.exercises.length ? splitInfo.exercises : getDefaultSuggestions(6);
+      const custom = customExercises.map((ex) => ex.name);
+      const seen = new Set();
+      names = [...favoritesList, ...custom, ...suggested, ...recent].filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
     }
-    exModalBody.innerHTML = parts.join("");
+
+    const emptyHtml = `<div class="ex-modal-empty">${RepCheckI18n.t("workouts.emptyScope")}</div>`;
+    exModalBody.innerHTML = exScopeSegHtml() + `
+      <div class="ex-modal-section">
+        ${names.length ? names.map(exerciseRowHtml).join("") : emptyHtml}
+        ${createButtonHtml()}
+      </div>
+    `;
+    wireScopeTabs();
     wireCreateButton();
     wireExerciseRows();
+  }
+
+  function wireScopeTabs() {
+    exModalBody.querySelectorAll("[data-ex-scope]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        exModalScope = btn.dataset.exScope;
+        renderExerciseModalDefault();
+      });
+    });
   }
 
   function renderExerciseModalSearch(query) {
@@ -2161,8 +2203,10 @@
     } else {
       // Nothing matched -- offer to create exactly what they typed.
       exModalBody.innerHTML = `
-        <div class="ex-modal-empty">${RepCheckI18n.t("workouts.search.noMatch", { query })}</div>
-        <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: query.trim() })}</span></button>
+        <div class="ex-modal-section">
+          <div class="ex-modal-empty">${RepCheckI18n.t("workouts.search.noMatch", { query })}</div>
+          <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: query.trim() })}</span></button>
+        </div>
       `;
       wireCreateButton(query.trim());
     }
@@ -2281,6 +2325,7 @@
 
   async function openExerciseModal() {
     exModalSearch.value = "";
+    exModalScope = "all";
     renderExerciseModalDefault();
     if (window.openBottomSheet) window.openBottomSheet(exModalOverlay, ".log-sheet");
     else exModalOverlay.classList.add("is-open");
