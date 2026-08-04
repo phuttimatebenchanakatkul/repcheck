@@ -448,8 +448,8 @@
       const value = isConsumedMode ? eatenKcal : Math.max(0, goalKcal - eatenKcal);
       const unitLabel = isConsumedMode ? "kcal" : t("home.food.kcalLeft");
       return `
-        <div class="hm-macro-big-value">${value.toLocaleString()}<span class="hm-macro-big-unit">${unitLabel}</span></div>
-        <div class="hm-macro-big-caption">${t("home.food.ofGoal", { n: goalKcal.toLocaleString() })}</div>
+        <div class="hm-macro-big-value">${value.toLocaleString(RepCheckI18n.locale())}<span class="hm-macro-big-unit">${unitLabel}</span></div>
+        <div class="hm-macro-big-caption">${t("home.food.ofGoal", { n: goalKcal.toLocaleString(RepCheckI18n.locale()) })}</div>
       `;
     }
 
@@ -599,7 +599,7 @@
       const dateEl = document.getElementById("hm-hero-date");
       if (!dateEl) return; // logged-out visitors have no hero
 
-      const locale = RepCheckI18n.getLang() === "th" ? "th-TH" : undefined;
+      const locale = RepCheckI18n.locale();
       dateEl.textContent = new Date().toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" });
 
       const streak = computeStreak();
@@ -688,9 +688,9 @@
       const isOver = left < 0;
       const pct = goalKcal > 0 ? Math.max(0, Math.min(100, (eatenKcal / goalKcal) * 100)) : 0;
       mount.innerHTML = `
-        <div class="hm-glance-value ${isOver ? "is-over" : ""}">${Math.abs(left).toLocaleString()}<span class="hm-glance-unit">${t(isOver ? "home.food.kcalOver" : "home.food.kcalLeft")}</span></div>
+        <div class="hm-glance-value ${isOver ? "is-over" : ""}">${Math.abs(left).toLocaleString(RepCheckI18n.locale())}<span class="hm-glance-unit">${t(isOver ? "home.food.kcalOver" : "home.food.kcalLeft")}</span></div>
         <div class="hm-food-bar"><div class="hm-food-bar-fill ${isOver ? "is-over" : ""}" style="width:${pct}%;"></div></div>
-        <div class="hm-glance-sub">${t("home.food.ofGoal", { n: goalKcal.toLocaleString() })}</div>
+        <div class="hm-glance-sub">${t("home.food.ofGoal", { n: goalKcal.toLocaleString(RepCheckI18n.locale()) })}</div>
       `;
     }
 
@@ -736,7 +736,7 @@
       const latestIso = latest.date;
       const dateLabel = latestIso === toIsoDate(new Date())
         ? t("home.today")
-        : new Date(latestIso + "T00:00:00").toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { month: "short", day: "numeric" });
+        : new Date(latestIso + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
       mount.innerHTML = `
         <div class="hm-glance-value">${RepCheckUnits.kgToDisplay(latest.kg)}<span class="hm-glance-unit">${RepCheckUnits.weightUnitLabel()}</span>${deltaHtml}</div>
         ${buildSparkline(entries.slice(-10).map((e) => e.kg))}
@@ -761,7 +761,7 @@
       const mostRecent = sorted[0];
       const best = hyroxHistory.slice().sort((a, b) => a.totalSeconds - b.totalSeconds)[0];
       const isPb = mostRecent.id === best.id;
-      const dateLabel = new Date(mostRecent.date).toLocaleDateString(RepCheckI18n.getLang() === "th" ? "th-TH" : undefined, { month: "short", day: "numeric" });
+      const dateLabel = new Date(mostRecent.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
       mount.innerHTML = `
         <div class="hm-glance-value">${formatDuration(mostRecent.totalSeconds)}</div>
         ${isPb

@@ -15,6 +15,12 @@
   --blue-bg: #eaf0fd;
   --purple: #7c4fe0;
   --purple-bg: #f3edfd;
+  /* Sixth accent. Challenges used to share amber with "Log a workout",
+     which broke colour-as-identifier in the quick-actions grid. Magenta
+     sits in the one wide gap left in the palette (between purple ~262deg
+     and red ~4deg), so it can't be mistaken for any existing accent. */
+  --pink: #c0398c;
+  --pink-bg: #fbeaf4;
   /* The near-black "hero" surface (Today's plan card, dark accents) --
      deliberately NOT pure black so it still reads as a card, and given
      its own tokens so the dark theme can flip it to a lighter contrast
@@ -45,6 +51,7 @@
   --amber-bg: #3a2f14;
   --blue-bg: #14213f;
   --purple-bg: #2a1f45;
+  --pink-bg: #3a1830;
   --dark-card: #232329;
   --dark-card-soft: #333440;
   --dark-card-text: #f5f5f7;
@@ -910,7 +917,11 @@ input[type="file"], select {
      sized to its content's max-content width instead of the screen, which
      is what let a wide inner element push main past the viewport edge and
      trigger the iOS zoom-out. */
-  .app { flex-direction: column; align-items: stretch; padding: 12px; gap: 12px; padding-bottom: 12px; }
+  /* padding-bottom clears the floating tab bar: it sits at bottom:12px and
+     the "+" bubble is 58px tall, so 12px of padding left the last ~58px of
+     every scrollable page stranded behind it (the Home macros card was
+     visibly cut off). 12 + 58 + 12 of breathing room. */
+  .app { flex-direction: column; align-items: stretch; padding: 12px; gap: 12px; padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
   /* Primary nav now lives in the fixed bottom tab bar instead -- the
      sidebar (brand logo + nav + account block) is the old mobile nav and
      is fully replaced by it. Previously only .nav/.account-block were
@@ -1120,11 +1131,15 @@ input[type="file"], select {
   .qa-links .mt-sheet-action { border-radius: 12px; }
   .qa-links .mt-sheet-action:active { background: var(--sidebar-active); }
 
-  .qa-green .qa-tile-icon { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 6px 14px rgba(31, 169, 113, 0.42); }
-  .qa-blue .qa-tile-icon { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 6px 14px rgba(47, 102, 232, 0.42); }
-  .qa-amber .qa-tile-icon { background: linear-gradient(135deg, #e8a33f, var(--amber)); box-shadow: 0 6px 14px rgba(185, 131, 42, 0.42); }
-  .qa-red .qa-tile-icon { background: linear-gradient(135deg, #e2685f, var(--red)); box-shadow: 0 6px 14px rgba(209, 69, 59, 0.42); }
-  .qa-purple .qa-tile-icon { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 6px 14px rgba(124, 79, 224, 0.42); }
+  /* Flat, single-token fills -- no gradient ramp and no colored drop
+     shadow. The glow read as decoration rather than meaning, and on the
+     dark theme the shadow bled a halo onto the tile behind each icon. */
+  .qa-green .qa-tile-icon { background: var(--green); }
+  .qa-blue .qa-tile-icon { background: var(--blue); }
+  .qa-amber .qa-tile-icon { background: var(--amber); }
+  .qa-red .qa-tile-icon { background: var(--red); }
+  .qa-purple .qa-tile-icon { background: var(--purple); }
+  .qa-pink .qa-tile-icon { background: var(--pink); }
 
   .qa-cancel {
     width: 100%; margin-top: 12px; padding: 13px;
@@ -1700,6 +1715,27 @@ html.an-result .mobile-tabbar { display: none; }
   font-size: 14.5px; font-weight: 600; line-height: 1.5;
   color: var(--text); margin-top: 15px;
 }
+/* Rep count. Gemini counts the reps on every analysis, but the number used
+   to reach the user only buried inside the Movement Summary prose -- so the
+   one figure a lifter tracks set to set was the one thing they had to read
+   a paragraph to find. A chip directly under the grade gives it a home
+   without competing with the 56px score: inline-flex so it hugs its own
+   content rather than stretching to the sheet width, and baseline-aligned
+   so the big number and its label sit on one line. */
+.an-reps {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  margin-top: 13px; padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--purple-bg); color: var(--purple);
+}
+.an-reps-value {
+  font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+}
+.an-reps-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
 .an-note {
   margin-top: 14px; padding: 11px 14px; border-radius: var(--radius-md);
   background: var(--blue-bg); color: var(--blue);
@@ -1930,6 +1966,11 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
     background:
       radial-gradient(120% 90% at 50% 0%, #2b2f3a 0%, #1b1e26 55%, #14161c 100%);
     min-height: 100%;
+    /* The device <body> below is position:absolute, so it still contributes
+       its pre-transform box to the window's scroll area -- leaving ~700px of
+       empty gradient you could scroll into under the phone. .app is the real
+       scroller here (see below), so the window never needs to scroll. */
+    overflow: hidden;
   }
   :root[data-theme="dark"] html,
   html[data-theme="dark"] {

@@ -280,6 +280,7 @@
       "workouts.swipeDelete": "Delete",
       "workouts.deleteConfirm.title": "Delete this exercise?",
       "workouts.suggestedTitle": "Suggested",
+      "workouts.emptyScope": "Nothing here yet. Search to find an exercise.",
       "workouts.create.button": "Create a custom exercise",
       "workouts.create.buttonNamed": "Create “{name}”",
       "workouts.create.nameLabel": "Name",
@@ -402,6 +403,7 @@
       "nutrition.favorites": "Favorites",
       "nutrition.topPicksForHour": "Top Picks at {hour}",
       "nutrition.recent": "Recent",
+      "nutrition.scope.all": "All",
       "nutrition.noMatch": "No foods match \"{query}\".",
       "nutrition.searchToAdd": "Search for a food to add it.",
       "nutrition.manualMacro.title": "Can't find it?",
@@ -1066,6 +1068,7 @@
       "workouts.swipeDelete": "ลบ",
       "workouts.deleteConfirm.title": "ลบท่านี้ไหม?",
       "workouts.suggestedTitle": "แนะนำ",
+      "workouts.emptyScope": "ยังไม่มีรายการ ค้นหาเพื่อเพิ่มท่าออกกำลังกาย",
       "workouts.create.button": "สร้างท่าของคุณเอง",
       "workouts.create.buttonNamed": "สร้าง “{name}”",
       "workouts.create.nameLabel": "ชื่อ",
@@ -1184,6 +1187,7 @@
       "nutrition.manualMacro.sub": "กรอกแคลอรี่และมาโครด้วยตัวเอง",
       "nutrition.manualMacro.button": "เพิ่มด่วน",
       "nutrition.recent": "ล่าสุด",
+      "nutrition.scope.all": "ทั้งหมด",
       "nutrition.noMatch": "ไม่พบอาหารที่ตรงกับ \"{query}\"",
 
       "settings.loginTitle": "เข้าสู่ระบบเพื่อจัดการการตั้งค่า",
@@ -1596,6 +1600,14 @@
     return localStorage.getItem(STORAGE_KEY) || DEFAULT_LANG;
   }
 
+  // BCP-47 tag for Intl / toLocaleDateString / toLocaleString.
+  // Always pass this rather than `undefined` or `[]`: both of those mean
+  // "use the OS locale", so a Thai-locale device rendered Thai dates and
+  // number formats even with the app set to English.
+  function locale() {
+    return getLang() === "th" ? "th-TH" : "en-US";
+  }
+
   function applyLangAttribute() {
     // Drives the Thai font swap in style.css (:root[data-lang="th"]).
     document.documentElement.setAttribute("data-lang", getLang());
@@ -1664,7 +1676,7 @@
     });
   }
 
-  global.RepCheckI18n = { getLang, setLang, t, applyI18n, initLanguageToggle };
+  global.RepCheckI18n = { getLang, locale, setLang, t, applyI18n, initLanguageToggle };
 
   document.addEventListener("DOMContentLoaded", () => {
     applyLangAttribute();
