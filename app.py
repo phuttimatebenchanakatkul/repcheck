@@ -23,6 +23,7 @@ Requires:
     these, just with narrower product coverage.
 """
 
+import html
 import mimetypes
 import os
 import re
@@ -167,11 +168,24 @@ SECTION_ICONS = {
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
-# Needed for the coach chat's per-session message cap and for login
-# sessions (Flask's session cookie is signed with this). Local
-# single-machine app, so a fixed fallback is fine — set FLASK_SECRET_KEY
-# in .env to override.
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "repcheck-local-dev-secret")
+# Signs the login session cookie (and the coach chat's per-session message
+# cap). Identity comes straight back out of that cookie -- auth.py's
+# current_user() trusts session["user_id"], and the admin gate keys off
+# whichever user that resolves to -- so anyone holding this value can mint a
+# cookie for any account, owner's included. This repo is public, so there is
+# deliberately no in-code fallback: a default here would be a published
+# master key. Refuse to boot instead of signing with something guessable.
+_secret_key = os.environ.get("FLASK_SECRET_KEY")
+if not _secret_key:
+    raise RuntimeError(
+        "FLASK_SECRET_KEY is not set. It signs session cookies, so a known or "
+        "guessable value lets anyone forge a login for any account.\n"
+        "Generate one with:\n"
+        '  python -c "import secrets; print(secrets.token_hex(32))"\n'
+        "then set it in .env for local dev, and in the Render dashboard "
+        "(Environment tab) for production."
+    )
+app.secret_key = _secret_key
 
 # Stay signed in "forever" -- until an explicit logout. Login already marks
 # the session permanent (auth.py's _login_session), and Flask's default
@@ -673,8 +687,16 @@ def split_feedback_sections(feedback_markdown, overall_score=None):
         emphasis = section_emphasis(css_class, overall_score)
         if emphasis == "hidden":
             continue
-        html = markdown_lib.markdown(body.strip())
-        summary_html, detail_html = split_summary_and_detail(html)
+        # Gemini's text is rendered with | safe in result.html and via raw
+        # innerHTML in index.html's AJAX view -- Markdown (3.0+, no safe_mode
+        # left in the library) passes any literal HTML in the source straight
+        # through unescaped. Escaping before conversion neutralizes that
+        # without touching the markdown syntax itself: **bold**/"- bullet"
+        # use none of the five characters html.escape() rewrites, so **/- /
+        # newlines still parse into <strong>/<li> normally -- only literal
+        # <, >, &, ", ' already present in Gemini's own text get inerted.
+        rendered_html = markdown_lib.markdown(html.escape(body.strip()))
+        summary_html, detail_html = split_summary_and_detail(rendered_html)
         sections.append({
             "heading": heading.strip(),
             "css_class": css_class,
