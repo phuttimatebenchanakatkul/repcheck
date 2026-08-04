@@ -3,10 +3,15 @@ __pycache__/
 *.pyc
 uploads/
 progress_photos/
-repcheck.db
+# Glob, not the bare filename: this repo is public, and the plain pattern
+# left backups (repcheck.db.bak-*) and SQLite's own sidecars (-wal, -shm,
+# -journal) untracked-but-not-ignored, one `git add -A` away from publishing
+# every user's email, password hash, and health data.
+repcheck.db*
 *.mp4
 *.mov
 *.MOV
 .vscode/
 .idea/
 .claude/
+.gstack/

@@ -23,6 +23,7 @@ Requires:
     these, just with narrower product coverage.
 """
 
+import html
 import mimetypes
 import os
 import re
@@ -673,8 +674,16 @@ def split_feedback_sections(feedback_markdown, overall_score=None):
         emphasis = section_emphasis(css_class, overall_score)
         if emphasis == "hidden":
             continue
-        html = markdown_lib.markdown(body.strip())
-        summary_html, detail_html = split_summary_and_detail(html)
+        # Gemini's text is rendered with | safe in result.html and via raw
+        # innerHTML in index.html's AJAX view -- Markdown (3.0+, no safe_mode
+        # left in the library) passes any literal HTML in the source straight
+        # through unescaped. Escaping before conversion neutralizes that
+        # without touching the markdown syntax itself: **bold**/"- bullet"
+        # use none of the five characters html.escape() rewrites, so **/- /
+        # newlines still parse into <strong>/<li> normally -- only literal
+        # <, >, &, ", ' already present in Gemini's own text get inerted.
+        rendered_html = markdown_lib.markdown(html.escape(body.strip()))
+        summary_html, detail_html = split_summary_and_detail(rendered_html)
         sections.append({
             "heading": heading.strip(),
             "css_class": css_class,

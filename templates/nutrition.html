@@ -3051,12 +3051,25 @@
     }
   }
 
+  // result.food_name here comes from OpenFoodFacts (see fetchOffResults) --
+  // a public, community-editable database, not something RepCheck controls.
+  // offResultRowHtml is inserted via insertAdjacentHTML, so an unescaped
+  // product name is a live HTML/script sink for whatever text is in that
+  // listing. foodIconHtml()'s own alt="${name}" only ever fires for an
+  // exact match against the curated FOOD_IMAGES keys, which can't collide
+  // with attacker-chosen text, so only the visible name needs escaping here.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
   function offResultRowHtml(result, index) {
     return `
       <button type="button" class="nl-food-row" data-off-index="${index}">
         <span class="nl-food-row-icon">${foodIconHtml(result.food_name, "nl-food-photo-row")}</span>
         <span class="nl-food-row-body">
-          <span class="nl-food-row-name">${result.food_name}</span>
+          <span class="nl-food-row-name">${escapeHtml(result.food_name)}</span>
           ${macroLineFrom(result)}
         </span>
       </button>
