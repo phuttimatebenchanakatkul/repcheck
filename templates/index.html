@@ -960,6 +960,16 @@
       return `<div class="an-verdict an-verdict-${cls}">${t(key)}</div>`;
     })();
 
+    // Mirrors result.html's chip, including hiding a zero count: a missing
+    // REPS line has nothing honest to show, and an explicit 0 (observed in
+    // practice) reads as "we watched and you did nothing" next to a grade.
+    const repsHtml = !data.reps
+      ? ""
+      : `<div class="an-reps">
+          <span class="an-reps-value">${data.reps}</span>
+          <span class="an-reps-label">${t("analyze.repsCounted")}</span>
+        </div>`;
+
     let favorNoteHtml = "";
     if (favored === "balanced") {
       favorNoteHtml = `<div class="an-note">${t("analyze.balancedNote")}</div>`;
@@ -1023,6 +1033,7 @@
           <div class="an-grabber"></div>
           <div class="an-score ${scoreClass(overall)}">${overall ?? "—"}</div>
           <div class="an-score-sub">${t("analyze.overallFormTechnique")}</div>
+          ${repsHtml}
           ${verdictHtml}
           ${favorNoteHtml}
           ${tutorialBtn}

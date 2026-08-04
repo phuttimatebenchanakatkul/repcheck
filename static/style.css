@@ -1715,6 +1715,27 @@ html.an-result .mobile-tabbar { display: none; }
   font-size: 14.5px; font-weight: 600; line-height: 1.5;
   color: var(--text); margin-top: 15px;
 }
+/* Rep count. Gemini counts the reps on every analysis, but the number used
+   to reach the user only buried inside the Movement Summary prose -- so the
+   one figure a lifter tracks set to set was the one thing they had to read
+   a paragraph to find. A chip directly under the grade gives it a home
+   without competing with the 56px score: inline-flex so it hugs its own
+   content rather than stretching to the sheet width, and baseline-aligned
+   so the big number and its label sit on one line. */
+.an-reps {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  margin-top: 13px; padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--purple-bg); color: var(--purple);
+}
+.an-reps-value {
+  font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+}
+.an-reps-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
 .an-note {
   margin-top: 14px; padding: 11px 14px; border-radius: var(--radius-md);
   background: var(--blue-bg); color: var(--blue);
