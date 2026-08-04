@@ -1930,6 +1930,11 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
     background:
       radial-gradient(120% 90% at 50% 0%, #2b2f3a 0%, #1b1e26 55%, #14161c 100%);
     min-height: 100%;
+    /* The device <body> below is position:absolute, so it still contributes
+       its pre-transform box to the window's scroll area -- leaving ~700px of
+       empty gradient you could scroll into under the phone. .app is the real
+       scroller here (see below), so the window never needs to scroll. */
+    overflow: hidden;
   }
   :root[data-theme="dark"] html,
   html[data-theme="dark"] {
