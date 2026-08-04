@@ -181,10 +181,10 @@
     function sync() {
       // Switch a little before the stage fully clears, so the title never
       // spends a frame as white-on-paper.
-      bar.classList.toggle("is-stuck", window.scrollY > stage.offsetHeight - 64);
+      bar.classList.toggle("is-stuck", RepCheck.scrollTop() > stage.offsetHeight - 64);
     }
     sync();
-    window.addEventListener("scroll", sync, { passive: true });
+    RepCheck.onScroll(sync);
     window.addEventListener("resize", sync);
   })();
 

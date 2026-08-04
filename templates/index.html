@@ -714,7 +714,7 @@
       if (!data.ok) return;
       uploadView.style.display = "none";
       showResult(data);
-      window.scrollTo({ top: 0 });
+      RepCheck.scrollToTop();
     } catch (err) {
       // leave the upload view as-is
     }
@@ -1108,7 +1108,7 @@
     // taken off again in resetToUpload. A page-level rule would either
     // strand it on the upload view or never apply at all.
     document.documentElement.classList.add("an-result");
-    window.scrollTo(0, 0);
+    RepCheck.scrollToTop();
     document.getElementById("reset-btn").addEventListener("click", resetToUpload);
     const backBtn = document.getElementById("an-back");
     if (backBtn) backBtn.addEventListener("click", resetToUpload);
@@ -1119,14 +1119,14 @@
     const stage = resultView.querySelector(".an-stage");
     if (bar && stage) {
       const syncBar = () => {
-        bar.classList.toggle("is-stuck", window.scrollY > stage.offsetHeight - 64);
+        bar.classList.toggle("is-stuck", RepCheck.scrollTop() > stage.offsetHeight - 64);
       };
       syncBar();
-      window.addEventListener("scroll", syncBar, { passive: true });
+      const offScroll = RepCheck.onScroll(syncBar);
       window.addEventListener("resize", syncBar);
       // resetToUpload() wipes #result-view, so drop the listeners with it.
       window.__anBarCleanup = () => {
-        window.removeEventListener("scroll", syncBar);
+        offScroll();
         window.removeEventListener("resize", syncBar);
       };
     }
