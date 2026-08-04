@@ -281,19 +281,8 @@
         // viewport via the VisualViewport API and feeding it back as CSS
         // vars lets sheet overlays size themselves against what's actually
         // on screen instead of the full layout viewport.
-        function updatePcViewportVars() {
-          const vv = window.visualViewport;
-          if (!vv) return;
-          document.documentElement.style.setProperty("--pc-vvh", `${vv.height}px`);
-          document.documentElement.style.setProperty("--pc-vvt", `${vv.offsetTop}px`);
-        }
-        if (window.visualViewport) {
-          updatePcViewportVars();
-          window.visualViewport.addEventListener("resize", updatePcViewportVars);
-          window.visualViewport.addEventListener("scroll", updatePcViewportVars);
-        }
-
-        // ---- Scroller shim ----
+        // ---- Scroller shim (framed() only -- the rest follows below,
+        // after updatePcViewportVars, which also needs framed()) ----
         // On a phone the window scrolls. On a wide screen the app is drawn
         // inside a device frame (see "Device frame" in style.css): <body>
         // is a fixed-size box and `.app` is what actually scrolls, so
@@ -303,6 +292,38 @@
         RepCheck.framed = function () {
           return window.matchMedia("(min-width: 721px)").matches;
         };
+
+        function updatePcViewportVars() {
+          // Inside the device frame a sheet's `position: fixed` resolves
+          // against <body> -- the phone -- not the browser window, because
+          // <body> carries the framing transform. window.visualViewport is
+          // still the whole desktop window there, so feeding its raw
+          // numbers in put --pc-vvh well past the frame's actual height and
+          // let the sheet's bottom portion render outside the frame's
+          // clipped edge (only the top of it visible). Measure the frame
+          // itself when framed instead.
+          if (RepCheck.framed()) {
+            const rect = document.body.getBoundingClientRect();
+            document.documentElement.style.setProperty("--pc-vvh", `${rect.height}px`);
+            document.documentElement.style.setProperty("--pc-vvt", "0px");
+            return;
+          }
+          const vv = window.visualViewport;
+          if (!vv) return;
+          document.documentElement.style.setProperty("--pc-vvh", `${vv.height}px`);
+          document.documentElement.style.setProperty("--pc-vvt", `${vv.offsetTop}px`);
+        }
+        updatePcViewportVars();
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener("resize", updatePcViewportVars);
+          window.visualViewport.addEventListener("scroll", updatePcViewportVars);
+        }
+        // Covers the framed case: the frame's height can change (a shorter
+        // browser window shrinks --app-h, see style.css) without
+        // visualViewport firing, since its height tracks the window
+        // 1:1 outside of an on-screen keyboard.
+        window.addEventListener("resize", updatePcViewportVars);
+
         // null means "the window is the scroller".
         RepCheck.scroller = function () {
           if (!RepCheck.framed()) return null;
