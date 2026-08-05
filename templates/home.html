@@ -62,7 +62,6 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
     </span>
   </div>
-  <div class="hm-macro-card-sub" id="hm-macro-sub" data-i18n="home.macros.todaysIntake">Today's intake</div>
   <div id="hm-macro-big"></div>
   <div id="hm-macro-bars"></div>
 </a>
@@ -223,37 +222,47 @@
     border-radius: 999px; padding: 6px 11px;
     font-size: 11.5px; font-weight: 800;
   }
-  .hm-macro-card-sub { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-top: 14px; }
-  .hm-macro-big-value { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; }
-  .hm-macro-big-value .hm-macro-big-unit { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin-left: 4px; letter-spacing: 0; }
-  .hm-macro-big-caption { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+  /* ONE progress bar, not four. The old chart drew a track per metric, so
+     reading the card meant parsing four bars plus a 0%/50%/100% axis -- and
+     until food was logged they were four identical grey rectangles under a
+     hero "0", which is what the whole card looked like for the first hours
+     of every day. The axis printed each value a second time, since every
+     bar already carried its own number on the right. Calories is the only
+     metric that earns a bar here; protein, fat and carbs read faster as
+     plain text with a colour dot. The card-level sub-heading went too --
+     the caption under the number already says what the number is. */
+  .hm-macro-big-value { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; margin-top: 14px; }
+  .hm-macro-big-caption { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-top: 3px; }
 
-  /* Bar chart: one row per metric, each row a rectangular track with a
-     single solid rectangle fill sitting inside it (sharp/minimally
-     rounded corners, not a rounded pill) -- matches the reference
-     mockup's per-row/axis-underneath layout. */
-  .hm-macro-bar-rows { display: flex; flex-direction: column; gap: 11px; margin-top: 18px; }
-  .hm-macro-bar-row { display: flex; align-items: center; gap: 10px; }
-  .hm-macro-bar-label { width: 52px; flex-shrink: 0; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
-  .hm-macro-bar-track { flex: 1; height: 18px; border-radius: 4px; background: var(--bg); overflow: hidden; }
-  /* Single value per row, driven by the Consumed/Remaining toggle above. */
-  .hm-macro-bar-value { width: 66px; flex-shrink: 0; text-align: right; line-height: 1.25; font-size: 12px; font-weight: 800; color: var(--text); }
-  .hm-macro-bar-fill { display: block; height: 100%; transition: width 0.4s ease; }
-
-  .hm-macro-axis { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
-  .hm-macro-axis-spacer { width: 52px; flex-shrink: 0; }
-  .hm-macro-axis-value-spacer { width: 66px; flex-shrink: 0; }
-  .hm-macro-axis-ticks {
-    flex: 1; display: flex; justify-content: space-between;
-    font-size: 10px; font-weight: 600; color: var(--text-secondary);
-    border-top: 1px solid var(--border); padding-top: 6px;
+  /* A slight curve, not a full pill -- 2px keeps the same proportion of
+     radius-to-height as the Weekly Stats macro tracks (4px on 18px), rather
+     than the previous 4-5px which is >= half the 8px height and clamps to
+     a full semicircle regardless of the exact number used. */
+  .hm-macro-track {
+    height: 8px; border-radius: 2px; background: var(--bg);
+    overflow: hidden; margin-top: 13px;
   }
+  .hm-macro-track-fill { display: block; height: 100%; border-radius: 2px; transition: width 0.4s ease; }
 
-  /* .pc-week-toggle/.pc-week-toggle-btn come from coaching.css (same
-     Consumed/Remaining switch component as the full week chart) --
-     just needs spacing above it here, since that component only
-     defines margin-bottom for when it sits above other content. */
-  .hm-macro-toggle { margin-top: 14px; margin-bottom: 0; }
+  /* Three equal columns, not stacked rows: protein/fat/carbs are peers, and
+     side by side they read as one glance instead of a list to work down. */
+  .hm-macro-grid { display: flex; gap: 10px; margin-top: 15px; }
+  .hm-macro-cell { flex: 1; min-width: 0; }
+  .hm-macro-cell-key {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-secondary);
+  }
+  /* The dot is all that survives of each macro's bar -- enough to keep the
+     blue/red/amber/green coding consistent with the week chart, without a
+     fourth and fifth track competing with the calorie bar. */
+  .hm-macro-cell-dot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+  .hm-macro-cell-value { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; margin-top: 3px; }
+  /* Goal inline with the value, so both numbers are visible at once. This
+     is what retired the Consumed/Remaining toggle: it existed to swap which
+     single number you saw, and "82/165g" is strictly more than either mode
+     gave -- while the Food Today tile below already covers kcal remaining. */
+  .hm-macro-cell-goal { font-size: 10.5px; font-weight: 700; color: var(--text-secondary); }
 
   .hm-glance {
     display: flex; flex-direction: column;
@@ -412,44 +421,27 @@
     }
 
     // ---------- Calories & macros summary card ----------
-    // Today's totals as 4 color-coded bars, each filled relative to its
-    // OWN goal (calories vs. gram targets are different units/magnitudes,
-    // so there's no shared numeric axis to plot them against). Colors
-    // reuse coaching.css's .pc-week-bar-* classes (blue/red/amber/green)
-    // so this always agrees with the full week chart on Nutrition. Each
-    // bar is a rectangular track with a single solid rectangle fill
-    // inside it (sharp/minimally-rounded corners, not a rounded pill).
-    // A Consumed/Remaining toggle (same .pc-week-toggle-btn component
-    // and behavior as the old week chart) swaps which value the fill
-    // rectangle represents.
-    let macroCardMode = "consumed";
-
-    function macroCardFillPct(consumedPct) {
-      return macroCardMode === "consumed" ? consumedPct : Math.max(0, 100 - consumedPct);
-    }
-
-    // One number per row, driven entirely by the toggle -- consumed mode
-    // shows the raw amount, remaining mode shows what's left, and nothing
-    // else. (Previously both were always shown together, so tapping
-    // Remaining visibly changed nothing; then a secondary caption was
-    // added but that still showed the consumed amount underneath even in
-    // remaining mode, which is exactly what was asked to go away.)
-    function macroCardValueText(r, isConsumedMode) {
-      const unitSuffix = r.unit === "g" ? "g" : "";
-      if (isConsumedMode) return `${r.value}${unitSuffix}`;
-      return t("home.macros.left", { n: `${Math.max(0, Math.round(r.goal - r.value))}${unitSuffix}` });
-    }
-
-    // The headline number follows the same toggle -- consumed mode shows
-    // today's intake so far (as before); remaining mode shows what's
-    // left of the goal, same "kcal left" convention as the Food Today
-    // tile, instead of always showing intake regardless of mode.
-    function macroCardBigHtml(eatenKcal, goalKcal, isConsumedMode) {
-      const value = isConsumedMode ? eatenKcal : Math.max(0, goalKcal - eatenKcal);
-      const unitLabel = isConsumedMode ? "kcal" : t("home.food.kcalLeft");
+    // One number, one bar, three plain macro readouts. This replaced a
+    // four-bar chart with a 0%/50%/100% axis and a Consumed/Remaining
+    // toggle -- roughly five things to parse for a card whose job is a
+    // two-second glance, and which showed four identical grey tracks
+    // under a hero "0" for the first hours of every day.
+    //
+    // Only calories keeps a bar. Protein/fat/carbs are text with a colour
+    // dot: still the same blue/red/amber/green coding as the week chart
+    // (coaching.css's .pc-week-bar-*), just not a track each.
+    //
+    // The toggle is gone rather than moved. It swapped which SINGLE number
+    // each row showed (consumed or remaining); printing "82/165g" shows
+    // both at once, so there is nothing left for it to switch. Remaining
+    // calories are still one glance away in the Food Today tile directly
+    // below, which is why the headline here stays on intake -- the two
+    // cards complement rather than restate each other.
+    function macroCardBigHtml(eatenKcal, goalKcal) {
+      const locale = RepCheckI18n.locale();
       return `
-        <div class="hm-macro-big-value">${value.toLocaleString(RepCheckI18n.locale())}<span class="hm-macro-big-unit">${unitLabel}</span></div>
-        <div class="hm-macro-big-caption">${t("home.food.ofGoal", { n: goalKcal.toLocaleString(RepCheckI18n.locale()) })}</div>
+        <div class="hm-macro-big-value">${eatenKcal.toLocaleString(locale)}</div>
+        <div class="hm-macro-big-caption">${t("home.food.ofGoal", { n: goalKcal.toLocaleString(locale) })}</div>
       `;
     }
 
@@ -469,44 +461,37 @@
       };
     }
 
+    function macroPct(value, goal) {
+      if (goal > 0) return Math.max(0, Math.min(100, (value / goal) * 100));
+      return value > 0 ? 100 : 0;
+    }
+
     function renderMacroCard() {
       const bigMount = document.getElementById("hm-macro-big");
       const barsMount = document.getElementById("hm-macro-bars");
       if (!bigMount || !barsMount) return;
 
       const { eatenKcal, goalKcal, rows } = macroCardRows();
-      const isConsumedMode = macroCardMode === "consumed";
+      bigMount.innerHTML = macroCardBigHtml(eatenKcal, goalKcal);
 
-      const subEl = document.getElementById("hm-macro-sub");
-      if (subEl) subEl.textContent = t(isConsumedMode ? "home.macros.todaysIntake" : "home.macros.remainingToday");
+      // rows[0] is calories -- it gets the bar; the rest become the grid.
+      const calories = rows[0];
+      const macros = rows.slice(1);
 
-      bigMount.innerHTML = macroCardBigHtml(eatenKcal, goalKcal, isConsumedMode);
-
-      const barRowsHtml = rows.map((r) => {
-        const consumedPct = r.goal > 0 ? Math.max(0, Math.min(100, (r.value / r.goal) * 100)) : (r.value > 0 ? 100 : 0);
-        const fillPct = macroCardFillPct(consumedPct);
-        return `
-          <div class="hm-macro-bar-row">
-            <span class="hm-macro-bar-label">${r.label}</span>
-            <span class="hm-macro-bar-track">
-              <span class="hm-macro-bar-fill ${r.cls}" data-metric="${r.key}" style="width:${fillPct}%;"></span>
-            </span>
-            <span class="hm-macro-bar-value" data-metric-value="${r.key}">${macroCardValueText(r, isConsumedMode)}</span>
-          </div>
-        `;
-      }).join("");
+      const cellsHtml = macros.map((r) => `
+        <div class="hm-macro-cell">
+          <span class="hm-macro-cell-key">
+            <span class="hm-macro-cell-dot ${r.cls}"></span>${r.label}
+          </span>
+          <div class="hm-macro-cell-value" data-metric-value="${r.key}">${r.value}<span class="hm-macro-cell-goal">/${r.goal}g</span></div>
+        </div>
+      `).join("");
 
       barsMount.innerHTML = `
-        <div class="hm-macro-bar-rows">${barRowsHtml}</div>
-        <div class="hm-macro-axis">
-          <span class="hm-macro-axis-spacer"></span>
-          <span class="hm-macro-axis-ticks"><span>0%</span><span>50%</span><span>100%</span></span>
-          <span class="hm-macro-axis-value-spacer"></span>
+        <div class="hm-macro-track">
+          <span class="hm-macro-track-fill ${calories.cls}" data-metric="calories" style="width:${macroPct(calories.value, calories.goal)}%;"></span>
         </div>
-        <div class="pc-week-toggle hm-macro-toggle">
-          <button type="button" class="pc-week-toggle-btn ${isConsumedMode ? "is-active" : ""}" data-macro-mode="consumed">${t("coaching.week.consumed")}</button>
-          <button type="button" class="pc-week-toggle-btn ${!isConsumedMode ? "is-active" : ""}" data-macro-mode="remaining">${t("coaching.week.remaining")}</button>
-        </div>
+        <div class="hm-macro-grid">${cellsHtml}</div>
       `;
     }
 
@@ -518,38 +503,20 @@
     function updateMacroCard() {
       const barsMount = document.getElementById("hm-macro-bars");
       const bigMount = document.getElementById("hm-macro-big");
-      if (!barsMount || !barsMount.querySelector(".hm-macro-bar-rows")) {
+      if (!barsMount || !barsMount.querySelector(".hm-macro-track")) {
         renderMacroCard();
         return;
       }
       const { eatenKcal, goalKcal, rows } = macroCardRows();
-      const isConsumedMode = macroCardMode === "consumed";
-      const subEl = document.getElementById("hm-macro-sub");
-      if (subEl) subEl.textContent = t(isConsumedMode ? "home.macros.todaysIntake" : "home.macros.remainingToday");
-      if (bigMount) bigMount.innerHTML = macroCardBigHtml(eatenKcal, goalKcal, isConsumedMode);
-      rows.forEach((r) => {
-        const consumedPct = r.goal > 0 ? Math.max(0, Math.min(100, (r.value / r.goal) * 100)) : (r.value > 0 ? 100 : 0);
-        const fillEl = barsMount.querySelector(`.hm-macro-bar-fill[data-metric="${r.key}"]`);
-        if (fillEl) fillEl.style.width = `${macroCardFillPct(consumedPct)}%`;
-        const valueEl = barsMount.querySelector(`[data-metric-value="${r.key}"]`);
-        if (valueEl) valueEl.textContent = macroCardValueText(r, isConsumedMode);
-      });
-      barsMount.querySelectorAll(".pc-week-toggle-btn").forEach((btn) => {
-        btn.classList.toggle("is-active", btn.dataset.macroMode === macroCardMode);
-      });
-    }
+      if (bigMount) bigMount.innerHTML = macroCardBigHtml(eatenKcal, goalKcal);
 
-    const macroBarsMount = document.getElementById("hm-macro-bars");
-    if (macroBarsMount) {
-      macroBarsMount.addEventListener("click", (event) => {
-        const target = event.target.closest("[data-macro-mode]");
-        if (!target) return;
-        // The card is a link to Nutrition -- without this, tapping the
-        // toggle would also navigate away instead of just switching mode.
-        event.preventDefault();
-        event.stopPropagation();
-        macroCardMode = target.dataset.macroMode;
-        updateMacroCard();
+      const calories = rows[0];
+      const fillEl = barsMount.querySelector('.hm-macro-track-fill[data-metric="calories"]');
+      if (fillEl) fillEl.style.width = `${macroPct(calories.value, calories.goal)}%`;
+
+      rows.slice(1).forEach((r) => {
+        const valueEl = barsMount.querySelector(`[data-metric-value="${r.key}"]`);
+        if (valueEl) valueEl.innerHTML = `${r.value}<span class="hm-macro-cell-goal">/${r.goal}g</span>`;
       });
     }
 
