@@ -616,25 +616,44 @@
           // value -- after this block runs, GOALS_KEY already holds the NEW
           // targets, so this is the only copy of what they changed from.
           previousTargets = currentTargets;
-          const response = await fetch("/api/coaching/weekly-adjustment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              aspiration: this.profile.aspiration,
-              gender: this.profile.gender,
-              weight_kg: this.profile.weightKg,
-              body_fat_range_id: this.profile.bodyFatRangeId,
-              activity_level: this.profile.activityLevel,
-              protein_preference: this.profile.proteinPreference,
-              diet_preference: this.profile.dietPreference,
-              loss_rate_pct: this.profile.lossRatePct,
-              gain_rate_pct: this.profile.gainRatePct,
-              current_targets: currentTargets,
-              week_weight_entries: weekWeightEntries,
-              week_calorie_days: weekCalorieDays,
-              photo_ids: photoIds,
-            }),
-          });
+          // Bound the wait from this side too. checkin_analyzer.py caps its
+          // own Gemini call at CHECKIN_ANALYSIS_TIMEOUT_SECONDS (30s), which
+          // covers a slow/hung MODEL -- but not a request that never reaches
+          // the server or whose response never arrives (dropped mobile
+          // connection, backgrounded tab, a dev server blocked by another
+          // request). Without an abort here that fetch simply never settles,
+          // so `submitting` stays true and "Complete check-in" is disabled on
+          // "Loading..." forever, with no error and nothing to retry -- the
+          // exact "I can't complete my check-in" report this guards against.
+          // 45s = the server's 30s budget plus room for upload/latency, so a
+          // request the server IS still working on isn't cut off early.
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 45000);
+          let response;
+          try {
+            response = await fetch("/api/coaching/weekly-adjustment", {
+              method: "POST",
+              signal: controller.signal,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                aspiration: this.profile.aspiration,
+                gender: this.profile.gender,
+                weight_kg: this.profile.weightKg,
+                body_fat_range_id: this.profile.bodyFatRangeId,
+                activity_level: this.profile.activityLevel,
+                protein_preference: this.profile.proteinPreference,
+                diet_preference: this.profile.dietPreference,
+                loss_rate_pct: this.profile.lossRatePct,
+                gain_rate_pct: this.profile.gainRatePct,
+                current_targets: currentTargets,
+                week_weight_entries: weekWeightEntries,
+                week_calorie_days: weekCalorieDays,
+                photo_ids: photoIds,
+              }),
+            });
+          } finally {
+            clearTimeout(timeoutId);
+          }
           const data = await response.json();
           if (data.ok) {
             adjustment = data.adjustment;
