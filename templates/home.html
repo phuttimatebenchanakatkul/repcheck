@@ -234,11 +234,15 @@
   .hm-macro-big-value { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; margin-top: 14px; }
   .hm-macro-big-caption { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-top: 3px; }
 
+  /* Radius is exactly half the track's own height, the correct value for a
+     true pill shape (the old 5px on an 8px track happened to render the
+     same way, since a radius over 50% of a box's own size is clamped to a
+     perfect semicircle -- this makes that explicit rather than accidental). */
   .hm-macro-track {
-    height: 8px; border-radius: 5px; background: var(--bg);
+    height: 8px; border-radius: 4px; background: var(--bg);
     overflow: hidden; margin-top: 13px;
   }
-  .hm-macro-track-fill { display: block; height: 100%; border-radius: 5px; transition: width 0.4s ease; }
+  .hm-macro-track-fill { display: block; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
 
   /* Three equal columns, not stacked rows: protein/fat/carbs are peers, and
      side by side they read as one glance instead of a list to work down. */
