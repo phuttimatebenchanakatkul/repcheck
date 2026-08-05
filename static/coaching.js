@@ -437,6 +437,24 @@
     }
 
     openCheckin() {
+      // this.profile is otherwise only ever set once, at construction (see
+      // the constructor) or when the wizard is saved -- unlike weightLog/
+      // dayStatusMap/nutritionLog below, which this function already
+      // reloads fresh every time. account_sync.js's server hydration can
+      // update PROFILE_KEY in localStorage via nativeSetItem without this
+      // instance ever finding out (its normal page-reload refresh is
+      // deliberately SKIPPED while a modal -- including this very check-in
+      // sheet, or any other "*-overlay" element -- is open, so it can be
+      // deferred indefinitely for a tab that's been sitting open). Refresh
+      // BEFORE the days-remaining check below, not after, so a stale
+      // lastAdjustmentDate can't wrongly gate opening either. A tab open
+      // since before the profile's last real edit would otherwise submit
+      // whatever stale (or, for one open before any profile ever existed,
+      // entirely absent) snapshot it started with -- reachable on any
+      // profile field, surfacing as that field's specific server error
+      // ("Please choose a gender", etc.) instead of the generic one, since
+      // the request itself is well-formed and reaches the validator fine.
+      this.profile = loadJson(PROFILE_KEY, null);
       if (this.checkinDaysRemaining() > 0) return;
 
       const weightLog = loadWeightLog();
