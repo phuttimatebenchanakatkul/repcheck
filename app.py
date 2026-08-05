@@ -1782,19 +1782,35 @@ def _validate_coaching_profile(payload):
         except (TypeError, ValueError):
             return None, "Please choose a realistic height."
 
+    # An explicit null has to mean "not supplied", exactly like an absent
+    # key -- dict.get(key, default) only falls back when the key is MISSING,
+    # so a payload carrying "loss_rate_pct": null returned None and
+    # float(None) raised, failing the whole request. That is reachable in
+    # normal use, not a theoretical edge: the client stores whichever rate
+    # doesn't match the user's goal as null (see onboarding.js's
+    # `w.aspiration === "lose" ? w.lossRatePct : null`) and always sends
+    # both keys, so a profile that ever held null for the rate its current
+    # goal needs could never complete a check-in -- every attempt 400'd
+    # with a message about a rate the user was never asked to pick.
+    raw_loss_rate = payload.get("loss_rate_pct")
     loss_rate_pct = None
     if aspiration == "lose":
         try:
-            loss_rate_pct = float(payload.get("loss_rate_pct", LOSS_RATE_DEFAULT_PCT))
+            if raw_loss_rate is None:
+                raw_loss_rate = LOSS_RATE_DEFAULT_PCT
+            loss_rate_pct = float(raw_loss_rate)
             if not LOSS_RATE_MIN_PCT - 0.01 <= loss_rate_pct <= LOSS_RATE_MAX_PCT + 0.01:
                 raise ValueError
         except (TypeError, ValueError):
             return None, "Please choose a realistic weekly weight loss rate."
 
+    raw_gain_rate = payload.get("gain_rate_pct")
     gain_rate_pct = None
     if aspiration == "gain":
         try:
-            gain_rate_pct = float(payload.get("gain_rate_pct", GAIN_RATE_DEFAULT_PCT))
+            if raw_gain_rate is None:
+                raw_gain_rate = GAIN_RATE_DEFAULT_PCT
+            gain_rate_pct = float(raw_gain_rate)
             if not GAIN_RATE_MIN_PCT - 0.01 <= gain_rate_pct <= GAIN_RATE_MAX_PCT + 0.01:
                 raise ValueError
         except (TypeError, ValueError):

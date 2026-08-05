@@ -601,6 +601,7 @@
         let adjustment = null;
         let previousTargets = null;
         let requestFailed = false;
+        let serverError = null;
         if (currentGoals) {
           // GOALS_KEY only ever stores {protein, fat, carbs} -- calories is
           // always derived for display (see renderWeekChart/renderGoalsCard)
@@ -643,6 +644,13 @@
             // silently completing the check-in with a false "on track"
             // message and burning the user's weekly attempt.
             requestFailed = true;
+            // Keep the server's specific reason. It names the field that
+            // actually failed ("Please choose an activity level"), which
+            // the generic string cannot -- and when the cause is stored
+            // profile data rather than anything on this screen, a bare
+            // "something went wrong" leaves the user retrying a button
+            // that will never succeed, with nothing to act on.
+            serverError = typeof data.error === "string" ? data.error : null;
           }
           if (adjustment) {
             saveJson(GOALS_KEY, { protein: adjustment.protein, fat: adjustment.fat, carbs: adjustment.carbs });
@@ -657,7 +665,7 @@
           // so the user's weekly attempt isn't spent on a request that never
           // actually ran, and they can just retry the button.
           c.submitting = false;
-          c.error = t("coaching.checkin.error");
+          c.error = serverError || t("coaching.checkin.error");
           this.render();
           return;
         }
