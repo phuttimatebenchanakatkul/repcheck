@@ -63,7 +63,11 @@
   /* Chart: shape + goal only. Exact numbers live in the day list below, so
      printing them on the bars too would just say everything twice (which is
      what the old 0%/50%/100% axis did on the home card). */
-  .fs-plot { position: relative; display: flex; gap: 6px; align-items: flex-end; height: 128px; }
+  /* Tighter gap than a typical bar chart on purpose -- each bar already
+     fills 100% of its column's width, so narrowing the gap between columns
+     is what makes the bars themselves read as thick, solid rectangles
+     instead of thin sticks with a lot of empty space between them. */
+  .fs-plot { position: relative; display: flex; gap: 3px; align-items: flex-end; height: 128px; }
   .fs-goal { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); pointer-events: none; }
   .fs-goal-label {
     position: absolute; right: 0; top: -15px;
@@ -78,7 +82,10 @@
   }
   .fs-col:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
   .fs-bar {
-    display: block; width: 100%; border-radius: 4px 4px 2px 2px; background: var(--blue);
+    /* Flatter corners than the original -- close to square, so the bar
+       reads as a solid rectangle rather than a rounded pill standing on
+       end. */
+    display: block; width: 100%; border-radius: 2px 2px 0 0; background: var(--blue);
     opacity: 0.32; transition: opacity 0.18s ease, height 0.4s ease;
   }
   /* Selection is carried by opacity rather than a different colour, so the
@@ -114,8 +121,11 @@
   .fs-macro-rows { display: flex; flex-direction: column; gap: 11px; margin-top: 14px; }
   .fs-macro-row { display: flex; align-items: center; gap: 10px; }
   .fs-macro-label { width: 52px; flex-shrink: 0; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
-  .fs-macro-track { flex: 1; height: 18px; border-radius: 4px; background: var(--bg); overflow: hidden; }
-  .fs-macro-fill { display: block; height: 100%; transition: width 0.4s ease; }
+  /* Fully rounded (half the track's own height) rather than a slight
+     4px radius -- a true pill shape reads as softer/friendlier than a
+     rectangle with clipped corners. */
+  .fs-macro-track { flex: 1; height: 18px; border-radius: 9px; background: var(--bg); overflow: hidden; }
+  .fs-macro-fill { display: block; height: 100%; border-radius: 9px; transition: width 0.4s ease; }
   .fs-macro-value { width: 66px; flex-shrink: 0; text-align: right; font-size: 12px; font-weight: 800; color: var(--text); }
   .fs-macro-goal { font-size: 9.5px; font-weight: 700; color: var(--text-secondary); }
   /* Same tokens coaching.css's .pc-week-bar-* classes resolve to, declared
@@ -207,7 +217,11 @@
           // day of pure-water fasting is a real logged day, and averaging it
           // away would quietly flatter the weekly average.
           hasData: Array.isArray(nutritionLog[dateIso]) && nutritionLog[dateIso].length > 0,
+          // Short form ("Mon") stays on the aria-label -- a screen reader
+          // user still needs a real day name, even though the visible
+          // button text below is trimmed to a single letter.
           weekday: d.toLocaleDateString(locale, { weekday: "short" }),
+          letter: d.toLocaleDateString(locale, { weekday: "narrow" }),
           dayNum: d.getDate(),
         };
       });
@@ -259,7 +273,7 @@
         <div class="fs-days">
           ${days.map((d) => `
             <button type="button" class="fs-day-letter ${d.dateIso === selectedDate ? "is-selected" : ""}"
-                    data-select-date="${d.dateIso}">${d.weekday}</button>
+                    data-select-date="${d.dateIso}">${d.letter}</button>
           `).join("")}
         </div>
       `;
