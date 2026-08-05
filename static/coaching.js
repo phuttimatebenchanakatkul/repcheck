@@ -357,6 +357,10 @@
       if (action === "checkin-submit") return this.submitCheckin();
       if (action === "checkin-done") return this.closeCheckin();
       if (action === "checkin-set-new-goals") return this.closeCheckin(() => this.openWizard());
+      // Incomplete-profile escape hatch: close the check-in and open the
+      // wizard prefilled with whatever the profile DOES have, so the user
+      // fills the missing field(s) instead of retrying a doomed submit.
+      if (action === "checkin-fix-profile") return this.closeCheckin(() => this.openWizard());
     }
 
     // ---------- Inactivity ----------
@@ -540,12 +544,84 @@
       }
     }
 
+    // Fields app.py's _validate_coaching_profile() rejects the whole request
+    // over. Kept in the same order the server checks them so the field named
+    // here is the same one the server would have complained about.
+    // diet_preference/height_cm are deliberately absent: the server defaults
+    // or skips those, so a profile missing them is still valid.
+    profileMissingFields() {
+      const p = this.profile || {};
+      const required = [
+        ["aspiration", p.aspiration],
+        ["gender", p.gender],
+        ["activityLevel", p.activityLevel],
+        ["proteinPreference", p.proteinPreference],
+        ["bodyFatRangeId", p.bodyFatRangeId],
+        ["weightKg", p.weightKg],
+      ];
+      return required.filter(([, v]) => v === undefined || v === null || v === "").map(([k]) => k);
+    }
+
+    // Last-resort recovery for a locally-incomplete profile. The check-in
+    // sends this.profile straight from localStorage, so a browser whose copy
+    // is partial (hydration never completed, an interrupted wizard save, a
+    // profile written by an older build that didn't collect every field) gets
+    // a 400 naming a field the check-in screen never asked about -- with no
+    // way to act on it. The account's authoritative copy lives server-side;
+    // pull it and adopt it if it's actually more complete. Returns true when
+    // the profile is usable afterwards.
+    async recoverProfileFromServer() {
+      if (!window.REPCHECK_LOGGED_IN) return false;
+      try {
+        // GET /api/sync (all keys) -- NOT /api/sync/<key>, which only exists
+        // for PUT/POST/DELETE (see app.py). A per-key GET 405s, which would
+        // have made this recovery silently never fire.
+        const res = await fetch("/api/sync");
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (!data || !data.ok || !data.values) return false;
+        const serverProfile = data.values[PROFILE_KEY];
+        if (!serverProfile || typeof serverProfile !== "object") return false;
+        // Merge rather than replace: keep any field this device has that the
+        // server copy lacks, so recovery can only ever ADD information.
+        const merged = { ...serverProfile, ...this.profile };
+        for (const key of Object.keys(serverProfile)) {
+          const localVal = this.profile ? this.profile[key] : undefined;
+          if (localVal === undefined || localVal === null || localVal === "") {
+            merged[key] = serverProfile[key];
+          }
+        }
+        this.profile = merged;
+        saveJson(PROFILE_KEY, merged);
+        return this.profileMissingFields().length === 0;
+      } catch (err) {
+        return false;
+      }
+    }
+
     async submitCheckin() {
       const c = this.checkin;
       if (c.submitting) return;
       c.submitting = true;
       c.error = null;
       this.render();
+
+      // Catch an incomplete profile HERE rather than letting the server
+      // reject it. The server's message ("Please choose a gender.") names a
+      // field that isn't on this screen and gives the user nothing to act
+      // on -- they just retry a button that can never succeed.
+      let missing = this.profileMissingFields();
+      if (missing.length) {
+        const recovered = await this.recoverProfileFromServer();
+        if (!recovered) {
+          missing = this.profileMissingFields();
+          c.submitting = false;
+          c.error = t("coaching.checkin.incompleteProfile", { fields: missing.join(", ") });
+          c.profileIncomplete = true;
+          this.render();
+          return;
+        }
+      }
 
       try {
         if (!c.alreadyLoggedToday && c.weightInput) {
@@ -832,7 +908,11 @@
         stepIndex: 0,
         aspiration: p ? p.aspiration : null,
         gender: p ? p.gender : null,
-        weightKg: p ? String(p.weightKg) : "",
+        // Guard the value, not just the profile: a profile object that EXISTS
+        // but is missing weightKg made String(undefined) render the literal
+        // text "undefined" in the input. Reachable now that an incomplete
+        // profile routes here on purpose (see checkin-fix-profile).
+        weightKg: (p && p.weightKg !== undefined && p.weightKg !== null) ? String(p.weightKg) : "",
         // Blank (not pre-filled) for a profile saved before this step
         // existed, or one saved through this wizard before this fix --
         // the user just re-enters it once, same as any other missing field.
@@ -1954,6 +2034,7 @@
             </div>
 
             ${c.error ? `<div class="pc-checkin-error">${c.error}</div>` : ""}
+            ${c.profileIncomplete ? `<button type="button" class="pc-btn-primary" data-action="checkin-fix-profile" style="width:100%; margin-bottom:8px;">${t("coaching.checkin.fixProfile")}</button>` : ""}
             <button type="button" class="pc-ck-submit" data-action="checkin-submit" ${c.submitting ? "disabled" : ""}>${c.submitting ? t("common.loading") : t("coaching.checkin.complete")}</button>
           </div>
         </div>

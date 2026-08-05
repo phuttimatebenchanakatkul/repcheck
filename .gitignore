@@ -15,3 +15,7 @@ repcheck.db*
 .idea/
 .claude/
 .gstack/
+
+# Diagnostic logs. Public repo -- these capture live request payloads
+# (profile fields, weights) and must never be committed.
+*.log

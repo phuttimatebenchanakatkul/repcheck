@@ -168,6 +168,7 @@ SECTION_ICONS = {
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
+
 # Signs the login session cookie (and the coach chat's per-session message
 # cap). Identity comes straight back out of that cookie -- auth.py's
 # current_user() trusts session["user_id"], and the admin gate keys off
@@ -432,6 +433,62 @@ def api_sync_get_all():
     return jsonify({"ok": True, "user_id": user["id"], "values": get_all_user_data(user["id"])})
 
 
+COACHING_PROFILE_KEY = "repcheck_coaching_profile_v1"
+
+# Fields _validate_coaching_profile() rejects the whole check-in over. Losing
+# any one of these makes the weekly check-in permanently impossible.
+_COACHING_PROFILE_REQUIRED = (
+    "aspiration",
+    "gender",
+    "activityLevel",
+    "proteinPreference",
+    "bodyFatRangeId",
+    "weightKg",
+)
+
+
+def _merge_coaching_profile_write(user_id, incoming):
+    """Never let a client DROP a required profile field that's already stored.
+
+    account_sync.js treats a recent local write as authoritative and pushes it
+    up (deliberately -- that's what stops a stale hydration GET from wiping
+    freshly-logged data). The cost is that a browser whose profile copy is
+    partial -- an interrupted wizard save, a half-finished hydration, a copy
+    written by an older build -- pushes that partial object over the good
+    server copy. Once that lands there is no intact copy left anywhere, and
+    every future check-in 400s with "Please choose a gender." naming a field
+    the check-in screen never asks about. Confirmed reproducible: removing
+    `gender` from localStorage alone corrupted the stored server profile.
+
+    A real profile edit always goes through the wizard, which sends every
+    field, so preserving a stored value the client omitted can't block a
+    legitimate change -- it only refuses the destructive case. Anything that
+    isn't a dict (or with no prior profile) passes straight through.
+    """
+    if not isinstance(incoming, dict):
+        return incoming
+    # get_all_user_data(), not a per-key getter -- database.py exposes no
+    # single-key read (only get_all_user_data/set_user_data/delete_user_data).
+    stored = (get_all_user_data(user_id) or {}).get(COACHING_PROFILE_KEY)
+    if not isinstance(stored, dict):
+        return incoming
+    merged = dict(incoming)
+    restored = []
+    for field in _COACHING_PROFILE_REQUIRED:
+        incoming_val = incoming.get(field)
+        stored_val = stored.get(field)
+        if incoming_val in (None, "") and stored_val not in (None, ""):
+            merged[field] = stored_val
+            restored.append(field)
+    if restored:
+        app.logger.warning(
+            "coaching profile write for user %s omitted required field(s) %s; "
+            "kept the stored value(s) instead of dropping them",
+            user_id, ", ".join(restored),
+        )
+    return merged
+
+
 @app.route("/api/sync/<key>", methods=["PUT", "POST"])
 def api_sync_put(key):
     # POST is accepted as an alias for PUT specifically so the client can
@@ -450,7 +507,10 @@ def api_sync_put(key):
     payload = request.get_json(silent=True) or {}
     if "value" not in payload:
         return jsonify({"ok": False, "error": "Missing value."}), 400
-    set_user_data(user["id"], key, payload["value"])
+    value = payload["value"]
+    if key == COACHING_PROFILE_KEY:
+        value = _merge_coaching_profile_write(user["id"], value)
+    set_user_data(user["id"], key, value)
     return jsonify({"ok": True})
 
 
