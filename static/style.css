@@ -2,7 +2,11 @@
   --bg: #f5f6f8;
   --card-bg: #ffffff;
   --text: #101114;
-  --text-secondary: #8b8d98;
+  /* 3.3:1 on white -- fails WCAG AA (4.5:1) for the sub-16px text that
+     uses this everywhere (captions, row labels). Darkened to 5.15:1,
+     same gray family. Dark theme's --text-secondary already passes
+     (~5.75:1) and is untouched. */
+  --text-secondary: #6b6d78;
   --border: #edeff2;
   --sidebar-active: #f1f2f5;
   --green: #1fa971;
