@@ -2284,9 +2284,38 @@
         if (!btn) return;
         const original = allLoggedEntries().find((e) => e.id === btn.dataset.relog);
         if (!original) return;
-        relogEntry(original);
+        renderRelogConfirm(original);
       });
     }
+  }
+
+  // "+ Log again" used to call relogEntry() directly from the recent-scans
+  // list -- no confirmation, no macros shown, just an instant silent log.
+  // This screen sits between the two: same donut/macro display as a fresh
+  // scan result (renderAfResult), sourced from the ENTRY's own stored
+  // macros via entryTotals() rather than a food-library lookup, since a
+  // scanned meal's name (e.g. Gemini's freeform "Pad Kra Pao Moo Krob")
+  // was never a real foodByName() match -- reusing the food-search confirm
+  // sheet here would have silently done nothing.
+  //
+  // Micronutrients (sodium/sugar) are deliberately omitted: they exist on
+  // a fresh scan's result object but are never persisted onto a logged
+  // entry, so there is nothing real to show here -- fabricating them would
+  // be worse than the "no guessing" bug this screen exists to fix.
+  function renderRelogConfirm(original) {
+    const m = scaledMacros(original);
+    afModalBody.innerHTML = `
+      <div class="af-title-wrap af-rise">
+        <span class="af-title-input" style="cursor:default;">${escapeHtml(original.food)}</span>
+      </div>
+      <div class="af-rise" style="--d:60ms;">${donutChartHtml(m.protein, m.fat, m.carbs, m.calories)}</div>
+      <div class="af-actions af-rise" style="--d:120ms;">
+        <button type="button" class="af-secondary-btn" id="af-relog-cancel-btn" style="flex:1;">Cancel</button>
+        <button type="button" class="nl-save-goals-btn" id="af-relog-confirm-btn" style="flex:2;">Log again</button>
+      </div>
+    `;
+    document.getElementById("af-relog-cancel-btn").addEventListener("click", renderAfChoice);
+    document.getElementById("af-relog-confirm-btn").addEventListener("click", () => relogEntry(original));
   }
 
   function renderAfChoice() {
