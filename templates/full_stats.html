@@ -86,11 +86,13 @@
        reads as a solid rectangle rather than a rounded pill standing on
        end. */
     display: block; width: 100%; border-radius: 2px 2px 0 0; background: var(--blue);
-    opacity: 0.32; transition: opacity 0.18s ease, height 0.4s ease;
+    opacity: 1; transition: opacity 0.18s ease, height 0.4s ease;
   }
-  /* Selection is carried by opacity rather than a different colour, so the
-     chart still reads as one series and the selected day is unmistakable. */
-  .fs-col.is-selected .fs-bar { opacity: 1; }
+  /* Bars start fully bright; the SELECTED day is the one that dims, not
+     the reverse -- matches the reference the selected-day bar look was
+     specced from. Since selectedDate defaults to today, this also means
+     the initial render shows today muted, the rest of the week bright. */
+  .fs-col.is-selected .fs-bar { opacity: 0.45; }
   .fs-days { display: flex; gap: 6px; margin-top: 7px; }
   .fs-day-letter {
     flex: 1; text-align: center; font-size: 10.5px; font-weight: 800;
