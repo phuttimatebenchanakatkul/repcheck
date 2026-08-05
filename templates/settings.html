@@ -366,12 +366,67 @@
       });
     }
 
+    // Recompute targets the same way the coaching wizard's save does.
+    // Gender is a direct input to the BMR/protein math, so leaving the old
+    // numbers in place makes Settings disagree with Edit profile and with
+    // the ring on the nutrition page: measured 2673 vs 2469 kcal (-204/day)
+    // and 94g vs 85g protein for an otherwise identical profile. Mirrors
+    // coaching.js's wizardSave() exactly -- same GOALS_KEY shape (macros
+    // only; calories are always derived), same DISTRIBUTION_KEY handling,
+    // same stale-adjustment clear, same event -- so both paths leave the
+    // app in one consistent state.
+    const GOALS_KEY = "repcheck_nutrition_goals_v1";
+    const DISTRIBUTION_KEY = "repcheck_coaching_distribution_v1";
+    const LAST_ADJUSTMENT_KEY = "repcheck_coaching_last_adjustment_v1";
+
+    async function recalculateTargets(profile) {
+      const res = await fetch("/api/coaching/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aspiration: profile.aspiration,
+          gender: profile.gender,
+          weight_kg: profile.weightKg,
+          height_cm: profile.heightCm,
+          body_fat_range_id: profile.bodyFatRangeId,
+          activity_level: profile.activityLevel,
+          protein_preference: profile.proteinPreference,
+          diet_preference: profile.dietPreference,
+          distribution: profile.distribution,
+          loss_rate_pct: profile.lossRatePct,
+          gain_rate_pct: profile.gainRatePct,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok || !data.targets) throw new Error(data.error || t("settings.gender.recalcFailed"));
+
+      localStorage.setItem(GOALS_KEY, JSON.stringify({
+        protein: data.targets.protein,
+        fat: data.targets.fat,
+        carbs: data.targets.carbs,
+      }));
+      if (data.distribution) {
+        localStorage.setItem(DISTRIBUTION_KEY, JSON.stringify(data.distribution));
+      } else {
+        localStorage.removeItem(DISTRIBUTION_KEY);
+      }
+      // The previous check-in's adjustment was computed against the OLD
+      // gender's targets -- showing it next to freshly recalculated numbers
+      // would be describing a change that no longer exists.
+      localStorage.removeItem(LAST_ADJUSTMENT_KEY);
+      document.dispatchEvent(new CustomEvent("repcheck:goals-updated"));
+      return data.targets;
+    }
+
     document.querySelectorAll("[data-gender-seg] button").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         const profile = readProfile();
         if (!profile) return;
         const next = btn.dataset.value;
         if (profile.gender === next) return;
+
+        const previousGender = profile.gender;
+        const previousBodyFat = profile.bodyFatRangeId;
 
         const updated = { ...profile, gender: next };
         const remapped = remapBodyFatRange(profile.bodyFatRangeId, next);
@@ -381,13 +436,33 @@
         localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
         paintGender();
 
-        genderStatusEl.textContent = remapped
-          ? t("settings.gender.saved")
-          : t("settings.gender.savedNeedsBodyType");
-        genderStatusEl.style.color = remapped ? "var(--green)" : "var(--amber)";
-        // Targets are recomputed at check-in, not here -- say so rather than
-        // implying the numbers already moved.
-        setTimeout(() => { genderStatusEl.textContent = ""; }, 6000);
+        if (!remapped) {
+          // No valid body type for the new gender -- /api/coaching/calculate
+          // would reject it. Keep the gender change, send them to Edit
+          // profile rather than fabricating targets from an invalid profile.
+          genderStatusEl.textContent = t("settings.gender.savedNeedsBodyType");
+          genderStatusEl.style.color = "var(--amber)";
+          return;
+        }
+
+        genderStatusEl.textContent = t("settings.gender.recalculating");
+        genderStatusEl.style.color = "var(--text-secondary)";
+        try {
+          const targets = await recalculateTargets(updated);
+          genderStatusEl.textContent = t("settings.gender.savedWithTargets", { calories: targets.calories });
+          genderStatusEl.style.color = "var(--green)";
+          setTimeout(() => { genderStatusEl.textContent = ""; }, 6000);
+        } catch (err) {
+          // Roll the profile back rather than leaving the gender changed and
+          // the targets stale -- that split state is exactly what this
+          // section exists to prevent.
+          const rolledBack = { ...updated, gender: previousGender };
+          if (previousBodyFat) rolledBack.bodyFatRangeId = previousBodyFat;
+          localStorage.setItem(PROFILE_KEY, JSON.stringify(rolledBack));
+          paintGender();
+          genderStatusEl.textContent = err.message || t("settings.gender.recalcFailed");
+          genderStatusEl.style.color = "var(--red)";
+        }
       });
     });
     paintGender();
