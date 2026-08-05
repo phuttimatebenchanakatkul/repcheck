@@ -171,6 +171,29 @@
   </div>
 </div>
 
+<!-- Gender lives in the coaching profile, not the account row: it's an input
+     to the BMR/protein math (see coaching_engine.py), which is also why it
+     can't be edited freely without keeping bodyFatRangeId consistent -- the
+     range ids are gender-specific (m1-m6 vs f1-f6). See the remap in the
+     script below. Hidden entirely when there's no profile yet, since there'd
+     be nothing to change and the wizard collects it anyway. -->
+<div class="st-card" id="gender" hidden>
+  <div class="st-card-title" data-i18n="settings.gender.title">Gender</div>
+  <div class="st-card-sub" data-i18n="settings.gender.sub">Used to calculate your calorie and protein targets. Changing it recalculates them on your next check-in.</div>
+
+  <div class="st-unit-row">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.gender.label">Gender</div>
+      <div class="st-unit-hint" data-i18n="settings.gender.hint">Affects BMR and body-composition estimates.</div>
+    </div>
+    <div class="st-seg" data-gender-seg>
+      <button type="button" data-value="male" data-i18n="coaching.gender.male">Male</button>
+      <button type="button" data-value="female" data-i18n="coaching.gender.female">Female</button>
+    </div>
+  </div>
+  <div class="st-card-sub" id="st-gender-status" style="margin-top:10px; min-height:1.2em;"></div>
+</div>
+
 <div class="st-card" id="units">
   <div class="st-card-title" data-i18n="settings.units.title">Units</div>
   <div class="st-card-sub" data-i18n="settings.units.sub">Changes apply everywhere in the app instantly. Your logged data isn't modified — only how it's shown.</div>
@@ -293,6 +316,81 @@
       });
     });
     paintUnits();
+
+    // ---------- Gender (coaching profile) ----------
+    // Writes into repcheck_coaching_profile_v1, the same object the weekly
+    // check-in sends to /api/coaching/weekly-adjustment. Two things this has
+    // to get right, both learned the hard way:
+    //
+    //   1. bodyFatRangeId is gender-specific (m1-m6 vs f1-f6). Flipping
+    //      gender without remapping it leaves a profile the server rejects
+    //      with "Please choose a body type." -- the same dead-end class of
+    //      failure as the gender bug this section exists to help fix. The
+    //      lists are parallel and equal length, so index N maps to index N
+    //      and the user's relative body-fat position is preserved.
+    //   2. Write the WHOLE profile object back, never a partial one. The
+    //      sync layer pushes local writes to the server, so writing a
+    //      stripped object here would overwrite the account copy (app.py's
+    //      _merge_coaching_profile_write now guards required fields, but
+    //      this shouldn't lean on that).
+    const PROFILE_KEY = "repcheck_coaching_profile_v1";
+    const genderCard = document.getElementById("gender");
+    const genderStatusEl = document.getElementById("st-gender-status");
+
+    function readProfile() {
+      try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || null; }
+      catch (e) { return null; }
+    }
+
+    function remapBodyFatRange(rangeId, nextGender) {
+      // "m3" -> "f3". Returns null when there's nothing sensible to map, so
+      // the wizard re-asks rather than the server rejecting a stale id.
+      if (typeof rangeId !== "string") return null;
+      const match = rangeId.match(/^[mf](\d+)$/);
+      if (!match) return null;
+      return (nextGender === "female" ? "f" : "m") + match[1];
+    }
+
+    function paintGender() {
+      const profile = readProfile();
+      if (!profile || !profile.aspiration) {
+        // No coaching profile yet -- nothing to edit. The wizard collects
+        // gender as part of setup, so showing an orphan control here would
+        // just create a half-profile.
+        genderCard.hidden = true;
+        return;
+      }
+      genderCard.hidden = false;
+      document.querySelectorAll("[data-gender-seg] button").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.value === profile.gender);
+      });
+    }
+
+    document.querySelectorAll("[data-gender-seg] button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const profile = readProfile();
+        if (!profile) return;
+        const next = btn.dataset.value;
+        if (profile.gender === next) return;
+
+        const updated = { ...profile, gender: next };
+        const remapped = remapBodyFatRange(profile.bodyFatRangeId, next);
+        if (remapped) updated.bodyFatRangeId = remapped;
+        else delete updated.bodyFatRangeId;
+
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
+        paintGender();
+
+        genderStatusEl.textContent = remapped
+          ? t("settings.gender.saved")
+          : t("settings.gender.savedNeedsBodyType");
+        genderStatusEl.style.color = remapped ? "var(--green)" : "var(--amber)";
+        // Targets are recomputed at check-in, not here -- say so rather than
+        // implying the numbers already moved.
+        setTimeout(() => { genderStatusEl.textContent = ""; }, 6000);
+      });
+    });
+    paintGender();
 
     // ---------- Appearance (theme) ----------
     // The only place theme is changed anywhere in the app — home.html's
