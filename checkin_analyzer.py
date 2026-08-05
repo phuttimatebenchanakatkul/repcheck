@@ -27,6 +27,22 @@ GEMINI_MODEL = "gemini-3.5-flash"
 
 WEEKLY_ADJUSTMENT_LIMIT = 150
 
+# Hard ceiling on this call, for the same reason analyze_form_gemini.py has
+# ANALYSIS_BUDGET_SECONDS: without it the request is unbounded. That is not
+# theoretical here -- a plain text-only check-in was measured at 12.9s, and
+# submitCheckin() in static/coaching.js awaits this request with no timeout
+# of its own, keeping "Complete check-in" disabled on "Loading..." for the
+# whole wait. So a stalled or queued Gemini request doesn't just make the
+# check-in slow, it makes it impossible: the button never re-enables, no
+# error is shown, and there is nothing for the user to retry or act on.
+#
+# 30s rather than analyze_form_gemini's 60s because this sends text plus at
+# most two photos, not video. On timeout the exception below is converted to
+# CheckinAnalysisError, which app.py already handles by falling back to
+# coaching_engine.weekly_adjustment()'s deterministic number -- so the
+# check-in still COMPLETES with a real, safe adjustment instead of hanging.
+CHECKIN_ANALYSIS_TIMEOUT_SECONDS = 30
+
 
 class CheckinAnalysisError(Exception):
     pass
@@ -122,7 +138,15 @@ def analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, p
         contents = [prompt] + [
             types.Part.from_bytes(data=data, mime_type=mime_type) for data, mime_type in photo_files
         ]
-        response = client.models.generate_content(model=GEMINI_MODEL, contents=contents)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                http_options=types.HttpOptions(
+                    timeout=CHECKIN_ANALYSIS_TIMEOUT_SECONDS * 1000
+                ),
+            ),
+        )
         parsed = _extract_json(response.text)
         delta = int(parsed["delta"])
         delta = max(-WEEKLY_ADJUSTMENT_LIMIT, min(WEEKLY_ADJUSTMENT_LIMIT, delta))
