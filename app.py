@@ -2180,4 +2180,13 @@ if __name__ == "__main__":
     # split plan actually persisted, which then also made the app think
     # onboarding was already done next time (so it never re-asked to fix
     # itself either).
-    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
+    # Port is env-overridable because the port was hardcoded and every git
+    # worktree of this repo runs the SAME app.py -- so a second worktree
+    # silently bound 5000 alongside the first instead of failing loudly
+    # (Windows allows the duplicate bind; the OS then picks which process
+    # answers). Each worktree carries its OWN repcheck.db, so requests
+    # landed on an app whose database didn't have your account: you appear
+    # logged out at random, saved data seems to vanish, and a check-in
+    # can't complete because the session/profile it needs lives in the
+    # other database. Set PORT=5050 (etc.) when running a worktree.
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True, threaded=True)
