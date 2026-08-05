@@ -472,6 +472,14 @@ def append_nutrition_log_entry(user_id, date_iso, entry):
     the client considers the food "logged". Returns the updated log for
     that one date so the caller can hand it straight back to the browser
     to resync localStorage without a second round trip.
+
+    Idempotent by entry id: the generic account_sync.js blob sync (see
+    MERGE_LOG_KEYS) can land concurrently with this call and merge the same
+    entry into the stored log first, since it's fire-and-forget off the
+    same localStorage.setItem() that queues this request. Without a check
+    here, that race produces two copies of the identical entry (same id,
+    same addedAt) for the date -- a plain append can't tell "this is new"
+    from "the other write path already put this here".
     """
     with get_db() as conn:
         row = conn.execute(
@@ -480,7 +488,8 @@ def append_nutrition_log_entry(user_id, date_iso, entry):
         ).fetchone()
         log = json.loads(row["value"]) if row else {}
         day_entries = log.setdefault(date_iso, [])
-        day_entries.append(entry)
+        if not any(isinstance(e, dict) and e.get("id") == entry.get("id") for e in day_entries):
+            day_entries.append(entry)
         payload = json.dumps(log)
         conn.execute(
             """INSERT INTO user_data (user_id, key, value, updated_at)
