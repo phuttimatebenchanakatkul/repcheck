@@ -161,6 +161,10 @@
 }
 .pc-week-toggle-btn {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   border: none;
   background: none;
   color: var(--text-secondary);
