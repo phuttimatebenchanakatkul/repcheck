@@ -5,22 +5,37 @@
 
 {% block content %}
 <!-- Full 7-day macro/calorie breakdown -- linked from the home page's
-     "Calories & macros" card ("Full stats" pill), which itself only
-     shows a single day's totals. This is the same .pc-week-* chart
-     component nutrition.html's Personalized Coaching card uses (tap a
-     day column, toggle Consumed/Remaining), just given its own page
-     instead of being folded into another card. -->
-<link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
+     "Calories & macros" card ("Full stats" pill), which itself only shows a
+     single day's totals.
+
+     This used to be the .pc-week-* component borrowed from nutrition.html's
+     coaching card: a 4-row (calories/protein/fat/carbs) x 7-column grid of
+     28 small vertical bars, with a Consumed/Remaining toggle, where the
+     numbers on the right described ONLY whichever day you had tapped. So the
+     page drew 28 bars and still made you tap seven times to read your week,
+     while never answering what a weekly page is actually for: what did I
+     average, how many days did I hit, and which days went wrong. It also
+     labelled days "M T W T F S S" with no dates, so you couldn't tell which
+     week you were looking at.
+
+     Now: a summary strip (average + days on target), one calorie chart with
+     the goal drawn on it, then every day listed with a real date, its exact
+     numbers, its macro split and an on/under/over badge. Nothing is behind a
+     tap, so there is no selection or mode state left to keep. -->
 
 <a href="{{ url_for('nutrition') }}" class="fs-back" data-i18n="fullStats.backToNutrition">&larr; Back to Nutrition</a>
 
 <div class="fs-head">
   <div class="fs-title" data-i18n="page.fullStats.heading">Weekly Stats</div>
-  <div class="fs-sub" data-i18n="fullStats.sub">Calories & macros for each day this week</div>
+  <div class="fs-sub" data-i18n="fullStats.sub">Calories &amp; macros for each day this week</div>
 </div>
 
+<div class="fs-strip" id="fs-strip"></div>
+
 <div class="card fs-card">
+  <div class="fs-sec" data-i18n="fullStats.caloriesThisWeek">Calories &middot; this week</div>
   <div id="fs-week-chart"></div>
+  <div id="fs-day-detail"></div>
 </div>
 
 <style>
@@ -30,6 +45,89 @@
   .fs-title { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
   .fs-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
   .fs-card { max-width: 560px; padding: 18px; }
+
+  .fs-sec {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-secondary); margin-bottom: 10px;
+  }
+
+  /* Summary strip: the two numbers the old page never showed at all. Sits
+     above the chart because "how did the week go" is the question this page
+     exists to answer -- the chart is the supporting detail, not the lead. */
+  .fs-strip { display: flex; gap: 10px; max-width: 560px; margin-bottom: 12px; }
+  .fs-stat { flex: 1; background: var(--card-bg); border-radius: 16px; box-shadow: var(--shadow); padding: 13px 14px; }
+  .fs-stat-key { font-size: 9.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); }
+  .fs-stat-value { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top: 3px; }
+  .fs-stat-unit { font-size: 10.5px; font-weight: 700; color: var(--text-secondary); }
+
+  /* Chart: shape + goal only. Exact numbers live in the day list below, so
+     printing them on the bars too would just say everything twice (which is
+     what the old 0%/50%/100% axis did on the home card). */
+  .fs-plot { position: relative; display: flex; gap: 0; align-items: flex-end; height: 128px; }
+  .fs-goal { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); pointer-events: none; }
+  .fs-goal-label {
+    position: absolute; right: 0; top: -15px;
+    font-size: 9.5px; font-weight: 700; color: var(--text-secondary);
+    background: var(--card-bg); padding: 0 4px;
+  }
+  /* Whole column is the tap target, not just the bar -- a light day's bar
+     can be a few pixels tall, which is nowhere near a 44px touch target. */
+  .fs-col {
+    flex: 1; height: 100%; display: flex; align-items: flex-end;
+    background: none; border: none; padding: 0; cursor: pointer;
+  }
+  .fs-col:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+  .fs-bar {
+    display: block; width: 100%; border-radius: 4px 4px 2px 2px; background: var(--blue);
+    opacity: 1; transition: opacity 0.18s ease, height 0.4s ease;
+  }
+  /* Bars start fully bright; the SELECTED day is the one that dims, not
+     the reverse -- matches the reference the selected-day bar look was
+     specced from. Since selectedDate defaults to today, this also means
+     the initial render shows today muted, the rest of the week bright. */
+  .fs-col.is-selected .fs-bar { opacity: 0.45; }
+  .fs-days { display: flex; gap: 6px; margin-top: 7px; }
+  .fs-day-letter {
+    flex: 1; text-align: center; font-size: 10.5px; font-weight: 800;
+    color: var(--text-secondary);
+    background: none; border: none; cursor: pointer; padding: 4px 0;
+    font-family: inherit;
+  }
+  .fs-day-letter.is-selected { color: var(--text); }
+
+  /* Selected-day detail. Calories as one headline number, then macros ONLY
+     -- calories already has the chart above, so repeating it as a fourth bar
+     is the duplication the old 4-row grid was built out of. Calories leads on
+     the left because it is the number being read; the date is the label for
+     it, so it sits second. */
+  .fs-detail { margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--border); }
+  /* Full date first ("Thursday 18 August") so the panel says which day it is
+     before it says anything about that day -- the chart's M/T/W letters can't
+     carry that on their own. */
+  .fs-detail-date { font-size: 13px; font-weight: 800; letter-spacing: -0.01em; }
+  .fs-detail-total { display: flex; align-items: baseline; gap: 7px; margin-top: 4px; }
+  .fs-detail-kcal { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+  .fs-detail-kcal-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+
+  /* Macro rows reuse the home card's bar-graph shape exactly -- label, a
+     horizontal track with a single fill, value on the right -- so the two
+     screens read as the same component (see home.html's .hm-macro-bar-*
+     block, which these mirror measurement for measurement). */
+  .fs-macro-rows { display: flex; flex-direction: column; gap: 11px; margin-top: 14px; }
+  .fs-macro-row { display: flex; align-items: center; gap: 10px; }
+  .fs-macro-label { width: 52px; flex-shrink: 0; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
+  .fs-macro-track { flex: 1; height: 18px; border-radius: 4px; background: var(--bg); overflow: hidden; }
+  .fs-macro-fill { display: block; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+  .fs-macro-value { width: 66px; flex-shrink: 0; text-align: right; font-size: 12px; font-weight: 800; color: var(--text); }
+  .fs-macro-goal { font-size: 9.5px; font-weight: 700; color: var(--text-secondary); }
+  /* Same tokens coaching.css's .pc-week-bar-* classes resolve to, declared
+     locally so this page no longer has to pull in that whole stylesheet --
+     it used to, purely for the .pc-week-* chart component that is now gone. */
+  .fs-fill-protein { background: var(--red); }
+  .fs-fill-fat { background: var(--amber); }
+  .fs-fill-carbs { background: var(--green); }
+
+  .fs-detail-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 14px 0 2px; }
 </style>
 
 <script>
@@ -67,16 +165,17 @@
       return totals;
     }
 
-    // ---------- Calories & macros week chart ----------
-    // Ported from the same .pc-week-* component coaching.js's
-    // CoachingApp.renderWeekChart uses on the Nutrition page (identical
-    // markup/classes/coaching.css), so this page and that card always
-    // look and behave the same. Owns its own tiny bit of UI state
-    // (Consumed/Remaining mode + selected day) since it isn't part of
-    // that class.
-    const WEEKDAY_LETTERS_MON_FIRST = ["M", "T", "W", "T", "F", "S", "S"];
-    let weekChartMode = "remaining";
-    let weekChartSelectedDay = toIsoDate(new Date());
+    // A day counts as "on target" within this fraction of the calorie goal.
+    // Hitting a macro goal to the calorie is not a thing anyone does, so a
+    // strict equality check would report 0/7 every week and teach the user
+    // to ignore the number.
+    const ON_TARGET_TOLERANCE = 0.10;
+
+    // Which day's detail is showing below the chart. Starts on today so the
+    // panel isn't empty on first load; null is never a valid state once
+    // weekDays() has run, since the fallback in renderDetail() always finds
+    // a day to fall back to.
+    let selectedDate = toIsoDate(new Date());
 
     function startOfWeekMonday(date) {
       const d = new Date(date);
@@ -86,158 +185,170 @@
       return d;
     }
 
-    function weekChartDays() {
+    function goalCalories() {
+      return Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
+    }
+
+    function weekDays() {
       const todayIso = toIsoDate(new Date());
       const weekStart = startOfWeekMonday(new Date());
+      const locale = RepCheckI18n.locale();
       return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(weekStart);
         d.setDate(d.getDate() + i);
         const dateIso = toIsoDate(d);
         const eaten = sumMacrosForDay(nutritionLog[dateIso]);
+        const protein = Math.round(eaten.protein);
+        const fat = Math.round(eaten.fat);
+        const carbs = Math.round(eaten.carbs);
+        const calories = Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4);
         return {
-          dateIso,
-          letter: WEEKDAY_LETTERS_MON_FIRST[i],
+          dateIso, date: d, calories, protein, fat, carbs,
           isToday: dateIso === todayIso,
-          isSelected: dateIso === weekChartSelectedDay,
-          consumed: {
-            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
-            protein: Math.round(eaten.protein),
-            fat: Math.round(eaten.fat),
-            carbs: Math.round(eaten.carbs),
-          },
+          // "Logged" means the day has entries, not that calories > 0 -- a
+          // day of pure-water fasting is a real logged day, and averaging it
+          // away would quietly flatter the weekly average.
+          hasData: Array.isArray(nutritionLog[dateIso]) && nutritionLog[dateIso].length > 0,
+          // Short form ("Mon") stays on the aria-label -- a screen reader
+          // user still needs a real day name, even though the visible
+          // button text below is trimmed to a single letter.
+          weekday: d.toLocaleDateString(locale, { weekday: "short" }),
+          letter: d.toLocaleDateString(locale, { weekday: "narrow" }),
+          dayNum: d.getDate(),
         };
       });
     }
 
-    function weekChartMetrics() {
-      const calories = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
-      return [
-        { key: "calories", label: t("common.calories"), target: calories, unit: "kcal" },
-        { key: "protein", label: t("common.protein"), target: nutritionGoals.protein, unit: "g" },
-        { key: "fat", label: t("common.fat"), target: nutritionGoals.fat, unit: "g" },
-        { key: "carbs", label: t("common.carbs"), target: nutritionGoals.carbs, unit: "g" },
-      ];
+    function renderStrip(days, goal) {
+      const mount = document.getElementById("fs-strip");
+      if (!mount) return;
+      const logged = days.filter((d) => d.hasData);
+      // Average across LOGGED days only. Dividing by 7 mid-week would report
+      // an average nobody ate, and would drop every time the user opened the
+      // page early in the week -- which reads as a bug, not a stat.
+      const avg = logged.length ? Math.round(logged.reduce((s, d) => s + d.calories, 0) / logged.length) : null;
+      const onTarget = logged.filter((d) => Math.abs(d.calories - goal) <= goal * ON_TARGET_TOLERANCE).length;
+      const locale = RepCheckI18n.locale();
+      mount.innerHTML = `
+        <div class="fs-stat">
+          <div class="fs-stat-key">${t("fullStats.dailyAvg")}</div>
+          <div class="fs-stat-value">${avg === null ? "—" : avg.toLocaleString(locale)}<span class="fs-stat-unit"> kcal</span></div>
+        </div>
+        <div class="fs-stat">
+          <div class="fs-stat-key">${t("fullStats.daysOnTarget")}</div>
+          <div class="fs-stat-value">${onTarget}<span class="fs-stat-unit">/${logged.length} ${t("fullStats.daysLogged")}</span></div>
+        </div>
+      `;
     }
 
-    function weekChartFillPct(target, consumed) {
-      if (target <= 0) return consumed > 0 ? 100 : 0;
-      if (weekChartMode === "consumed") return Math.max(0, Math.min(100, (consumed / target) * 100));
-      return Math.max(0, Math.min(100, ((target - consumed) / target) * 100));
-    }
-
-    function renderWeekChart() {
+    function renderChart(days, goal) {
       const mount = document.getElementById("fs-week-chart");
       if (!mount) return;
+      // Scale to whichever is taller, the biggest day or the goal, so the
+      // goal line is always on the canvas and an over-goal day still fits.
+      const peak = Math.max(goal, ...days.map((d) => d.calories));
+      const scale = peak > 0 ? peak * 1.08 : 1;
+      const locale = RepCheckI18n.locale();
+      mount.innerHTML = `
+        <div class="fs-plot">
+          <div class="fs-goal" style="bottom:${(goal / scale) * 100}%;">
+            <span class="fs-goal-label">${t("fullStats.goalLine", { n: goal.toLocaleString(locale) })}</span>
+          </div>
+          ${days.map((d) => `
+            <button type="button" class="fs-col ${d.dateIso === selectedDate ? "is-selected" : ""}"
+                    data-select-date="${d.dateIso}"
+                    aria-label="${d.weekday} ${d.dayNum}, ${d.calories} kcal">
+              <span class="fs-bar" style="height:${(d.calories / scale) * 100}%;"></span>
+            </button>
+          `).join("")}
+        </div>
+        <div class="fs-days">
+          ${days.map((d) => `
+            <button type="button" class="fs-day-letter ${d.dateIso === selectedDate ? "is-selected" : ""}"
+                    data-select-date="${d.dateIso}">${d.letter}</button>
+          `).join("")}
+        </div>
+      `;
+    }
 
-      const isConsumedMode = weekChartMode === "consumed";
-      const days = weekChartDays();
-      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
-      const metrics = weekChartMetrics();
+    // One row of the macro graph, matching home.html's .hm-macro-bar-row
+    // shape: label, horizontal track, fill sized against that macro's OWN
+    // goal (protein/fat/carb targets differ by an order of magnitude, so a
+    // shared scale would render fat as a permanent sliver), value on the
+    // right as "consumed/goal" -- both numbers visible without a toggle.
+    function macroRowHtml(label, value, goalValue, cls) {
+      const pct = goalValue > 0 ? Math.max(0, Math.min(100, (value / goalValue) * 100)) : 0;
+      return `
+        <div class="fs-macro-row">
+          <span class="fs-macro-label">${label}</span>
+          <span class="fs-macro-track">
+            <span class="fs-macro-fill ${cls}" style="width:${pct}%;"></span>
+          </span>
+          <span class="fs-macro-value">${value}<span class="fs-macro-goal">/${goalValue}g</span></span>
+        </div>
+      `;
+    }
+
+    function renderDetail(days) {
+      const mount = document.getElementById("fs-day-detail");
+      if (!mount) return;
+      const day = days.find((d) => d.dateIso === selectedDate) || days.find((d) => d.isToday) || days[0];
+      const locale = RepCheckI18n.locale();
+      // "Thursday 18 August" -- long form, and locale-ordered rather than
+      // hand-assembled, so Thai doesn't come out in English word order.
+      const fullDate = day.date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+
+      if (!day.hasData) {
+        mount.innerHTML = `
+          <div class="fs-detail">
+            <div class="fs-detail-date">${fullDate}</div>
+            <div class="fs-detail-empty">${t("fullStats.nothingLogged")}</div>
+          </div>
+        `;
+        return;
+      }
 
       mount.innerHTML = `
-        <div class="pc-week-card">
-          <div class="pc-week-grid">
-            ${metrics.map((m) => {
-              const selectedValue = isConsumedMode
-                ? selectedDay.consumed[m.key]
-                : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
-              return `
-                <div class="pc-week-row">
-                  <div class="pc-week-row-label">
-                    <span class="pc-week-dot pc-week-dot-${m.key}"></span>${m.label}
-                  </div>
-                  <div class="pc-week-row-bars">
-                    ${days.map((d) => `
-                      <button
-                        type="button"
-                        class="pc-week-bar-col ${d.isSelected ? "is-selected" : ""}"
-                        data-week-action="select-day"
-                        data-date="${d.dateIso}"
-                        aria-label="${d.dateIso}"
-                      >
-                        <span class="pc-week-bar-track">
-                          <span class="pc-week-bar-fill pc-week-bar-${m.key}" data-metric="${m.key}" data-date="${d.dateIso}" style="height:${weekChartFillPct(m.target, d.consumed[m.key])}%;"></span>
-                        </span>
-                      </button>
-                    `).join("")}
-                  </div>
-                  <div class="pc-week-row-total">
-                    <span class="pc-week-row-total-value" data-metric-total="${m.key}">${selectedValue}${m.unit === "g" ? "g" : ""}</span>
-                    <span class="pc-week-row-total-of">${t("coaching.week.of", { n: Math.round(m.target) })}</span>
-                  </div>
-                </div>
-              `;
-            }).join("")}
-            <div class="pc-week-row pc-week-daylabels-row">
-              <div class="pc-week-row-label"></div>
-              <div class="pc-week-row-bars">
-                ${days.map((d) => `
-                  <button type="button" class="pc-week-daylabel ${d.isSelected ? "is-selected" : ""} ${d.isToday ? "is-today" : ""}" data-week-action="select-day" data-date="${d.dateIso}">${d.letter}</button>
-                `).join("")}
-              </div>
-              <div class="pc-week-row-total"></div>
-            </div>
+        <div class="fs-detail">
+          <div class="fs-detail-date">${fullDate}</div>
+          <div class="fs-detail-total">
+            <span class="fs-detail-kcal">${day.calories.toLocaleString(locale)}</span>
+            <span class="fs-detail-kcal-label">${t("fullStats.totalCalories")}</span>
           </div>
-          <div class="pc-week-toggle">
-            <button type="button" class="pc-week-toggle-btn ${isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="consumed">${t("coaching.week.consumed")}</button>
-            <button type="button" class="pc-week-toggle-btn ${!isConsumedMode ? "is-active" : ""}" data-week-action="set-mode" data-mode="remaining">${t("coaching.week.remaining")}</button>
+          <div class="fs-macro-rows">
+            ${macroRowHtml(t("common.protein"), day.protein, Math.round(nutritionGoals.protein), "fs-fill-protein")}
+            ${macroRowHtml(t("common.fat"), day.fat, Math.round(nutritionGoals.fat), "fs-fill-fat")}
+            ${macroRowHtml(t("common.carbs"), day.carbs, Math.round(nutritionGoals.carbs), "fs-fill-carbs")}
           </div>
         </div>
       `;
     }
 
-    // Updates the existing bars/numbers/selection in place instead of
-    // calling renderWeekChart() again -- see home.html's identical fix
-    // (and its fuller explanation) for why a full re-render can't animate
-    // the bar-height transition.
-    function updateWeekChart() {
-      const mount = document.getElementById("fs-week-chart");
-      if (!mount || !mount.querySelector(".pc-week-card")) {
-        renderWeekChart();
-        return;
-      }
 
-      const isConsumedMode = weekChartMode === "consumed";
-      const days = weekChartDays();
-      const selectedDay = days.find((d) => d.isSelected) || days.find((d) => d.isToday) || days[0];
-
-      weekChartMetrics().forEach((m) => {
-        days.forEach((d) => {
-          const fillEl = mount.querySelector(`.pc-week-bar-fill[data-metric="${m.key}"][data-date="${d.dateIso}"]`);
-          if (fillEl) fillEl.style.height = `${weekChartFillPct(m.target, d.consumed[m.key])}%`;
-        });
-        const selectedValue = isConsumedMode
-          ? selectedDay.consumed[m.key]
-          : Math.max(0, Math.round(m.target - selectedDay.consumed[m.key]));
-        const totalEl = mount.querySelector(`.pc-week-row-total-value[data-metric-total="${m.key}"]`);
-        if (totalEl) totalEl.textContent = `${selectedValue}${m.unit === "g" ? "g" : ""}`;
-      });
-
-      mount.querySelectorAll(".pc-week-bar-col").forEach((btn) => {
-        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
-      });
-      mount.querySelectorAll(".pc-week-daylabel").forEach((btn) => {
-        btn.classList.toggle("is-selected", btn.dataset.date === weekChartSelectedDay);
-      });
-      mount.querySelectorAll(".pc-week-toggle-btn").forEach((btn) => {
-        btn.classList.toggle("is-active", btn.dataset.mode === weekChartMode);
-      });
+    function renderAll() {
+      const goal = goalCalories();
+      const days = weekDays();
+      renderStrip(days, goal);
+      renderChart(days, goal);
+      renderDetail(days);
     }
 
-    const weekChartMount = document.getElementById("fs-week-chart");
-    if (weekChartMount) {
-      weekChartMount.addEventListener("click", (event) => {
-        const target = event.target.closest("[data-week-action]");
+    // Delegated on the card, not per-bar: renderChart() replaces the whole
+    // .fs-plot/.fs-days markup every render, so a listener bound to an
+    // individual button would be gone the moment the user clicked anything.
+    const chartCard = document.getElementById("fs-week-chart");
+    if (chartCard) {
+      chartCard.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-select-date]");
         if (!target) return;
-        if (target.dataset.weekAction === "select-day") weekChartSelectedDay = target.dataset.date;
-        else if (target.dataset.weekAction === "set-mode") weekChartMode = target.dataset.mode;
-        updateWeekChart();
+        selectedDate = target.dataset.selectDate;
+        renderAll();
       });
     }
 
-    renderWeekChart();
-    document.addEventListener("repcheck:language-changed", renderWeekChart);
-    document.addEventListener("repcheck:units-changed", renderWeekChart);
+    renderAll();
+    document.addEventListener("repcheck:language-changed", renderAll);
+    document.addEventListener("repcheck:units-changed", renderAll);
   })();
 </script>
 {% endblock %}
