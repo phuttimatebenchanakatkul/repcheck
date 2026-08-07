@@ -2272,7 +2272,7 @@
           <div class="af-recent-row">
             <span class="af-recent-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
             <div class="af-recent-info">
-              <div class="af-recent-name">${entry.food}</div>
+              <div class="af-recent-name">${escapeHtml(entry.food)}</div>
               <div class="af-recent-meta">${dateLabel} • ${formatTime(entry.addedAt)} • ${Math.round(totals.grams)}g • ${Math.round(totals.calories)} kcal</div>
             </div>
             <button type="button" class="af-recent-relog-btn" data-relog="${entry.id}" title="Log this again now">+ Log again</button>
@@ -3069,13 +3069,13 @@
   function foodRowHtml(name) {
     const isFav = favorites.has(name);
     return `
-      <button type="button" class="nl-food-row" data-food="${name}">
+      <button type="button" class="nl-food-row" data-food="${escapeAttr(name)}">
         <span class="nl-food-row-icon">${foodIconHtml(name, "nl-food-photo-row")}</span>
         <span class="nl-food-row-body">
-          <span class="nl-food-row-name">${name}</span>
+          <span class="nl-food-row-name">${escapeHtml(name)}</span>
           ${foodMacroLine(name)}
         </span>
-        <span class="nl-food-row-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${name}" role="button" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? HEART_FILLED : HEART_OUTLINE}</span>
+        <span class="nl-food-row-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" role="button" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? HEART_FILLED : HEART_OUTLINE}</span>
       </button>
     `;
   }
@@ -3181,6 +3181,15 @@
     return div.innerHTML;
   }
 
+  // escapeHtml() round-trips through textContent, which escapes < > and &
+  // but deliberately leaves quotes alone -- correct for a text node, unsafe
+  // the moment the value lands inside a quoted attribute, where one " ends
+  // the attribute and everything after it parses as markup. Attribute
+  // interpolations use this instead.
+  function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   function offResultRowHtml(result, index) {
     return `
       <button type="button" class="nl-food-row" data-off-index="${index}">
@@ -3215,7 +3224,7 @@
       <button type="button" class="nl-food-row" data-custom-index="${index}">
         <span class="nl-food-row-icon">${food.emoji}</span>
         <span class="nl-food-row-body">
-          <span class="nl-food-row-name">${food.name}</span>
+          <span class="nl-food-row-name">${escapeHtml(food.name)}</span>
           ${macroLineFrom(food)}
         </span>
       </button>
@@ -3453,10 +3462,10 @@
       <div class="nl-entry-card" data-toggle-entry="${entry.id}">
         <div class="nl-entry-icon">${foodIconHtml(entry.food, "nl-food-photo-entry")}</div>
         <div class="nl-entry-info">
-          <div class="nl-entry-name">${entry.food}</div>
+          <div class="nl-entry-name">${escapeHtml(entry.food)}</div>
           <div class="nl-entry-sub">${formatTime(entry.addedAt)} • ${Math.round(totals.grams)}g • ${m.calories} kcal</div>
         </div>
-        <button type="button" class="nl-entry-fav-btn ${isFav ? "is-fav" : ""}" data-entry-fav-toggle="${entry.food}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">
+        <button type="button" class="nl-entry-fav-btn ${isFav ? "is-fav" : ""}" data-entry-fav-toggle="${escapeAttr(entry.food)}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">
           ${isFav ? HEART_FILLED : HEART_OUTLINE}
         </button>
         <button type="button" class="nl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? "Minimize" : "Expand"}">
@@ -3720,7 +3729,7 @@
               <div class="nl-ingredient-row">
                 <div class="nl-ingredient-top">
                   <div class="nl-ingredient-icon">${foodIconHtml(ing.name, "nl-food-photo-ingredient")}</div>
-                  <div class="nl-ingredient-name">${ing.name}</div>
+                  <div class="nl-ingredient-name">${escapeHtml(ing.name)}</div>
                   <button type="button" class="nl-ingredient-remove" data-remove-ingredient-entry="${entry.id}" data-remove-ingredient-index="${i}" aria-label="Remove ingredient">&times;</button>
                 </div>
                 <div class="nl-ingredient-bottom">
