@@ -83,22 +83,18 @@
     </div>
   </div>
 
-  <!-- Two entry points side by side: AI photo analysis (primary) and
-       direct manual macro entry (secondary) -- previously manual entry
-       was only reachable by opening the food-search sheet first and
-       scrolling to its "Can't find it?" CTA (manualMacroCtaHtml()),
-       which stays in place as a second shortcut from that context. Both
-       buttons open the same af-modal, just at different starting steps
-       (openAnalyzeFoodModal's choice screen vs. openQuickMacroModal's
-       form directly). -->
+  <!-- AI photo analysis, the one action worth a dedicated button up here.
+       Manual macro entry ("Quick add") used to sit beside it, but it's a
+       fallback for when a food isn't in the library -- which is something
+       you only discover AFTER searching. It now lives at the bottom of the
+       "Log a food" sheet (manualMacroCtaHtml()), where that realisation
+       actually happens, instead of competing for attention before the user
+       has even looked. Both still open the same af-modal; openQuickMacroModal
+       jumps straight to the macro form. -->
   <div class="nl-quick-actions-row">
     <button type="button" class="nl-scan-btn" id="nl-scan-btn">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       Analyze a food photo
-    </button>
-    <button type="button" class="nl-macro-btn" id="nl-macro-entry-btn">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-      <span data-i18n="nutrition.manualMacro.button">Quick add</span>
     </button>
   </div>
 
@@ -394,11 +390,10 @@
 
   /* ---------- Analyze-a-photo + manual-macro entry points + modal ---------- */
 
-  /* align-items: stretch (the flex default) -- not center -- so both
-     buttons render at the SAME height. With center, each button sizes to
-     its own content, and "Analyze a food photo" wraps to two lines while
-     "Quick add" stays on one, leaving them visually mismatched in height
-     even with identical padding/font-size/radius. */
+  /* Single-child row now that "Quick add" moved into the Log a food sheet.
+     Kept as a flex row (rather than collapsing to the bare button) so
+     .nl-scan-btn's flex:1 still stretches it full width, and so the spacing
+     below the macro card stays owned by one rule. */
   .nl-quick-actions-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 16px; }
 
   .nl-scan-btn {
@@ -423,33 +418,12 @@
   .nl-scan-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
   .nl-scan-btn:active { transform: translateY(0) scale(0.99); }
 
-  /* Secondary sibling to .nl-scan-btn -- same width, padding, radius,
-     and type scale so the two buttons match exactly in size, just a
-     calmer tinted treatment so "Analyze a food photo" still reads as
-     the primary action. */
-  .nl-macro-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    flex: 1;
-    min-width: 0;
-    padding: 15px;
-    border: none;
-    border-radius: 16px;
-    background: var(--blue-bg);
-    color: var(--blue);
-    font-size: 14px;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    transition: opacity 0.15s ease, transform 0.1s ease;
-  }
-  .nl-macro-btn:hover { opacity: 0.85; transform: translateY(-1px); }
-  .nl-macro-btn:active { transform: translateY(0) scale(0.99); }
+  /* .nl-macro-btn removed with the "Quick add" button it styled -- manual
+     macro entry now lives in the Log a food sheet, docked at the bottom as
+     a .btn-primary (see .nl-manual-macro-dock). */
 
   @media (max-width: 380px) {
-    .nl-scan-btn, .nl-macro-btn { font-size: 12.5px; padding: 12px; }
+    .nl-scan-btn { font-size: 12.5px; padding: 12px; }
   }
 
   .af-modal-overlay {
@@ -572,7 +546,6 @@
   }
   .af-create-calories-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
   .af-create-calories-value { font-size: 18px; font-weight: 800; color: var(--blue); }
-  .af-create-calories-hint { font-size: 11px; color: var(--text-secondary); flex-basis: 100%; }
 
   .af-loading { text-align: center; padding: 40px 0; color: var(--text-secondary); font-size: 13px; }
   .af-loading-spinner {
@@ -1201,35 +1174,26 @@
   .nl-food-row-fav:active { transform: scale(0.85); }
   .nl-food-row-fav.is-fav { color: var(--red); opacity: 1; }
 
-  /* Persistent "can't find it? enter macros" CTA at the bottom of the
-     search sheet (see manualMacroCtaHtml()) -- dashed border + tinted
-     background so it reads as a distinct action, not another food row. */
-  .nl-manual-macro-btn {
-    display: flex; align-items: center; gap: 12px;
-    width: 100%;
-    margin-top: 14px;
-    padding: 13px 14px;
-    border-radius: 14px;
-    border: 1.5px dashed color-mix(in srgb, var(--blue) 40%, transparent);
-    background: var(--blue-bg);
-    color: var(--text);
-    cursor: pointer;
-    font-family: inherit;
-    text-align: left;
-    transition: transform 0.1s ease, border-color 0.15s ease;
+  /* Sticky footer inside the sheet's scrolling body. Keeps "Quick add"
+     one tap away no matter how many results are showing -- it's the only
+     route to manual macro entry now, so burying it under a long list would
+     be strictly worse than the standalone button it replaced. Negative
+     margins cancel .log-sheet-body's 16px side padding so the background
+     spans the full sheet width; the matching positive padding keeps the
+     button itself aligned with the rows above it. */
+  .nl-manual-macro-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 14px -16px 0;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
   }
-  .nl-manual-macro-btn:hover { border-color: var(--blue); }
-  .nl-manual-macro-btn:active { transform: scale(0.99); }
-  .nl-manual-macro-icon {
-    flex-shrink: 0;
-    width: 38px; height: 38px; border-radius: 11px;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--blue); color: #fff;
-  }
-  .nl-manual-macro-text { flex: 1; min-width: 0; }
-  .nl-manual-macro-title { font-size: 14px; font-weight: 700; color: var(--text); }
-  .nl-manual-macro-sub { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-  .nl-manual-macro-arrow { flex-shrink: 0; color: var(--blue); display: flex; }
+  /* .btn-primary carries margin-top:22px for its usual standalone-CTA
+     context (index.html). Inside the dock that spacing is already owned by
+     the dock's own padding, so drop it rather than letting the two stack. */
+  .nl-manual-macro-dock .btn-primary { margin-top: 0; }
 
   /* ---------- Timeline ---------- */
 
@@ -2235,8 +2199,6 @@
   }
 
   afScanBtn.addEventListener("click", openAnalyzeFoodModal);
-  const nlMacroEntryBtn = document.getElementById("nl-macro-entry-btn");
-  if (nlMacroEntryBtn) nlMacroEntryBtn.addEventListener("click", openQuickMacroModal);
   afModalCloseBtn.addEventListener("click", closeAnalyzeFoodModal);
   afModalOverlay.addEventListener("click", (event) => {
     if (event.target === afModalOverlay) closeAnalyzeFoodModal();
@@ -2951,7 +2913,6 @@
       <div class="af-create-calories">
         <span class="af-create-calories-label">Calories</span>
         <span class="af-create-calories-value" id="af-create-calories-value">0</span>
-        <span class="af-create-calories-hint">Auto-calculated — protein &amp; carbs are 4 kcal/g, fat is 9 kcal/g.</span>
       </div>
       <div id="af-create-error" class="af-error" style="display:none;"></div>
       <div class="af-actions">
@@ -3089,15 +3050,33 @@
   // openQuickMacroModal() below) -- no separate flow to maintain.
   function manualMacroCtaHtml() {
     const t = RepCheckI18n.t;
+    // Titled "Quick add" (manualMacro.button), not the old "Can't find it?"
+    // (manualMacro.title). This is now the ONLY route to manual macro entry
+    // -- the standalone button above the date strip was removed -- and it
+    // renders in the default no-query view too, where "Can't find it?" asks
+    // about a search the user hasn't run yet. Leading with the action's own
+    // name reads correctly in both views, and keeps the label users already
+    // knew from the old button. The subtitle still explains what it does,
+    // and its position at the end of the results carries the "nothing
+    // matched?" meaning implicitly.
+    // Wrapped in a sticky footer, not left inline at the end of the list.
+    // Inline, a 25-result search buried it below everything -- turning what
+    // used to be a one-tap button into "open the sheet, scroll past 25 rows,
+    // tap". The wrapper carries the sheet background so rows scroll cleanly
+    // underneath instead of showing through the gap around the button.
+    // Reuses .btn-primary (style.css) -- the same class the analyze page's
+    // "Analyze my form" button uses -- rather than restyling a local class
+    // to look like it, so the two stay in sync if that button ever changes.
+    // The subtitle and trailing arrow are gone with the card treatment;
+    // .btn-primary is a single centered label by design, and "Quick add" is
+    // the same wording the standalone button used, so the action is still
+    // named the way users already knew it.
     return `
-      <button type="button" class="nl-manual-macro-btn" data-manual-macro="1">
-        <span class="nl-manual-macro-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
-        <span class="nl-manual-macro-text">
-          <span class="nl-manual-macro-title">${t("nutrition.manualMacro.title")}</span>
-          <span class="nl-manual-macro-sub">${t("nutrition.manualMacro.sub")}</span>
-        </span>
-        <span class="nl-manual-macro-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-      </button>
+      <div class="nl-manual-macro-dock">
+        <button type="button" class="btn-primary" data-manual-macro="1">
+          ${t("nutrition.manualMacro.button")}
+        </button>
+      </div>
     `;
   }
 
