@@ -113,3 +113,55 @@ def test_relog_confirm_button_is_the_only_thing_that_logs(nutrition_html):
         r'af-relog-cancel-btn"\)\.addEventListener\("click",\s*renderAfChoice\)',
         body,
     ), "Cancel should return to the choice screen, not log anything"
+
+
+def test_relog_confirm_shows_the_serving_amount(nutrition_html):
+    """A calorie count with no amount attached is unreadable -- "804 kcal"
+    could be a snack or a platter. The confirm screen must state the grams
+    the entry actually represents."""
+    script = _script_block(nutrition_html)
+    fn_match = re.search(
+        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        script,
+        re.DOTALL,
+    )
+    assert fn_match, "renderRelogConfirm() is missing"
+    body = fn_match.group(1)
+    assert "entryTotals(original)" in body, (
+        "renderRelogConfirm should read the entry's real total grams from "
+        "entryTotals() -- scaledMacros() alone discards the amount"
+    )
+    assert re.search(r"totals\.grams", body), (
+        "the confirm screen should display the entry's total grams"
+    )
+
+
+def test_relog_confirm_lists_per_ingredient_amounts(nutrition_html):
+    """For a multi-ingredient dish the breakdown IS the serving: 400g total
+    is only meaningful as 150g pork + 200g rice + 50g egg."""
+    script = _script_block(nutrition_html)
+    fn_match = re.search(
+        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        script,
+        re.DOTALL,
+    )
+    assert fn_match, "renderRelogConfirm() is missing"
+    body = fn_match.group(1)
+    assert "ing.grams" in body, (
+        "each ingredient's own gram amount should be shown"
+    )
+    assert "escapeHtml(ing.name)" in body, (
+        "ingredient names are Gemini-authored and must be escaped before "
+        "reaching innerHTML"
+    )
+
+
+def test_recent_scans_row_shows_grams(nutrition_html):
+    """The Recent scans list should show the amount too, so the user can
+    tell two differently-sized logs of the same dish apart before tapping."""
+    script = _script_block(nutrition_html)
+    row_match = re.search(r'af-recent-meta">(.*?)</div>', script)
+    assert row_match, "could not find the recent-scans meta row"
+    assert "totals.grams" in row_match.group(1), (
+        "the recent-scans row should show the entry's grams alongside kcal"
+    )
