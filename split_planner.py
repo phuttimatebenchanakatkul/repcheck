@@ -24,6 +24,12 @@ load_dotenv()
 
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 
+# The "Let AI build it" path picks the split type itself rather than being
+# handed one, so it gets a slightly stronger lite model than the
+# type-already-chosen path above -- it's making a real coaching decision,
+# not just filling in exercises for a split the user already named.
+SUGGEST_GEMINI_MODEL = "gemini-3.5-flash-lite"
+
 VALID_EXERCISES = set(WORKOUT_EXERCISES)
 WEEKDAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
@@ -184,6 +190,45 @@ def _filter_by_location(pool, location):
     return filtered or pool
 
 
+def _day_type_for_label(label):
+    """Which DAY_TYPE_POOLS key a day label maps to -- exact match first,
+    then keyword ("Chest Day" -> "Chest", and the AI's "Full Body A" ->
+    "Full Body"), falling back to Full Body."""
+    if label in DAY_TYPE_POOLS:
+        return label
+    lower = label.lower()
+    for keyword, day_type in _KEYWORD_POOL:
+        if keyword in lower:
+            return day_type
+    return "Full Body"
+
+
+# The narrow DAY_TYPE_POOLS above are hand-curated shortlists, which is what
+# makes them good defaults -- but they're too small to survive a location
+# filter: only 2 of Push's 7 entries are doable at home. These are the full
+# categories to draw MORE exercises from when a day comes up short (see
+# _top_up_exercises), so a home-training beginner still gets a full session
+# of on-topic work instead of a 2-exercise "Push" day.
+DAY_TYPE_WIDE_POOLS = {
+    "Push": CHEST + SHOULDERS + ARMS,
+    "Pull": BACK + ARMS,
+    "Legs": LEGS,
+    "Upper": CHEST + BACK + SHOULDERS + ARMS,
+    "Lower": LEGS + CORE,
+    "Full Body": CHEST + BACK + LEGS + SHOULDERS + ARMS + CORE,
+    "Chest": CHEST,
+    "Back": BACK,
+    "Shoulders": SHOULDERS,
+    "Arms": ARMS,
+    "Mobility": MOBILITY,
+    "Athletic": ATHLETIC,
+    "Functional": FUNCTIONAL,
+    "Balance": BALANCE,
+    "Prenatal": PRENATAL,
+    "Conditioning": CONDITIONING,
+}
+
+
 def _pool_for_label(label, custom_days_exercises=None, location=None):
     """Best-effort pool lookup for a day label, including custom user
     labels like "Chest Day" by matching on keywords. If the user manually
@@ -193,13 +238,39 @@ def _pool_for_label(label, custom_days_exercises=None, location=None):
     exercise is an explicit choice, not a guess that needs correcting."""
     if custom_days_exercises and custom_days_exercises.get(label):
         return custom_days_exercises[label]
-    if label in DAY_TYPE_POOLS:
-        return _filter_by_location(DAY_TYPE_POOLS[label], location)
-    lower = label.lower()
-    for keyword, day_type in _KEYWORD_POOL:
-        if keyword in lower:
-            return _filter_by_location(DAY_TYPE_POOLS[day_type], location)
-    return _filter_by_location(DAY_TYPE_POOLS["Full Body"], location)
+    return _filter_by_location(DAY_TYPE_POOLS[_day_type_for_label(label)], location)
+
+
+def _top_up_exercises(exercises, label, location, min_exercises, max_exercises):
+    """Backfill a day that came up short of min_exercises, drawing from the
+    same day type's exercises so the additions stay on topic.
+
+    Needed on both paths for the same underlying reason -- a day's candidate
+    exercises can thin out below the minimum after filtering:
+      - AI path: it returns names that aren't in the library verbatim, or
+        aren't doable at the user's location, and _validate_plan drops them.
+      - fallback path: the curated pool itself filters down to 2 entries for
+        some day types at home.
+    Topping up beats rejecting: the user keeps the split and the exercises
+    that WERE valid, instead of silently losing the whole AI plan over one
+    bad name."""
+    out = list(exercises)
+    if len(out) >= min_exercises:
+        return out[:max_exercises]
+    seen = set(out)
+    day_type = _day_type_for_label(label)
+    candidate_sources = (
+        _filter_by_location(DAY_TYPE_POOLS[day_type], location),
+        _filter_by_location(DAY_TYPE_WIDE_POOLS.get(day_type, []), location),
+    )
+    for source in candidate_sources:
+        for candidate in source:
+            if len(out) >= min_exercises:
+                break
+            if candidate not in seen:
+                out.append(candidate)
+                seen.add(candidate)
+    return out[:max_exercises]
 
 
 def _default_schedule(days, days_per_week):
@@ -376,7 +447,8 @@ def _extract_json(text):
     return json.loads(text)
 
 
-def _validate_plan(parsed, days_per_week, custom_days_exercises=None, location=None):
+def _validate_plan(parsed, days_per_week, custom_days_exercises=None, location=None,
+                   min_exercises=3, max_exercises=8, top_up_short_days=False):
     days = parsed.get("days")
     if not isinstance(days, list) or len(days) != days_per_week:
         raise ValueError("wrong number of days")
@@ -398,7 +470,9 @@ def _validate_plan(parsed, days_per_week, custom_days_exercises=None, location=N
                 e for e in day.get("exercises", [])
                 if e in VALID_EXERCISES and EXERCISE_LOCATIONS.get(e) in allowed_tags
             ]
-        if not label or len(exercises) < 3:
+        if label and top_up_short_days and not picked and len(exercises) < min_exercises:
+            exercises = _top_up_exercises(exercises, label, location, min_exercises, max_exercises)
+        if not label or len(exercises) < min_exercises:
             raise ValueError("invalid day entry")
         # If the user hand-picked exercises for this exact day label, the
         # AI was told to copy them verbatim -- anything else means it
@@ -410,7 +484,7 @@ def _validate_plan(parsed, days_per_week, custom_days_exercises=None, location=N
                 raise ValueError("AI did not preserve user-picked exercises")
             cleaned_days.append({"label": label, "exercises": exercises})
         else:
-            cleaned_days.append({"label": label, "exercises": exercises[:8]})
+            cleaned_days.append({"label": label, "exercises": exercises[:max_exercises]})
 
     valid_labels = {d["label"] for d in cleaned_days} | {"Rest"}
     schedule = parsed.get("schedule")
@@ -554,6 +628,248 @@ def _build_prompt(split_type, days_per_week, custom_days, goal=None, custom_days
         'all seven lowercase weekday keys, each set to one of the day labels used in "days" or "Rest", '
         f'with exactly {days_per_week} non-Rest entries.'
     )
+
+
+# ---------- AI-suggested split (the wizard's "Let AI build it" path) ----------
+# The user never picks a split type here: they answer how many days they can
+# train and what they're going for, and the AI picks the split type *for*
+# them. Everyone coming through this path is treated as a complete beginner
+# (see _build_suggest_prompt), so the plans stay simple and learnable rather
+# than assuming gym experience the user may not have.
+
+# Deliberately a lighter session than the type-picked path's 6-8: a complete
+# beginner finishing 4-6 exercises is a session they'll actually repeat,
+# where an 8-exercise session is where beginners start skipping days.
+BEGINNER_MIN_EXERCISES = 4
+BEGINNER_MAX_EXERCISES = 6
+
+# What a complete beginner should run at each weekly frequency when the AI
+# is unavailable or returns something unusable. Full body at low frequency
+# (every session hits everything, so a missed day costs less), upper/lower
+# at 4, and PPL only once there are enough days for each muscle group to
+# come around often enough to be worth splitting out.
+BEGINNER_SPLIT_BY_DAYS = {
+    1: "full_body",
+    2: "full_body",
+    3: "full_body",
+    4: "upper_lower",
+    5: "ppl",
+    6: "ppl",
+    7: "ppl",
+}
+
+SUGGESTIBLE_SPLIT_TYPES = ("ppl", "upper_lower", "full_body", "bro_split")
+
+# Forces Gemini to emit JSON matching this shape instead of asking for JSON
+# in the prompt and hoping. Measured necessary, not precautionary: asking in
+# the prompt alone, roughly 1 in 8 responses came back with a stray closing
+# brace after the "days" array ('...]}]}, "schedule":'), which json.loads
+# rejects outright -- and since every failure here falls back to the
+# deterministic plan, that silently robbed ~12% of users of the AI
+# suggestion this whole path exists to provide. With the schema attached,
+# 6/6 sample responses parsed. _validate_plan still re-checks everything:
+# the schema constrains the SHAPE, not whether the exercise names are real.
+SUGGEST_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "split_type": {"type": "string", "enum": list(SUGGESTIBLE_SPLIT_TYPES)},
+        "days": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "label": {"type": "string"},
+                    "exercises": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["label", "exercises"],
+            },
+        },
+        "schedule": {
+            "type": "object",
+            "properties": {day: {"type": "string"} for day in WEEKDAY_ORDER},
+            "required": list(WEEKDAY_ORDER),
+        },
+        "rationale": {"type": "string"},
+    },
+    "required": ["split_type", "days", "schedule", "rationale"],
+}
+
+
+def _fit_plan_exercise_counts(plan, location,
+                              min_exercises=BEGINNER_MIN_EXERCISES,
+                              max_exercises=BEGINNER_MAX_EXERCISES):
+    """Hold the deterministic fallback to the same per-day exercise window
+    the AI path is held to. Both ends matter: DAY_TYPE_POOLS entries run up
+    to 8 deep (longer than a beginner session should be), while a location
+    filter can thin one down to 2 -- e.g. only 2 of Push's 7 entries are
+    doable at home, which would otherwise ship a 2-exercise "Push" day."""
+    for day in plan["days"]:
+        day["exercises"] = _top_up_exercises(
+            day["exercises"], day["label"], location, min_exercises, max_exercises
+        )
+    return plan
+
+
+def _beginner_fallback(split_type, days_per_week, goal, location):
+    plan = build_fallback_plan(split_type, days_per_week, None, goal, None, location)
+    plan = _fit_plan_exercise_counts(plan, location)
+    plan["split_type"] = split_type
+    return plan
+
+
+def _describe_lifter(gender, goal_weight_kg, current_weight_kg):
+    """The 'who this plan is for' lines of the suggest prompt. Every field is
+    optional -- the coaching profile these come from is filled in separately
+    from the split wizard, so a user can reach this having never opened it."""
+    bits = []
+    if gender in ("male", "female"):
+        bits.append(f"- Gender: {gender}")
+    if current_weight_kg:
+        bits.append(f"- Current weight: {current_weight_kg} kg")
+    if goal_weight_kg:
+        bits.append(f"- Goal weight: {goal_weight_kg} kg")
+        if current_weight_kg:
+            try:
+                delta = float(goal_weight_kg) - float(current_weight_kg)
+                if delta < -0.5:
+                    bits.append(f"- They are trying to LOSE about {abs(delta):.1f} kg")
+                elif delta > 0.5:
+                    bits.append(f"- They are trying to GAIN about {delta:.1f} kg")
+                else:
+                    bits.append("- They are trying to MAINTAIN their current weight")
+            except (TypeError, ValueError):
+                pass
+    return "\n".join(bits)
+
+
+def _build_suggest_prompt(days_per_week, goal, gender, goal_weight_kg, current_weight_kg, location):
+    lifter = _describe_lifter(gender, goal_weight_kg, current_weight_kg)
+    lifter_block = f"\nAbout this person:\n{lifter}\n" if lifter else ""
+
+    goal = (goal or "").strip()
+    goal_block = ""
+    if goal:
+        # Free text the user typed themselves. Same rule as the type-picked
+        # path: it steers day-type and exercise selection, but any exercise
+        # NAME it happens to contain still gets filtered against
+        # VALID_EXERCISES in _validate_plan rather than trusted from here.
+        goal_block = (
+            f'\nIn their own words, what they want out of training: "{goal}"\n'
+            "Let this steer which split you choose and which exercises you pick. If the goal calls for "
+            "work outside plain muscle-building (mobility/flexibility, speed and agility for a sport, "
+            "real-world carrying strength, balance, pregnancy-safe low-impact training, or "
+            "strength-and-endurance conditioning), give it a dedicated day rather than tacking it onto "
+            "the end of a lifting day.\n"
+        )
+
+    if location in ("home", "gym"):
+        allowed_exercises = _filter_by_location(WORKOUT_EXERCISES, location)
+        location_block = (
+            f"\nThey train at {'home' if location == 'home' else 'the gym'}, so only choose exercises "
+            "doable there — the list below is already restricted to those.\n"
+        )
+    elif location == "hybrid":
+        allowed_exercises = WORKOUT_EXERCISES
+        location_block = (
+            "\nThey train hybrid-style (a mix of gym and home, including HYROX-style "
+            "strength-and-endurance work), so both gym and home exercises are fair game.\n"
+        )
+    else:
+        allowed_exercises = WORKOUT_EXERCISES
+        location_block = ""
+
+    return (
+        "You are a strength coach building a weekly training split for a COMPLETE BEGINNER — someone "
+        "who has essentially never trained before and does not know any exercises yet. Choose the "
+        "split type FOR them; they have not picked one and would not know which to pick.\n"
+        f"{lifter_block}"
+        f"- They can train exactly {days_per_week} day(s) per week.\n"
+        f"{goal_block}{location_block}\n"
+        "Because they are a complete beginner:\n"
+        "- Favor simple, foundational, low-skill-ceiling movements over advanced or highly technical "
+        "lifts. Machines, dumbbells, and bodyweight beat barbell max-effort work here.\n"
+        "- Prefer a split where each session is easy to understand and hard to get wrong.\n"
+        "- At low weekly frequency, full-body sessions usually beat body-part splits, because every "
+        "session still trains everything and a missed day costs less.\n"
+        "- Do NOT overload the session. A beginner who finishes their workout comes back; one who is "
+        "buried in volume quits.\n\n"
+        f'Choose exactly one split type from this list: {json.dumps(list(SUGGESTIBLE_SPLIT_TYPES))}\n'
+        '("ppl" = Push/Pull/Legs, "upper_lower" = Upper/Lower, "full_body" = every session trains the '
+        'whole body, "bro_split" = one muscle group per day.)\n\n'
+        "You MUST only use exercise names from this exact list (copy them verbatim, do not invent, "
+        f"rename, or modify any): {json.dumps(allowed_exercises)}\n\n"
+        f"Give each day exactly {BEGINNER_MAX_EXERCISES} exercises from that list (never more than "
+        f"{BEGINNER_MAX_EXERCISES}, and never fewer than {BEGINNER_MIN_EXERCISES}). Aim for "
+        f"{BEGINNER_MAX_EXERCISES} rather than the minimum — any name that isn't copied exactly from "
+        "the list gets discarded, so a day built at the minimum can end up short.\n\n"
+        "Then place the training days onto an actual weekly schedule (Monday through Sunday). Apply "
+        "this recovery principle: roughly one rest day for every two consecutive training days. "
+        "Back-to-back days are more acceptable when they hit different muscle groups (e.g. Push then "
+        f"Legs) than the same one. At {days_per_week} day(s)/week, rotate muscle groups across any "
+        "consecutive days.\n\n"
+        "Respond with ONLY raw JSON (no markdown fences, no commentary) matching exactly this shape:\n"
+        '{"split_type": "full_body", '
+        '"days": [{"label": "Full Body", "exercises": ["Goblet Squat", "Dumbbell Bench Press", "..."]}], '
+        '"schedule": {"monday": "Full Body", "tuesday": "Rest", "wednesday": "Full Body", '
+        '"thursday": "Rest", "friday": "Full Body", "saturday": "Rest", "sunday": "Rest"}, '
+        '"rationale": "one or two sentences, addressed to the beginner, explaining why you chose this '
+        'split and this weekly placement"}\n'
+        f'The "days" array must have exactly {days_per_week} entries. The "schedule" object must have '
+        'all seven lowercase weekday keys, each set to one of the day labels used in "days" or "Rest", '
+        f'with exactly {days_per_week} non-Rest entries.'
+    )
+
+
+def suggest_split_plan(days_per_week, goal=None, gender=None, goal_weight_kg=None,
+                       current_weight_kg=None, location=None):
+    """Builds a split for someone who did NOT pick a split type -- the AI
+    chooses the split type as well as the exercises and the weekly placement,
+    treating the user as a complete beginner.
+
+    Returns the same shape as generate_split_plan() plus "split_type" (which
+    split the AI actually chose, so the UI can tell the user what they got
+    and the saved plan records it like any other split).
+    """
+    days_per_week = max(1, min(7, int(days_per_week)))
+    location = location if location in LOCATION_ALLOWED else None
+    fallback_type = BEGINNER_SPLIT_BY_DAYS[days_per_week]
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return _beginner_fallback(fallback_type, days_per_week, goal, location)
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+        prompt = _build_suggest_prompt(
+            days_per_week, goal, gender, goal_weight_kg, current_weight_kg, location
+        )
+        response = client.models.generate_content(
+            model=SUGGEST_GEMINI_MODEL,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=SUGGEST_RESPONSE_SCHEMA,
+            ),
+        )
+        parsed = _extract_json(response.text)
+        plan = _validate_plan(
+            parsed, days_per_week, None, location,
+            min_exercises=BEGINNER_MIN_EXERCISES,
+            max_exercises=BEGINNER_MAX_EXERCISES,
+            top_up_short_days=True,
+        )
+        # The AI picking a split type outside the list it was given is the
+        # same class of mistake as hallucinating an exercise name -- fall
+        # back to the frequency-appropriate beginner default rather than
+        # recording a split type the rest of the app doesn't know about.
+        suggested = str(parsed.get("split_type", "")).strip().lower()
+        plan["split_type"] = suggested if suggested in SUGGESTIBLE_SPLIT_TYPES else fallback_type
+        return plan
+    except Exception:
+        return _beginner_fallback(fallback_type, days_per_week, goal, location)
 
 
 def generate_split_plan(split_type, days_per_week, custom_days=None, goal=None, custom_days_exercises=None, location=None):

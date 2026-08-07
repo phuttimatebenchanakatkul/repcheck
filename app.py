@@ -114,7 +114,7 @@ from exercise_videos import EXERCISE_VIDEOS, get_exercise_video
 from food_library import FOOD_LIBRARY
 from pipeline import run_pipeline
 from sort_food_images import build_food_image_map
-from split_planner import generate_split_plan
+from split_planner import generate_split_plan, suggest_split_plan
 from workout_library import BODYWEIGHT_EXERCISES, EXERCISE_CATEGORIES, UNILATERAL_EXERCISES, WORKOUT_EXERCISES
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
@@ -1741,6 +1741,20 @@ def api_hyrox_analyze():
     })
 
 
+def _optional_positive_float(value):
+    """A body weight from the coaching profile, or None. Everything about
+    that profile is optional here (the split wizard never asks for it, it
+    just reuses it if it's there), so anything missing, non-numeric, or
+    physically implausible is treated the same as "not provided" rather
+    than failing the request -- a bad weight should cost the prompt one
+    detail, not cost the user their plan."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if 20 <= number <= 500 else None
+
+
 @app.route("/api/generate-split", methods=["POST"])
 def api_generate_split():
     payload = request.get_json(silent=True) or {}
@@ -1772,7 +1786,7 @@ def api_generate_split():
             if cleaned:
                 custom_days_exercises[str(label)[:60]] = cleaned
 
-    if split_type not in {"ppl", "upper_lower", "full_body", "bro_split", "custom"}:
+    if split_type not in {"ppl", "upper_lower", "full_body", "bro_split", "custom", "ai_suggest"}:
         return jsonify({"ok": False, "error": "Unknown split type."}), 400
     try:
         days_per_week = int(days_per_week)
@@ -1782,6 +1796,26 @@ def api_generate_split():
         return jsonify({"ok": False, "error": "days_per_week must be between 1 and 7."}), 400
     if split_type == "custom" and not custom_days:
         return jsonify({"ok": False, "error": "Please name at least one custom day."}), 400
+
+    # "Let AI build it": the user never picked a split type, so the AI picks
+    # one for them (see suggest_split_plan) from just their training days,
+    # their goal in their own words, and whatever the coaching profile knows
+    # about them. Every profile field is optional -- that profile is filled
+    # in from a different part of the app, so a user can reach this wizard
+    # having never opened it, and the plan still has to come out sensible.
+    if split_type == "ai_suggest":
+        gender = str(payload.get("gender") or "").strip().lower()
+        gender = gender if gender in {"male", "female"} else None
+        plan = suggest_split_plan(
+            days_per_week,
+            goal=goal,
+            gender=gender,
+            goal_weight_kg=_optional_positive_float(payload.get("goal_weight_kg")),
+            current_weight_kg=_optional_positive_float(payload.get("current_weight_kg")),
+            location=location,
+        )
+        _track_feature("split_ai_suggested")
+        return jsonify({"ok": True, **plan})
 
     plan = generate_split_plan(split_type, days_per_week, custom_days, goal, custom_days_exercises, location)
     return jsonify({"ok": True, **plan})

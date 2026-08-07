@@ -332,6 +332,19 @@
   }
   .split-rationale strong { color: var(--blue); }
 
+  /* Names the split the AI chose on the "Let AI build it" path, where the
+     user never picked one themselves. */
+  .split-suggested-banner {
+    background: var(--blue);
+    color: #fff;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin-bottom: 14px;
+  }
+
   /* ---------- Exercise picker modal (shared look with Analyze page) ---------- */
   .ex-modal-overlay {
     position: fixed;
@@ -2447,7 +2460,33 @@
   const splitModalTitle = document.getElementById("split-modal-title");
   const planBtnEl = document.getElementById("wl-plan-btn");
 
-  let splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
+  let splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null, suggestedSplitType: null };
+
+  // The "Let AI build it" path, where the AI picks the split type too --
+  // it has one step fewer than the self-build path (no "choose a split"),
+  // so the remaining steps renumber.
+  function aiSuggest() {
+    return splitWizard.type === "ai_suggest";
+  }
+
+  // Gender and goal weight come from the coaching profile the user filled
+  // in elsewhere in the app (see static/coaching.js), not from this wizard
+  // -- it's read-only here and entirely optional, so a user who has never
+  // opened that flow still gets a plan, just one tuned with less about them.
+  function coachingProfileForSplit() {
+    try {
+      const raw = localStorage.getItem("repcheck_coaching_profile_v1");
+      const profile = raw ? JSON.parse(raw) : null;
+      if (!profile) return {};
+      return {
+        gender: profile.gender || null,
+        goal_weight_kg: profile.goalWeightKg || null,
+        current_weight_kg: profile.weightKg || null,
+      };
+    } catch (err) {
+      return {};
+    }
+  }
 
   // Day-name seeds for "build it myself" mode when the user starts from one
   // of the readymade split templates instead of typing custom day names --
@@ -2520,7 +2559,21 @@
         renderSplitStepMode();
       });
     });
-    document.getElementById("split-mode-next-btn").addEventListener("click", renderSplitStepType);
+    document.getElementById("split-mode-next-btn").addEventListener("click", () => {
+      // "Let AI build it" no longer asks which split to run -- picking
+      // between PPL / Upper-Lower / Full Body / bro split is exactly the
+      // decision a beginner has no basis to make, and it's the decision
+      // they came here to hand off. The AI chooses it from their training
+      // days, their goal, and their coaching profile (see
+      // suggest_split_plan in split_planner.py), so the wizard goes
+      // straight to the two questions only the user can answer.
+      if (splitWizard.mode === "ai") {
+        splitWizard.type = "ai_suggest";
+        renderSplitStepLocation();
+      } else {
+        renderSplitStepType();
+      }
+    });
   }
 
   function renderSplitStepType() {
@@ -2609,7 +2662,7 @@
     const selfBuild = splitWizard.mode === "self";
     splitModalTitle.textContent = t("workouts.wizard.locationTitle");
     splitModalBody.innerHTML = `
-      <div class="split-step-label">${t("workouts.wizard.stepLocationEdit")}</div>
+      <div class="split-step-label">${t(aiSuggest() ? "workouts.wizard.stepLocationAi" : "workouts.wizard.stepLocationEdit")}</div>
       <div class="split-type-grid">
         ${getTrainingLocations().map((loc) => `
           <div class="split-type-card ${splitWizard.location === loc.id ? "is-selected" : ""}" data-split-location="${loc.id}">
@@ -2644,7 +2697,7 @@
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.goalTitle");
     splitModalBody.innerHTML = `
-      <div class="split-step-label">${t("workouts.wizard.stepGoalEdit")}</div>
+      <div class="split-step-label">${t(aiSuggest() ? "workouts.wizard.stepGoalAi" : "workouts.wizard.stepGoalEdit")}</div>
       <div class="split-goal-hint">${t("workouts.wizard.goalHint")}</div>
       <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${splitWizard.goal.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
       <button type="button" class="split-primary-btn" id="split-goal-next-btn">${t("common.next")}</button>
@@ -2879,7 +2932,7 @@
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.chooseWeekTitle");
     splitModalBody.innerHTML = `
-      <div class="split-step-label">${t("workouts.wizard.stepDaysEdit")}</div>
+      <div class="split-step-label">${t(aiSuggest() ? "workouts.wizard.stepDaysAi" : "workouts.wizard.stepDaysEdit")}</div>
       <div class="split-days-grid">
         ${[1, 2, 3, 4, 5, 6, 7].map((n) => `
           <button type="button" class="split-day-btn ${splitWizard.daysPerWeek === n ? "is-selected" : ""}" data-days="${n}">${n}</button>
@@ -2927,6 +2980,9 @@
           goal: splitWizard.goal,
           custom_days_exercises: splitWizard.customDayExercises,
           location: splitWizard.location,
+          // Only the AI-suggest path uses these, and only to tailor the
+          // prompt -- the server treats every one of them as optional.
+          ...(aiSuggest() ? coachingProfileForSplit() : {}),
         }),
       });
       const data = await response.json();
@@ -2934,6 +2990,9 @@
       splitWizard.generatedDays = data.days;
       splitWizard.generatedSchedule = data.schedule;
       splitWizard.rationale = data.rationale;
+      // Which split the AI actually chose ("ppl", "full_body", ...) -- only
+      // sent back on the suggest path, where the user never picked one.
+      splitWizard.suggestedSplitType = data.split_type || null;
       renderSplitStepReview();
     } catch (err) {
       splitModalBody.innerHTML = `<div class="split-loading">${t("workouts.wizard.errorBody")}</div>
@@ -2959,7 +3018,15 @@
     const mondayFirst = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
     const restLabel = t("workouts.wizard.rest");
 
+    // On the suggest path the user never picked a split, so the plan is the
+    // first time they learn which one they got -- name it explicitly rather
+    // than leaving them to infer it from the day labels.
+    const suggestedTitle = splitWizard.suggestedSplitType
+      ? (getSplitTypes().find((st) => st.id === splitWizard.suggestedSplitType) || {}).title
+      : null;
+
     splitModalBody.innerHTML = `
+      ${suggestedTitle ? `<div class="split-suggested-banner">${t("workouts.wizard.aiChose", { split: suggestedTitle })}</div>` : ""}
       <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
       ${days.map((day, i) => `
         <div class="split-review-day">
@@ -2993,7 +3060,10 @@
         schedule[select.dataset.weekday] = select.value;
       });
       const plan = {
-        splitType: splitWizard.type,
+        // Record the split the AI actually chose, not the "ai_suggest"
+        // sentinel -- the saved plan should look like any other split to
+        // everything downstream that reads it.
+        splitType: splitWizard.suggestedSplitType || splitWizard.type,
         daysPerWeek: splitWizard.daysPerWeek,
         goal: splitWizard.goal,
         days,
