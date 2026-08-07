@@ -637,11 +637,41 @@ def _build_prompt(split_type, days_per_week, custom_days, goal=None, custom_days
 # (see _build_suggest_prompt), so the plans stay simple and learnable rather
 # than assuming gym experience the user may not have.
 
-# Deliberately a lighter session than the type-picked path's 6-8: a complete
-# beginner finishing 4-6 exercises is a session they'll actually repeat,
+# Deliberately lighter sessions than the type-picked path's 6-8: a complete
+# beginner finishing their workout is a session they'll actually repeat,
 # where an 8-exercise session is where beginners start skipping days.
-BEGINNER_MIN_EXERCISES = 4
+#
+# These are the outer bounds across ALL frequencies -- the actual per-day
+# window SHRINKS as days_per_week rises (see _beginner_exercise_range).
+# A flat 4-6 regardless of frequency was the bug: a raw beginner training
+# 6 days/week at 6 exercises/day is >30 exercises across the week, which
+# reads fine as one number but is not a program anyone new to training
+# finishes for more than a few days. Real coaching scales session length
+# DOWN as frequency goes UP so weekly effort stays roughly constant instead
+# of multiplying -- more, shorter sessions, not more of the same session.
+BEGINNER_MIN_EXERCISES = 3
 BEGINNER_MAX_EXERCISES = 6
+
+# (min, max) exercises per day at each weekly frequency. Full-body sessions
+# at low frequency can afford to be fuller (5-6) since one session has to
+# cover the whole body and a missed day costs more. Split-style sessions at
+# higher frequency only need to cover ONE region (Push, or Legs, or half
+# the body), so a shorter, focused session (down to 3 at 6-7 days/week) is
+# both more accurate to what that day trains and more realistic for a
+# beginner to actually complete every day of the week.
+_BEGINNER_EXERCISE_RANGE_BY_DAYS = {
+    1: (5, 6),
+    2: (5, 6),
+    3: (4, 6),
+    4: (4, 5),
+    5: (4, 5),
+    6: (3, 4),
+    7: (3, 4),
+}
+
+
+def _beginner_exercise_range(days_per_week):
+    return _BEGINNER_EXERCISE_RANGE_BY_DAYS[days_per_week]
 
 # What a complete beginner should run at each weekly frequency when the AI
 # is unavailable or returns something unusable. Full body at low frequency
@@ -695,9 +725,7 @@ SUGGEST_RESPONSE_SCHEMA = {
 }
 
 
-def _fit_plan_exercise_counts(plan, location,
-                              min_exercises=BEGINNER_MIN_EXERCISES,
-                              max_exercises=BEGINNER_MAX_EXERCISES):
+def _fit_plan_exercise_counts(plan, location, min_exercises, max_exercises):
     """Hold the deterministic fallback to the same per-day exercise window
     the AI path is held to. Both ends matter: DAY_TYPE_POOLS entries run up
     to 8 deep (longer than a beginner session should be), while a location
@@ -711,8 +739,9 @@ def _fit_plan_exercise_counts(plan, location,
 
 
 def _beginner_fallback(split_type, days_per_week, goal, location):
+    min_exercises, max_exercises = _beginner_exercise_range(days_per_week)
     plan = build_fallback_plan(split_type, days_per_week, None, goal, None, location)
-    plan = _fit_plan_exercise_counts(plan, location)
+    plan = _fit_plan_exercise_counts(plan, location, min_exercises, max_exercises)
     plan["split_type"] = split_type
     return plan
 
@@ -743,6 +772,7 @@ def _describe_lifter(gender, goal_weight_kg, current_weight_kg):
 
 
 def _build_suggest_prompt(days_per_week, goal, gender, goal_weight_kg, current_weight_kg, location):
+    min_exercises, max_exercises = _beginner_exercise_range(days_per_week)
     lifter = _describe_lifter(gender, goal_weight_kg, current_weight_kg)
     lifter_block = f"\nAbout this person:\n{lifter}\n" if lifter else ""
 
@@ -792,16 +822,21 @@ def _build_suggest_prompt(days_per_week, goal, gender, goal_weight_kg, current_w
         "- At low weekly frequency, full-body sessions usually beat body-part splits, because every "
         "session still trains everything and a missed day costs less.\n"
         "- Do NOT overload the session. A beginner who finishes their workout comes back; one who is "
-        "buried in volume quits.\n\n"
+        "buried in volume quits. This matters MORE the more days they train: at higher weekly "
+        "frequency, each individual session must be shorter and more focused so the WEEKLY total stays "
+        "sustainable, not the same full session repeated on every training day. Never design a plan "
+        "where the exercise count per day is the same regardless of how often they train.\n\n"
         f'Choose exactly one split type from this list: {json.dumps(list(SUGGESTIBLE_SPLIT_TYPES))}\n'
         '("ppl" = Push/Pull/Legs, "upper_lower" = Upper/Lower, "full_body" = every session trains the '
         'whole body, "bro_split" = one muscle group per day.)\n\n'
         "You MUST only use exercise names from this exact list (copy them verbatim, do not invent, "
         f"rename, or modify any): {json.dumps(allowed_exercises)}\n\n"
-        f"Give each day exactly {BEGINNER_MAX_EXERCISES} exercises from that list (never more than "
-        f"{BEGINNER_MAX_EXERCISES}, and never fewer than {BEGINNER_MIN_EXERCISES}). Aim for "
-        f"{BEGINNER_MAX_EXERCISES} rather than the minimum — any name that isn't copied exactly from "
-        "the list gets discarded, so a day built at the minimum can end up short.\n\n"
+        f"Give each day exactly {max_exercises} exercises from that list (never more than "
+        f"{max_exercises}, and never fewer than {min_exercises} -- {days_per_week} day(s)/week gets "
+        f"SHORTER sessions than a lower frequency would, on purpose, so the week as a whole stays "
+        f"realistic for someone brand new to training). Aim for {max_exercises} rather than the "
+        "minimum — any name that isn't copied exactly from the list gets discarded, so a day built at "
+        "the minimum can end up short.\n\n"
         "Then place the training days onto an actual weekly schedule (Monday through Sunday). Apply "
         "this recovery principle: roughly one rest day for every two consecutive training days. "
         "Back-to-back days are more acceptable when they hit different muscle groups (e.g. Push then "
@@ -855,10 +890,11 @@ def suggest_split_plan(days_per_week, goal=None, gender=None, goal_weight_kg=Non
             ),
         )
         parsed = _extract_json(response.text)
+        min_exercises, max_exercises = _beginner_exercise_range(days_per_week)
         plan = _validate_plan(
             parsed, days_per_week, None, location,
-            min_exercises=BEGINNER_MIN_EXERCISES,
-            max_exercises=BEGINNER_MAX_EXERCISES,
+            min_exercises=min_exercises,
+            max_exercises=max_exercises,
             top_up_short_days=True,
         )
         # The AI picking a split type outside the list it was given is the
