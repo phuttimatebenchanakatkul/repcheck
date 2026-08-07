@@ -2273,7 +2273,7 @@
             <span class="af-recent-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
             <div class="af-recent-info">
               <div class="af-recent-name">${entry.food}</div>
-              <div class="af-recent-meta">${dateLabel} • ${formatTime(entry.addedAt)} • ${Math.round(totals.calories)} kcal</div>
+              <div class="af-recent-meta">${dateLabel} • ${formatTime(entry.addedAt)} • ${Math.round(totals.grams)}g • ${Math.round(totals.calories)} kcal</div>
             </div>
             <button type="button" class="af-recent-relog-btn" data-relog="${entry.id}" title="Log this again now">+ Log again</button>
           </div>
@@ -2304,12 +2304,47 @@
   // be worse than the "no guessing" bug this screen exists to fix.
   function renderRelogConfirm(original) {
     const m = scaledMacros(original);
+    // The calorie number means nothing without the amount it came from --
+    // "804 kcal" could be a snack or a platter. entryTotals() already sums
+    // the real grams for both entry shapes (a composite dish's ingredient
+    // list, or a simple food's own grams), which is exactly what the
+    // timeline row shows too, so the same number appears in both places.
+    const totals = entryTotals(original);
+    const ingredients = original.ingredients && original.ingredients.length ? original.ingredients : null;
+    // A multi-ingredient dish gets its per-ingredient grams listed as well:
+    // that breakdown IS the serving, and re-logging blind is the exact
+    // thing this screen exists to prevent. Names come from Gemini, so they
+    // go through escapeHtml() like every other model-authored string here.
+    const ingredientsHtml = ingredients ? `
+      <div class="af-ingredient-list">
+        ${ingredients.map((ing) => {
+          const scale = ing.grams / 100;
+          const unit = ing.unit || "g";
+          return `
+            <div class="af-ingredient-row">
+              <div class="af-ingredient-top">
+                <span class="af-ingredient-name">${escapeHtml(ing.name)}</span>
+                <span class="af-ingredient-amount">${gramsToUnit(ing.grams, unit)}${UNIT_LABELS[unit] || "g"}</span>
+              </div>
+              <div class="af-ingredient-macros">${Math.round(ing.baseCalories * scale)} kcal • P ${Math.round(ing.baseProtein * scale)}g • F ${Math.round(ing.baseFat * scale)}g • C ${Math.round(ing.baseCarbs * scale)}g</div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    ` : "";
     afModalBody.innerHTML = `
       <div class="af-title-wrap af-rise">
         <span class="af-title-input" style="cursor:default;">${escapeHtml(original.food)}</span>
       </div>
       <div class="af-rise" style="--d:60ms;">${donutChartHtml(m.protein, m.fat, m.carbs, m.calories)}</div>
-      <div class="af-actions af-rise" style="--d:120ms;">
+      <div class="af-amount-card af-rise" style="--d:100ms;">
+        <div class="af-amount-head">
+          <span class="af-amount-title">Amount</span>
+          <span class="af-amount-serving-hint">${Math.round(totals.grams)}g total</span>
+        </div>
+        ${ingredientsHtml}
+      </div>
+      <div class="af-actions af-rise" style="--d:160ms;">
         <button type="button" class="af-secondary-btn" id="af-relog-cancel-btn" style="flex:1;">Cancel</button>
         <button type="button" class="nl-save-goals-btn" id="af-relog-confirm-btn" style="flex:2;">Log again</button>
       </div>
