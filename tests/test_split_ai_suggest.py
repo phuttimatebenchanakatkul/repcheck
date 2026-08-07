@@ -4,12 +4,12 @@ picks a split type and the AI chooses one for them.
 The user answers two questions (how many days they can train, and what
 they're going for in their own words); everything else comes from the
 coaching profile they may or may not have filled in elsewhere. The AI is
-told to treat them as a complete beginner and to build 4-6 exercises per
-day. Because that whole path degrades to a deterministic fallback on ANY
-failure, the tests that matter here are the ones that prove a degraded
-result is still a good plan, and that we don't degrade unnecessarily.
+told to treat them as a complete beginner. Because that whole path degrades
+to a deterministic fallback on ANY failure, the tests that matter here are
+the ones that prove a degraded result is still a good plan, and that we
+don't degrade unnecessarily.
 
-Two real bugs found while building this, both pinned below:
+Three real bugs found while building this, all pinned below:
   - The AI, told "never fewer than 4", returned exactly 4 every time. After
     _validate_plan dropped names that weren't in the library verbatim (or
     weren't doable at the user's training location), days fell under 4 and
@@ -18,8 +18,14 @@ Two real bugs found while building this, both pinned below:
   - The deterministic fallback had the mirror-image problem from the other
     direction: DAY_TYPE_POOLS["Push"] has 7 entries but only 2 are doable at
     home, so a home-training beginner got a 2-exercise "Push" day.
-Both are now handled by topping the day up from the same day type's
-exercises instead of rejecting the plan.
+  - The exercise count per day was a FLAT 4-6 window regardless of weekly
+    frequency, which shipped 6-exercise sessions 6 days a week -- more than
+    30 exercises across the week, not a program a raw beginner keeps up for
+    more than a few days (caught by the user testing this in production).
+    Per-day count now scales down as frequency rises (see
+    _beginner_exercise_range): 5-6 at 1-2 days/week down to 3-4 at 6-7.
+Both of the first two are handled by topping the day up from the same day
+type's exercises instead of rejecting the plan.
 """
 
 import json
@@ -34,6 +40,7 @@ from split_planner import (
     SUGGESTIBLE_SPLIT_TYPES,
     suggest_split_plan,
 )
+from split_planner import _beginner_exercise_range
 
 ALL_LOCATIONS = ["home", "gym", "hybrid", None]
 
@@ -76,23 +83,53 @@ def _plan_payload(days, split_type="ppl"):
     }
 
 
-# ---------- the 4-6 exercise contract, on every path ----------
+# ---------- the frequency-scaled exercise-count contract, on every path ----------
+
+def test_exercise_range_shrinks_as_weekly_frequency_rises():
+    """The table itself: session length must never increase, and must
+    strictly decrease at least once, as days_per_week goes up -- this is
+    the actual fix for "6 exercises x 6 days is not realistic for a
+    beginner". A flat range for every frequency is exactly the regression
+    this guards against."""
+    ranges = [_beginner_exercise_range(d) for d in range(1, 8)]
+    maxes = [mx for _, mx in ranges]
+    assert maxes == sorted(maxes, reverse=True), f"max exercises/day rose with frequency: {maxes}"
+    assert len(set(ranges)) > 1, "every frequency got the identical window"
+    # The two ends of the spectrum this bug report was actually about.
+    assert _beginner_exercise_range(1)[1] >= 5, "a once-a-week full-body session shouldn't be this short"
+    assert _beginner_exercise_range(6)[1] <= 4, "6 days/week must not still be a 5-6 exercise session"
+    assert _beginner_exercise_range(7)[1] <= 4
+
+
+@pytest.mark.parametrize("days_per_week", [1, 2, 3, 4, 5, 6, 7])
+def test_weekly_exercise_total_stays_bounded_as_frequency_rises(days_per_week):
+    """The actual complaint, checked directly: total exercises across the
+    week (days x max-per-day) must not run away as days_per_week grows.
+    With the old flat 4-6 window, 6 days/week -> 36; that's the number that
+    prompted this fix."""
+    _, max_exercises = _beginner_exercise_range(days_per_week)
+    weekly_total = days_per_week * max_exercises
+    assert weekly_total <= 28, f"{days_per_week}d/week x {max_exercises}/day = {weekly_total} total, too high"
+
 
 @pytest.mark.parametrize("days_per_week", [1, 2, 3, 4, 5, 6, 7])
 @pytest.mark.parametrize("location", ALL_LOCATIONS)
-def test_fallback_always_lands_in_the_beginner_exercise_window(monkeypatch, days_per_week, location):
+def test_fallback_lands_in_the_frequency_scaled_window(monkeypatch, days_per_week, location):
     """No API key means every user takes the deterministic path, so it has to
-    satisfy the 4-6 contract on its own -- this is the case that shipped a
-    2-exercise "Push" day at home."""
+    satisfy the per-frequency contract on its own -- this is the case that
+    shipped a 2-exercise "Push" day at home, and (separately) the case that
+    shipped a flat 6-exercise day at every frequency including 6-7 days/week."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    min_expected, max_expected = _beginner_exercise_range(days_per_week)
 
     plan = suggest_split_plan(days_per_week, goal="build muscle", location=location)
 
     assert len(plan["days"]) == days_per_week
     assert plan["split_type"] == BEGINNER_SPLIT_BY_DAYS[days_per_week]
     for day in plan["days"]:
-        assert BEGINNER_MIN_EXERCISES <= len(day["exercises"]) <= BEGINNER_MAX_EXERCISES, (
-            f"{location} / {days_per_week}d: {day['label']} has {len(day['exercises'])}"
+        assert min_expected <= len(day["exercises"]) <= max_expected, (
+            f"{location} / {days_per_week}d: {day['label']} has {len(day['exercises'])}, "
+            f"expected {min_expected}-{max_expected}"
         )
         # A topped-up day still has to be a real, doable session.
         assert len(set(day["exercises"])) == len(day["exercises"]), "duplicate exercise"
@@ -103,20 +140,23 @@ def test_fallback_always_lands_in_the_beginner_exercise_window(monkeypatch, days
 def test_ai_day_that_filters_below_the_minimum_is_topped_up_not_discarded():
     """The regression that cost users the AI plan outright: the AI returns 4
     exercises, two aren't real library names, and the day lands at 2. The
-    plan must survive with that day topped back up to 4, not be thrown away."""
+    plan must survive with that day topped back up to the minimum, not be
+    thrown away. Uses an explicit 4-6 window (not _beginner_exercise_range)
+    -- this test is about the top-up mechanism itself, independent of which
+    frequency picked that window."""
     days = [
         {"label": "Push", "exercises": ["Flat Bench Press", "Shoulder Press", "Bench Pressing", "Chest Machine Thing"]},
         {"label": "Pull", "exercises": ["Pull-Up", "Bicep Curl", "Seated Cable Row", "Lat Pulldown"]},
     ]
     plan = sp._validate_plan(
         _plan_payload(days), 2, None, "gym",
-        min_exercises=BEGINNER_MIN_EXERCISES,
-        max_exercises=BEGINNER_MAX_EXERCISES,
+        min_exercises=4,
+        max_exercises=6,
         top_up_short_days=True,
     )
 
     push = plan["days"][0]
-    assert len(push["exercises"]) >= BEGINNER_MIN_EXERCISES
+    assert len(push["exercises"]) >= 4
     # The two real names the AI picked are kept; only the junk is replaced.
     assert push["exercises"][:2] == ["Flat Bench Press", "Shoulder Press"]
     assert "Bench Pressing" not in push["exercises"]
@@ -140,15 +180,16 @@ def test_max_exercises_is_enforced_against_an_overlong_ai_day():
     days = [{"label": "Full Body", "exercises": sp.DAY_TYPE_POOLS["Full Body"] + sp.LEGS_BALANCED}]
     plan = sp._validate_plan(
         _plan_payload(days, "full_body"), 1, None, None,
-        min_exercises=BEGINNER_MIN_EXERCISES,
-        max_exercises=BEGINNER_MAX_EXERCISES,
+        min_exercises=4,
+        max_exercises=6,
         top_up_short_days=True,
     )
-    assert len(plan["days"][0]["exercises"]) == BEGINNER_MAX_EXERCISES
+    assert len(plan["days"][0]["exercises"]) == 6
 
 
 def test_type_picked_path_keeps_its_original_exercise_window(monkeypatch):
-    """The 4-6 window belongs to the beginner suggest path. The pre-existing
+    """The beginner suggest path's window (5-6 exercises even at its
+    roomiest, 1-2 days/week) belongs to that path alone. The pre-existing
     "I already know I want PPL" path must keep its roomier 6-8 sessions."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     plan = sp.generate_split_plan("ppl", 3, location="gym")
@@ -228,6 +269,22 @@ def test_prompt_survives_a_user_with_no_coaching_profile(monkeypatch):
 
     assert "About this person:" not in captured["prompt"]
     assert len(plan["days"]) == 2
+
+
+def test_prompt_asks_for_fewer_exercises_at_higher_frequency():
+    """The prompt text itself has to change with frequency, not just the
+    post-hoc validator -- otherwise the model is never actually told to
+    build a shorter session, and only gets capped after the fact."""
+    low = sp._build_suggest_prompt(1, None, None, None, None, None)
+    high = sp._build_suggest_prompt(7, None, None, None, None, None)
+
+    low_min, low_max = _beginner_exercise_range(1)
+    high_min, high_max = _beginner_exercise_range(7)
+    assert low_max > high_max
+    assert f"exactly {low_max} exercises" in low
+    assert f"exactly {high_max} exercises" in high
+    assert f"never fewer than {low_min}" in low
+    assert f"never fewer than {high_min}" in high
 
 
 def test_weight_direction_is_spelled_out_for_the_model():
