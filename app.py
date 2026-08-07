@@ -197,6 +197,28 @@ app.secret_key = _secret_key
 # never happen, and _keep_session_permanent() below refreshes it each visit.
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=3650)
 
+# Session cookie hardening (CSO audit Finding 3, 2026-08-10). Flask's
+# defaults are HttpOnly=True (already fine -- JS/XSS can't read this
+# cookie), Secure=False, SameSite unset -- and this cookie alone gates
+# /admin/export-db, a full production-database download.
+#
+# SameSite=Lax is unconditionally safe here: it still allows the
+# top-level-navigation redirects this app's own login form and Google
+# OAuth callback rely on, while blocking the cookie from being sent on
+# cross-site requests forged from another origin.
+#
+# Secure=True is NOT unconditionally safe -- local dev deliberately runs
+# over plain HTTP (see the ssl_context="adhoc" revert note at the bottom
+# of this file), and a Secure-flagged cookie is simply dropped by every
+# browser on an http:// origin, which would lock every local dev session
+# out immediately. RENDER is set automatically by Render's platform for
+# every deployed service (undocumented from inside this repo -- verify
+# against the deployed app's own Set-Cookie response header after this
+# ships, not just this comment) and absent locally, so it's used here as
+# the production/local switch instead of a value this app controls.
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
+
 app.register_blueprint(auth_bp)
 init_db()
 
