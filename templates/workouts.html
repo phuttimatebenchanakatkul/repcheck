@@ -1595,6 +1595,28 @@
   function isBlank(v) { return v === "" || v === null || v === undefined; }
   function weightInputValue(kg) { return isBlank(kg) ? "" : RepCheckUnits.kgToDisplay(kg); }
 
+  // Builds the set that "Add set" appends. Adding a set almost always means
+  // another set at the same load (30kg curls -> another 30kg curls), so the
+  // weight carries forward instead of making the user retype it every time.
+  // Reps deliberately stay blank: that's the number that actually varies set
+  // to set, and pre-filling it would record a rep count nobody performed.
+  // Scans backwards rather than reading only the last set, so adding two sets
+  // in a row still carries the weight through the blank one just added.
+  // Weights are stored in kg regardless of the displayed unit (see the
+  // weight-input handler), so copying the raw value is unit-safe. Each-side
+  // entries carry left/right independently -- the two sides are often loaded
+  // differently and averaging or cross-seeding them would invent data.
+  function newSetCarryingWeight(sets) {
+    const set = { reps: "" };
+    for (let i = sets.length - 1; i >= 0; i--) {
+      const prev = sets[i];
+      if (isBlank(set.weightKg) && !isBlank(prev.weightKg)) set.weightKg = prev.weightKg;
+      if (isBlank(set.leftKg) && !isBlank(prev.leftKg)) set.leftKg = prev.leftKg;
+      if (isBlank(set.rightKg) && !isBlank(prev.rightKg)) set.rightKg = prev.rightKg;
+    }
+    return set;
+  }
+
   // The heaviest weight logged on any set of this exercise, for the
   // at-a-glance line on the collapsed card ("what did I lift").
   function topWeightKg(entry) {
@@ -1902,7 +1924,7 @@
         event.stopPropagation();
         const entry = findEntry(btn.dataset.addSet);
         if (entry) {
-          entry.sets.push({ reps: "" });
+          entry.sets.push(newSetCarryingWeight(entry.sets));
           saveLog();
           renderTimeline();
         }
