@@ -100,7 +100,14 @@ def signup():
     elif len(password) < 8:
         error = "Password must be at least 8 characters."
     elif get_user_by_email(email):
-        error = "An account with that email already exists."
+        # Deliberately not "an account with that email already exists" --
+        # that phrasing is a free, unthrottled oracle: script signup with a
+        # list of candidate emails and get an instant, distinguishable
+        # yes/no on which ones have accounts here. This message still
+        # nudges a genuine returning user toward login (the actually useful
+        # part), just without confirming registration to an attacker who
+        # doesn't already know it.
+        error = "We couldn't create an account with that email. If you already have one, try logging in instead."
 
     if error:
         return render_template(

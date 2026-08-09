@@ -2856,6 +2856,7 @@
   ];
   let customFoods = []; // this user's own created foods, from GET /api/custom-foods
   let afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
+  let afCreateQuickMode = false; // read by submitCustomFood() -- see renderAfCreateForm below
 
   async function loadCustomFoods() {
     try {
@@ -2883,6 +2884,7 @@
   // stays findable later even from the quick path.
   function renderAfCreateForm(quickMode) {
     afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
+    afCreateQuickMode = quickMode;
     afModalBody.innerHTML = `
       ${quickMode ? "" : `
       <div class="af-field">
@@ -2989,6 +2991,44 @@
         }],
         calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
       };
+
+      // Quick mode's button says "Log now", not "Review and log" -- it has
+      // to actually log immediately instead of dropping into the same
+      // review screen the full "Create & log" flow uses (that extra click
+      // was silently eating every quick-macro entry: the food got created
+      // but never made it into the day's log unless the user noticed and
+      // clicked a SECOND "Add to log" they were never told to expect).
+      if (afCreateQuickMode) {
+        const dateForEntry = selectedDate;
+        if (!log[dateForEntry]) log[dateForEntry] = [];
+        const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+        const entry = {
+          id,
+          food: food.name,
+          addedAt: Date.now(),
+          ingredients: afResult.ingredients.map((ing) => ({
+            name: ing.name, grams: ing.grams, unit: "g",
+            baseCalories: ing.calories, baseCarbs: ing.carbs, baseFat: ing.fat, baseProtein: ing.protein,
+          })),
+        };
+        log[dateForEntry].push(entry);
+        saveLog();
+        renderTimeline();
+        renderSummary();
+        afModalBody.innerHTML = `
+          <div class="af-added">
+            <div class="af-added-circle">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="af-added-title">Added to your log</div>
+            <div class="af-added-sub">${escapeHtml(food.name)}</div>
+          </div>
+        `;
+        setTimeout(closeAnalyzeFoodModal, 1100);
+        await persistLogEntry(dateForEntry, entry);
+        return;
+      }
+
       renderAfResult(afResult);
     } catch (err) {
       errorEl.textContent = "Couldn't create that food. Please try again.";
