@@ -1,9 +1,13 @@
 /* First-run guided tour (see tour.js) -- MyFitnessPal-style: one dim
    overlay, a bright cutout + ring around the single control being
    described, and a small card sitting right next to it with a bold
-   title and one line of body copy. No page-blocking: the overlay and
-   card are pointer-events:none, so every click still reaches the real
-   page underneath (see tour.js's onAnyClick). */
+   title and one line of body copy.
+
+   The overlay itself stays pointer-events:none so the spotlighted
+   control is genuinely clickable through it; modality is enforced in JS
+   instead (tour.js's onAnyClick swallows clicks that miss the target),
+   which keeps the one sanctioned click completely untouched -- links
+   still navigate, buttons still open their sheets. */
 
 .tour-overlay {
   position: fixed;
@@ -49,8 +53,15 @@
    first-time user to know exactly what "tap here" refers to. Points down
    by default (card below target); .is-up flips it for the card-above
    case. tour.js positions it via left/top or left/bottom directly. */
+/* Absolute (not fixed) so it shares the overlay's coordinate space. On
+   desktop the app frames itself as a 390px "device" via a transform on
+   <body>, and a transformed ancestor becomes the containing block for
+   position:fixed -- so fixed children silently anchor to the frame while
+   tour.js measures targets in viewport coordinates. Positioning
+   everything inside the overlay and subtracting its origin (see
+   overlayOrigin() in tour.js) makes the two agree in both layouts. */
 .tour-arrow {
-  position: fixed;
+  position: absolute;
   z-index: 241;
   width: 26px; height: 26px;
   color: var(--tour-accent);
@@ -73,9 +84,12 @@
 /* The card: pinned right next to the highlighted control (tour.js's
    placeCard sets top/bottom/left directly), or centred for the one
    no-target (welcome) step. */
+/* Absolute for the same reason as .tour-arrow above -- shares the
+   overlay's coordinate space so the desktop device-frame transform can't
+   shift it away from the control it's describing. */
 .tour-card {
-  position: fixed;
-  width: min(320px, calc(100vw - 24px));
+  position: absolute;
+  width: min(320px, calc(100% - 24px));
   z-index: 241;
   background: var(--card-bg);
   color: var(--text);
@@ -88,7 +102,7 @@
   left: 50% !important;
   top: 50% !important;
   transform: translate(-50%, -50%);
-  width: min(340px, calc(100vw - 32px));
+  width: min(340px, calc(100% - 32px));
 }
 @keyframes tour-card-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -113,6 +127,46 @@
 
 .tour-title { font-size: 16.5px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }
 .tour-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px; }
+
+/* Shown only after a click that missed the spotlight, so a blocked tap
+   reads as "not that one, this one" instead of as a dead page. Collapsed
+   to zero height when idle so it never reserves space in the card. */
+.tour-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tour-accent);
+  line-height: 1.4;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+.tour-hint.is-visible { max-height: 40px; opacity: 1; margin-top: 8px; }
+
+/* Feedback for a blocked click: a short shake on the card, and a brighter
+   flare on the ring so the eye is pulled to where the tap should go. */
+.tour-card.is-nudging { animation: tour-shake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+.tour-card.is-centered.is-nudging { animation: tour-shake-centered 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes tour-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+@keyframes tour-shake-centered {
+  0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+  20% { transform: translate(-50%, -50%) translateX(-7px); }
+  40% { transform: translate(-50%, -50%) translateX(6px); }
+  60% { transform: translate(-50%, -50%) translateX(-4px); }
+  80% { transform: translate(-50%, -50%) translateX(2px); }
+}
+.tour-spotlight.is-nudging { animation: tour-flare 0.36s ease-out; }
+@keyframes tour-flare {
+  0% { outline-color: var(--tour-accent); }
+  50% { outline-color: #fff; }
+  100% { outline-color: var(--tour-accent); }
+}
 
 .tour-welcome-foot { display: flex; justify-content: flex-end; margin-top: 13px; }
 .tour-next {
@@ -186,4 +240,9 @@
   .tour-card { animation: none; }
   .tour-mini-dot { animation: none; }
   .tour-arrow.is-visible, .tour-arrow.is-up.is-visible { animation: none; }
+  /* The hint text still appears -- only the shake that carries it is
+     dropped, so the "not that one" feedback survives without motion. */
+  .tour-card.is-nudging,
+  .tour-card.is-centered.is-nudging,
+  .tour-spotlight.is-nudging { animation: none; }
 }
