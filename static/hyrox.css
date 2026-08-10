@@ -300,14 +300,18 @@
 .hx-custom-row .hx-agenda-name { flex-basis: 100%; order: -1; margin-left: 38px; }
 .hx-custom-row .hx-agenda-num,
 .hx-custom-row .hx-agenda-icon { align-self: flex-start; }
-.hx-custom-row-controls { flex-shrink: 0; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+/* 34px targets, 8px gaps -- was 26px/2px, which on a touch device put a
+   destructive Remove button close enough to the reorder arrows to mis-tap.
+   The row wraps its controls onto their own line at narrow widths (see
+   .hx-agenda-row-main above), leaving plenty of room for this. */
+.hx-custom-row-controls { flex-shrink: 0; display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .hx-custom-move-btn,
 .hx-custom-remove-btn {
-  width: 26px; height: 26px;
+  width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
-  border: none; border-radius: 8px;
+  border: none; border-radius: 9px;
   background: none; color: var(--text-secondary);
-  cursor: pointer; font-family: inherit; font-size: 16px; line-height: 1;
+  cursor: pointer; font-family: inherit; font-size: 18px; line-height: 1;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 .hx-custom-move-btn:hover:not(:disabled),
