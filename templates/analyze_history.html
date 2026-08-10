@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Analysis History{% endblock %}
+
+{% block content %}
+<!--
+  The full log of stored form analyses, linked from the "View full logs"
+  pill next to the Analyze page's "Recent analyses" strip. That strip
+  already renders the same entries this page does (no client-side slicing
+  in its server-history branch), just as a horizontally-scrolling row --
+  this page's value is a plain vertical list that's actually easy to scan
+  once there's more than a handful. Same "own page with a back link"
+  pattern as logging_history.html / weight_history.html, prefixed ah-
+  (analyze history) instead of lh-/wh-.
+
+  Nothing here can show more than ANALYZE_HISTORY_KEEP entries -- that's
+  the server-side cap this user's history is pruned to on every new
+  analysis (see api_analyze() in app.py), so this page already shows
+  everything that still exists to show; there is no "load more".
+-->
+<style>
+  .ah-back { display: inline-block; margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-decoration: none; }
+  .ah-back:hover { color: var(--text); }
+
+  .ah-card {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 10px; max-width: 560px;
+  }
+
+  .ah-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px; border-radius: 12px;
+    text-decoration: none; color: inherit;
+  }
+  .ah-item:hover { background: var(--bg); }
+  .ah-item + .ah-item { margin-top: 2px; }
+
+  .ah-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: var(--bg); overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .ah-icon img { width: 100%; height: 100%; object-fit: cover; }
+
+  .ah-item-body { flex: 1; min-width: 0; }
+  .ah-item-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ah-item-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  .ah-score { font-size: 15px; font-weight: 800; flex-shrink: 0; }
+  .ah-score.is-good { color: var(--green); }
+  .ah-score.is-ok { color: var(--amber); }
+  .ah-score.is-bad { color: var(--red); }
+
+  .ah-chevron { color: var(--text-secondary); flex-shrink: 0; }
+
+  .ah-empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); font-size: 13px; }
+</style>
+
+<a href="{{ url_for('analyze_page') }}" class="ah-back" data-i18n="analyzeHistory.backToAnalyze">&larr; Back to Analyze</a>
+
+<div class="ah-card">
+  {% if entries %}
+    {% for entry in entries %}
+      <a href="{{ url_for('analyze_history_detail_page', result_id=entry.id) }}" class="ah-item">
+        <div class="ah-icon">
+          {% if exercise_icons.get(entry.exercise_label) %}
+            <img src="/static/{{ exercise_icons[entry.exercise_label] }}" alt="">
+          {% else %}
+            🏋️
+          {% endif %}
+        </div>
+        <div class="ah-item-body">
+          <div class="ah-item-name">{{ entry.exercise_label }}</div>
+          <div class="ah-item-meta" data-created-at="{{ entry.created_at }}" data-reps="{{ entry.reps or '' }}">
+            {{ entry.created_at }}{% if entry.reps %} &middot; {{ entry.reps }} reps{% endif %}
+          </div>
+        </div>
+        {% if entry.overall_score is not none %}
+          <div class="ah-score {{ 'is-good' if entry.overall_score >= 80 else 'is-ok' if entry.overall_score >= 50 else 'is-bad' }}">{{ entry.overall_score }}</div>
+        {% endif %}
+        <svg class="ah-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      </a>
+    {% endfor %}
+  {% else %}
+    <div class="ah-empty" data-i18n="analyzeHistory.empty">No analyses yet. Analyze a set to start building your log.</div>
+  {% endif %}
+</div>
+
+<script>
+  // Same relative-date convention (today/yesterday/N days ago, falling
+  // back to a localized short date) as the Analyze page's "Recent
+  // analyses" strip -- duplicated rather than shared, matching how
+  // index.html already keeps its own copy of this logic.
+  (function () {
+    const t = RepCheckI18n.t;
+    function relativeDateLabel(timestamp) {
+      const days = Math.floor((Date.now() - timestamp) / 86400000);
+      if (days <= 0) return t("analyze.today");
+      if (days === 1) return t("analyze.yesterday");
+      if (days < 7) return t("analyze.daysAgo", { n: days });
+      return new Date(timestamp).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
+    }
+    function applyDates() {
+      document.querySelectorAll(".ah-item-meta[data-created-at]").forEach((el) => {
+        // SQLite's created_at is "YYYY-MM-DD HH:MM:SS" in UTC.
+        const timestamp = new Date(el.dataset.createdAt.replace(" ", "T") + "Z").getTime();
+        const reps = el.dataset.reps;
+        el.textContent = reps
+          ? `${relativeDateLabel(timestamp)} · ${reps} ${t("workouts.exercise.repsLabel")}`
+          : relativeDateLabel(timestamp);
+      });
+    }
+    applyDates();
+    document.addEventListener("repcheck:language-changed", applyDates);
+  })();
+</script>
+{% endblock %}

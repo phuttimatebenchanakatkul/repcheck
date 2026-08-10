@@ -2150,20 +2150,11 @@ def analyze():
         trimmed_path.unlink(missing_ok=True)
 
 
-@app.route("/analyze/latest", methods=["GET"])
-def analyze_latest():
-    # Opens a user's most recent analysis result directly. Nothing in the
-    # UI links here any more -- the Analyze nav always goes to the upload
-    # form -- so this is a deep link (bookmark, notification, shared URL).
-    # Falls back to the upload page for anyone who lands on it without a
-    # stored result (logged out, or never analyzed anything yet), rather
-    # than erroring.
-    user = current_user()
-    if not user:
-        return redirect(url_for("analyze_page"))
-    row = get_latest_analyze_result(user["id"])
-    if not row:
-        return redirect(url_for("analyze_page"))
+def _render_analyze_result_page(row):
+    # Shared by every page that opens one stored analysis in the full
+    # video-led result view (analyze_latest below, and
+    # analyze_history_detail_page) -- kept in one place so the two can't
+    # drift apart on which fields reach result.html.
     sections = split_feedback_sections(row["feedback_text"], row["overall_score"])
     return render_template(
         "result.html",
@@ -2186,6 +2177,64 @@ def analyze_latest():
         active_nav="analyze",
         i18n_page="result",
     )
+
+
+@app.route("/analyze/latest", methods=["GET"])
+def analyze_latest():
+    # Opens a user's most recent analysis result directly. This is a deep
+    # link (bookmark, notification, shared URL) -- the UI itself links to
+    # specific analyses via analyze_history_detail_page below, and to the
+    # full list via analyze_history_page. Falls back to the upload page for
+    # anyone who lands on it without a stored result (logged out, or never
+    # analyzed anything yet), rather than erroring.
+    user = current_user()
+    if not user:
+        return redirect(url_for("analyze_page"))
+    row = get_latest_analyze_result(user["id"])
+    if not row:
+        return redirect(url_for("analyze_page"))
+    return _render_analyze_result_page(row)
+
+
+@app.route("/analyze/history", methods=["GET"])
+def analyze_history_page():
+    # The full log of every analysis this user has stored -- linked from
+    # the "View full logs" pill next to the Analyze page's "Recent
+    # analyses" strip. That strip already shows the same ANALYZE_HISTORY_KEEP
+    # cap this page does (it renders every entry the API returns, no
+    # further slicing), just as a horizontally-scrolling row of cards; this
+    # page's value is a plain scrollable list that's actually easy to scan
+    # past a handful of entries, not more history than the strip has. Either
+    # way, nothing here goes beyond ANALYZE_HISTORY_KEEP: that's the
+    # server-side cap this user's history is pruned to (see api_analyze()
+    # above), so this page already shows everything that still exists.
+    user = current_user()
+    if not user:
+        return redirect(url_for("analyze_page"))
+    entries = get_analyze_results(user["id"], limit=ANALYZE_HISTORY_KEEP)
+    return render_template(
+        "analyze_history.html",
+        entries=entries,
+        exercise_icons=EXERCISE_ICONS,
+        active_nav="analyze",
+        i18n_page="analyzeHistory",
+    )
+
+
+@app.route("/analyze/history/<int:result_id>", methods=["GET"])
+def analyze_history_detail_page(result_id):
+    # Page-level counterpart to api_analyze_history_detail below: opens one
+    # specific stored analysis in the full result view, linked from
+    # analyze_history_page's list (a plain, bookmarkable URL, rather than
+    # the JSON endpoint the "Recent analyses" strip fetches to swap the
+    # result view in over AJAX without a page navigation).
+    user = current_user()
+    if not user:
+        return redirect(url_for("analyze_page"))
+    row = get_analyze_result(user["id"], result_id)
+    if not row:
+        return redirect(url_for("analyze_history_page"))
+    return _render_analyze_result_page(row)
 
 
 def _analyze_video_available(row):

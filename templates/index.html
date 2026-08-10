@@ -51,7 +51,19 @@
   </form>
 
   <div class="an-recent" id="an-recent" style="display:none;">
-    <div class="an-recent-title" data-i18n="analyze.recentAnalyses">Recent analyses</div>
+    <div class="an-recent-title-row">
+      <div class="an-recent-title" data-i18n="analyze.recentAnalyses">Recent analyses</div>
+      {# Only ever points somewhere useful for logged-in users with stored
+         server-side history -- the strip's local-log fallback (logged out,
+         or the fetch failed) has nothing a dedicated history page could
+         show beyond what's already in the strip, so this stays hidden in
+         that case (toggled in renderRecentAnalyses()). The server-history
+         branch itself already shows every entry the API returns (up to
+         ANALYZE_HISTORY_KEEP) as a horizontal scroll strip -- this link is
+         about giving that same list a scannable vertical layout, not
+         surfacing more history than the strip has. #}
+      <a href="{{ url_for('analyze_history_page') }}" class="an-recent-view-all" id="an-view-full-logs" data-i18n="analyze.viewFullLogs" style="display:none;">View full logs</a>
+    </div>
     <div class="an-recent-strip" id="an-recent-strip"></div>
   </div>
 </div>
@@ -178,7 +190,10 @@
      the upload screen turns it into a visible history/progress cue meant
      to pull the user back to analyze again, not just a quiet picker aid. */
   .an-recent { margin-top: 22px; }
-  .an-recent-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 10px; }
+  .an-recent-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .an-recent-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0; }
+  .an-recent-view-all { font-size: 12px; font-weight: 700; color: var(--blue); text-decoration: none; white-space: nowrap; }
+  .an-recent-view-all:hover { text-decoration: underline; }
   .an-recent-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
   .an-recent-strip::-webkit-scrollbar { display: none; }
   .an-recent-card {
@@ -667,9 +682,13 @@
   function renderRecentAnalyses() {
     const wrap = document.getElementById("an-recent");
     const strip = document.getElementById("an-recent-strip");
+    const viewFullLogs = document.getElementById("an-view-full-logs");
 
     if (serverHistory && serverHistory.length) {
       wrap.style.display = "block";
+      // Only the server-backed branch has a dedicated history page behind
+      // it -- the local-log fallback below hides this again.
+      viewFullLogs.style.display = "inline-block";
       strip.innerHTML = serverHistory.map((entry) => `
         <button type="button" class="an-recent-card" data-history-id="${entry.id}">
           <div class="an-recent-icon">${exerciseIconHtml(entry.exercise_label)}</div>
@@ -686,9 +705,11 @@
     const entries = getRecentAnalysisEntries(8);
     if (!entries.length) {
       wrap.style.display = "none";
+      viewFullLogs.style.display = "none";
       return;
     }
     wrap.style.display = "block";
+    viewFullLogs.style.display = "none";
     strip.innerHTML = entries.map((entry) => `
       <button type="button" class="an-recent-card" data-name="${entry.exercise}">
         <div class="an-recent-icon">${exerciseIconHtml(entry.exercise)}</div>
