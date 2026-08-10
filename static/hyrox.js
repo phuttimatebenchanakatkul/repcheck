@@ -96,6 +96,61 @@
 
   const STATION_ORDER = STATIONS.filter((s) => s.type === "station").map((s) => s.key);
 
+  // ---------- Custom race builder ----------
+  // A user-assembled race: any of these building blocks, any number of
+  // times, in any order, each with its own editable amount (meters, or
+  // reps for Wall Balls -- the one station HYROX itself never measures in
+  // distance). "run" isn't in STATIONS as its own station entry (runs are
+  // the run1..run8 filler between stations there), so it's listed here
+  // explicitly as its own insertable block.
+  const CUSTOM_STATION_KEYS = ["run", "skierg", "sledPush", "sledPull", "burpeeBroadJump", "row", "farmersCarry", "lunges", "wallBalls"];
+
+  // Display name per key, reused as-is (not translated) for both the
+  // standard agenda and the custom builder -- same convention STATIONS'
+  // own .title strings already follow (station names are the sport's own
+  // vocabulary, kept in English regardless of app language, same as
+  // "SkiErg"/"Wall Balls" elsewhere in this file).
+  const STATION_TITLES = { run: "Run" };
+  STATIONS.forEach((s) => { if (s.type === "station") STATION_TITLES[s.key] = s.title; });
+
+  // What a freshly-added block starts at -- the real HYROX standard for
+  // every station except Wall Balls (reps, not meters -- see
+  // CUSTOM_STATION_KEYS above), and the standard 1km for Run. Gender-
+  // specific numbers (weight, Wall Balls' own rep count) don't apply here:
+  // the custom builder never asks for gender, so 75 (roughly the
+  // women's/lighter-category rep standard) is used as one flat, edit-
+  // anytime starting point rather than guessing which standard the user
+  // meant.
+  const CUSTOM_DEFAULT_WALL_BALL_REPS = 75;
+  function customStationDefaultAmount(key) {
+    if (key === "run") return RUN_DISTANCE_M;
+    if (key === "wallBalls") return CUSTOM_DEFAULT_WALL_BALL_REPS;
+    return STATION_SPECS[key].distanceM;
+  }
+  function customStationUnitLabel(key) {
+    return key === "wallBalls" ? t("hyrox.space.chip.reps") : t("hyrox.standards.chip.distance");
+  }
+  function formatCustomAmount(key, amount) {
+    return key === "wallBalls" ? String(amount) : formatStationMeters(amount);
+  }
+
+  // The builder's starting point: the whole standard race, one block per
+  // STATIONS entry, every amount at its default -- "every station set to
+  // the default" from the moment Custom is picked, so the user is editing
+  // a real race instead of building one up from nothing. Each block gets
+  // its own instance id (separate from `key`) so the same station can be
+  // added more than once -- two Runs, two Sled Pushes, whatever -- without
+  // colliding in the ordered list.
+  function newCustomStationId() {
+    return crypto.randomUUID ? crypto.randomUUID() : `cs-${Date.now()}-${Math.random()}`;
+  }
+  function buildDefaultCustomStations() {
+    return STATIONS.map((s) => {
+      const key = s.type === "run" ? "run" : s.key;
+      return { id: newCustomStationId(), key, amount: customStationDefaultAmount(key) };
+    });
+  }
+
   // Only the 4 stations whose standard actually differs between Open and
   // Pro (see STATION_SPECS above) support the Pro practice-weight
   // adjustment. SkiErg/Row/Run are excluded because they're machine/bodyweight
@@ -431,6 +486,10 @@
   const CLOCK_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>`;
   const CHECK_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
   const WARNING_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  // Custom race builder's reorder arrows -- no drag-and-drop anywhere else
+  // in this app, so plain tap-to-move buttons match the rest of the UI.
+  const CHEVRON_UP_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
+  const CHEVRON_DOWN_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
   const TROPHY_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 0 5H7"/><path d="M17 6h2.5a2.5 2.5 0 0 1 0 5H17"/></svg>`;
   // Filled sparkle -- the app's "AI" motif (same shape as the Analyze
   // chatbot avatar), used on the race-analysis coaching block.
@@ -463,7 +522,10 @@
   function genderTitle(id) { return id ? t(`hyrox.gender.${id}`) : "Mixed"; }
 
   // "Men Open Singles"-style combo label used on results/history/PB rows.
+  // Custom races have no gender/format (the builder never asks), so they
+  // get their own short label instead of composing one from empty parts.
   function comboLabel(gender, category, format) {
+    if (category === "custom") return t("hyrox.category.custom.title");
     const cat = CATEGORY_IDS.includes(category) ? categoryTitle(category) : category;
     const fmt = FORMAT_IDS.includes(format) ? formatTitle(format) : (format || "Mixed Relay");
     return t("hyrox.finishLabel", { gender: genderTitle(gender), category: cat, format: fmt });
@@ -594,6 +656,14 @@
       // is never reset by resetSetup(). Kept local (not account-synced)
       // since it's tied to wherever the user physically trains.
       this.facilityLane = loadJson(FACILITY_LANE_KEY, null);
+      // The user's custom-race-in-progress -- built once here (not in
+      // resetSetup(), which runs on every "New race") so switching to
+      // Standard and back to Custom, or finishing a custom race and
+      // starting another, doesn't discard what was built. Not persisted
+      // to localStorage (matches stationWeights/doublesSplit below, which
+      // are also in-session-only); see buildDefaultCustomStations() for
+      // what it starts as.
+      this.customStations = buildDefaultCustomStations();
       this.analysisCache = {}; // raceId -> { loading, data|error }
       // Which analysis sections are expanded to their full bullet-point
       // detail, keyed "raceId:section" (section = "overall" or a rating
@@ -672,6 +742,13 @@
 
     resetSetup() {
       this.screen = "setup";
+      // "standard" | "custom" -- see setRaceType()/renderCustomBuilder().
+      // Always resets to standard so "start over" never quietly reopens
+      // the custom builder instead of the usual category/format steps.
+      // this.customStations itself is NOT reset here (see constructor) --
+      // it's "the race I'm building," not per-attempt setup state, so
+      // switching back to Custom later doesn't lose it.
+      this.raceType = "standard";
       this.category = null;
       this.format = null;
       this.gender = null;
@@ -709,9 +786,34 @@
     }
 
     canStart() {
+      if (this.raceType === "custom") return this.customStations.length > 0;
       if (!this.category || !this.format) return false;
       if (this.needsGender() && !this.gender) return false;
       return true;
+    }
+
+    // The race actually about to run, in order -- STATIONS unchanged for
+    // Standard, or the user's own built list for Custom, reshaped into the
+    // exact same {type, key, title} entries STATIONS uses so every runtime
+    // method (completeSegment/renderRunning/the progress dots) can stay
+    // written against one shape regardless of which race type is active.
+    // `key` deliberately reuses the real station type ("run"/"sledPush"/...)
+    // rather than each block's own unique builder id -- completeSegment()
+    // stores it straight onto the split, and splitIconKey()/the station-
+    // info popup/STATION_HOWTO all already key off exactly that vocabulary,
+    // so a repeated station (two Runs, two Sled Pushes) keeps working with
+    // zero extra plumbing, same as the standard race's own run1..run8
+    // already collapsing to one shared "run" icon.
+    raceSequence() {
+      if (this.raceType === "custom") {
+        return this.customStations.map((s) => ({
+          type: s.key === "run" ? "run" : "station",
+          key: s.key,
+          title: STATION_TITLES[s.key] || s.key,
+          amount: s.amount,
+        }));
+      }
+      return STATIONS;
     }
 
     flagKeyFor(format, gender) {
@@ -731,10 +833,11 @@
     }
 
     getPersonalBest(category, format, gender, scale) {
+      if (category === "custom") return null; // no two custom races share a standard to compare against
       const key = this.pbKeyFor(category, format, gender, scale);
       let best = null;
       this.history.forEach((r) => {
-        if (r.flagged) return; // flagged (unrealistic) times never count as a PB
+        if (r.flagged || r.category === "custom") return; // flagged (unrealistic) times never count as a PB
         if (this.pbKeyFor(r.category, r.format, r.gender, r.scale) !== key) return;
         if (!best || r.totalSeconds < best.totalSeconds) best = r;
       });
@@ -744,10 +847,13 @@
     // One row per combo the user has ever completed, fastest time (and
     // the day it happened) for each — used on the history screen. Flagged
     // (unrealistic) times are excluded, same as getPersonalBest above.
+    // Custom races are excluded too: every custom race is its own
+    // one-off station mix, so there's no shared "combo" for two of them
+    // to be personal-bests of each other against.
     getAllPersonalBests() {
       const bestByKey = new Map();
       this.history.forEach((r) => {
-        if (r.flagged) return;
+        if (r.flagged || r.category === "custom") return;
         const key = this.pbKeyFor(r.category, r.format, r.gender, r.scale);
         const existing = bestByKey.get(key);
         if (!existing || r.totalSeconds < existing.totalSeconds) bestByKey.set(key, r);
@@ -787,6 +893,11 @@
       if (action === "reset-facility-lane") return this.resetFacilityLane();
       if (action === "hero-start") return this.openSetupSheet();
       if (action === "close-setup-sheet") return this.closeSetupSheet();
+      if (action === "set-race-type") return this.setRaceType(target.dataset.value);
+      if (action === "add-custom-station") return this.addCustomStation(target.dataset.value);
+      if (action === "remove-custom-station") return this.removeCustomStation(target.dataset.id);
+      if (action === "move-custom-station") return this.moveCustomStation(target.dataset.id, parseInt(target.dataset.direction, 10));
+      if (action === "reset-custom-stations") return this.resetCustomStations();
     }
 
     // ---------- AI analysis: short/detail toggle ----------
@@ -841,6 +952,8 @@
       if (splitPartnerInput) return this.setDoublesSplitPartner(splitPartnerInput.dataset.station, splitPartnerInput.value);
       const laneInput = event.target.closest("[data-facility-lane-input]");
       if (laneInput) return this.setFacilityLane(laneInput.value);
+      const customAmountInput = event.target.closest("[data-custom-amount-input]");
+      if (customAmountInput) return this.setCustomStationAmount(customAmountInput.dataset.id, customAmountInput.value);
     }
 
     setCategory(value) {
@@ -881,6 +994,64 @@
     setGender(value) {
       this.gender = value;
       this.stationWeights = {};
+      this.render();
+    }
+
+    // ---------- Custom race builder ----------
+    // Switching race type sets/clears category the same way the standard
+    // pickers do, so canStart()/renderSetup()'s "gender picked yet" checks
+    // and the rest of the app all see one consistent story instead of a
+    // leftover this.category from whichever mode was active before.
+    setRaceType(value) {
+      if (value !== "standard" && value !== "custom") return;
+      this.raceType = value;
+      this.category = value === "custom" ? "custom" : null;
+      this.format = null;
+      this.gender = null;
+      this.render();
+    }
+
+    addCustomStation(key) {
+      if (!CUSTOM_STATION_KEYS.includes(key)) return;
+      this.customStations.push({ id: newCustomStationId(), key, amount: customStationDefaultAmount(key) });
+      this.render();
+    }
+
+    removeCustomStation(id) {
+      this.customStations = this.customStations.filter((s) => s.id !== id);
+      this.render();
+    }
+
+    // direction: -1 moves the row up (earlier in the race), +1 moves it
+    // down. Out-of-range moves (top row up, bottom row down) are just
+    // no-ops rather than wrapping -- reordering should never surprise you
+    // by teleporting a row to the other end of the list.
+    moveCustomStation(id, direction) {
+      const idx = this.customStations.findIndex((s) => s.id === id);
+      if (idx === -1) return;
+      const targetIdx = idx + direction;
+      if (targetIdx < 0 || targetIdx >= this.customStations.length) return;
+      const [entry] = this.customStations.splice(idx, 1);
+      this.customStations.splice(targetIdx, 0, entry);
+      this.render();
+    }
+
+    setCustomStationAmount(id, rawValue) {
+      const entry = this.customStations.find((s) => s.id === id);
+      if (!entry) return;
+      let v = parseFloat(rawValue);
+      // A cleared/invalid field falls back to the station's own default
+      // rather than 0 -- an empty distance would silently turn that block
+      // into a 0-effort no-op instead of visibly asking to be filled in.
+      if (!isFinite(v) || v <= 0) v = customStationDefaultAmount(entry.key);
+      // Reps are always whole numbers; distances keep one decimal (matches
+      // the station-weight input's own precision elsewhere in this file).
+      entry.amount = entry.key === "wallBalls" ? Math.round(v) : Math.round(v * 10) / 10;
+      this.render();
+    }
+
+    resetCustomStations() {
+      this.customStations = buildDefaultCustomStations();
       this.render();
     }
 
@@ -1152,11 +1323,17 @@
 
     completeSegment() {
       if (this.screen !== "running") return;
-      const segment = STATIONS[this.stationIndex];
+      const isCustom = this.raceType === "custom";
+      const sequence = this.raceSequence();
+      const segment = sequence[this.stationIndex];
       const now = (performance.now() - this.startTime) / 1000;
-      this.splits.push({ key: segment.key, title: stationTitle(segment, this.scale), atSeconds: now });
+      // Custom entries already carry their own final title (built by
+      // raceSequence() from the entry's own key -- no scale to apply,
+      // there's no Half/Full concept in a custom race).
+      const title = isCustom ? segment.title : stationTitle(segment, this.scale);
+      this.splits.push({ key: segment.key, title, atSeconds: now });
 
-      if (this.stationIndex >= STATIONS.length - 1) {
+      if (this.stationIndex >= sequence.length - 1) {
         this.finishRace(now);
         return;
       }
@@ -1166,9 +1343,18 @@
 
     finishRace(totalSeconds) {
       this.stopTicking();
-      const flagged = totalSeconds <= (FLAG_THRESHOLD_SECONDS[this.flagKeyFor(this.format, this.gender)] || Infinity);
-      const priorPb = this.getPersonalBest(this.category, this.format, this.gender, this.scale);
-      const isNewPb = !flagged && (!priorPb || totalSeconds < priorPb.totalSeconds);
+      const isCustom = this.raceType === "custom";
+      // The realistic-time floor and PB tracking are both built around the
+      // fixed standard race -- a custom race can legitimately be much
+      // shorter (or longer) than any real Hyrox category/format, and has
+      // no shared standard for a second custom race to be a "PB" against
+      // (see getPersonalBest's own category==="custom" guard). Neither
+      // concept applies here, so both are simply off for custom races
+      // rather than producing a false "unrealistic time" flag or a
+      // meaningless "New PB!" on literally every custom finish.
+      const flagged = isCustom ? false : totalSeconds <= (FLAG_THRESHOLD_SECONDS[this.flagKeyFor(this.format, this.gender)] || Infinity);
+      const priorPb = isCustom ? null : this.getPersonalBest(this.category, this.format, this.gender, this.scale);
+      const isNewPb = !isCustom && !flagged && (!priorPb || totalSeconds < priorPb.totalSeconds);
 
       const record = {
         id: (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
@@ -1192,7 +1378,11 @@
       this.history.push(record);
       this.saveHistory();
       persistHistoryEntry(record);
-      if (!flagged) {
+      // Custom races never hit the global leaderboard -- it only ranks the
+      // fixed standard categories/formats (see HYROX_CATEGORIES/HYROX_FORMATS
+      // server-side), and a one-off custom mix isn't comparable to those
+      // anyway.
+      if (!flagged && !isCustom) {
         this.submitHyroxResult(record);
       }
 
@@ -1202,7 +1392,11 @@
 
       // Run the race analysis right away for realistic races so it's shown
       // on the finish screen without a tap and saved into history for later.
-      if (!flagged) {
+      // Skipped for custom races -- see renderRaceAnalysis()'s own guard,
+      // which is the actual source of truth for this; skipped here too so
+      // a custom finish doesn't fire a wasted API call for a screen that
+      // won't show the result anyway.
+      if (!flagged && !isCustom) {
         this.loadRaceAnalysis(record.id, true);
       }
     }
@@ -1446,7 +1640,40 @@
     }
 
     buildSetupSteps() {
+      const isCustom = this.raceType === "custom";
       const wrap = el(`
+        <div>
+          <div class="hx-step-label">${t("hyrox.step.raceType")}</div>
+          <div class="hx-choice-grid" data-group="race-type"></div>
+          <div id="hx-standard-steps"></div>
+          <div id="hx-custom-builder-block"></div>
+          <div class="hx-start-race-row">
+            <button type="button" class="hx-primary-btn" data-action="start-race" style="width:100%;" ${this.canStart() ? "" : "disabled"}>${t("hyrox.startRace")}</button>
+          </div>
+        </div>
+      `);
+
+      const raceTypeGrid = wrap.querySelector('[data-group="race-type"]');
+      [["standard", "hyrox.raceType.standard"], ["custom", "hyrox.raceType.custom"]].forEach(([id, i18nKey]) => {
+        raceTypeGrid.appendChild(el(`
+          <button type="button" class="hx-choice-card ${this.raceType === id ? "is-selected" : ""}" data-action="set-race-type" data-value="${id}">
+            <div class="hx-choice-title">${t(`${i18nKey}.title`)}</div>
+            <div class="hx-choice-sub">${t(`${i18nKey}.sub`)}</div>
+          </button>
+        `));
+      });
+
+      // Custom skips every standard step (category/format/gender/scale/
+      // training-space/doubles-split) entirely -- none of them mean
+      // anything once the station list itself isn't fixed -- and shows
+      // its own builder instead. See renderCustomBuilder() below.
+      if (isCustom) {
+        wrap.querySelector("#hx-custom-builder-block").appendChild(this.renderCustomBuilder());
+        return wrap;
+      }
+
+      const standardSteps = wrap.querySelector("#hx-standard-steps");
+      standardSteps.appendChild(el(`
         <div>
           <div class="hx-step-label">${t("hyrox.step.category")}</div>
           <div class="hx-choice-grid" data-group="category"></div>
@@ -1457,13 +1684,10 @@
           <div id="hx-training-space-block"></div>
           <div id="hx-pro-adjust-block"></div>
           <div id="hx-agenda-block"></div>
-          <div style="margin-top:6px;">
-            <button type="button" class="hx-primary-btn" data-action="start-race" style="width:100%;" ${this.canStart() ? "" : "disabled"}>${t("hyrox.startRace")}</button>
-          </div>
         </div>
-      `);
+      `));
 
-      const categoryGrid = wrap.querySelector('[data-group="category"]');
+      const categoryGrid = standardSteps.querySelector('[data-group="category"]');
       CATEGORY_IDS.forEach((id) => {
         categoryGrid.appendChild(el(`
           <button type="button" class="hx-choice-card ${this.category === id ? "is-selected" : ""}" data-action="set-category" data-value="${id}">
@@ -1472,7 +1696,7 @@
         `));
       });
 
-      const formatGrid = wrap.querySelector('[data-group="format"]');
+      const formatGrid = standardSteps.querySelector('[data-group="format"]');
       FORMAT_IDS.forEach((id) => {
         formatGrid.appendChild(el(`
           <button type="button" class="hx-choice-card ${this.format === id ? "is-selected" : ""}" data-action="set-format" data-value="${id}">
@@ -1481,7 +1705,7 @@
         `));
       });
 
-      const genderBlock = wrap.querySelector("#hx-gender-block");
+      const genderBlock = standardSteps.querySelector("#hx-gender-block");
       if (this.needsGender()) {
         genderBlock.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.gender")}</div>`));
         const genderGrid = el(`<div class="hx-choice-grid" data-group="gender"></div>`);
@@ -1497,7 +1721,7 @@
 
       // Half/full race length. Singles only (see SCALE_IDS) -- a Doubles
       // pair already halves the work between two people.
-      const scaleBlock = wrap.querySelector("#hx-scale-block");
+      const scaleBlock = standardSteps.querySelector("#hx-scale-block");
       if (this.format === "singles" && this.gender) {
         scaleBlock.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.scale")}</div>`));
         const scaleGrid = el(`<div class="hx-choice-grid" data-group="scale"></div>`);
@@ -1518,7 +1742,7 @@
       // every station twice on one screen. The lane question itself still
       // matters in Doubles (the split totals are lane-derived), so that
       // part is kept -- see renderTrainingSpaceCard's own `showStations`.
-      const trainingSpaceBlock = wrap.querySelector("#hx-training-space-block");
+      const trainingSpaceBlock = standardSteps.querySelector("#hx-training-space-block");
       if (this.category && this.gender) {
         trainingSpaceBlock.appendChild(this.renderTrainingSpaceCard());
       }
@@ -1527,13 +1751,13 @@
       // and the lane-aware lap count both live in the training-space list
       // above, so there's exactly one place showing each station's numbers
       // instead of two that disagreed with each other.
-      const proAdjustBlock = wrap.querySelector("#hx-pro-adjust-block");
+      const proAdjustBlock = standardSteps.querySelector("#hx-pro-adjust-block");
       if (this.gender && this.format === "doubles") {
         proAdjustBlock.appendChild(this.renderDoublesSplitStep());
       }
 
       // The whole race, in order, once there's enough context to state it.
-      const agendaBlock = wrap.querySelector("#hx-agenda-block");
+      const agendaBlock = standardSteps.querySelector("#hx-agenda-block");
       if (this.category && this.format && this.gender) {
         agendaBlock.appendChild(this.renderRaceAgenda());
       }
@@ -1551,6 +1775,70 @@
           `));
         }
       }
+
+      return wrap;
+    }
+
+    // The Custom race builder: an "add a station" palette, then the
+    // race-so-far as a reorderable numbered list (up/down arrows -- no
+    // drag-and-drop anywhere else in this app to match, so arrows keep the
+    // interaction consistent with everything around it), each row's own
+    // editable amount, and a remove button. Starts pre-seeded with the
+    // full standard race (see buildDefaultCustomStations()) so there's
+    // always a real race to trim/reorder instead of an empty list.
+    renderCustomBuilder() {
+      const wrap = el(`
+        <div class="hx-custom-builder">
+          <div class="hx-step-label">${t("hyrox.custom.addStation")}</div>
+          <div class="hx-custom-palette" data-custom-palette></div>
+          <div class="hx-custom-agenda-head">
+            <div class="hx-step-label" style="margin-bottom:0;">${t("hyrox.custom.yourRace")}</div>
+            <button type="button" class="hx-weight-reset" data-action="reset-custom-stations">${t("hyrox.custom.resetToStandard")}</button>
+          </div>
+          <ol class="hx-agenda-list hx-custom-list" data-custom-list></ol>
+        </div>
+      `);
+
+      const palette = wrap.querySelector("[data-custom-palette]");
+      CUSTOM_STATION_KEYS.forEach((key) => {
+        palette.appendChild(el(`
+          <button type="button" class="hx-custom-palette-btn" data-action="add-custom-station" data-value="${key}">
+            <span class="hx-custom-palette-icon">${stationIconSvg(key, 22)}</span>
+            <span class="hx-custom-palette-name">${STATION_TITLES[key]}</span>
+          </button>
+        `));
+      });
+
+      const list = wrap.querySelector("[data-custom-list]");
+      if (!this.customStations.length) {
+        list.appendChild(el(`<li class="hx-custom-empty">${t("hyrox.custom.empty")}</li>`));
+      }
+      this.customStations.forEach((s, i) => {
+        const isRun = s.key === "run";
+        const unit = customStationUnitLabel(s.key);
+        list.appendChild(el(`
+          <li class="hx-agenda-row hx-custom-row ${isRun ? "is-run" : "is-station"}">
+            <div class="hx-agenda-row-main">
+              <span class="hx-agenda-num">${i + 1}</span>
+              <span class="hx-agenda-icon">${stationIconSvg(s.key, 20)}</span>
+              <span class="hx-agenda-name">${STATION_TITLES[s.key]}</span>
+              <div class="hx-agenda-stats">
+                <div class="hx-space-weight is-editable">
+                  <input type="number" inputmode="decimal" step="${s.key === "wallBalls" ? "1" : "0.5"}" min="0"
+                         value="${s.amount}" data-custom-amount-input data-clear-on-focus data-id="${s.id}"
+                         class="hx-space-weight-input" aria-label="${STATION_TITLES[s.key]} ${unit}">
+                  <span class="hx-space-weight-label">${s.key === "wallBalls" ? t("hyrox.space.chip.reps") : "m"}</span>
+                </div>
+              </div>
+              <div class="hx-custom-row-controls">
+                <button type="button" class="hx-custom-move-btn" data-action="move-custom-station" data-id="${s.id}" data-direction="-1" ${i === 0 ? "disabled" : ""} aria-label="${t("hyrox.custom.moveUp")}">${CHEVRON_UP_ICON}</button>
+                <button type="button" class="hx-custom-move-btn" data-action="move-custom-station" data-id="${s.id}" data-direction="1" ${i === this.customStations.length - 1 ? "disabled" : ""} aria-label="${t("hyrox.custom.moveDown")}">${CHEVRON_DOWN_ICON}</button>
+                <button type="button" class="hx-custom-remove-btn" data-action="remove-custom-station" data-id="${s.id}" aria-label="${t("common.remove")}">&times;</button>
+              </div>
+            </div>
+          </li>
+        `));
+      });
 
       return wrap;
     }
@@ -1981,15 +2269,37 @@
       `;
     }
 
+    // Custom races have no weight/lap system to report (see
+    // stationNowChipsHtml, which is entirely about Pro-adjustable weight
+    // and lane-derived lap counts) -- just the entry's own configured
+    // amount, in the same chip visual the rest of the running screen uses.
+    customAmountChipHtml(segment) {
+      const label = segment.key === "wallBalls" ? t("hyrox.space.chip.reps") : t("hyrox.standards.chip.distance");
+      return `
+        <div class="hx-space-weight">
+          <span class="hx-space-weight-value">${formatCustomAmount(segment.key, segment.amount)}</span>
+          <span class="hx-space-weight-label">${label}</span>
+        </div>
+      `;
+    }
+
     renderRunning() {
-      const segment = STATIONS[this.stationIndex];
-      const isLast = this.stationIndex >= STATIONS.length - 1;
+      const isCustom = this.raceType === "custom";
+      const sequence = this.raceSequence();
+      const segment = sequence[this.stationIndex];
+      const isLast = this.stationIndex >= sequence.length - 1;
       // No subtitle text under the title -- the icon + "1km Run"/station
       // name already says what it is; the chips/hero above carry whatever
-      // actionable detail there is (weight, rounds, distance).
-      const detailHtml = segment.type === "station" ? this.stationNowChipsHtml(segment.key) : "";
+      // actionable detail there is (weight, rounds, distance). Custom races
+      // show their own amount chip for every segment (including runs --
+      // see renderCustomBuilder(), a custom race's runs can be any length),
+      // not just stations.
+      const detailHtml = isCustom
+        ? this.customAmountChipHtml(segment)
+        : (segment.type === "station" ? this.stationNowChipsHtml(segment.key) : "");
       const iconKey = segment.type === "station" ? segment.key : "run";
-      const progressPct = Math.round((this.stationIndex / STATIONS.length) * 100);
+      const progressPct = Math.round((this.stationIndex / sequence.length) * 100);
+      const segmentTitle = isCustom ? segment.title : stationTitle(segment, this.scale);
       // A persistent badge so the chosen format is visible on every segment,
       // not just at setup -- the reported bug was that a Doubles race looked
       // exactly like a Singles one once started.
@@ -2005,7 +2315,7 @@
               <span class="hx-run-stat-label">${t("hyrox.running.elapsed")}</span>
             </div>
             <div class="hx-run-stat">
-              <span class="hx-run-stat-value hx-run-count">${this.stationIndex + 1}<span class="hx-run-count-total">/${STATIONS.length}</span></span>
+              <span class="hx-run-stat-value hx-run-count">${this.stationIndex + 1}<span class="hx-run-count-total">/${sequence.length}</span></span>
               <span class="hx-run-stat-label">${t("hyrox.running.segmentLabel")}${formatBadge}</span>
             </div>
           </div>
@@ -2013,7 +2323,7 @@
           <div class="hx-now">
             <div class="hx-now-kicker">${t("hyrox.running.upNow")}</div>
             <div class="hx-now-badge">${stationIconSvg(iconKey, 48)}</div>
-            <div class="hx-now-title">${stationTitle(segment, this.scale)}</div>
+            <div class="hx-now-title">${segmentTitle}</div>
             ${detailHtml}
             ${segment.type === "station" ? `
               <button type="button" class="hx-now-info" data-action="show-station-info" data-station="${segment.key}">
@@ -2039,9 +2349,10 @@
       `);
 
       const dotsEl = card.querySelector("[data-dots]");
-      STATIONS.forEach((s, i) => {
+      sequence.forEach((s, i) => {
         const cls = i < this.stationIndex ? "is-done" : i === this.stationIndex ? "is-current" : "";
-        dotsEl.appendChild(el(`<div class="hx-progress-dot ${cls}" title="${stationTitle(s, this.scale)}"></div>`));
+        const dotTitle = isCustom ? s.title : stationTitle(s, this.scale);
+        dotsEl.appendChild(el(`<div class="hx-progress-dot ${cls}" title="${dotTitle}"></div>`));
       });
 
       const headEl = card.querySelector("[data-splits-head]");
@@ -2216,6 +2527,20 @@
           <div class="hx-analyze-disabled">
             <span class="hx-analyze-disabled-icon">${SPARKLE_ICON}</span>
             <span>${t("hyrox.analysis.unavailableFlagged")}</span>
+          </div>
+        `);
+      }
+      // The coaching prompt is built around the fixed standard stations --
+      // a custom race's station mix (and count) is open-ended, so there's
+      // no standard to coach against. This is the actual gate (finishRace()
+      // also skips the auto-analysis call for custom races, but this is
+      // what stops the lazy "!cache" fallback below from firing one anyway
+      // the first time this ever renders for a custom result).
+      if (result.category === "custom") {
+        return el(`
+          <div class="hx-analyze-disabled">
+            <span class="hx-analyze-disabled-icon">${SPARKLE_ICON}</span>
+            <span>${t("hyrox.analysis.unavailableCustom")}</span>
           </div>
         `);
       }
