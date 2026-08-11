@@ -858,41 +858,113 @@
 
   .split-loading { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 13px; }
 
-  .split-review-day { margin-bottom: 18px; }
-  .split-review-day-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
-  /* 2-column grid of tappable, emoji-led exercise chips — every one opens
-     a demo video + description, so this doubles as a quick "what does
-     this even look like?" reference while reviewing the generated split. */
-  .split-review-exercise-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .split-review-exercise-chip {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: var(--bg);
+  /* ---------- Review step: the whole week as one grid, plus a day drawer ----------
+     This replaces a stack of every day's exercises followed by seven
+     <select> rows. Both the schedule and the session you're inspecting now
+     fit above the fold: colour identifies a day type, the legend maps
+     colour back to its label, and only the selected day's exercises are
+     expanded. --day-accent / --day-accent-bg are set inline per element,
+     because day labels are arbitrary text and can't have static classes. */
+  .split-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 6px 14px 6px 6px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text);
-    text-align: left;
-    cursor: pointer;
-    font-family: inherit;
-    min-width: 0;
+    border-radius: var(--radius-md);
+    padding: 12px 8px;
   }
-  .split-review-exercise-chip span:last-child {
+  .split-week-cell {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: none; border: none; padding: 0; min-width: 0;
+    cursor: pointer; font-family: inherit;
+  }
+  .split-week-cell-dow { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
+  .split-week-cell-swatch {
+    width: 100%; aspect-ratio: 1; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    /* Sized for the 2-character worst case at ~35px wide (a 320px phone). */
+    font-size: 11.5px; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
+    color: var(--day-ink, #fff);
+    background: var(--day-accent, var(--border));
+  }
+  .split-week-cell-swatch.is-rest {
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    color: var(--text-secondary);
+  }
+  .split-week-cell.is-selected .split-week-cell-swatch {
+    box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--blue);
+  }
+  .split-week-cell:hover:not(.is-selected) .split-week-cell-swatch { box-shadow: 0 0 0 2px var(--border); }
+  .split-week-cell:active .split-week-cell-swatch { transform: scale(0.94); }
+
+  .split-week-legend {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin: 10px 0 6px; font-size: 11px; color: var(--text-secondary);
+  }
+  .split-week-legend span { display: flex; align-items: center; gap: 5px; }
+  .split-week-legend i {
+    width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0;
+    background: var(--day-accent, var(--border));
+  }
+  .split-week-legend i.is-rest { background: var(--bg); border: 1px dashed var(--border); }
+  .split-week-hint { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 18px; }
+
+  .split-day-drawer {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 14px 4px;
+  }
+  .split-day-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .split-day-drawer-title { font-size: 14px; font-weight: 700; }
+  .split-day-drawer-pill {
+    font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    white-space: nowrap;
+    background: var(--day-accent-bg, var(--sidebar-active));
+    /* --text, not the accent: accent-on-accent-bg is only ~3.2:1 in dark
+       theme. This matches how .split-rationale tints a block already. */
+    color: var(--text);
+  }
+  .split-day-drawer-sub { font-size: 11px; color: var(--text-secondary); margin: 4px 0 2px; }
+  .split-day-rest-note { font-size: 12.5px; color: var(--text-secondary); padding: 10px 0 12px; }
+
+  /* Sets and reps sit in the collapsed row on purpose — that's the thing
+     you're reviewing, so it shouldn't cost a tap. The expander holds the
+     description and demo link, which are reference material. */
+  .split-ex-row { border-top: 1px solid var(--border); }
+  .split-ex-row:first-of-type { border-top: none; }
+  .split-ex-main {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    background: none; border: none; padding: 10px 0;
+    cursor: pointer; font-family: inherit; text-align: left; color: var(--text);
+  }
+  .split-ex-main:hover .split-ex-name { color: var(--blue); }
+  .split-ex-emoji {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; overflow: hidden;
+    background: var(--day-accent-bg, var(--bg)); font-size: 16px;
+  }
+  .split-ex-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .split-ex-name {
+    font-size: 13px; font-weight: 600;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .split-review-exercise-chip:hover { border-color: var(--blue); color: var(--blue); }
-  .split-review-exercise-chip:active { transform: scale(0.96); }
-  .split-review-exercise-chip-emoji {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-    background: var(--card-bg); font-size: 15px; overflow: hidden;
+  .split-ex-meta { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .split-ex-chevron {
+    flex-shrink: 0; color: var(--text-secondary); font-size: 10px;
+    transition: transform 0.15s;
   }
-  @media (max-width: 400px) {
-    .split-review-exercise-chips { grid-template-columns: 1fr; }
+  .split-ex-row.is-open .split-ex-chevron { transform: rotate(180deg); }
+  .split-ex-detail { display: none; padding: 0 0 12px 45px; }
+  .split-ex-row.is-open .split-ex-detail { display: block; }
+  .split-ex-detail-text { font-size: 12px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 8px; }
+  .split-ex-detail-link {
+    font-size: 12px; font-weight: 700; color: var(--blue);
+    background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
   }
+  .split-ex-detail-link:hover { text-decoration: underline; }
 
   /* ---------- Exercise detail modal (video + description) ---------- */
   .exd-modal-overlay {
@@ -934,24 +1006,6 @@
   .exd-video-card-sub { font-size: 11px; color: var(--text-secondary); }
   .exd-desc-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
   .exd-desc-text { font-size: 13px; line-height: 1.6; color: var(--text); margin: 0; }
-
-  .split-weekday-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-  }
-  .split-weekday-row label { width: 44px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
-  .split-weekday-row select {
-    flex: 1;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    border-radius: 10px;
-    font-size: 13px;
-    font-family: inherit;
-  }
 
   .split-week-tabs { display: flex; gap: 5px; margin-bottom: 16px; }
   .split-week-tab {
@@ -1427,6 +1481,25 @@
   const PLUS_ICON = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
   const TRASH_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
 
+  // Exercise names are not all library-controlled: a user can create a
+  // custom exercise (POST /api/custom-exercises) and pick it into a split,
+  // and split day labels are free text on the custom path. Both end up
+  // interpolated into innerHTML below, which is the same sink that made
+  // food names a stored-XSS vector in nutrition.html -- so they go through
+  // these on the way in, exactly like that template does.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  // escapeHtml() round-trips through textContent, which escapes < > and &
+  // but deliberately leaves quotes alone -- correct for a text node, unsafe
+  // the moment the value lands inside a quoted attribute, where one " ends
+  // the attribute and everything after it parses as markup.
+  function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   // ---------- Exercise detail modal (emoji + video + description) ----------
   function exerciseDetail(name) {
     return EXERCISE_DETAILS[name] || {
@@ -1442,11 +1515,18 @@
     return exerciseDetail(name).emoji;
   }
   // Prefer the real per-exercise illustration from the icon pack; fall
-  // back to the emoji for any exercise the pack doesn't cover.
+  // back to the emoji for any exercise the pack doesn't cover. The <img>
+  // path is safe unescaped -- EXERCISE_ICONS is a fixed server dict, so
+  // `path` only exists for exact matches against library-known names, never
+  // attacker text. The emoji path is not: it's the literal string a user
+  // typed into "Create a custom exercise" (POST /api/custom-exercises),
+  // capped at 8 characters server-side but not sanitized -- "<script>" is
+  // exactly 8 characters -- so it goes through escapeHtml on the way into
+  // innerHTML, same as every other user-authored value in this file.
   function exerciseIconHtml(name) {
     const path = EXERCISE_ICONS[name];
     if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
-    return exerciseEmoji(name);
+    return escapeHtml(exerciseEmoji(name));
   }
   // No specific video id is hardcoded per exercise — there's no way to
   // verify from here that a given id still exists or is actually a good,
@@ -3034,18 +3114,48 @@
     }
   }
 
+  // Accent tokens cycled across the split's unique day labels. Red is left
+  // out deliberately -- it reads as an error state everywhere else in the app.
+  // `ink` is the swatch's text colour, picked per accent so the abbreviation
+  // clears WCAG AA: white fails on --green (3.0:1) and --amber (3.4:1), both
+  // of which are light enough to need dark text instead. These are literals,
+  // not var(--text), because the accents don't flip between themes.
+  const DAY_ACCENTS = [
+    { name: "blue", ink: "#ffffff" },
+    { name: "green", ink: "#101114" },
+    { name: "amber", ink: "#101114" },
+    { name: "purple", ink: "#ffffff" },
+    { name: "pink", ink: "#ffffff" },
+  ];
+  const REVIEW_MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  // WEEKDAY_NAMES is Sunday-indexed (it mirrors Date#getDay), so a
+  // Monday-first column maps back through this.
+  const REVIEW_WEEKDAY_NAME_INDEX = [1, 2, 3, 4, 5, 6, 0];
+
+  let reviewSchedule = null;      // weekday key -> day label, or the literal "Rest"
+  let reviewSelectedIndex = 0;    // index into REVIEW_MONDAY_FIRST
+  let reviewOpenExercise = null;  // index of the expanded exercise row, if any
+
   function renderSplitStepReview() {
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.assignWeekTitle");
     const days = splitWizard.generatedDays;
     const uniqueLabels = [...new Set(days.map((d) => d.label))];
+    const restLabel = t("workouts.wizard.rest");
 
     // The AI already placed training days onto the week while it built the
     // split, applying the same rest/recovery cadence split_planner.py checks
     // server-side — that's the default here, not a naive Monday-first fill.
-    const defaultSchedule = splitWizard.generatedSchedule;
-    const mondayFirst = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-    const restLabel = t("workouts.wizard.rest");
+    // Copied rather than aliased so backing out of the step doesn't leave
+    // the generated schedule mutated by whatever was tapped here.
+    reviewSchedule = { ...splitWizard.generatedSchedule };
+    // Open on the first weekday that actually trains, so the drawer starts
+    // on a session instead of a rest day.
+    const firstTraining = REVIEW_MONDAY_FIRST.findIndex(
+      (key) => reviewSchedule[key] && reviewSchedule[key] !== "Rest"
+    );
+    reviewSelectedIndex = firstTraining === -1 ? 0 : firstTraining;
+    reviewOpenExercise = null;
 
     // On the suggest path the user never picked a split, so the plan is the
     // first time they learn which one they got -- name it explicitly rather
@@ -3054,40 +3164,169 @@
       ? (getSplitTypes().find((st) => st.id === splitWizard.suggestedSplitType) || {}).title
       : null;
 
+    // "Push" and "Pull" both start with P, and PPL is the default split, so
+    // a one-letter swatch collides on the most common plan there is. Taking
+    // a longer prefix instead spells "Pus", so this keeps the first letter
+    // and adds the first letter that actually differs: Ps / Pl / L.
+    // Array.from throughout so a multi-byte label isn't cut mid-character.
+    //
+    // Object.create(null), not {}: day labels are free text on the custom
+    // path, and a label of exactly "__proto__" assigned onto a plain object
+    // hits the inherited Object.prototype accessor -- the assignment
+    // silently no-ops (the setter ignores non-object values), so the later
+    // read returns Object.prototype itself (truthy) instead of the missing
+    // abbreviation, and the swatch renders "[object Object]". A null-
+    // prototype object has no such accessor, so "__proto__" behaves like
+    // any other key.
+    const labelAbbrev = Object.create(null);
+    uniqueLabels.forEach((label) => {
+      const chars = Array.from(String(label).trim());
+      if (!chars.length) {
+        labelAbbrev[label] = "";
+        return;
+      }
+      const rivals = uniqueLabels
+        .filter((other) => other !== label)
+        .map((other) => Array.from(String(other).trim()))
+        .filter((other) => other[0] === chars[0]);
+      if (!rivals.length) {
+        labelAbbrev[label] = chars[0];
+        return;
+      }
+      // i < rival.length guards a prefix relationship ("Push" vs "Push
+      // Day"): past the shorter rival's length, rival[i] is undefined,
+      // which !== char is trivially true and would misfire as "found a
+      // differing character" -- exactly the case the comment below says
+      // should fall through to the two-char fallback instead.
+      const at = chars.findIndex(
+        (char, i) => i > 0 && rivals.every((rival) => i < rival.length && rival[i] !== char)
+      );
+      // No differing character means one label is a prefix of another
+      // ("Push" vs "Push Day") -- fall back to two chars and let colour
+      // carry the difference rather than inventing one.
+      labelAbbrev[label] = at === -1 ? chars.slice(0, 2).join("") : chars[0] + chars[at];
+    });
+
+    // Inline custom properties: day labels are free text on the custom
+    // path, so there's no fixed set of classes to style them with.
+    function accentStyle(label) {
+      const index = uniqueLabels.indexOf(label);
+      if (index === -1) return "";
+      const accent = DAY_ACCENTS[index % DAY_ACCENTS.length];
+      return `--day-accent: var(--${accent.name}); --day-accent-bg: var(--${accent.name}-bg); --day-ink: ${accent.ink};`;
+    }
+    function isRestLabel(label) {
+      return !label || label === "Rest";
+    }
+
     splitModalBody.innerHTML = `
       ${suggestedTitle ? `<div class="split-suggested-banner">${t("workouts.wizard.aiChose", { split: suggestedTitle })}</div>` : ""}
-      <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
-      ${days.map((day, i) => `
-        <div class="split-review-day">
-          <div class="split-review-day-title">Day ${i + 1} · ${day.label}</div>
-          <div class="split-review-exercise-chips">
-            ${day.exercises.map((e) => `
-              <button type="button" class="split-review-exercise-chip" data-exercise-detail="${e}">
-                <span class="split-review-exercise-chip-emoji">${exerciseIconHtml(e)}</span>${e}
-              </button>
-            `).join("")}
-          </div>
-        </div>
-      `).join("")}
-      ${splitWizard.rationale ? `<div class="split-rationale"><strong>${t("workouts.wizard.whyThisSchedule")}</strong> ${splitWizard.rationale}</div>` : ""}
       <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
-      ${mondayFirst.map((key, i) => `
-        <div class="split-weekday-row">
-          <label>${WEEKDAY_NAMES[[1,2,3,4,5,6,0][i]].slice(0, 3)}</label>
-          <select data-weekday="${key}">
-            <option value="Rest" ${defaultSchedule[key] === "Rest" ? "selected" : ""}>${restLabel}</option>
-            ${uniqueLabels.map((label) => `<option value="${label}" ${defaultSchedule[key] === label ? "selected" : ""}>${label}</option>`).join("")}
-          </select>
-        </div>
-      `).join("")}
+      <div class="split-week-grid" id="split-week-grid"></div>
+      <div class="split-week-legend" id="split-week-legend"></div>
+      <div class="split-week-hint">${t("workouts.wizard.tapDayHint")}</div>
+      <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
+      <div class="split-day-drawer" id="split-day-drawer"></div>
+      ${splitWizard.rationale ? `<div class="split-rationale"><strong>${t("workouts.wizard.whyThisSchedule")}</strong> ${escapeHtml(splitWizard.rationale)}</div>` : ""}
       <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${t("workouts.wizard.savePlan")}</button>
     `;
 
+    const gridEl = document.getElementById("split-week-grid");
+    const legendEl = document.getElementById("split-week-legend");
+    const drawerEl = document.getElementById("split-day-drawer");
+
+    function renderGrid() {
+      gridEl.innerHTML = REVIEW_MONDAY_FIRST.map((key, i) => {
+        const label = reviewSchedule[key];
+        const rest = isRestLabel(label);
+        return `
+          <button type="button" class="split-week-cell${i === reviewSelectedIndex ? " is-selected" : ""}"
+                  data-weekday-cell="${i}" style="${rest ? "" : accentStyle(label)}">
+            <span class="split-week-cell-dow">${escapeHtml(WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[i]].slice(0, 3))}</span>
+            <span class="split-week-cell-swatch${rest ? " is-rest" : ""}">${rest ? "" : escapeHtml(labelAbbrev[label] || "")}</span>
+          </button>
+        `;
+      }).join("");
+    }
+
+    function renderLegend() {
+      legendEl.innerHTML = uniqueLabels
+        .map((label) => `<span style="${accentStyle(label)}"><i></i>${escapeHtml(label)}</span>`)
+        .join("") + `<span><i class="is-rest"></i>${escapeHtml(restLabel)}</span>`;
+    }
+
+    function renderDrawer() {
+      const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+      const label = reviewSchedule[key];
+      const rest = isRestLabel(label);
+      const day = rest ? null : days.find((d) => d.label === label);
+      const exercises = day ? day.exercises : [];
+      const weekdayName = WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[reviewSelectedIndex]];
+      drawerEl.setAttribute("style", rest ? "" : accentStyle(label));
+      drawerEl.innerHTML = `
+        <div class="split-day-drawer-head">
+          <span class="split-day-drawer-title">${escapeHtml(weekdayName)}</span>
+          <span class="split-day-drawer-pill">${escapeHtml(rest ? restLabel : label)}</span>
+        </div>
+        ${rest
+          ? `<div class="split-day-rest-note">${t("workouts.wizard.restDayNote")}</div>`
+          : `<div class="split-day-drawer-sub">${t("workouts.wizard.exerciseCount", { n: exercises.length })}</div>
+            ${exercises.map((name, i) => `
+              <div class="split-ex-row${reviewOpenExercise === i ? " is-open" : ""}">
+                <button type="button" class="split-ex-main" data-exercise-toggle="${i}">
+                  <span class="split-ex-emoji">${exerciseIconHtml(name)}</span>
+                  <span class="split-ex-info">
+                    <span class="split-ex-name">${escapeHtml(name)}</span>
+                    <span class="split-ex-meta">${escapeHtml(getSetsRepsText(name))}</span>
+                  </span>
+                  <span class="split-ex-chevron">▾</span>
+                </button>
+                <div class="split-ex-detail">
+                  <p class="split-ex-detail-text">${escapeHtml(exerciseDetail(name).description)}</p>
+                  <button type="button" class="split-ex-detail-link" data-exercise-detail="${escapeAttr(name)}">
+                    ${t("workouts.wizard.howToPerform")}
+                  </button>
+                </div>
+              </div>
+            `).join("")}`
+        }
+      `;
+    }
+
+    // Delegated once on the containers, which outlive their own innerHTML.
+    gridEl.addEventListener("click", (event) => {
+      const cell = event.target.closest("[data-weekday-cell]");
+      if (!cell) return;
+      const i = Number(cell.dataset.weekdayCell);
+      // Tapping the day you're already on cycles what's scheduled there;
+      // tapping any other day just moves the drawer to it. That keeps
+      // "look at this day" from ever changing the plan by accident.
+      if (i === reviewSelectedIndex) {
+        const options = [...uniqueLabels, "Rest"];
+        const current = options.indexOf(reviewSchedule[REVIEW_MONDAY_FIRST[i]] || "Rest");
+        reviewSchedule[REVIEW_MONDAY_FIRST[i]] = options[(current + 1) % options.length];
+      }
+      reviewSelectedIndex = i;
+      reviewOpenExercise = null;
+      renderGrid();
+      renderDrawer();
+    });
+
+    drawerEl.addEventListener("click", (event) => {
+      // The demo link inside an expanded row carries data-exercise-detail
+      // and is handled by the delegated body listener, not this one.
+      const toggle = event.target.closest("[data-exercise-toggle]");
+      if (!toggle) return;
+      const i = Number(toggle.dataset.exerciseToggle);
+      reviewOpenExercise = reviewOpenExercise === i ? null : i;
+      renderDrawer();
+    });
+
+    renderGrid();
+    renderLegend();
+    renderDrawer();
+
     document.getElementById("split-save-btn").addEventListener("click", () => {
-      const schedule = {};
-      splitModalBody.querySelectorAll("[data-weekday]").forEach((select) => {
-        schedule[select.dataset.weekday] = select.value;
-      });
       const plan = {
         // Record the split the AI actually chose, not the "ai_suggest"
         // sentinel -- the saved plan should look like any other split to
@@ -3096,7 +3335,9 @@
         daysPerWeek: splitWizard.daysPerWeek,
         goal: splitWizard.goal,
         days,
-        schedule,
+        // Values here stay the literal "Rest" / raw day labels, never the
+        // translated ones -- everything downstream matches on those.
+        schedule: { ...reviewSchedule },
       };
       localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
       closeSplitModal();
