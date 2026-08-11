@@ -300,6 +300,37 @@
 .hx-custom-row .hx-agenda-name { flex-basis: 100%; order: -1; margin-left: 38px; }
 .hx-custom-row .hx-agenda-num,
 .hx-custom-row .hx-agenda-icon { align-self: flex-start; }
+/* The amount box (.hx-space-weight) has no width of its own -- it just
+   wraps whatever width its <input> ends up. A bare <input type=number>
+   with no size/width falls back to the browser's default intrinsic width
+   (historically ~20 characters), and since this box sits alone on its own
+   wrapped line here (nothing else competing for space, unlike the same
+   input's other use in the Pro weight-adjust row), that default fully
+   manifested as a box nearly as wide as the whole row for a 4-digit
+   number. `ch` sizes to actual digit width (tabular-nums keeps every
+   digit the same width already), scoped to this row only so the shared
+   .hx-space-weight-input class' behavior elsewhere (Pro weight adjust)
+   is untouched. */
+.hx-custom-row .hx-space-weight-input { width: 4ch; }
+/* Press-and-hold-to-drag affordance hint -- doesn't affect the amount
+   input or the move/remove buttons, which each carry their own more
+   specific UA/explicit cursor and win over this inherited value. */
+.hx-custom-row { cursor: grab; }
+.hx-custom-row.is-dragging {
+  cursor: grabbing;
+  position: relative;
+  z-index: 5;
+  background: var(--card-bg);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  border-radius: 12px;
+}
+/* Applied only to SIBLING rows while another row is being dragged past
+   them -- the dragged row itself is never given this class, so it tracks
+   the pointer with zero transition lag (see _onCustomDragMove), while
+   every row that needs to "make space" gets this transition and just
+   animates to whatever transform handleCustomRowPointerDown's drag logic
+   sets on it. */
+.hx-custom-row.is-reorder-shifting { transition: transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
 /* 34px targets, 8px gaps -- was 26px/2px, which on a touch device put a
    destructive Remove button close enough to the reorder arrows to mis-tap.
    The row wraps its controls onto their own line at narrow widths (see

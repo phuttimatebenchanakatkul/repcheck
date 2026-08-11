@@ -490,6 +490,15 @@
   // in this app, so plain tap-to-move buttons match the rest of the UI.
   const CHEVRON_UP_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
   const CHEVRON_DOWN_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  // Custom race builder's press-and-hold drag reorder. HOLD_MS is the
+  // pause before a press turns into a drag -- long enough that an ordinary
+  // tap/scroll-swipe never gets mistaken for drag-intent, short enough to
+  // still feel immediate. MOVE_CANCEL_PX cancels the pending hold if the
+  // finger/cursor moves noticeably before it fires (that's a scroll, not a
+  // hold). See handleCustomRowPointerDown() below.
+  const CUSTOM_DRAG_HOLD_MS = 160;
+  const CUSTOM_DRAG_MOVE_CANCEL_PX = 8;
   const TROPHY_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 0 5H7"/><path d="M17 6h2.5a2.5 2.5 0 0 1 0 5H17"/></svg>`;
   // Filled sparkle -- the app's "AI" motif (same shape as the Analyze
   // chatbot avatar), used on the race-analysis coaching block.
@@ -664,6 +673,11 @@
       // are also in-session-only); see buildDefaultCustomStations() for
       // what it starts as.
       this.customStations = buildDefaultCustomStations();
+      // Active press-and-hold reorder session for the custom builder, or
+      // null when nothing's being dragged -- see handleCustomRowPointerDown()
+      // and the _customDrag* methods below. Not race data, so (like
+      // stationInfo/setupSheetOpen above) it's never touched by resetSetup().
+      this.customDrag = null;
       this.analysisCache = {}; // raceId -> { loading, data|error }
       // Which analysis sections are expanded to their full bullet-point
       // detail, keyed "raceId:section" (section = "overall" or a rating
@@ -1053,6 +1067,174 @@
     resetCustomStations() {
       this.customStations = buildDefaultCustomStations();
       this.render();
+    }
+
+    // ---------- Custom race builder: press-and-hold drag reorder ----------
+    // No drag-and-drop exists anywhere else in this app (the move up/down
+    // arrows are the only other reorder path, kept as-is for anyone who'd
+    // rather tap than hold-and-drag), so this is a small self-contained
+    // implementation rather than reaching for a library. Overview:
+    //   1. Pointerdown on a row starts a short hold timer (not an instant
+    //      drag) so an ordinary tap or scroll-swipe is never mistaken for
+    //      drag-intent -- see CUSTOM_DRAG_HOLD_MS/MOVE_CANCEL_PX above.
+    //   2. Once the hold fires, the row follows the pointer 1:1 via an
+    //      un-transitioned transform (this.customDrag holds the session).
+    //      this.customStations is reordered live as the drag crosses each
+    //      neighbor's midpoint, and every *other* row gets a transform
+    //      recomputed from "where it used to sit" vs "where it sits in the
+    //      reordered array" -- with a CSS transition already on those rows
+    //      (see .hx-custom-row.is-reorder-shifting in hyrox.css), the
+    //      browser animates each shift smoothly on its own; no manual FLIP
+    //      invert/play bookkeeping needed, just "set the correct target
+    //      transform and let the transition interpolate."
+    //   3. On release, the dragged row snaps (animated) from wherever the
+    //      pointer left it to its exact resting slot, then render() rebuilds
+    //      the sheet from the now-authoritative this.customStations order --
+    //      by the time that swap happens the row is already visually
+    //      sitting exactly where the fresh DOM will place it, so there's no
+    //      jump.
+    handleCustomRowPointerDown(event) {
+      // Only the primary pointer, only the primary mouse button (ignore
+      // right/middle-click drags) -- and never for the amount input or the
+      // move/remove buttons, which keep their own untouched click/change
+      // behavior. closest() also naturally no-ops everywhere outside the
+      // custom builder, since [data-custom-row-id] only exists there.
+      if (!event.isPrimary) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (event.target.closest("[data-custom-amount-input], [data-action='move-custom-station'], [data-action='remove-custom-station']")) return;
+      const rowEl = event.target.closest("[data-custom-row-id]");
+      if (!rowEl) return;
+      // Only one row can be mid-hold or mid-drag at a time.
+      if (this.customDrag) return;
+
+      const id = rowEl.dataset.customRowId;
+      const pointerId = event.pointerId;
+      const startClientX = event.clientX;
+      const startClientY = event.clientY;
+
+      const cleanupPending = () => {
+        clearTimeout(holdTimer);
+        document.removeEventListener("pointermove", onPendingMove);
+        document.removeEventListener("pointerup", onPendingRelease);
+        document.removeEventListener("pointercancel", onPendingRelease);
+      };
+      const onPendingMove = (moveEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        const movedPx = Math.max(Math.abs(moveEvent.clientX - startClientX), Math.abs(moveEvent.clientY - startClientY));
+        if (movedPx > CUSTOM_DRAG_MOVE_CANCEL_PX) cleanupPending();
+      };
+      const onPendingRelease = (upEvent) => {
+        if (upEvent.pointerId !== pointerId) return;
+        cleanupPending();
+      };
+      const holdTimer = setTimeout(() => {
+        cleanupPending();
+        this._armCustomDrag(rowEl, id, pointerId, startClientY);
+      }, CUSTOM_DRAG_HOLD_MS);
+      document.addEventListener("pointermove", onPendingMove);
+      document.addEventListener("pointerup", onPendingRelease);
+      document.addEventListener("pointercancel", onPendingRelease);
+    }
+
+    _armCustomDrag(rowEl, id, pointerId, startClientY) {
+      const fromIndex = this.customStations.findIndex((s) => s.id === id);
+      const listEl = document.querySelector("[data-custom-list]");
+      if (fromIndex === -1 || !listEl) return;
+
+      const rowRect = rowEl.getBoundingClientRect();
+      const rowGap = parseFloat(getComputedStyle(listEl).rowGap) || 4;
+
+      try { rowEl.setPointerCapture(pointerId); } catch (err) { /* not critical if unsupported */ }
+      rowEl.classList.add("is-dragging");
+      rowEl.style.touchAction = "none";
+
+      this.customDrag = {
+        id,
+        pointerId,
+        rowEl,
+        listEl,
+        startClientY,
+        rowH: rowRect.height,
+        rowGap,
+        fromIndex,
+        currentIndex: fromIndex,
+        // Sibling ids in their DOM order at drag start, captured once --
+        // every reorder step compares this against this.customStations'
+        // live order (minus the dragged id) to know each sibling's shift.
+        originalSiblingOrder: this.customStations.map((s) => s.id).filter((sid) => sid !== id),
+      };
+
+      const onMove = (moveEvent) => this._onCustomDragMove(moveEvent);
+      const onEnd = (endEvent) => this._endCustomDrag(endEvent);
+      this._customDragMoveHandler = onMove;
+      this._customDragEndHandler = onEnd;
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onEnd);
+      document.addEventListener("pointercancel", onEnd);
+    }
+
+    _onCustomDragMove(event) {
+      const drag = this.customDrag;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      event.preventDefault();
+
+      const deltaY = event.clientY - drag.startClientY;
+      drag.rowEl.style.transform = `translateY(${deltaY}px)`;
+
+      const unit = drag.rowH + drag.rowGap;
+      const slotsMoved = Math.round(deltaY / unit);
+      const newIndex = Math.max(0, Math.min(this.customStations.length - 1, drag.fromIndex + slotsMoved));
+      if (newIndex !== drag.currentIndex) {
+        const [entry] = this.customStations.splice(drag.currentIndex, 1);
+        this.customStations.splice(newIndex, 0, entry);
+        drag.currentIndex = newIndex;
+        this._applyCustomDragSiblingShifts(drag);
+      }
+    }
+
+    // Recomputes, for every OTHER row, "how many slots away from its
+    // original DOM position is it now" and sets that as a translateY --
+    // the CSS transition on .hx-custom-row.is-reorder-shifting (added once
+    // below, never removed until the drag ends) does the actual smooth
+    // animating, including reversing direction cleanly if the drag moves
+    // back the way it came.
+    _applyCustomDragSiblingShifts(drag) {
+      const currentSiblingOrder = this.customStations.map((s) => s.id).filter((sid) => sid !== drag.id);
+      drag.originalSiblingOrder.forEach((siblingId, originalIndex) => {
+        const currentIndex = currentSiblingOrder.indexOf(siblingId);
+        const siblingEl = drag.listEl.querySelector(`[data-custom-row-id="${siblingId}"]`);
+        if (!siblingEl) return;
+        siblingEl.classList.add("is-reorder-shifting");
+        const shiftSlots = currentIndex - originalIndex;
+        siblingEl.style.transform = shiftSlots === 0 ? "" : `translateY(${shiftSlots * (drag.rowH + drag.rowGap)}px)`;
+      });
+    }
+
+    _endCustomDrag(event) {
+      const drag = this.customDrag;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      document.removeEventListener("pointermove", this._customDragMoveHandler);
+      document.removeEventListener("pointerup", this._customDragEndHandler);
+      document.removeEventListener("pointercancel", this._customDragEndHandler);
+
+      const finalizedRender = () => {
+        // Guards against both the transitionend listener and the fallback
+        // timeout firing (whichever wins clears this.customDrag first, so
+        // the other one below is a no-op).
+        if (!this.customDrag) return;
+        this.customDrag = null;
+        this.render();
+      };
+
+      const totalShiftPx = (drag.currentIndex - drag.fromIndex) * (drag.rowH + drag.rowGap);
+      drag.rowEl.classList.remove("is-dragging");
+      drag.rowEl.style.transition = "transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1)";
+      drag.rowEl.style.transform = totalShiftPx === 0 ? "" : `translateY(${totalShiftPx}px)`;
+      drag.rowEl.addEventListener("transitionend", finalizedRender, { once: true });
+      // Fallback: if the dragged row never actually moved (a hold-then-
+      // release with zero drag distance), the transform never changes and
+      // transitionend never fires, so this closes out the session anyway.
+      setTimeout(finalizedRender, 220);
     }
 
     // ---------- Pro practice-weight adjustment ----------
@@ -1462,7 +1644,11 @@
       // station weight, etc.) -- every one of those setters just calls
       // render(), same as everything else in this class, rather than each
       // needing to remember to also resync the sheet itself.
-      if (this.setupSheetOpen) this.syncSetupSheetContent();
+      // Skipped while a row is being dragged -- rebuilding the sheet's
+      // innerHTML mid-drag would rip out the exact DOM node the pointer
+      // has captured. The drag's own end handler calls render() itself
+      // once the gesture is over, so the sheet still ends up in sync.
+      if (this.setupSheetOpen && !this.customDrag) this.syncSetupSheetContent();
     }
 
     // ---------- Station info popup (how-to + demo video) ----------
@@ -1613,6 +1799,10 @@
         overlay.addEventListener("change", (event) => this.handleChange(event));
         overlay.addEventListener("focusin", (event) => this.handleFocusIn(event));
         overlay.addEventListener("focusout", (event) => this.handleFocusOut(event));
+        // Press-and-hold drag reorder for the custom builder's station list
+        // -- see handleCustomRowPointerDown(). Bound once here (not per-row)
+        // so it survives every syncSetupSheetContent() rebuild.
+        overlay.addEventListener("pointerdown", (event) => this.handleCustomRowPointerDown(event));
         window.bindSheetDrag(overlay, ".log-sheet", ".log-sheet-handle", () => this.closeSetupSheet());
       }
       this.setupSheetOpen = true;
@@ -1817,7 +2007,7 @@
         const isRun = s.key === "run";
         const unit = customStationUnitLabel(s.key);
         list.appendChild(el(`
-          <li class="hx-agenda-row hx-custom-row ${isRun ? "is-run" : "is-station"}">
+          <li class="hx-agenda-row hx-custom-row ${isRun ? "is-run" : "is-station"}" data-custom-row-id="${s.id}">
             <div class="hx-agenda-row-main">
               <span class="hx-agenda-num">${i + 1}</span>
               <span class="hx-agenda-icon">${stationIconSvg(s.key, 20)}</span>
