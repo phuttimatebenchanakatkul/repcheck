@@ -1029,6 +1029,11 @@
       this.category = value === "custom" ? "custom" : null;
       this.format = null;
       this.gender = null;
+      // Switching to Standard hides the custom builder (and the picker
+      // with it) entirely -- without this, tapping back to Custom later
+      // in the same sheet session resurrected the picker already open
+      // from before, even though it had been fully out of view in between.
+      this.customPaletteOpen = false;
       this.render();
     }
 
