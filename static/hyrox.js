@@ -105,6 +105,15 @@
   // explicitly as its own insertable block.
   const CUSTOM_STATION_KEYS = ["run", "skierg", "sledPush", "sledPull", "burpeeBroadJump", "row", "farmersCarry", "lunges", "wallBalls"];
 
+  // The stations whose amount is a lane-traversed distance rather than a
+  // fixed course (as opposed to Run/SkiErg/Row, which cover their meters
+  // continuously on a track or machine, or Wall Balls, which has no
+  // distance at all) -- same set the standard race already treats this way
+  // (see PRO_ADJUSTABLE_STATIONS/roundsFor below), reused here so a custom
+  // race's running screen can convert their configured meters into "how
+  // many lengths of your lane" once the race actually starts.
+  const CUSTOM_ROUND_BASED_KEYS = ["sledPush", "sledPull", "burpeeBroadJump", "farmersCarry", "lunges"];
+
   // Display name per key, reused as-is (not translated) for both the
   // standard agenda and the custom builder -- same convention STATIONS'
   // own .title strings already follow (station names are the sport's own
@@ -652,13 +661,14 @@
       // per-race AI analysis cache keyed by race id (see loadRaceAnalysis).
       this.stationInfo = null;
       this.detailRaceId = null; // which history race's detail modal is open
-      // Whether the race-setup bottom sheet (category/format/gender/etc.)
-      // is currently open -- see openSetupSheet()/closeSetupSheet(). Not
-      // race data, so (like the modals above) it's not touched by
-      // resetSetup() itself... except resetSetup() DOES explicitly close
-      // it (see there), since "start over" should never leave a stale
-      // sheet open over a screen that's no longer "setup".
-      this.setupSheetOpen = false;
+      // Whether the add-station picker (a bottom sheet opened from the
+      // custom builder's "+" button) is currently open -- see
+      // openStationPickerSheet()/closeStationPickerSheet(). Not race data,
+      // so (like the modals above) it's not touched by resetSetup()
+      // itself... except resetSetup() DOES explicitly close it (see
+      // there), since "start over" should never leave a stale sheet open
+      // over a screen that's no longer "raceSetup".
+      this.stationPickerSheetOpen = false;
       // One shared gym lane length (start->end distance the user measured
       // at their facility), used by every travelling station. A property of
       // the user's gym, NOT of any one race, so it persists across races and
@@ -676,14 +686,9 @@
       // Active press-and-hold reorder session for the custom builder, or
       // null when nothing's being dragged -- see handleCustomRowPointerDown()
       // and the _customDrag* methods below. Not race data, so (like
-      // stationInfo/setupSheetOpen above) it's never touched by resetSetup().
+      // stationInfo/stationPickerSheetOpen above) it's never touched by
+      // resetSetup().
       this.customDrag = null;
-      // Whether the "+" add-station picker is expanded in the custom
-      // builder -- see toggleCustomPalette()/renderCustomBuilder(). Reset
-      // by closeSetupSheet() (not resetSetup() directly) so it never stays
-      // open across sessions but does survive re-renders while the sheet
-      // is up.
-      this.customPaletteOpen = false;
       this.analysisCache = {}; // raceId -> { loading, data|error }
       // Which analysis sections are expanded to their full bullet-point
       // detail, keyed "raceId:section" (section = "overall" or a rating
@@ -695,6 +700,12 @@
       this.root.addEventListener("change", (event) => this.handleChange(event));
       this.root.addEventListener("focusin", (event) => this.handleFocusIn(event));
       this.root.addEventListener("focusout", (event) => this.handleFocusOut(event));
+      // Press-and-hold drag reorder for the custom builder's station list
+      // -- see handleCustomRowPointerDown(). Now lives directly on the
+      // race-setup page (part of #hyrox-root), not a bottom sheet, so it's
+      // bound here alongside the other delegated listeners above instead
+      // of on a sheet overlay.
+      this.root.addEventListener("pointerdown", (event) => this.handleCustomRowPointerDown(event));
       // Re-render on language change so all dynamically-built text switches.
       // Skip while a race is actively running so the live timer isn't reset.
       document.addEventListener("repcheck:language-changed", () => {
@@ -791,7 +802,7 @@
       // an even split until touched, so nothing here needs to key off
       // gender/category (the totals don't vary with them).
       this.doublesSplit = {};
-      this.closeSetupSheet();
+      this.closeStationPickerSheet();
     }
 
     saveHistory() {
@@ -911,14 +922,15 @@
       if (action === "analyze-race") return this.loadRaceAnalysis(target.dataset.id, true);
       if (action === "toggle-analysis-detail") return this.toggleAnalysisDetail(target.dataset.id, target.dataset.section);
       if (action === "reset-facility-lane") return this.resetFacilityLane();
-      if (action === "hero-start") return this.openSetupSheet();
-      if (action === "close-setup-sheet") return this.closeSetupSheet();
+      if (action === "hero-start") return this.openRaceSetupPage();
+      if (action === "close-race-setup-page") return this.closeRaceSetupPage();
+      if (action === "close-station-picker-sheet") return this.closeStationPickerSheet();
       if (action === "set-race-type") return this.setRaceType(target.dataset.value);
       if (action === "add-custom-station") return this.addCustomStation(target.dataset.value);
       if (action === "remove-custom-station") return this.removeCustomStation(target.dataset.id);
       if (action === "move-custom-station") return this.moveCustomStation(target.dataset.id, parseInt(target.dataset.direction, 10));
       if (action === "reset-custom-stations") return this.resetCustomStations();
-      if (action === "toggle-custom-palette") return this.toggleCustomPalette();
+      if (action === "open-station-picker") return this.openStationPickerSheet();
     }
 
     // ---------- AI analysis: short/detail toggle ----------
@@ -1031,9 +1043,9 @@
       this.gender = null;
       // Switching to Standard hides the custom builder (and the picker
       // with it) entirely -- without this, tapping back to Custom later
-      // in the same sheet session resurrected the picker already open
-      // from before, even though it had been fully out of view in between.
-      this.customPaletteOpen = false;
+      // in the same page visit resurrected the picker already open from
+      // before, even though it had been fully out of view in between.
+      this.closeStationPickerSheet();
       this.render();
     }
 
@@ -1043,12 +1055,7 @@
       // Picking a station is the whole point of opening the picker -- close
       // it again immediately rather than leaving it hanging open waiting
       // for a second dismiss tap.
-      this.customPaletteOpen = false;
-      this.render();
-    }
-
-    toggleCustomPalette() {
-      this.customPaletteOpen = !this.customPaletteOpen;
+      this.closeStationPickerSheet();
       this.render();
     }
 
@@ -1409,6 +1416,28 @@
       this.render();
     }
 
+    // ---------- Race setup page ----------
+    // Category/format/gender/training-space/pro-weight/doubles-split (or,
+    // for a custom race, the station builder) -- a real page (its own
+    // `screen`, same as history/leaderboard below) reached from the hero's
+    // "Start race" CTA, not an overlay on top of it. Only the add-station
+    // picker inside the custom builder still uses a bottom sheet -- see
+    // openStationPickerSheet() below.
+    openRaceSetupPage() {
+      this.screen = "raceSetup";
+      this.render();
+    }
+
+    // Leaves whatever category/format/gender/custom-station choices were
+    // made in place (unlike resetToSetup()/"back-to-setup", which is the
+    // "I'm done, start completely fresh" action used elsewhere) -- tapping
+    // back here should feel like dismissing a sheet used to, not
+    // discarding progress.
+    closeRaceSetupPage() {
+      this.screen = "setup";
+      this.render();
+    }
+
     showHistory() {
       this.stopTicking();
       this.screen = "history";
@@ -1496,10 +1525,6 @@
       this.elapsedSeconds = 0;
       this.startTicking();
       this.render();
-      // Render the running screen underneath first, then let the sheet
-      // slide down over it -- reveals the race already in progress as the
-      // sheet dismisses, instead of an abrupt cut.
-      this.closeSetupSheet();
     }
 
     startTicking() {
@@ -1643,9 +1668,16 @@
 
     // ---------- Rendering ----------
     render() {
+      // Skipped entirely while a custom-builder row is being dragged --
+      // its row now lives directly in #hyrox-root (the race-setup page,
+      // not a separate sheet), so rebuilding innerHTML mid-drag would rip
+      // out the exact DOM node the pointer has captured. The drag's own
+      // end handler calls render() itself once the gesture is over.
+      if (this.customDrag) return;
       this.root.innerHTML = "";
       let view;
       if (this.screen === "setup") view = this.renderSetup();
+      else if (this.screen === "raceSetup") view = this.renderRaceSetupPage();
       else if (this.screen === "running") view = this.renderRunning();
       else if (this.screen === "finished") view = this.renderFinished();
       else if (this.screen === "history") view = this.renderHistory();
@@ -1660,16 +1692,12 @@
       // no-op if the current gender/category/format combo is already
       // loaded or loading, so this is safe to call on every render.
       if (this.screen === "setup" || this.screen === "leaderboard") this.loadLeaderboard();
-      // Keep the race-setup sheet's own content in sync with whatever just
-      // triggered this render (picking category/format/gender, adjusting a
-      // station weight, etc.) -- every one of those setters just calls
-      // render(), same as everything else in this class, rather than each
-      // needing to remember to also resync the sheet itself.
-      // Skipped while a row is being dragged -- rebuilding the sheet's
-      // innerHTML mid-drag would rip out the exact DOM node the pointer
-      // has captured. The drag's own end handler calls render() itself
-      // once the gesture is over, so the sheet still ends up in sync.
-      if (this.setupSheetOpen && !this.customDrag) this.syncSetupSheetContent();
+      // Keep the add-station picker sheet's own content in sync with
+      // whatever just triggered this render (adding/removing a station,
+      // switching race type, etc.) -- same reasoning as the picker's own
+      // open/close, just re-synced on every render rather than needing
+      // every setter to remember to touch the sheet too.
+      if (this.stationPickerSheetOpen) this.syncStationPickerSheetContent();
     }
 
     // ---------- Station info popup (how-to + demo video) ----------
@@ -1760,9 +1788,9 @@
       const wrap = el(`<div></div>`);
       // The hero opens the page (same design language as the home page's
       // dark gradient hero): your fastest time, the 8 stations as tappable
-      // icon chips, one CTA that opens the race-setup bottom sheet (see
-      // openSetupSheet()) instead of the steps living inline on the page.
-      // The leaderboard follows -- same content as the standalone
+      // icon chips, one CTA that navigates to the dedicated race-setup
+      // page (see openRaceSetupPage()) instead of the steps living inline
+      // here. The leaderboard follows -- same content as the standalone
       // "Leaderboard" screen (see renderLeaderboardCard) minus its back
       // button.
       wrap.appendChild(this.renderHeroCard());
@@ -1770,8 +1798,8 @@
 
       // Weight standards sits right under the intro -- it's the "what the
       // race asks of you" reference. Needs category + gender to show the
-      // correct weights, so it only appears once those are picked in the
-      // setup sheet.
+      // correct weights, so it only appears once those are picked on the
+      // race-setup page.
       if (this.category && this.gender) {
         wrap.appendChild(this.renderWeightsCard());
       }
@@ -1779,11 +1807,32 @@
       return wrap;
     }
 
-    // ---------- Race setup bottom sheet ----------
-    // Category/format/gender/training-space/pro-weight/doubles-split --
-    // used to live inline on the setup screen as a "STEP 1/STEP 2/..."
-    // card; now presented as a bottom sheet, opened from the hero's
-    // "Start race" CTA, via the SAME shared sheet system every other
+    // ---------- Race setup page ----------
+    // Category/format/gender/training-space/pro-weight/doubles-split (or,
+    // for a custom race, the station builder) -- a real page, reached via
+    // openRaceSetupPage()/closeRaceSetupPage() above, rendered the same
+    // way as every other screen (see render()). Only the add-station
+    // picker inside the custom builder still pops up as a bottom sheet --
+    // see openStationPickerSheet() further down.
+    renderRaceSetupPage() {
+      const wrap = el(`
+        <div class="hx-card">
+          <div class="hx-setup-page-head">
+            <button type="button" class="hx-modal-close" data-action="close-race-setup-page" aria-label="${t("common.back")}">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div class="hx-setup-sheet-title">${t("hyrox.setupSheet.title")}</div>
+          </div>
+        </div>
+      `);
+      wrap.appendChild(this.buildSetupSteps());
+      return wrap;
+    }
+
+    // ---------- Add-station picker (bottom sheet) ----------
+    // The one part of race setup that's still a popup: tapping "+" in the
+    // custom builder (see renderCustomBuilder()) opens a bottom sheet
+    // listing every station, via the SAME shared sheet system every other
     // sheet in the app uses (base.html's window.openBottomSheet/
     // closeBottomSheet/bindSheetDrag + style.css's .log-sheet-* classes)
     // -- not a bespoke reimplementation of hyrox.js's own .hx-modal-overlay
@@ -1794,63 +1843,65 @@
     // automatically), NOT inside #hyrox-root, since #hyrox-root's own
     // content gets fully replaced on every render() (see render()) -- a
     // sheet living there would vanish/rebuild on every keystroke instead of
-    // animating in once. That also means clicks/changes inside it don't
-    // bubble up to this.root's delegated listeners, so it needs its own,
-    // forwarding to the exact same handleClick()/handleChange().
-    openSetupSheet() {
-      let overlay = document.getElementById("hx-setup-sheet-root");
+    // animating in once. That also means clicks inside it don't bubble up
+    // to this.root's delegated listener, so it needs its own, forwarding
+    // to the exact same handleClick().
+    openStationPickerSheet() {
+      let overlay = document.getElementById("hx-station-picker-sheet-root");
       if (!overlay) {
         overlay = el(`
-          <div class="log-sheet-overlay" id="hx-setup-sheet-root">
+          <div class="log-sheet-overlay" id="hx-station-picker-sheet-root">
             <div class="log-sheet">
               <div class="log-sheet-handle"></div>
               <div class="log-sheet-head">
-                <div class="hx-setup-sheet-title">${t("hyrox.setupSheet.title")}</div>
-                <button type="button" class="log-sheet-close" data-action="close-setup-sheet" aria-label="${t("common.close")}">&times;</button>
+                <div class="hx-setup-sheet-title">${t("hyrox.custom.addStation")}</div>
+                <button type="button" class="log-sheet-close" data-action="close-station-picker-sheet" aria-label="${t("common.close")}">&times;</button>
               </div>
-              <div class="log-sheet-body" id="hx-setup-sheet-body"></div>
+              <div class="log-sheet-body" id="hx-station-picker-sheet-body"></div>
             </div>
           </div>
         `);
         document.body.appendChild(overlay);
         overlay.addEventListener("click", (event) => {
-          if (event.target === overlay) return this.closeSetupSheet();
+          if (event.target === overlay) return this.closeStationPickerSheet();
           this.handleClick(event);
         });
-        overlay.addEventListener("change", (event) => this.handleChange(event));
-        overlay.addEventListener("focusin", (event) => this.handleFocusIn(event));
-        overlay.addEventListener("focusout", (event) => this.handleFocusOut(event));
-        // Press-and-hold drag reorder for the custom builder's station list
-        // -- see handleCustomRowPointerDown(). Bound once here (not per-row)
-        // so it survives every syncSetupSheetContent() rebuild.
-        overlay.addEventListener("pointerdown", (event) => this.handleCustomRowPointerDown(event));
-        window.bindSheetDrag(overlay, ".log-sheet", ".log-sheet-handle", () => this.closeSetupSheet());
+        window.bindSheetDrag(overlay, ".log-sheet", ".log-sheet-handle", () => this.closeStationPickerSheet());
       }
-      this.setupSheetOpen = true;
+      this.stationPickerSheetOpen = true;
       window.openBottomSheet(overlay, ".log-sheet");
-      this.syncSetupSheetContent();
+      this.syncStationPickerSheetContent();
     }
 
-    closeSetupSheet() {
-      this.setupSheetOpen = false;
-      // Never reopen already expanded -- a fresh "Race setup" tap should
-      // always start with the picker closed, not wherever it was left.
-      this.customPaletteOpen = false;
-      const overlay = document.getElementById("hx-setup-sheet-root");
+    closeStationPickerSheet() {
+      this.stationPickerSheetOpen = false;
+      const overlay = document.getElementById("hx-station-picker-sheet-root");
       if (overlay) window.closeBottomSheet(overlay, ".log-sheet");
     }
 
     // Rebuilds just the sheet's inner content -- called on open, and again
-    // from render()'s trailing sync (see there) whenever any setter
-    // (setCategory/setGender/setStationWeight/...) triggers a re-render,
-    // so picking a step's option immediately reveals the next one without
-    // the sheet itself re-playing its slide-up animation.
-    syncSetupSheetContent() {
-      const overlay = document.getElementById("hx-setup-sheet-root");
+    // from render()'s trailing sync (see there) whenever the race list
+    // changes underneath it (e.g. switching race type away from custom),
+    // so the sheet never shows stale content.
+    syncStationPickerSheetContent() {
+      const overlay = document.getElementById("hx-station-picker-sheet-root");
       if (!overlay) return;
-      const body = overlay.querySelector("#hx-setup-sheet-body");
+      const body = overlay.querySelector("#hx-station-picker-sheet-body");
       body.innerHTML = "";
-      body.appendChild(this.buildSetupSteps());
+      body.appendChild(this.buildStationPickerSheetContent());
+    }
+
+    buildStationPickerSheetContent() {
+      const list = el(`<div class="hx-station-picker-list"></div>`);
+      CUSTOM_STATION_KEYS.forEach((key) => {
+        list.appendChild(el(`
+          <button type="button" class="hx-custom-palette-row" data-action="add-custom-station" data-value="${key}">
+            <span class="hx-custom-palette-row-icon">${stationIconSvg(key, 22)}</span>
+            <span class="hx-custom-palette-row-name">${STATION_TITLES[key]}</span>
+          </button>
+        `));
+      });
+      return list;
     }
 
     buildSetupSteps() {
@@ -1878,11 +1929,17 @@
       });
 
       // Custom skips every standard step (category/format/gender/scale/
-      // training-space/doubles-split) entirely -- none of them mean
-      // anything once the station list itself isn't fixed -- and shows
-      // its own builder instead. See renderCustomBuilder() below.
+      // doubles-split) entirely -- none of them mean anything once the
+      // station list itself isn't fixed -- and shows its own builder
+      // instead. See renderCustomBuilder() below. Training space is the
+      // one exception: it still applies here (any lane-traversed station --
+      // see CUSTOM_ROUND_BASED_KEYS -- needs it to convert its configured
+      // meters into laps once the race starts), so it's appended right
+      // after the builder using the SAME shared lane value the standard
+      // flow answers (see getFacilityLane()/renderTrainingSpaceCard()).
       if (isCustom) {
         wrap.querySelector("#hx-custom-builder-block").appendChild(this.renderCustomBuilder());
+        wrap.querySelector("#hx-custom-builder-block").appendChild(this.renderTrainingSpaceCard());
         return wrap;
       }
 
@@ -2007,30 +2064,12 @@
             <div class="hx-step-label" style="margin-bottom:0;">${t("hyrox.custom.yourRace")}</div>
             <div class="hx-custom-agenda-head-actions">
               <button type="button" class="hx-weight-reset" data-action="reset-custom-stations">${t("hyrox.custom.resetToStandard")}</button>
-              <button type="button" class="hx-custom-add-btn ${this.customPaletteOpen ? "is-open" : ""}" data-action="toggle-custom-palette" aria-label="${t("hyrox.custom.addStation")}" aria-expanded="${this.customPaletteOpen ? "true" : "false"}">+</button>
+              <button type="button" class="hx-custom-add-btn ${this.stationPickerSheetOpen ? "is-open" : ""}" data-action="open-station-picker" aria-label="${t("hyrox.custom.addStation")}" aria-expanded="${this.stationPickerSheetOpen ? "true" : "false"}">+</button>
             </div>
           </div>
-          <div class="hx-custom-palette-dropdown" data-custom-palette hidden></div>
           <ol class="hx-agenda-list hx-custom-list" data-custom-list></ol>
         </div>
       `);
-
-      // The picker itself: every station as a full-width row (icon left,
-      // name right) rather than the small icon-only grid this used to be --
-      // tapping the "+" reveals it right above the race list, tapping a row
-      // adds that station and closes the picker again (see addCustomStation).
-      if (this.customPaletteOpen) {
-        const palette = wrap.querySelector("[data-custom-palette]");
-        palette.hidden = false;
-        CUSTOM_STATION_KEYS.forEach((key) => {
-          palette.appendChild(el(`
-            <button type="button" class="hx-custom-palette-row" data-action="add-custom-station" data-value="${key}">
-              <span class="hx-custom-palette-row-icon">${stationIconSvg(key, 22)}</span>
-              <span class="hx-custom-palette-row-name">${STATION_TITLES[key]}</span>
-            </button>
-          `));
-        });
-      }
 
       const list = wrap.querySelector("[data-custom-list]");
       if (!this.customStations.length) {
@@ -2492,11 +2531,26 @@
       `;
     }
 
-    // Custom races have no weight/lap system to report (see
-    // stationNowChipsHtml, which is entirely about Pro-adjustable weight
-    // and lane-derived lap counts) -- just the entry's own configured
-    // amount, in the same chip visual the rest of the running screen uses.
+    // Custom races have no weight system to report (see stationNowChipsHtml,
+    // which is entirely about Pro-adjustable weight) -- just the entry's own
+    // configured amount. Lane-traversed stations (see CUSTOM_ROUND_BASED_KEYS)
+    // get the same hero-number treatment the standard race's rounds get
+    // (stationNowChipsHtml) -- the round count as the headline number, with
+    // the meters the user actually configured underneath it as a caption,
+    // so both "how many times do I go" and "how far did I say this was"
+    // stay visible. Everything else (runs, machine efforts, Wall Balls)
+    // keeps the plain single amount chip, unchanged.
     customAmountChipHtml(segment) {
+      if (CUSTOM_ROUND_BASED_KEYS.includes(segment.key)) {
+        const rounds = Math.max(1, Math.ceil(segment.amount / this.getFacilityLane()));
+        return `
+          <div class="hx-now-hero">
+            <div class="hx-now-hero-value">${rounds}</div>
+            <div class="hx-now-hero-label">${t("hyrox.running.roundsLabel")}</div>
+          </div>
+          <div class="hx-now-caption">${formatCustomAmount(segment.key, segment.amount)}</div>
+        `;
+      }
       const label = segment.key === "wallBalls" ? t("hyrox.space.chip.reps") : t("hyrox.standards.chip.distance");
       return `
         <div class="hx-space-weight">
@@ -2561,7 +2615,7 @@
 
           <button type="button" class="hx-complete-btn" data-action="complete-segment">
             <span class="hx-complete-btn-icon">${CHECK_ICON}</span>
-            <span>${isLast ? t("hyrox.finishRace") : (segment.type === "run" ? t("hyrox.complete.run") : t("hyrox.complete.station"))}</span>
+            <span>${isLast ? t("hyrox.finishRace") : t("hyrox.complete.generic")}</span>
           </button>
 
           <button type="button" class="hx-danger-link hx-run-cancel" data-action="cancel-race">${t("hyrox.cancelThisRace")}</button>
