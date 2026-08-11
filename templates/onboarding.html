@@ -180,6 +180,40 @@
     .ob-height-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
     .ob-height-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
 
+    /* ---------- Vertical weight ruler -- identical structure/behaviour to
+       the height ruler above (scroll-snap through 1kg ticks), just a
+       separate class set since the two rulers appear on different steps
+       and need independent markup. ---------- */
+    .ob-weight-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
+    .ob-weight-ruler-value { font-size: 34px; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.01em; }
+    .ob-weight-ruler-window {
+      position: relative;
+      width: 150px;
+      height: 210px;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+      mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+    }
+    .ob-weight-ruler-indicator {
+      position: absolute; left: 6px; right: 6px; top: 98px; height: 14px;
+      border-top: 2.5px solid var(--blue); border-bottom: 2.5px solid var(--blue);
+      background: var(--blue-bg); border-radius: 7px;
+      pointer-events: none; z-index: 2;
+    }
+    .ob-weight-ruler-scroll {
+      height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory;
+      padding: 98px 0; scrollbar-width: none;
+    }
+    .ob-weight-ruler-scroll::-webkit-scrollbar { display: none; }
+    .ob-weight-ruler-row {
+      height: 14px; display: flex; align-items: center; justify-content: center;
+      gap: 8px; scroll-snap-align: center;
+    }
+    .ob-weight-ruler-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); width: 28px; text-align: right; }
+    .ob-weight-ruler-mark { height: 2px; width: 14px; background: var(--border); border-radius: 1px; }
+    .ob-weight-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
+    .ob-weight-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
+
     /* ---------- Split-type / location cards -- same icon-left, text-right
        list layout as .ob-choice-card so every question in the wizard
        shares one modern visual language. ---------- */

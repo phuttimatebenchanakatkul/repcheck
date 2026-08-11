@@ -250,7 +250,11 @@
     stepIndex: -1,
     aspiration: null,
     gender: null,
-    weightKg: "",
+    // A real starting position for the weight ruler to render at, same
+    // idea as heightCm below -- unlike a blank text input, a scroll wheel
+    // has no "empty" state, so it needs a plausible value to sit at before
+    // the user has touched it at all.
+    weightKg: "70",
     goalWeightKg: "",
     heightCm: 170,
     bodyFatRangeId: null,
@@ -380,41 +384,77 @@
     return wrap;
   }
 
+  // A vertical scroll-snap ruler instead of a horizontal <input type=number>
+  // -- same rationale as the height ruler below: a fresh signup entering
+  // their weight for the first time gets a wheel they can flick through
+  // instead of having to summon a number keyboard. Ticks in whole kg (the
+  // canonical unit) regardless of the user's display preference, same as
+  // the height ruler ticking in whole cm even when showing ft/in -- only
+  // the value LABEL is unit-aware, the ruler itself always ticks in the
+  // unit the profile is actually stored/validated in.
+  const WEIGHT_RULER_TICK_PX = 14;
+
   function renderWeightStep() {
-    const weightUnit = RepCheckUnits.weightUnitLabel();
-    const displayWeight = w.weightKg ? RepCheckUnits.kgToDisplay(parseFloat(w.weightKg)) : "";
+    const rows = [];
+    for (let kg = MIN_WEIGHT_KG; kg <= MAX_WEIGHT_KG; kg++) {
+      const isMajor = kg % 10 === 0;
+      const isMid = !isMajor && kg % 5 === 0;
+      rows.push(`
+        <div class="ob-weight-ruler-row">
+          <span class="ob-weight-ruler-label">${isMajor ? kg : ""}</span>
+          <span class="ob-weight-ruler-mark ${isMajor ? "is-major" : isMid ? "is-mid" : ""}"></span>
+        </div>
+      `);
+    }
     const wrap = el(`
       <div>
         <div class="ob-wizard-step-label">${t("coaching.wizard.stepWeight")}</div>
-        <div class="ob-field">
-          <label for="ob-weight-kg">${t("coaching.wizard.currentWeight", { unit: weightUnit })}</label>
-          <input type="number" id="ob-weight-kg" min="1" step="0.1" value="${displayWeight}">
-          <div class="ob-field-hint" id="ob-weight-hint"></div>
+        <div class="ob-weight-ruler">
+          <div class="ob-weight-ruler-value" id="ob-weight-value">${RepCheckUnits.formatWeightKg(parseFloat(w.weightKg))}</div>
+          <div class="ob-weight-ruler-window">
+            <div class="ob-weight-ruler-indicator"></div>
+            <div class="ob-weight-ruler-scroll" id="ob-weight-scroll" tabindex="0">${rows.join("")}</div>
+          </div>
         </div>
       </div>
     `);
-    const weightInput = wrap.querySelector("#ob-weight-kg");
-    const weightHintEl = wrap.querySelector("#ob-weight-hint");
-    const updateWeightHint = () => {
-      const wv = parseFloat(w.weightKg) || 0;
-      weightHintEl.textContent = wv > 0 && wv < MIN_WEIGHT_KG
-        ? t("coaching.wizard.minWeightHint", { min: RepCheckUnits.formatWeightKg(MIN_WEIGHT_KG) })
-        : "";
-    };
-    updateWeightHint();
-
-    const canProceed = () => {
-      const wv = parseFloat(w.weightKg);
-      return wv >= MIN_WEIGHT_KG && wv <= MAX_WEIGHT_KG;
-    };
-    wrap.appendChild(renderWizardActions(canProceed()));
-    const nextBtn = wrap.querySelector('[data-action="next"]');
-    weightInput.addEventListener("input", (e) => {
-      w.weightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
-      updateWeightHint();
-      nextBtn.disabled = !canProceed();
+    const scrollEl = wrap.querySelector("#ob-weight-scroll");
+    const valueLabel = wrap.querySelector("#ob-weight-value");
+    scrollEl.addEventListener("scroll", () => {
+      const index = Math.round(scrollEl.scrollTop / WEIGHT_RULER_TICK_PX);
+      w.weightKg = String(Math.max(MIN_WEIGHT_KG, Math.min(MAX_WEIGHT_KG, MIN_WEIGHT_KG + index)));
+      valueLabel.textContent = RepCheckUnits.formatWeightKg(parseFloat(w.weightKg));
+    }, { passive: true });
+    // setTimeout rather than requestAnimationFrame -- see renderHeightStep
+    // below for why.
+    setTimeout(() => {
+      scrollEl.scrollTop = (parseFloat(w.weightKg) - MIN_WEIGHT_KG) * WEIGHT_RULER_TICK_PX;
     });
+    // Unlike the old text input, the ruler can never produce an out-of-
+    // range value (every row is clamped to [MIN_WEIGHT_KG, MAX_WEIGHT_KG]
+    // by construction), so there's nothing to re-validate on scroll --
+    // same reasoning as renderHeightStep, which has no live disabled-
+    // toggle either.
+    wrap.appendChild(renderWizardActions(true));
     return wrap;
+  }
+
+  // Rate is a % of bodyweight per week (see coaching_engine.py's
+  // LOSS_RATE_*/GAIN_RATE_* for where that number comes from). Projecting a
+  // target date from it is pure linear arithmetic, entirely independent of
+  // the server's BMR/TDEE/calorie math -- so unlike the calorie numbers
+  // themselves, this is safe and correct to compute client-side instead of
+  // round-tripping to the server for it.
+  function estimateGoalDate(weightKg, goalWeightKg, ratePct) {
+    const cur = parseFloat(weightKg) || 0;
+    const goal = parseFloat(goalWeightKg) || 0;
+    if (cur <= 0 || goal <= 0 || !ratePct) return null;
+    const weeklyChangeKg = cur * (ratePct / 100);
+    const weeksNeeded = weeklyChangeKg > 0 ? Math.abs(cur - goal) / weeklyChangeKg : 0;
+    if (!isFinite(weeksNeeded) || weeksNeeded <= 0) return null;
+    const eta = new Date();
+    eta.setDate(eta.getDate() + Math.round(weeksNeeded * 7));
+    return eta;
   }
 
   function renderGoalWeightStep() {
@@ -445,6 +485,13 @@
     };
     updateHint();
 
+    // No-op unless the rate field below actually exists (aspiration is
+    // lose/gain) -- goalInput's own listener at the bottom of this function
+    // calls this unconditionally so typing a new goal weight keeps the ETA
+    // under the rate slider in sync, without the two listeners needing to
+    // know about each other's state.
+    let updateRateEta = () => {};
+
     // Rate-of-change slider: only meaningful when actually moving away
     // from the current weight, so it lives here (not the earlier weight
     // step) as part of "how fast to reach this goal weight" --
@@ -463,11 +510,13 @@
           <label for="ob-rate-slider">${label} <span id="ob-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
           <input type="range" id="ob-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
           <div class="ob-field-hint" id="ob-rate-hint"></div>
+          <div class="ob-field-hint" id="ob-rate-eta"></div>
         </div>
       `);
       const slider = rateField.querySelector("#ob-rate-slider");
       const valueLabel = rateField.querySelector("#ob-rate-value");
       const rateHintEl = rateField.querySelector("#ob-rate-hint");
+      const etaEl = rateField.querySelector("#ob-rate-eta");
       const updateRateHint = () => {
         const wv = parseFloat(w.weightKg) || 0;
         rateHintEl.textContent = wv > 0
@@ -477,12 +526,20 @@
             })
           : "";
       };
+      updateRateEta = () => {
+        const eta = estimateGoalDate(w.weightKg, w.goalWeightKg, w[rateKey]);
+        etaEl.textContent = eta
+          ? t("coaching.wizard.rateEta", { date: eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }) })
+          : "";
+      };
       slider.addEventListener("input", (e) => {
         w[rateKey] = parseFloat(e.target.value);
         valueLabel.textContent = w[rateKey].toFixed(decimals);
         updateRateHint();
+        updateRateEta();
       });
       updateRateHint();
+      updateRateEta();
       wrap.appendChild(rateField);
     }
 
@@ -495,6 +552,7 @@
     goalInput.addEventListener("input", (e) => {
       w.goalWeightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
       updateHint();
+      updateRateEta();
       nextBtn.disabled = !canProceed();
     });
     return wrap;
