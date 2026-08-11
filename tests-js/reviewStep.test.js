@@ -85,6 +85,32 @@ describe("renderSplitStepReview — grid + legend + drawer", () => {
     expect(text(2)).toBe(""); // Wednesday = Rest, swatch stays empty
   });
 
+  it("falls back to two clean characters when one label is a PREFIX of another, not a differing one", () => {
+    // Regression: when a rival label is shorter than the one being
+    // abbreviated ("Push" is a prefix of "Push Day"), comparing past the
+    // shorter rival's length reads its missing character as undefined,
+    // and `undefined !== char` is trivially true -- misfiring as "found a
+    // differing character" instead of correctly falling through to the
+    // documented chars.slice(0,2) fallback. Caught: "Push Day" abbreviated
+    // to "P" + " " (a literal space) instead of "Pu".
+    const days = [
+      { label: "Push", exercises: ["Bench Press"] },
+      { label: "Push Day", exercises: ["Incline Press"] },
+    ];
+    const schedule = { monday: "Push", tuesday: "Push Day", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+
+    const cells = weekdayCells(splitModalBody);
+    const text = (i) => cells[i].querySelector(".split-week-cell-swatch").textContent;
+    expect(text(0)).toBe("Pu"); // "Push" has no differing char within its own length -> prefix fallback
+    expect(text(1)).toBe("Pu"); // "Push Day" -- must NOT be "P " (a letter plus a literal space)
+    expect(text(1)).not.toMatch(/\s/);
+  });
+
   it("assigns a distinct accent to each unique label, reused past 5 via modulo", () => {
     // Custom split with 6 unique day names -- more than DAY_ACCENTS has
     // entries for. Documents the known collision rather than hiding it:
@@ -326,5 +352,63 @@ describe("renderSplitStepReview — save", () => {
     weekdayCells(splitModalBody)[0].click(); // cycle Monday
 
     expect(splitWizard.generatedSchedule.monday).toBe("Push"); // untouched
+  });
+});
+
+describe("renderSplitStepReview — trust boundary (real DOM, not source-text regex)", () => {
+  // tests/test_split_review_step.py pins that each interpolation site calls
+  // escapeHtml/escapeAttr in the template SOURCE -- it can't tell a working
+  // implementation from a broken one, only that the call site is present.
+  // This runs the real escaping against a real jsdom document, so a broken
+  // escapeHtml (e.g. someone "simplifies" it into a no-op) fails here even
+  // though the source-text regex would still pass.
+  const XSS_NAME = '<img src=x onerror="window.__pwned=1">';
+
+  it("neutralizes a malicious exercise name into inert text, not a live element", () => {
+    const days = [{ label: "Push", exercises: [XSS_NAME] }];
+    const schedule = { monday: "Push", tuesday: "Rest", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+
+    expect(splitModalBody.querySelector(".split-ex-name img")).toBeNull();
+    expect(splitModalBody.querySelector(".split-ex-name").textContent).toBe(XSS_NAME);
+  });
+
+  it("escapes a quote in an exercise name so it can't break out of the demo-link attribute", () => {
+    const evil = 'Bench" onmouseover="window.__pwned=1';
+    const days = [{ label: "Push", exercises: [evil] }];
+    const schedule = { monday: "Push", tuesday: "Rest", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+    splitModalBody.querySelector(".split-ex-main").click(); // expand to render the demo-link button
+
+    const link = splitModalBody.querySelector(".split-ex-detail-link");
+    expect(link.getAttribute("onmouseover")).toBeNull();
+    expect(link.dataset.exerciseDetail).toBe(evil);
+  });
+
+  it("does not split a surrogate-pair character when abbreviating a custom day label", () => {
+    // U+1F3AF TARGET is a single code point but two UTF-16 code units --
+    // Array.from(label)[0] keeps the pair together. A naive label[0] or
+    // label.slice(0, 1) would grab only the leading surrogate half,
+    // producing a lone surrogate (renders as U+FFFD / a broken glyph).
+    const emojiLabel = "\u{1F3AF} Day";
+    const days = [{ label: emojiLabel, exercises: ["Bench Press"] }];
+    const schedule = { monday: emojiLabel, tuesday: "Rest", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+
+    const swatch = splitModalBody.querySelector(".split-week-cell-swatch").textContent;
+    expect(swatch).toBe("\u{1F3AF}"); // the whole target emoji, not a lone surrogate half
+    expect(swatch.includes("�")).toBe(false); // no replacement character from a mangled pair
   });
 });

@@ -8,7 +8,8 @@
 // matched, because this file needs the code to actually run.
 //
 // If the markers below stop matching, extraction throws immediately and
-// loudly (see support.test.js) rather than silently testing stale code.
+// loudly (see ../loadReviewStep.test.js) rather than silently testing
+// stale code.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -58,7 +59,7 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     <div id="split-modal-body"></div>
   `;
 
-  const calls = { closed: false, replanned: false, savedPlan: null };
+  const calls = { closed: false, replanned: false };
 
   const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const SPLIT_PLAN_KEY = "repcheck_split_plan_v1";

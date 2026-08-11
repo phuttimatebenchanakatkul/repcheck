@@ -896,6 +896,7 @@
   .split-week-cell.is-selected .split-week-cell-swatch {
     box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--blue);
   }
+  .split-week-cell:hover:not(.is-selected) .split-week-cell-swatch { box-shadow: 0 0 0 2px var(--border); }
   .split-week-cell:active .split-week-cell-swatch { transform: scale(0.94); }
 
   .split-week-legend {
@@ -939,6 +940,7 @@
     background: none; border: none; padding: 10px 0;
     cursor: pointer; font-family: inherit; text-align: left; color: var(--text);
   }
+  .split-ex-main:hover .split-ex-name { color: var(--blue); }
   .split-ex-emoji {
     display: inline-flex; align-items: center; justify-content: center;
     width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; overflow: hidden;
@@ -962,6 +964,7 @@
     font-size: 12px; font-weight: 700; color: var(--blue);
     background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
   }
+  .split-ex-detail-link:hover { text-decoration: underline; }
 
   /* ---------- Exercise detail modal (video + description) ---------- */
   .exd-modal-overlay {
@@ -3174,8 +3177,13 @@
         labelAbbrev[label] = chars[0];
         return;
       }
+      // i < rival.length guards a prefix relationship ("Push" vs "Push
+      // Day"): past the shorter rival's length, rival[i] is undefined,
+      // which !== char is trivially true and would misfire as "found a
+      // differing character" -- exactly the case the comment below says
+      // should fall through to the two-char fallback instead.
       const at = chars.findIndex(
-        (char, i) => i > 0 && rivals.every((rival) => rival[i] !== char)
+        (char, i) => i > 0 && rivals.every((rival) => i < rival.length && rival[i] !== char)
       );
       // No differing character means one label is a prefix of another
       // ("Push" vs "Push Day") -- fall back to two chars and let colour

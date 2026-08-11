@@ -51,10 +51,11 @@ def test_the_expected_locales_are_present(locales):
 
 # Pre-existing gap, predates this file and the split-review redesign: the
 # wizard's "Where do you usually train?" step has never had a Thai
-# translation. Known and deliberately deferred rather than fixed here --
-# see TODOS.md. Listed explicitly (not swallowed) so this test still
-# catches every OTHER key that goes missing, and so the gap can't quietly
-# grow without someone noticing this list.
+# translation. Known and deliberately deferred rather than fixed here.
+# Listed explicitly (not swallowed) so this test still catches every
+# OTHER key that goes missing, and so the gap can't quietly grow without
+# someone noticing this list -- see test_known_missing_thai_list_has_no_stale_entries
+# below, which fails the moment any of these keys actually gets translated.
 KNOWN_MISSING_THAI = {
     "workouts.wizard.locationTitle",
     "workouts.wizard.stepLocation",
