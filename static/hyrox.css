@@ -261,40 +261,69 @@
 
 /* ---------- Custom race builder ---------- */
 .hx-custom-builder { margin-top: 4px; }
-.hx-custom-palette {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 8px;
-  margin-bottom: 20px;
-}
-.hx-custom-palette-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  border: 1.5px solid var(--border);
-  border-radius: 14px;
-  padding: 10px 6px;
-  background: var(--bg);
-  cursor: pointer;
-  font-family: inherit;
-  transition: border-color 0.15s ease, transform 0.1s ease;
-}
-.hx-custom-palette-btn:hover { border-color: var(--blue); }
-.hx-custom-palette-btn:active { transform: scale(0.96); }
-.hx-custom-palette-icon {
-  width: 28px; height: 28px; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--blue-bg); color: var(--blue);
-}
-.hx-custom-palette-name { font-size: 10.5px; font-weight: 700; color: var(--text); text-align: center; line-height: 1.2; }
-
 .hx-custom-agenda-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
 }
+.hx-custom-agenda-head-actions { display: flex; align-items: center; gap: 14px; }
+
+/* The "+" that opens the add-station picker below -- rotates into a "x"
+   when open instead of swapping glyphs, so the same button both opens and
+   closes it with one continuous, obvious motion. 34px to match the
+   move/remove buttons' touch target elsewhere in this same builder (was
+   26px like their own first pass, which QA later found too small to
+   tap reliably on a phone -- applying that same standard here up front). */
+.hx-custom-add-btn {
+  width: 34px; height: 34px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 999px;
+  background: var(--blue); color: #fff;
+  font-size: 18px; font-weight: 700; line-height: 1;
+  cursor: pointer; font-family: inherit;
+  transition: transform 0.2s cubic-bezier(0.2, 0.7, 0.3, 1), opacity 0.15s ease;
+}
+.hx-custom-add-btn:hover { opacity: 0.88; }
+.hx-custom-add-btn:active { transform: scale(0.92); }
+.hx-custom-add-btn.is-open { transform: rotate(45deg); }
+.hx-custom-add-btn.is-open:active { transform: rotate(45deg) scale(0.92); }
+
+/* The picker itself -- every station as a full-width row (icon left, name
+   right) instead of the small icon-grid this used to be, so it reads as a
+   simple list to scan rather than a grid to hunt through. Reuses hx-pop-in
+   (already used elsewhere in this file for popup entrances) so it animates
+   in consistently with the rest of the app instead of just appearing. */
+.hx-custom-palette-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  animation: hx-pop-in 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.hx-custom-palette-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: var(--bg);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.hx-custom-palette-row:hover { border-color: var(--blue); background: var(--blue-bg); }
+.hx-custom-palette-row:active { transform: scale(0.99); }
+.hx-custom-palette-row-icon {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blue-bg); color: var(--blue);
+}
+.hx-custom-palette-row-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
 .hx-custom-list { margin-bottom: 4px; }
 .hx-custom-row .hx-agenda-row-main { flex-wrap: wrap; row-gap: 6px; }
 .hx-custom-row .hx-agenda-name { flex-basis: 100%; order: -1; margin-left: 38px; }

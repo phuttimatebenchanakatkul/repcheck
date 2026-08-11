@@ -678,6 +678,12 @@
       // and the _customDrag* methods below. Not race data, so (like
       // stationInfo/setupSheetOpen above) it's never touched by resetSetup().
       this.customDrag = null;
+      // Whether the "+" add-station picker is expanded in the custom
+      // builder -- see toggleCustomPalette()/renderCustomBuilder(). Reset
+      // by closeSetupSheet() (not resetSetup() directly) so it never stays
+      // open across sessions but does survive re-renders while the sheet
+      // is up.
+      this.customPaletteOpen = false;
       this.analysisCache = {}; // raceId -> { loading, data|error }
       // Which analysis sections are expanded to their full bullet-point
       // detail, keyed "raceId:section" (section = "overall" or a rating
@@ -912,6 +918,7 @@
       if (action === "remove-custom-station") return this.removeCustomStation(target.dataset.id);
       if (action === "move-custom-station") return this.moveCustomStation(target.dataset.id, parseInt(target.dataset.direction, 10));
       if (action === "reset-custom-stations") return this.resetCustomStations();
+      if (action === "toggle-custom-palette") return this.toggleCustomPalette();
     }
 
     // ---------- AI analysis: short/detail toggle ----------
@@ -1022,12 +1029,26 @@
       this.category = value === "custom" ? "custom" : null;
       this.format = null;
       this.gender = null;
+      // Switching to Standard hides the custom builder (and the picker
+      // with it) entirely -- without this, tapping back to Custom later
+      // in the same sheet session resurrected the picker already open
+      // from before, even though it had been fully out of view in between.
+      this.customPaletteOpen = false;
       this.render();
     }
 
     addCustomStation(key) {
       if (!CUSTOM_STATION_KEYS.includes(key)) return;
       this.customStations.push({ id: newCustomStationId(), key, amount: customStationDefaultAmount(key) });
+      // Picking a station is the whole point of opening the picker -- close
+      // it again immediately rather than leaving it hanging open waiting
+      // for a second dismiss tap.
+      this.customPaletteOpen = false;
+      this.render();
+    }
+
+    toggleCustomPalette() {
+      this.customPaletteOpen = !this.customPaletteOpen;
       this.render();
     }
 
@@ -1812,6 +1833,9 @@
 
     closeSetupSheet() {
       this.setupSheetOpen = false;
+      // Never reopen already expanded -- a fresh "Race setup" tap should
+      // always start with the picker closed, not wherever it was left.
+      this.customPaletteOpen = false;
       const overlay = document.getElementById("hx-setup-sheet-root");
       if (overlay) window.closeBottomSheet(overlay, ".log-sheet");
     }
@@ -1979,25 +2003,34 @@
     renderCustomBuilder() {
       const wrap = el(`
         <div class="hx-custom-builder">
-          <div class="hx-step-label">${t("hyrox.custom.addStation")}</div>
-          <div class="hx-custom-palette" data-custom-palette></div>
           <div class="hx-custom-agenda-head">
             <div class="hx-step-label" style="margin-bottom:0;">${t("hyrox.custom.yourRace")}</div>
-            <button type="button" class="hx-weight-reset" data-action="reset-custom-stations">${t("hyrox.custom.resetToStandard")}</button>
+            <div class="hx-custom-agenda-head-actions">
+              <button type="button" class="hx-weight-reset" data-action="reset-custom-stations">${t("hyrox.custom.resetToStandard")}</button>
+              <button type="button" class="hx-custom-add-btn ${this.customPaletteOpen ? "is-open" : ""}" data-action="toggle-custom-palette" aria-label="${t("hyrox.custom.addStation")}" aria-expanded="${this.customPaletteOpen ? "true" : "false"}">+</button>
+            </div>
           </div>
+          <div class="hx-custom-palette-dropdown" data-custom-palette hidden></div>
           <ol class="hx-agenda-list hx-custom-list" data-custom-list></ol>
         </div>
       `);
 
-      const palette = wrap.querySelector("[data-custom-palette]");
-      CUSTOM_STATION_KEYS.forEach((key) => {
-        palette.appendChild(el(`
-          <button type="button" class="hx-custom-palette-btn" data-action="add-custom-station" data-value="${key}">
-            <span class="hx-custom-palette-icon">${stationIconSvg(key, 22)}</span>
-            <span class="hx-custom-palette-name">${STATION_TITLES[key]}</span>
-          </button>
-        `));
-      });
+      // The picker itself: every station as a full-width row (icon left,
+      // name right) rather than the small icon-only grid this used to be --
+      // tapping the "+" reveals it right above the race list, tapping a row
+      // adds that station and closes the picker again (see addCustomStation).
+      if (this.customPaletteOpen) {
+        const palette = wrap.querySelector("[data-custom-palette]");
+        palette.hidden = false;
+        CUSTOM_STATION_KEYS.forEach((key) => {
+          palette.appendChild(el(`
+            <button type="button" class="hx-custom-palette-row" data-action="add-custom-station" data-value="${key}">
+              <span class="hx-custom-palette-row-icon">${stationIconSvg(key, 22)}</span>
+              <span class="hx-custom-palette-row-name">${STATION_TITLES[key]}</span>
+            </button>
+          `));
+        });
+      }
 
       const list = wrap.querySelector("[data-custom-list]");
       if (!this.customStations.length) {
