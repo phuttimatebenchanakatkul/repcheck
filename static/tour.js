@@ -105,9 +105,22 @@
     if (idx >= STEPS.length) { finishStorage(); return; }
 
     // "nav" = teaching which icon opens the section; "action" = teaching
-    // the control on that page; "mini" = collapsed pill, tour not modal.
+    // the control on that page; "mini" = the tour has nothing it can point
+    // at, so it blocks nothing (safety fallback only, never the happy path).
     var PHASE_NAV = "nav", PHASE_ACTION = "action", PHASE_MINI = "mini";
     var phase = PHASE_MINI;
+
+    // Set while a NAV step is being shown right after the user completed an
+    // ACTION on this same page. That click usually opened something (a log
+    // sheet, a picker), and dimming it out the instant it appears would show
+    // the user a feature and then forbid touching it. So a "soft" NAV step
+    // drops the dim and lets ordinary clicks through -- but still blocks
+    // anything that would navigate AWAY, because the previous behaviour here
+    // (a passive pill that blocked nothing) meant doing exactly what the tour
+    // asked silently switched the guidance off, and the user could wander off
+    // mid-tour. Soft means "use what you just opened"; it never means "the
+    // tour has let go".
+    var softNav = false;
 
     var overlay, spotlight, arrowEl, card, stepCountEl, titleEl, bodyEl, hintEl, welcomeBtn;
     var miniEl = null;
@@ -163,6 +176,25 @@
       return targetIsLive();
     }
 
+    // Would this click leave the page the tour is currently standing on?
+    // Covers real links whose path differs from ours, plus everything inside
+    // the two nav surfaces and the quick-actions sheet (some of those are
+    // buttons that navigate via JS, so an <a href> test alone would miss
+    // them). Used to keep a soft NAV step from becoming an escape hatch.
+    function isNavigationEscape(target) {
+      if (!target || !target.closest) return false;
+      if (target.closest(".mobile-tabbar, .sidebar .nav, .mt-sheet, .qa-sheet")) return true;
+      var a = target.closest("a[href]");
+      if (!a) return false;
+      var href = a.getAttribute("href") || "";
+      if (!href || href.charAt(0) === "#") return false;
+      try {
+        return new URL(a.href, location.href).pathname !== location.pathname;
+      } catch (err) {
+        return false;
+      }
+    }
+
     function isWelcomeStep() {
       return !STEPS[idx].targets && phase !== PHASE_NAV;
     }
@@ -201,8 +233,27 @@
         return;
       }
 
+      // Soft NAV step: the user is meant to be able to use (and close) the
+      // thing they just opened, so ordinary clicks pass. Only an attempt to
+      // leave the page is refused -- that's the wandering-off this phase
+      // exists to prevent.
+      if (softNav && !isNavigationEscape(e.target)) return;
+
       // Everything else: swallowed, with visible feedback so a blocked
       // tap reads as "not that one" rather than as a broken page.
+      nudge();
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // Middle-click and right-click-to-open fire auxclick, not click, so a
+    // click-only guard let the user open any nav link in a new tab and walk
+    // straight out of the tour. Same gate, same sanctioned exception.
+    function onAnyAuxClick(e) {
+      if (!shouldBlock()) return;
+      if (e.target.closest(".tour-skip")) return;
+      if (currentTarget && (e.target === currentTarget || currentTarget.contains(e.target))) return;
+      if (softNav && !isNavigationEscape(e.target)) return;
       nudge();
       e.preventDefault();
       e.stopPropagation();
@@ -268,6 +319,7 @@
       // Capturing, so this sees every click before the page does and can
       // decide whether to let it through (see onAnyClick).
       document.addEventListener("click", onAnyClick, true);
+      document.addEventListener("auxclick", onAnyAuxClick, true);
     }
 
     // Targets are measured in viewport coordinates, but the spotlight,
@@ -393,14 +445,18 @@
       return ph === PHASE_NAV ? "tour." + step.key + ".nav" : "tour." + step.key;
     }
 
-    function renderFull(i, ph) {
+    function renderFull(i, ph, soft) {
       idx = i;
       phase = ph;
+      softNav = !!soft && ph === PHASE_NAV;
       var step = STEPS[i];
       hideMini();
 
       if (!overlay) buildOverlay();
       overlay.style.display = "";
+      // Soft steps keep the page readable and usable underneath (no dim),
+      // because the user is meant to finish with whatever they just opened.
+      overlay.classList.toggle("is-soft", softNav);
       var welcome = !step.targets && ph !== PHASE_NAV;
       overlay.querySelector(".tour-welcome-foot").style.display = welcome ? "" : "none";
 
@@ -466,18 +522,23 @@
     }
 
     // ---------- Step transitions ----------
-    // `collapse` distinguishes the two ways a step ends. Pressing a real
-    // ACTION control opens something (a sheet, a file picker), so the
-    // tour gets out of the way and waits as a pill. The welcome card's
-    // own button opens nothing, so there's nothing to get out of the way
-    // of -- carry straight on to the next feature's icon.
-    function advanceStep(collapse) {
+    // `soft` distinguishes the two ways a step ends. Pressing a real ACTION
+    // control opens something (a sheet, a file picker), so the next step
+    // renders without the dim and lets the user finish with it. The welcome
+    // card's own button opens nothing, so the next step goes up at full
+    // strength immediately.
+    //
+    // Either way the tour keeps pointing somewhere and keeps refusing to let
+    // the user leave the page by any route other than the one it's showing.
+    // It deliberately does NOT fall back to a passive pill here: that made
+    // completing a step -- following the instructions exactly -- the one
+    // reliable way to switch the guidance off.
+    function advanceStep(soft) {
       var next = idx + 1;
       if (next >= STEPS.length) { endTourCompletely(); return; }
       localStorage.setItem(STEP_KEY, String(next));
       idx = next;
-      if (collapse) showMini(idx);
-      else renderFull(idx, phaseForHere(STEPS[idx]));
+      renderFull(idx, phaseForHere(STEPS[idx]), soft);
     }
 
     function endTourCompletely() {

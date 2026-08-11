@@ -34,6 +34,14 @@
   outline: 3px solid var(--tour-accent);
   outline-offset: 3px;
 }
+
+/* Soft step (see softNav in tour.js): shown right after the user pressed an
+   ACTION control, which usually opened a sheet. Drop the dim so that sheet
+   stays readable and usable -- the ring and the pulse still mark where to go
+   next. The tour is still refusing to let them leave the page; it just isn't
+   covering up the thing it told them to open. */
+.tour-overlay.is-soft .tour-spotlight { box-shadow: none; }
+.tour-overlay.is-soft .tour-card { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28); }
 .tour-spotlight.has-target::after {
   content: "";
   position: absolute;
