@@ -2585,7 +2585,7 @@
 
           <button type="button" class="hx-complete-btn" data-action="complete-segment">
             <span class="hx-complete-btn-icon">${CHECK_ICON}</span>
-            <span>${isLast ? t("hyrox.finishRace") : (segment.type === "run" ? t("hyrox.complete.run") : t("hyrox.complete.station"))}</span>
+            <span>${isLast ? t("hyrox.finishRace") : t("hyrox.complete.generic")}</span>
           </button>
 
           <button type="button" class="hx-danger-link hx-run-cancel" data-action="cancel-race">${t("hyrox.cancelThisRace")}</button>

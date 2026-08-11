@@ -824,8 +824,7 @@
       "hyrox.analysis.group.solid": "Already solid",
       "hyrox.analysis.unavailableFlagged": "AI analysis isn't available for this race — its total time is below what's physically realistic, so the splits can't be coached honestly.",
       "hyrox.analysis.unavailableCustom": "AI coaching isn't available for custom races yet — it's built around the standard HYROX station list.",
-      "hyrox.complete.run": "Complete run",
-      "hyrox.complete.station": "Complete station",
+      "hyrox.complete.generic": "Complete",
       "hyrox.cancelThisRace": "Cancel this race",
 
       "page.friends.heading": "Friends",
@@ -1650,8 +1649,7 @@
       "hyrox.analysis.group.solid": "ทำได้ดีอยู่แล้ว",
       "hyrox.analysis.unavailableFlagged": "ไม่สามารถวิเคราะห์ด้วย AI ได้ — เวลารวมของการแข่งนี้ต่ำกว่าที่เป็นไปได้จริง จึงไม่สามารถให้คำแนะนำจากสถิตินี้ได้",
       "hyrox.analysis.unavailableCustom": "ยังไม่รองรับการวิเคราะห์ด้วย AI สำหรับการแข่งแบบกำหนดเอง — ระบบนี้ออกแบบมาสำหรับรายการสถานี HYROX มาตรฐาน",
-      "hyrox.complete.run": "เสร็จสิ้นการวิ่ง",
-      "hyrox.complete.station": "เสร็จสิ้นสถานี",
+      "hyrox.complete.generic": "เสร็จสิ้น",
       "hyrox.cancelThisRace": "ยกเลิกการแข่งนี้",
 
       "page.friends.heading": "เพื่อน",
