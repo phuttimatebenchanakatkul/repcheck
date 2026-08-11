@@ -222,3 +222,28 @@ def test_weekday_index_maps_monday_first_onto_sunday_indexed_names(workouts_html
         "the review step must index WEEKDAY_NAMES through the shared mapping "
         "rather than hand-rolling the offset"
     )
+
+
+def test_exercise_icon_html_escapes_the_custom_exercise_emoji(workouts_html):
+    """Regression: exerciseIconHtml() is called from the review drawer
+
+    (and 7 other pre-existing sites in this file) with a name that can be
+    a custom exercise -- POST /api/custom-exercises caps emoji at 8
+    characters server-side (app.py) but never sanitizes it, and "<script>"
+    is exactly 8 characters. An adversarial review caught this: the
+    surrounding code escapes exercise NAME and day LABEL into this same
+    innerHTML sink, but the emoji value flowing through exerciseIconHtml()
+    was missed. The <img> branch stays deliberately unescaped -- path only
+    ever comes from the server-controlled EXERCISE_ICONS dict, never from
+    attacker text.
+    """
+    match = re.search(
+        r"function exerciseIconHtml\(name\)\s*\{(.*?)\n  \}", workouts_html, re.DOTALL
+    )
+    assert match, "exerciseIconHtml() is missing"
+    body = match.group(1)
+    assert "escapeHtml(exerciseEmoji(name))" in body, (
+        "exerciseIconHtml's emoji fallback must escape exerciseEmoji(name) -- "
+        "it is user-authored (the custom-exercise emoji field) and reaches "
+        "innerHTML at every one of exerciseIconHtml's 8 call sites"
+    )

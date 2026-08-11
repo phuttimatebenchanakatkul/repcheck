@@ -2,6 +2,18 @@
 
 ## Workouts
 
+### A custom day literally named "Rest" hides its own workout
+
+**What:** `isRestLabel(label)` in the split-review step (and the same pattern in `renderWholeSplitBody`, `templates/workouts.html`) is `!label || label === "Rest"`. Day labels are free text on the custom-split path, so nothing stops a user from naming a training day "Rest" verbatim. When they do, the UI treats it as a non-training day -- the drawer shows "Recovery day, nothing scheduled" instead of the real exercise list, and the grid cell renders with the dashed rest style, even though `plan.days` still has real exercises stored for it.
+
+**Why:** Silent content loss from the user's own perspective -- their workout is saved but effectively unreachable through either review UI. Low likelihood (a user has to type "Rest" as a training day name, the semantic opposite of what they'd normally type) but zero validation prevents it.
+
+**Context:** Found during adversarial review of the split-review-redesign. Pre-existing pattern (the literal-string-as-sentinel collision already exists in `renderWholeSplitBody`, unrelated to this PR), but the redesign is the first place this collision actively hides content rather than just mis-selecting a `<select>` option. Root cause is that "Rest" the sentinel and "Rest" a valid custom day name share the same string namespace with no way to distinguish them -- a real fix likely means either disallowing "Rest" (case-insensitive) as a custom day name at creation time, or moving the sentinel to a value no user input can produce (e.g. `null` instead of the string `"Rest"`, which would touch the saved-plan schema and everything downstream that reads it).
+
+**Effort:** M (touches the saved-plan schema if done properly)
+**Priority:** P3
+**Depends on:** None
+
 ### Weekday grid tap targets are below Apple's 44px touch guideline
 
 **What:** The 7-cell weekday grid in the split-review "Assign your week" screen (`.split-week-cell` in `templates/workouts.html`) renders at roughly 28-36px square on real phone widths (320-375px) -- the primary interactive control of that screen.

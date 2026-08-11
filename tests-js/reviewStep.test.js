@@ -411,4 +411,27 @@ describe("renderSplitStepReview — trust boundary (real DOM, not source-text re
     expect(swatch).toBe("\u{1F3AF}"); // the whole target emoji, not a lone surrogate half
     expect(swatch.includes("�")).toBe(false); // no replacement character from a mangled pair
   });
+
+  it("does not corrupt the abbreviation map when a custom day is literally named __proto__", () => {
+    // Regression, caught by adversarial review: labelAbbrev used to be a
+    // plain {}. Assigning labelAbbrev["__proto__"] = "<string>" hits the
+    // inherited Object.prototype accessor, which silently ignores
+    // non-object assignments -- so the write is a no-op, and the later
+    // read `labelAbbrev[label] || ""` returns Object.prototype itself
+    // (a truthy object) instead of the missing abbreviation. escapeHtml()
+    // stringifying that renders "[object Object]" into the swatch.
+    // Object.create(null) has no such accessor, so "__proto__" is just an
+    // ordinary key like any other.
+    const days = [{ label: "__proto__", exercises: ["Bench Press"] }];
+    const schedule = { monday: "__proto__", tuesday: "Rest", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+
+    const swatch = splitModalBody.querySelector(".split-week-cell-swatch").textContent;
+    expect(swatch).not.toBe("[object Object]");
+    expect(swatch).toBe("_"); // ordinary single-character abbreviation, same as any other label
+  });
 });

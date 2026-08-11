@@ -1515,11 +1515,18 @@
     return exerciseDetail(name).emoji;
   }
   // Prefer the real per-exercise illustration from the icon pack; fall
-  // back to the emoji for any exercise the pack doesn't cover.
+  // back to the emoji for any exercise the pack doesn't cover. The <img>
+  // path is safe unescaped -- EXERCISE_ICONS is a fixed server dict, so
+  // `path` only exists for exact matches against library-known names, never
+  // attacker text. The emoji path is not: it's the literal string a user
+  // typed into "Create a custom exercise" (POST /api/custom-exercises),
+  // capped at 8 characters server-side but not sanitized -- "<script>" is
+  // exactly 8 characters -- so it goes through escapeHtml on the way into
+  // innerHTML, same as every other user-authored value in this file.
   function exerciseIconHtml(name) {
     const path = EXERCISE_ICONS[name];
     if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
-    return exerciseEmoji(name);
+    return escapeHtml(exerciseEmoji(name));
   }
   // No specific video id is hardcoded per exercise — there's no way to
   // verify from here that a given id still exists or is actually a good,
@@ -3162,7 +3169,16 @@
     // a longer prefix instead spells "Pus", so this keeps the first letter
     // and adds the first letter that actually differs: Ps / Pl / L.
     // Array.from throughout so a multi-byte label isn't cut mid-character.
-    const labelAbbrev = {};
+    //
+    // Object.create(null), not {}: day labels are free text on the custom
+    // path, and a label of exactly "__proto__" assigned onto a plain object
+    // hits the inherited Object.prototype accessor -- the assignment
+    // silently no-ops (the setter ignores non-object values), so the later
+    // read returns Object.prototype itself (truthy) instead of the missing
+    // abbreviation, and the swatch renders "[object Object]". A null-
+    // prototype object has no such accessor, so "__proto__" behaves like
+    // any other key.
+    const labelAbbrev = Object.create(null);
     uniqueLabels.forEach((label) => {
       const chars = Array.from(String(label).trim());
       if (!chars.length) {
