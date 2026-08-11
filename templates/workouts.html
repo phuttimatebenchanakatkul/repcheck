@@ -2656,8 +2656,20 @@
       if (splitWizard.type === "custom" || selfBuild) {
         splitWizard.goal = "";
         splitWizard.daysPerWeek = Math.min(splitWizard.customDays.length, 7);
+        // A self-built split is already the user's own design end to end --
+        // their own day names, and every exercise they hand-picked in the
+        // picker. Location only ever matters as a last-resort top-up when a
+        // day comes up short of the minimum exercise count (see
+        // _pool_for_label / _top_up_exercises in split_planner.py), and
+        // leaving splitWizard.location at its initial null is safe there --
+        // _filter_by_location(pool, null) returns the pool unfiltered. So
+        // there is nothing left to ask; go straight to generating the plan
+        // instead of stopping for a location question the user already
+        // answered by hand-picking every exercise.
+        generatePlan();
+      } else {
+        renderSplitStepLocation();
       }
-      renderSplitStepLocation();
     });
   }
 
