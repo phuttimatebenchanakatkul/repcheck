@@ -98,13 +98,18 @@
 .hx-hero-history-link:hover { color: #fff; }
 .hx-hero-history-link:active { opacity: 0.7; }
 
-/* ---------- Race-setup bottom sheet header (shell reuses style.css's
-   shared .log-sheet-* classes; just the title needs its own definition,
-   same pattern as e.g. nutrition.html's .lq-title) ---------- */
+/* ---------- Race-setup page header, and the add-station picker sheet's
+   own header (the sheet shell reuses style.css's shared .log-sheet-*
+   classes; just the title needs its own definition, same pattern as e.g.
+   nutrition.html's .lq-title) ---------- */
 .hx-setup-sheet-title {
   flex: 1; min-width: 0;
   font-size: 18px; font-weight: 800; letter-spacing: -0.01em;
   color: var(--text);
+}
+.hx-setup-page-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 18px;
 }
 
 /* ---------- Modal (station info popup + race detail) ---------- */
@@ -290,17 +295,14 @@
 .hx-custom-add-btn.is-open { transform: rotate(45deg); }
 .hx-custom-add-btn.is-open:active { transform: rotate(45deg) scale(0.92); }
 
-/* The picker itself -- every station as a full-width row (icon left, name
-   right) instead of the small icon-grid this used to be, so it reads as a
-   simple list to scan rather than a grid to hunt through. Reuses hx-pop-in
-   (already used elsewhere in this file for popup entrances) so it animates
-   in consistently with the rest of the app instead of just appearing. */
-.hx-custom-palette-dropdown {
+/* The picker sheet's own body content -- every station as a full-width row
+   (icon left, name right). The sheet itself already slides up (see
+   base.html's shared bottom-sheet system), so this is just a plain list,
+   no entrance animation of its own needed. */
+.hx-station-picker-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 14px;
-  animation: hx-pop-in 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
+  gap: 8px;
 }
 .hx-custom-palette-row {
   display: flex;

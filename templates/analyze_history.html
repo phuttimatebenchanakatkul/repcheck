@@ -22,10 +22,15 @@
   .ah-back { display: inline-block; margin-bottom: 14px; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-decoration: none; }
   .ah-back:hover { color: var(--text); }
 
+  /* One box per calendar month (see applyMonthHeadings() below) -- not one
+     box around the whole list, so the month heading can sit outside it,
+     above the entries it labels, instead of feeling like part of the same
+     card as the entries under a DIFFERENT month. */
   .ah-card {
     background: var(--card-bg); color: var(--text);
     border-radius: var(--radius-lg); box-shadow: var(--shadow);
     padding: 10px; max-width: 560px;
+    margin-bottom: 4px;
   }
 
   .ah-item {
@@ -57,13 +62,13 @@
 
   .ah-empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); font-size: 13px; }
 
-  /* Inserted by JS (see below) before the first entry of each calendar
-     month -- computed from the entry's LOCAL date, same as the relative
+  /* Inserted by JS (see below) directly before that month's own .ah-card
+     box -- computed from the entry's LOCAL date, same as the relative
      "Today"/"Yesterday" labels below, so a heading never disagrees with
      the entries under it for a user near a month boundary in a timezone
      far from UTC. */
   .ah-month-heading {
-    font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    font-size: 15px; font-weight: 700; color: var(--text-secondary);
     text-transform: uppercase; letter-spacing: 0.03em;
     padding: 14px 10px 6px;
   }
@@ -72,7 +77,14 @@
 
 <a href="{{ url_for('analyze_page') }}" class="ah-back" data-i18n="analyzeHistory.backToAnalyze">&larr; Back to Analyze</a>
 
-<div class="ah-card">
+{# id="ah-list", deliberately no card styling of its own -- applyMonthHeadings()
+   below re-parents every .ah-item into a fresh per-month .ah-card box and
+   places each month's heading directly before that box, so this outer
+   element is just a plain flow container, not a box around everything. Before
+   that JS runs (or with JS disabled), entries render flat with no card
+   background -- the same "lower-fidelity until JS enhances it" degradation
+   this page already has for the relative-date labels below. #}
+<div id="ah-list">
   {% if entries %}
     {% for entry in entries %}
       <a href="{{ url_for('analyze_history_detail_page', result_id=entry.id) }}" class="ah-item">
@@ -96,7 +108,7 @@
       </a>
     {% endfor %}
   {% else %}
-    <div class="ah-empty" data-i18n="analyzeHistory.empty">No analyses yet. Analyze a set to start building your log.</div>
+    <div class="ah-card"><div class="ah-empty" data-i18n="analyzeHistory.empty">No analyses yet. Analyze a set to start building your log.</div></div>
   {% endif %}
 </div>
 
@@ -125,33 +137,51 @@
       });
     }
 
-    // A "July 2026"-style heading before the first entry of each calendar
-    // month, computed from the entry's LOCAL date -- entries already come
-    // from the server newest-first, so grouping consecutive items by
-    // (year, month) as encountered naturally skips any month with zero
-    // entries, with no calendar to walk and no empty headings to filter.
+    // A "July 2026"-style heading before EACH calendar month's own box,
+    // computed from the entry's LOCAL date -- entries already come from the
+    // server newest-first, so grouping consecutive items by (year, month)
+    // as encountered naturally skips any month with zero entries, with no
+    // calendar to walk and no empty headings to filter.
+    //
+    // Rebuilds the whole list on every call rather than patching it in
+    // place: re-runs on every language change (see the listener below) to
+    // relabel headings, and by then the items are no longer direct
+    // children of #ah-list -- they're inside the PREVIOUS run's per-month
+    // .ah-card boxes. Re-querying ".ah-item" finds them regardless of that
+    // nesting (document order doesn't care about depth), so snapshotting
+    // first and clearing the container is simpler and safer than trying to
+    // detect and undo the previous run's wrapping.
     function applyMonthHeadings() {
-      document.querySelectorAll(".ah-month-heading").forEach((el) => el.remove());
-      const card = document.querySelector(".ah-card");
-      if (!card) return;
+      const list = document.getElementById("ah-list");
+      if (!list) return;
+      const items = Array.from(list.querySelectorAll(".ah-item"));
+      if (!items.length) return;
+      list.innerHTML = "";
+      let currentBox = null;
       let lastKey = null;
-      card.querySelectorAll(":scope > .ah-item").forEach((item) => {
+      items.forEach((item) => {
         const metaEl = item.querySelector(".ah-item-meta[data-created-at]");
-        if (!metaEl) return;
-        const date = new Date(metaEl.dataset.createdAt.replace(" ", "T") + "Z");
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
-        if (key === lastKey) return;
-        lastKey = key;
-        const heading = document.createElement("div");
-        heading.className = "ah-month-heading";
-        heading.textContent = date.toLocaleDateString(RepCheckI18n.locale(), { month: "long", year: "numeric" });
-        card.insertBefore(heading, item);
+        const date = metaEl ? new Date(metaEl.dataset.createdAt.replace(" ", "T") + "Z") : null;
+        const key = date ? `${date.getFullYear()}-${date.getMonth()}` : "unknown";
+        if (key !== lastKey) {
+          lastKey = key;
+          const heading = document.createElement("div");
+          heading.className = "ah-month-heading";
+          heading.textContent = date
+            ? date.toLocaleDateString(RepCheckI18n.locale(), { month: "long", year: "numeric" })
+            : "";
+          list.appendChild(heading);
+          currentBox = document.createElement("div");
+          currentBox.className = "ah-card";
+          list.appendChild(currentBox);
+        }
+        currentBox.appendChild(item); // moves the existing node, not a clone
       });
     }
 
     function applyDatesAndHeadings() {
-      applyDates();
       applyMonthHeadings();
+      applyDates();
     }
     applyDatesAndHeadings();
     document.addEventListener("repcheck:language-changed", applyDatesAndHeadings);

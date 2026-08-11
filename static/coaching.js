@@ -153,6 +153,26 @@
     return `${y}-${m}-${d}`;
   }
 
+  // Rate is a % of bodyweight per week (see coaching_engine.py's
+  // LOSS_RATE_*/GAIN_RATE_* for where that number comes from). Projecting a
+  // target date from it is pure linear arithmetic, entirely independent of
+  // the server's BMR/TDEE/calorie math -- so unlike the calorie numbers
+  // themselves, this is safe and correct to compute client-side instead of
+  // round-tripping to the server for it. Mirrors onboarding.js's identical
+  // function (same reasoning as the constants duplicated at the top of
+  // this file -- see that comment).
+  function estimateGoalDate(weightKg, goalWeightKg, ratePct) {
+    const cur = parseFloat(weightKg) || 0;
+    const goal = parseFloat(goalWeightKg) || 0;
+    if (cur <= 0 || goal <= 0 || !ratePct) return null;
+    const weeklyChangeKg = cur * (ratePct / 100);
+    const weeksNeeded = weeklyChangeKg > 0 ? Math.abs(cur - goal) / weeklyChangeKg : 0;
+    if (!isFinite(weeksNeeded) || weeksNeeded <= 0) return null;
+    const eta = new Date();
+    eta.setDate(eta.getDate() + Math.round(weeksNeeded * 7));
+    return eta;
+  }
+
   function daysSince(dateIso) {
     if (!dateIso) return Infinity;
     const then = new Date(dateIso + "T00:00:00");
@@ -1682,6 +1702,13 @@
       };
       updateHint();
 
+      // No-op unless the rate field below actually exists (aspiration is
+      // lose/gain) -- goalInput's own listener at the bottom of this
+      // function calls this unconditionally so typing a new goal weight
+      // keeps the ETA under the rate slider in sync, without the two
+      // listeners needing to know about each other's state.
+      let updateRateEta = () => {};
+
       // Rate-of-change slider: only meaningful when actually moving away
       // from the current weight, so it lives here (not the earlier
       // weight/gender step) as part of "how fast to reach this goal
@@ -1701,11 +1728,13 @@
             <label for="pc-rate-slider">${label} <span id="pc-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
             <input type="range" id="pc-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
             <div class="pc-field-hint" id="pc-rate-hint"></div>
+            <div class="pc-field-hint" id="pc-rate-eta"></div>
           </div>
         `);
         const slider = rateField.querySelector("#pc-rate-slider");
         const valueLabel = rateField.querySelector("#pc-rate-value");
         const rateHintEl = rateField.querySelector("#pc-rate-hint");
+        const etaEl = rateField.querySelector("#pc-rate-eta");
         const updateRateHint = () => {
           const wv = parseFloat(w.weightKg) || 0;
           rateHintEl.textContent = wv > 0
@@ -1715,14 +1744,96 @@
               })
             : "";
         };
+        updateRateEta = () => {
+          const eta = estimateGoalDate(w.weightKg, w.goalWeightKg, w[rateKey]);
+          etaEl.textContent = eta
+            ? t("coaching.wizard.rateEta", { date: eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }) })
+            : "";
+        };
         slider.addEventListener("click", (e) => e.stopPropagation());
         slider.addEventListener("input", (e) => {
           w[rateKey] = parseFloat(e.target.value);
           valueLabel.textContent = w[rateKey].toFixed(decimals);
           updateRateHint();
+          updateRateEta();
         });
         updateRateHint();
+        updateRateEta();
+        // Appended now (rather than at the end of this block, with
+        // everything else) so it lands in the DOM before the calorie
+        // preview below -- that preview is about this slider and reads
+        // wrong sitting above it.
         wrap.appendChild(rateField);
+
+        // Live "what would this rate actually cost me" preview -- only for
+        // an existing, already-complete profile. Body-fat/activity/protein
+        // haven't been asked yet THIS wizard session (they're later steps),
+        // but openWizard() pre-seeds this.wizard from the saved profile
+        // (see there), so for a real existing user they're already present
+        // here even before those steps are visited. A brand-new/incomplete
+        // profile has nothing to seed them with, and asking the server to
+        // calculate against missing inputs would just 400 -- so the whole
+        // preview is skipped rather than shown against guessed values.
+        const canPreviewCalories = !!(this.profile && w.bodyFatRangeId && w.activityLevel && w.proteinPreference);
+        if (canPreviewCalories) {
+          const currentGoals = loadJson(GOALS_KEY, null);
+          // Same protein*4 + fat*9 + carbs*4 the macro chart already uses to
+          // derive a calorie number from GOALS_KEY (which only ever stores
+          // the three macros, never calories itself -- see there).
+          const currentCalories = currentGoals
+            ? Math.round(currentGoals.protein * 4 + currentGoals.fat * 9 + currentGoals.carbs * 4)
+            : null;
+          const previewField = el(`
+            <div class="pc-field">
+              ${currentCalories ? `<div class="pc-field-hint">${t("coaching.wizard.currentBudget", { calories: currentCalories })}</div>` : ""}
+              <div class="pc-field-hint" id="pc-rate-calorie-estimate"></div>
+            </div>
+          `);
+          const estimateEl = previewField.querySelector("#pc-rate-calorie-estimate");
+          // Debounced + sequence-guarded: a fast drag fires many `input`
+          // events, and without this a slow early response could land
+          // AFTER a later one and show a stale number for the rate the
+          // slider isn't even on anymore.
+          let debounceTimer = null;
+          let requestSeq = 0;
+          const refreshCalorieEstimate = () => {
+            estimateEl.textContent = t("coaching.wizard.calculating");
+            clearTimeout(debounceTimer);
+            const mySeq = ++requestSeq;
+            debounceTimer = setTimeout(async () => {
+              try {
+                const response = await fetch("/api/coaching/calculate", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    aspiration: w.aspiration,
+                    gender: w.gender,
+                    weight_kg: parseFloat(w.weightKg),
+                    height_cm: w.heightCm,
+                    body_fat_range_id: w.bodyFatRangeId,
+                    activity_level: w.activityLevel,
+                    protein_preference: w.proteinPreference,
+                    diet_preference: w.dietPreference,
+                    distribution: w.distribution,
+                    loss_rate_pct: isLose ? w[rateKey] : null,
+                    gain_rate_pct: !isLose ? w[rateKey] : null,
+                    training_days: getTrainingDaysFromSplitPlan(),
+                  }),
+                });
+                const data = await response.json();
+                if (mySeq !== requestSeq) return;
+                estimateEl.textContent = data.ok
+                  ? t("coaching.wizard.calorieEstimate", { calories: data.targets.calories })
+                  : "";
+              } catch (err) {
+                if (mySeq === requestSeq) estimateEl.textContent = "";
+              }
+            }, 300);
+          };
+          refreshCalorieEstimate();
+          slider.addEventListener("input", refreshCalorieEstimate);
+          wrap.appendChild(previewField);
+        }
       }
 
       wrap.appendChild(this.renderWizardActions());
@@ -1730,6 +1841,7 @@
       goalInput.addEventListener("input", (e) => {
         w.goalWeightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
         updateHint();
+        updateRateEta();
         if (nextBtn) nextBtn.disabled = !this.wizardCanProceed();
       });
       return wrap;
