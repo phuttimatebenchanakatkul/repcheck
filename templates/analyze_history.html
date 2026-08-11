@@ -56,6 +56,18 @@
   .ah-chevron { color: var(--text-secondary); flex-shrink: 0; }
 
   .ah-empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); font-size: 13px; }
+
+  /* Inserted by JS (see below) before the first entry of each calendar
+     month -- computed from the entry's LOCAL date, same as the relative
+     "Today"/"Yesterday" labels below, so a heading never disagrees with
+     the entries under it for a user near a month boundary in a timezone
+     far from UTC. */
+  .ah-month-heading {
+    font-size: 12px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.03em;
+    padding: 14px 10px 6px;
+  }
+  .ah-month-heading:first-child { padding-top: 4px; }
 </style>
 
 <a href="{{ url_for('analyze_page') }}" class="ah-back" data-i18n="analyzeHistory.backToAnalyze">&larr; Back to Analyze</a>
@@ -112,8 +124,37 @@
           : relativeDateLabel(timestamp);
       });
     }
-    applyDates();
-    document.addEventListener("repcheck:language-changed", applyDates);
+
+    // A "July 2026"-style heading before the first entry of each calendar
+    // month, computed from the entry's LOCAL date -- entries already come
+    // from the server newest-first, so grouping consecutive items by
+    // (year, month) as encountered naturally skips any month with zero
+    // entries, with no calendar to walk and no empty headings to filter.
+    function applyMonthHeadings() {
+      document.querySelectorAll(".ah-month-heading").forEach((el) => el.remove());
+      const card = document.querySelector(".ah-card");
+      if (!card) return;
+      let lastKey = null;
+      card.querySelectorAll(":scope > .ah-item").forEach((item) => {
+        const metaEl = item.querySelector(".ah-item-meta[data-created-at]");
+        if (!metaEl) return;
+        const date = new Date(metaEl.dataset.createdAt.replace(" ", "T") + "Z");
+        const key = `${date.getFullYear()}-${date.getMonth()}`;
+        if (key === lastKey) return;
+        lastKey = key;
+        const heading = document.createElement("div");
+        heading.className = "ah-month-heading";
+        heading.textContent = date.toLocaleDateString(RepCheckI18n.locale(), { month: "long", year: "numeric" });
+        card.insertBefore(heading, item);
+      });
+    }
+
+    function applyDatesAndHeadings() {
+      applyDates();
+      applyMonthHeadings();
+    }
+    applyDatesAndHeadings();
+    document.addEventListener("repcheck:language-changed", applyDatesAndHeadings);
   })();
 </script>
 {% endblock %}
