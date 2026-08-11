@@ -105,6 +105,15 @@
   // explicitly as its own insertable block.
   const CUSTOM_STATION_KEYS = ["run", "skierg", "sledPush", "sledPull", "burpeeBroadJump", "row", "farmersCarry", "lunges", "wallBalls"];
 
+  // The stations whose amount is a lane-traversed distance rather than a
+  // fixed course (as opposed to Run/SkiErg/Row, which cover their meters
+  // continuously on a track or machine, or Wall Balls, which has no
+  // distance at all) -- same set the standard race already treats this way
+  // (see PRO_ADJUSTABLE_STATIONS/roundsFor below), reused here so a custom
+  // race's running screen can convert their configured meters into "how
+  // many lengths of your lane" once the race actually starts.
+  const CUSTOM_ROUND_BASED_KEYS = ["sledPush", "sledPull", "burpeeBroadJump", "farmersCarry", "lunges"];
+
   // Display name per key, reused as-is (not translated) for both the
   // standard agenda and the custom builder -- same convention STATIONS'
   // own .title strings already follow (station names are the sport's own
@@ -1920,11 +1929,17 @@
       });
 
       // Custom skips every standard step (category/format/gender/scale/
-      // training-space/doubles-split) entirely -- none of them mean
-      // anything once the station list itself isn't fixed -- and shows
-      // its own builder instead. See renderCustomBuilder() below.
+      // doubles-split) entirely -- none of them mean anything once the
+      // station list itself isn't fixed -- and shows its own builder
+      // instead. See renderCustomBuilder() below. Training space is the
+      // one exception: it still applies here (any lane-traversed station --
+      // see CUSTOM_ROUND_BASED_KEYS -- needs it to convert its configured
+      // meters into laps once the race starts), so it's appended right
+      // after the builder using the SAME shared lane value the standard
+      // flow answers (see getFacilityLane()/renderTrainingSpaceCard()).
       if (isCustom) {
         wrap.querySelector("#hx-custom-builder-block").appendChild(this.renderCustomBuilder());
+        wrap.querySelector("#hx-custom-builder-block").appendChild(this.renderTrainingSpaceCard());
         return wrap;
       }
 
@@ -2516,11 +2531,26 @@
       `;
     }
 
-    // Custom races have no weight/lap system to report (see
-    // stationNowChipsHtml, which is entirely about Pro-adjustable weight
-    // and lane-derived lap counts) -- just the entry's own configured
-    // amount, in the same chip visual the rest of the running screen uses.
+    // Custom races have no weight system to report (see stationNowChipsHtml,
+    // which is entirely about Pro-adjustable weight) -- just the entry's own
+    // configured amount. Lane-traversed stations (see CUSTOM_ROUND_BASED_KEYS)
+    // get the same hero-number treatment the standard race's rounds get
+    // (stationNowChipsHtml) -- the round count as the headline number, with
+    // the meters the user actually configured underneath it as a caption,
+    // so both "how many times do I go" and "how far did I say this was"
+    // stay visible. Everything else (runs, machine efforts, Wall Balls)
+    // keeps the plain single amount chip, unchanged.
     customAmountChipHtml(segment) {
+      if (CUSTOM_ROUND_BASED_KEYS.includes(segment.key)) {
+        const rounds = Math.max(1, Math.ceil(segment.amount / this.getFacilityLane()));
+        return `
+          <div class="hx-now-hero">
+            <div class="hx-now-hero-value">${rounds}</div>
+            <div class="hx-now-hero-label">${t("hyrox.running.roundsLabel")}</div>
+          </div>
+          <div class="hx-now-caption">${formatCustomAmount(segment.key, segment.amount)}</div>
+        `;
+      }
       const label = segment.key === "wallBalls" ? t("hyrox.space.chip.reps") : t("hyrox.standards.chip.distance");
       return `
         <div class="hx-space-weight">
