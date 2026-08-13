@@ -196,6 +196,70 @@ def test_set_workout_log_day_serializes_genuinely_concurrent_writes_to_different
         assert stored.get(date_b) == [entry_b], f"attempt {i}: date B's write was lost to a concurrent write on date A: {stored}"
 
 
+def test_set_user_data_merge_branch_serializes_concurrent_writes_to_the_same_key(tmp_path, monkeypatch):
+    """Flagged by the adversarial review during /ship's pre-landing review:
+    set_workout_log_day() and the generic /api/sync/<key> route's
+    set_user_data() (see static/account_sync.js -- it fires this route
+    synchronously on every localStorage write, in parallel with the
+    debounced authoritative endpoint) both read-modify-write the SAME
+    stored blob for a MERGE_LOG_KEYS key, so their SELECTs could race each
+    other the exact same way two set_workout_log_day() calls could. This
+    doesn't close the "a sufficiently stale merge push can still resurrect
+    a deletion" gap (that requires the merge to land well AFTER the
+    authoritative write, not just concurrently with it -- a union merge
+    fundamentally can't distinguish "never existed" from "was removed"),
+    but it does close the same-instant race between the two write paths."""
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "repcheck-test.db")
+    database.init_db()
+    user_id = _make_user("cross-path-concurrency@example.com")
+
+    entry = {"id": "e1", "exercise": "Bench Press", "addedAt": 1, "sets": [{"reps": 8}]}
+    set_workout_log_day(user_id, "2026-08-13", [entry])
+
+    ATTEMPTS = 20
+    for i in range(ATTEMPTS):
+        edited = {"id": "e1", "exercise": "Bench Press", "addedAt": 1, "sets": [{"reps": 8 + i}]}
+        barrier = threading.Barrier(2)
+        errors = []
+
+        def via_authoritative_endpoint():
+            try:
+                barrier.wait(timeout=5)
+                set_workout_log_day(user_id, "2026-08-13", [edited])
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        def via_generic_merge_route():
+            try:
+                barrier.wait(timeout=5)
+                # Mirrors what account_sync.js's wrapped setItem sends: the
+                # whole current localStorage value for the key, which in
+                # this race is still the PRE-edit blob (the device hasn't
+                # seen `edited` yet -- it's what the OTHER thread is about
+                # to write).
+                database.set_user_data(user_id, database.WORKOUT_LOG_KEY, {"2026-08-13": [entry]})
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=via_authoritative_endpoint),
+            threading.Thread(target=via_generic_merge_route),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"attempt {i}: concurrent writes raised: {errors}"
+        # BEGIN IMMEDIATE serializes the two writers, but doesn't dictate
+        # which one commits second -- either final value is a legitimate,
+        # non-corrupted outcome (unlike the un-fixed race, which could
+        # produce a torn/lost write). What must NEVER happen is an
+        # exception, or a row that isn't one of these two exact values.
+        stored = database.get_all_user_data(user_id)[database.WORKOUT_LOG_KEY]
+        assert stored.get("2026-08-13") in ([edited], [entry]), f"attempt {i}: unexpected/corrupted result: {stored}"
+
+
 # ---------- POST /api/workout/log-day ----------
 
 

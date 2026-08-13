@@ -65,5 +65,31 @@ export function loadWorkoutSync({ initialLog = {}, selectedDate = "2026-08-13" }
     };`
   );
 
-  return factory(STORAGE_KEY, selectedDate);
+  // The extracted source registers a real `window.addEventListener("pagehide", ...)`
+  // as a side effect of running (not just defining functions), and jsdom's
+  // `window` persists across tests in the same file -- without capturing
+  // and removing it, every call here leaks one more listener onto a
+  // shared object, and a LATER test's pagehide dispatch would also
+  // (harmlessly, since their own state is stale/drained, but not always
+  // predictably) re-trigger every earlier call's listener too. Temporarily
+  // wrap addEventListener just for this call to capture the "pagehide"
+  // listener it registers, and expose a cleanup() the caller's
+  // afterEach/cleanup can use to remove it.
+  const nativeAddEventListener = window.addEventListener.bind(window);
+  let capturedListener = null;
+  window.addEventListener = (type, listener, options) => {
+    if (type === "pagehide") capturedListener = listener;
+    return nativeAddEventListener(type, listener, options);
+  };
+  let result;
+  try {
+    result = factory(STORAGE_KEY, selectedDate);
+  } finally {
+    window.addEventListener = nativeAddEventListener;
+  }
+
+  result.cleanup = () => {
+    if (capturedListener) window.removeEventListener("pagehide", capturedListener);
+  };
+  return result;
 }

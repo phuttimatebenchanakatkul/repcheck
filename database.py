@@ -428,9 +428,24 @@ def _merge_date_keyed(incoming, existing):
 def set_user_data(user_id, key, value):
     """Sets a synced key's value. For MERGE_LOG_KEYS, merges with whatever
     is already stored instead of overwriting it outright -- see that
-    constant's comment above for why."""
+    constant's comment above for why.
+
+    BEGIN IMMEDIATE for the merge branch, same reasoning as
+    set_workout_log_day()'s: this key's dedicated authoritative endpoint
+    (e.g. POST /api/workout/log-day) and this generic merge route can both
+    be triggered by the same client action (static/account_sync.js's
+    wrapped localStorage.setItem fires this route synchronously on every
+    write, in parallel with the dedicated endpoint's own debounced call),
+    so their SELECTs can race the same way two calls to
+    set_workout_log_day() could. This doesn't fully close the gap -- a
+    sufficiently STALE merge push (delivered well after the authoritative
+    write already committed, not just concurrently with it) can still
+    reintroduce a deleted entry, since a union merge has no way to
+    represent "this was intentionally removed" -- but it does close the
+    same-instant race, which is the more common case in practice."""
     with get_db() as conn:
         if key in MERGE_LOG_KEYS:
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT value FROM user_data WHERE user_id = ? AND key = ?", (user_id, key)
             ).fetchone()

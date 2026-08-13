@@ -1934,6 +1934,33 @@
       pushWorkoutDay(dateIso);
     }, WORKOUT_SYNC_DEBOUNCE_MS));
   }
+  // Flush any still-pending debounced syncs the instant the page starts
+  // unloading, via sendBeacon (survives navigation; a plain fetch() can be
+  // cancelled mid-flight when the page goes away). Without this, closing
+  // the tab right after a delete -- still inside the 400ms debounce
+  // window -- risks losing the authoritative overwrite while the OTHER
+  // sync path for this same key (account_sync.js's wrapped setItem, which
+  // already fired its own sendBeacon-based push synchronously at delete
+  // time) survives, meaning the write most likely to actually land in
+  // that exact moment is the one that can resurrect the deletion, not the
+  // one that can actually delete it.
+  window.addEventListener("pagehide", () => {
+    workoutDaySyncTimers.forEach((timerId, dateIso) => {
+      clearTimeout(timerId);
+      const blob = new Blob([JSON.stringify({ date: dateIso, entries: log[dateIso] || [] })], { type: "application/json" });
+      if (!navigator.sendBeacon || !navigator.sendBeacon("{{ url_for('api_workout_log_day') }}", blob)) {
+        // sendBeacon unavailable, or its queue is full -- best-effort
+        // fallback that at least has a chance on some browsers/timings.
+        fetch("{{ url_for('api_workout_log_day') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: dateIso, entries: log[dateIso] || [] }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    });
+    workoutDaySyncTimers.clear();
+  });
   // dateIso defaults to selectedDate since nearly every mutation in this
   // file operates on log[selectedDate] -- the one exception,
   // quickLogExerciseNow(), passes its own target date explicitly since it
