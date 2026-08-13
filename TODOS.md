@@ -138,6 +138,54 @@
 **Priority:** P3
 **Depends on:** None
 
+### account_sync.js's generic merge push can still resurrect a deleted workout entry if delivered late
+
+**What:** `repcheck_workout_log_v2` is still in `static/account_sync.js`'s `SYNC_KEYS`, so every `localStorage.setItem` for the workout log (including the authoritative save that already went through `POST /api/workout/log-day`) also fires the generic wrapped-setItem sendBeacon push, which lands on the merge-only `set_user_data` route. `BEGIN IMMEDIATE` (added in this PR) closes the race when that push arrives at roughly the same instant as the authoritative write, but a push that's delayed well past that -- a stale background tab, a flaky connection retried later, a browser's beacon queue holding it -- lands as an ordinary later write. A union merge has no way to represent "this entry was intentionally removed," so a sufficiently late merge push can still reintroduce a deleted workout entry.
+
+**Why:** This is the same bug class the original report described, just narrowed from "any deletion, any time" to "a deletion whose stale merge-push arrives after the authoritative delete." Not theoretical -- backgrounding a tab mid-edit and letting it flush minutes later is an ordinary mobile usage pattern.
+
+**Context:** Found during adversarial review of the workout-log-sync-fix. Investigated whether simply removing `repcheck_workout_log_v2` from `SYNC_KEYS` would close this completely -- it would not, because `SYNC_KEYS.forEach` also drives the pull/hydration-on-load loop that new devices depend on to receive the workout log at all; removing it from the Set breaks hydration along with the push. A real fix means restructuring `account_sync.js` to decouple the push path from the pull path per key (e.g. two separate key lists, or a per-key config object with independent push/pull flags), which is shared infrastructure touching every synced key, not just workouts -- out of scope for this bugfix PR.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Stale background tab can resurrect a deleted workout entry via an unrelated edit on the same date
+
+**What:** If a user deletes a workout entry on Device A, then returns to a tab on Device B that had the same date open before the deletion (with the deleted entry still in its in-memory `log`), any edit on Device B to a *different* entry on that same date calls `saveLog(dateIso)` with the stale full-day array, which is authoritative and overwrites the date wholesale -- silently restoring the deleted entry as a side effect of an unrelated edit.
+
+**Why:** `POST /api/workout/log-day` is correct to be an authoritative whole-day overwrite (that's the fix for the original bug), but that also means any caller with stale in-memory state for that day can undo someone else's deletion without ever touching the deleted entry itself. No error, no conflict signal -- it looks like the edit just worked.
+
+**Context:** Found during adversarial review of the workout-log-sync-fix. Needs a product decision before it's worth building: periodic re-hydration of the currently-viewed date while a tab is backgrounded/idle, an ETag/version check on save that rejects a stale base state, or accepting this as a rare multi-device-editing edge case not worth the complexity.
+
+**Effort:** M (once the desired behavior is decided)
+**Priority:** P3
+**Depends on:** A product decision on the intended behavior
+
+### No upper bound on a workout entry's field sizes or on distinct dates per user
+
+**What:** `POST /api/workout/log-day` caps entry *count* per day at 200 and requires dict shape, but doesn't bound the size of any individual field (`exercise` name, `sets` array contents, etc.) or the number of distinct dates a user can accumulate in the log over time.
+
+**Why:** Lower-severity than the concurrency/staleness findings above -- this is a self-inflicted-only growth/storage concern (a user can only bloat their own blob), not a cross-user or data-loss issue. Still worth bounding eventually since the whole-blob-per-write pattern (see the entry above on per-date rows) means an unbounded blob makes every future write more expensive too.
+
+**Context:** Found during adversarial review of the workout-log-sync-fix.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+### Unescaped entry.exercise in workout log rendering (pre-existing, self-XSS only)
+
+**What:** `templates/workouts.html` and `home.html` interpolate `entry.exercise` into rendered HTML without escaping when displaying logged workout entries. The self-build exercise picker uses a fixed list so this isn't reachable through normal UI, but the field isn't server-validated against that list -- a crafted `POST /api/workout/log-day` payload (or a modified client) could store an entry name containing markup.
+
+**Why:** Impact is limited to self-XSS (a user can only inject into their own view of their own data; nothing here reads another user's entries), so this doesn't meet the bar for an urgent fix, but it's a real gap worth closing with proper escaping.
+
+**Context:** Found during adversarial review of the workout-log-sync-fix. Confirmed pre-existing -- not introduced by this PR's changes, which only added a new authoritative write path and didn't touch how entries are rendered. Deferred as out of scope for a sync-bugfix PR.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
 ## i18n
 
 ### Thai translation missing for the wizard's location step
