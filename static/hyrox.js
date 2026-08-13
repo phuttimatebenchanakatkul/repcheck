@@ -28,9 +28,10 @@
   // since "which of the 4 global leaderboards am I" is a standing
   // identity, not race-to-race state. See resolveLeaderboardGender().
   const LEADERBOARD_GENDER_KEY = "repcheck_hyrox_leaderboard_gender_v1";
-  // Read (not synced/owned here) for a same-session fallback gender guess
-  // -- coaching.js's onboarding wizard already asked "male"/"female",
-  // mapped to this app's "men"/"women" vocabulary in resolveLeaderboardGender().
+  // Read (not synced/owned here). coaching.js's onboarding wizard already
+  // asked "male"/"female" -- profileGender() maps that to this app's
+  // "men"/"women" vocabulary, both for race setup's own gender (no longer
+  // asked here at all, see resetSetup()) and as a leaderboard fallback.
   const COACHING_PROFILE_KEY = "repcheck_coaching_profile_v1";
   // One-time flag: races finished before the global leaderboard existed
   // only ever got saved to local history (HISTORY_KEY), never to the
@@ -539,6 +540,19 @@
   function formatTitle(id) { return t(`hyrox.format.${id}.title`); }
   function genderTitle(id) { return id ? t(`hyrox.gender.${id}`) : "Mixed"; }
 
+  // The coaching profile's onboarding "male"/"female" answer, mapped to
+  // this app's "men"/"women" vocabulary -- race setup no longer asks for
+  // gender itself, it just reads the one the user already gave (onboarding's
+  // gender question, coaching.wizard.stepGender, is a required, validated
+  // field, so any user with a saved profile at all necessarily has one).
+  // Shared with resolveLeaderboardGender(), which used to duplicate this
+  // exact mapping inline.
+  function profileGender() {
+    const profile = loadJson(COACHING_PROFILE_KEY, null);
+    if (!profile || !profile.gender) return null;
+    return profile.gender === "female" ? "women" : "men";
+  }
+
   // "Men Open Singles"-style combo label used on results/history/PB rows.
   // Custom races have no gender/format (the builder never asks), so they
   // get their own short label instead of composing one from empty parts.
@@ -651,8 +665,10 @@
       // not race data; no reason a "start over" should collapse it again.
       this.expandedStandards = {};
       // Persisted standing identity for the leaderboard (see
-      // resolveLeaderboardGender()) -- separate from this.gender, which
-      // resetSetup() clears every time since that's per-race setup state.
+      // resolveLeaderboardGender()) -- deliberately separate from
+      // this.gender, which resetSetup() re-derives from the coaching
+      // profile every time (see profileGender()) since that's per-race
+      // setup state, not a standing choice of its own.
       this.leaderboardGender = localStorage.getItem(LEADERBOARD_GENDER_KEY) || null;
       this.leaderboardTab = { category: "open", format: "singles" };
       this.leaderboardCache = null; // { key, loading, data|error } -- see loadLeaderboard()
@@ -784,7 +800,11 @@
       this.raceType = "standard";
       this.category = null;
       this.format = null;
-      this.gender = null;
+      // No longer asked -- read fresh from the profile every reset (so a
+      // gender change in Settings takes effect on the very next race, not
+      // just the next full page load). Custom races never read this.gender
+      // at all, so deriving it unconditionally here is harmless there too.
+      this.gender = profileGender();
       // "full" | "half" -- see SCALE_IDS. Always reset to full so a Half
       // session never silently carries into the next race.
       this.scale = "full";
@@ -902,7 +922,6 @@
 
       if (action === "set-category") return this.setCategory(target.dataset.value);
       if (action === "set-format") return this.setFormat(target.dataset.value);
-      if (action === "set-gender") return this.setGender(target.dataset.value);
       if (action === "set-scale") return this.setScale(target.dataset.value);
       if (action === "start-race") return this.startRace();
       if (action === "complete-segment") return this.completeSegment();
@@ -1026,12 +1045,6 @@
         || Object.keys(this.doublesSplit).length > 0;
     }
 
-    setGender(value) {
-      this.gender = value;
-      this.stationWeights = {};
-      this.render();
-    }
-
     // ---------- Custom race builder ----------
     // Switching race type sets/clears category the same way the standard
     // pickers do, so canStart()/renderSetup()'s "gender picked yet" checks
@@ -1042,7 +1055,10 @@
       this.raceType = value;
       this.category = value === "custom" ? "custom" : null;
       this.format = null;
-      this.gender = null;
+      // Re-derive rather than null out -- switching back to Standard from
+      // Custom must not leave canStart() blocked on a gender that's actually
+      // sitting right there in the profile (see profileGender()).
+      this.gender = profileGender();
       // Switching to Standard hides the custom builder (and the picker
       // with it) entirely -- without this, tapping back to Custom later
       // in the same page visit resurrected the picker already open from
@@ -1419,7 +1435,7 @@
     }
 
     // ---------- Race setup page ----------
-    // Category/format/gender/training-space/pro-weight/doubles-split (or,
+    // Category/format/training-space/pro-weight/doubles-split (or,
     // for a custom race, the station builder) -- a real page (its own
     // `screen`, same as history/leaderboard below) reached from the hero's
     // "Start race" CTA, not an overlay on top of it. Only the add-station
@@ -1430,7 +1446,7 @@
       this.render();
     }
 
-    // Leaves whatever category/format/gender/custom-station choices were
+    // Leaves whatever category/format/custom-station choices were
     // made in place (unlike resetToSetup()/"back-to-setup", which is the
     // "I'm done, start completely fresh" action used elsewhere) -- tapping
     // back here should feel like dismissing a sheet used to, not
@@ -1463,11 +1479,7 @@
     resolveLeaderboardGender() {
       if (this.leaderboardGender) return this.leaderboardGender;
       if (this.gender) return this.gender;
-      const profile = loadJson(COACHING_PROFILE_KEY, null);
-      if (profile && profile.gender) {
-        return profile.gender === "female" ? "women" : "men";
-      }
-      return null;
+      return profileGender();
     }
 
     // render() triggers loadLeaderboard() itself whenever the setup or
@@ -1976,7 +1988,7 @@
         `));
       });
 
-      // Custom skips every standard step (category/format/gender/scale/
+      // Custom skips every standard step (category/format/scale/
       // doubles-split) entirely -- none of them mean anything once the
       // station list itself isn't fixed -- and shows its own builder
       // instead. See renderCustomBuilder() below. Training space is the
@@ -1998,7 +2010,6 @@
           <div class="hx-choice-grid" data-group="category"></div>
           <div class="hx-step-label">${t("hyrox.step.format")}</div>
           <div class="hx-choice-grid" data-group="format"></div>
-          <div id="hx-gender-block"></div>
           <div id="hx-scale-block"></div>
           <div id="hx-training-space-block"></div>
           <div id="hx-pro-adjust-block"></div>
@@ -2023,20 +2034,6 @@
           </button>
         `));
       });
-
-      const genderBlock = standardSteps.querySelector("#hx-gender-block");
-      if (this.needsGender()) {
-        genderBlock.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.gender")}</div>`));
-        const genderGrid = el(`<div class="hx-choice-grid" data-group="gender"></div>`);
-        GENDER_IDS.forEach((id) => {
-          genderGrid.appendChild(el(`
-            <button type="button" class="hx-choice-card ${this.gender === id ? "is-selected" : ""}" data-action="set-gender" data-value="${id}">
-              <div class="hx-choice-title">${t(`hyrox.gender.${id}`)}</div>
-            </button>
-          `));
-        });
-        genderBlock.appendChild(genderGrid);
-      }
 
       // Half/full race length. Singles only (see SCALE_IDS) -- a Doubles
       // pair already halves the work between two people.
