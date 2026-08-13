@@ -992,7 +992,15 @@
      dotted underline is the only "editable" cue at rest, and a box turns
      amber the moment its value stops matching the derived standard. */
   .split-ex-editor-overlay {
-    position: fixed; inset: 0; z-index: 205;
+    /* 410, not 205: this overlay is a sibling of .split-modal-overlay under
+       <body> (not nested inside it), and it's only ever opened from within
+       the split wizard, whose own backdrop sits at z-index 400 -- 205 put
+       the editor fully BEHIND the wizard, rendered but completely
+       inaccessible (caught by /ship's adversarial review, confirmed with a
+       real coordinate click + screenshot: the editor never appeared,
+       through row clicks kept "succeeding" against its DOM state because a
+       synthetic .click() call doesn't respect visual stacking at all). */
+    position: fixed; inset: 0; z-index: 410;
     background: rgba(0, 0, 0, 0.5);
     display: none; align-items: center; justify-content: center; padding: 16px;
   }
@@ -1057,9 +1065,16 @@
 
   /* ---------- Exercise detail modal (video + description) ---------- */
   .exd-modal-overlay {
+    /* 420, not 210: the "How to perform" link inside the new sets/reps
+       editor (.split-ex-editor-overlay, z-index 410) opens this modal on
+       top of itself -- at 210 it would render BEHIND the editor, the same
+       invisible-overlay bug the editor itself had before this fix. This
+       modal is also reachable directly from outside any wizard (the
+       Today's Plan card's exercise rows), where a high z-index is harmless
+       since nothing else on that page competes above it. */
     position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
     display: flex; align-items: center; justify-content: center;
-    z-index: 210; padding: 16px;
+    z-index: 420; padding: 16px;
   }
   .exd-modal {
     background: var(--card-bg); color: var(--text);
@@ -1570,6 +1585,25 @@
   const PLUS_ICON = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
   const TRASH_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
 
+  // .app gets a scale-down transform whenever a bottom sheet is open
+  // (html.pc-sheet-active .app -- the "page recedes behind me" effect).
+  // A CSS transform creates a new stacking context AND a new containing
+  // block for position: fixed descendants, so any fixed-position overlay
+  // that's still nested inside .app in the DOM gets trapped inside that
+  // context -- no z-index value, however high, lets it escape to render
+  // above a sibling overlay that already lives at the body level (like
+  // .split-modal-overlay, which openBottomSheet re-parents to <body> the
+  // moment it opens). Modals that can be opened while a sheet is already
+  // open (the sets/reps editor and the exercise-detail modal, both
+  // reachable from inside the split wizard) need this same move, or they
+  // render "open" (right DOM state, right z-index) but fully invisible --
+  // caught by /ship's adversarial review with a real coordinate click +
+  // screenshot, since a synthetic .click() call doesn't hit-test at all
+  // and so never surfaces a pure stacking-context bug like this one.
+  function moveOverlayToBody(el) {
+    if (el && el.parentElement !== document.body) document.body.appendChild(el);
+  }
+
   // Exercise names are not all library-controlled: a user can create a
   // custom exercise (POST /api/custom-exercises) and pick it into a split,
   // and split day labels are free text on the custom path. Both end up
@@ -1628,6 +1662,7 @@
   }
 
   const exdOverlay = document.getElementById("exd-modal-overlay");
+  moveOverlayToBody(exdOverlay);
   const exdEmojiEl = document.getElementById("exd-modal-emoji");
   const exdTitleEl = document.getElementById("exd-modal-title");
   const exdDescEl = document.getElementById("exd-modal-desc");
@@ -1658,6 +1693,7 @@
 
   // ---------- Split wizard review step: per-exercise sets/reps editor ----------
   const exEditorOverlay = document.getElementById("split-ex-editor-overlay");
+  moveOverlayToBody(exEditorOverlay);
   const exEditorIcon = document.getElementById("split-ex-editor-icon");
   const exEditorTitle = document.getElementById("split-ex-editor-title");
   const exEditorClose = document.getElementById("split-ex-editor-close");

@@ -106,6 +106,13 @@ export function loadExercisePrescriptionEditor() {
   function reviewRerenderCarousel() {
     calls.rerendered = true;
   }
+  // Real implementation, not a stub -- document.body.innerHTML = EDITOR_MARKUP
+  // above already makes the overlay a direct child of body, so this is a
+  // harmless no-op here, exactly like it would be in production once the
+  // overlay's already been moved.
+  function moveOverlayToBody(el) {
+    if (el && el.parentElement !== document.body) document.body.appendChild(el);
+  }
 
   const source = extractSource();
   const factory = new Function(
@@ -115,6 +122,7 @@ export function loadExercisePrescriptionEditor() {
     "getPrescription",
     "getSetsRepsDefault",
     "reviewRerenderCarousel",
+    "moveOverlayToBody",
     `${source}\nreturn { openExercisePrescriptionEditor, closeExercisePrescriptionEditor };`
   );
 
@@ -124,7 +132,8 @@ export function loadExercisePrescriptionEditor() {
     openExerciseDetailModal,
     getPrescription,
     getSetsRepsDefault,
-    reviewRerenderCarousel
+    reviewRerenderCarousel,
+    moveOverlayToBody
   );
 
   return {
