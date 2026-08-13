@@ -936,7 +936,7 @@
   }
   .split-carousel-arrow:hover { color: var(--text); }
   .split-carousel-arrow:active { transform: scale(0.92); }
-  .split-carousel-heading { flex: 1; min-width: 0; text-align: center; }
+  .split-carousel-heading { flex: 1; min-width: 0; text-align: center; position: relative; }
   .split-carousel-day { font-size: 16px; font-weight: 700; }
   .split-carousel-pill {
     display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
@@ -952,7 +952,33 @@
      letting a long one push past the modal's edge (regression caught by
      /qa: a long custom label ran clean off the card with no ellipsis). */
   .split-carousel-pill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .split-carousel-pill svg { flex-shrink: 0; opacity: 0.6; }
+  .split-carousel-pill svg { flex-shrink: 0; opacity: 0.6; transition: transform 0.15s; }
+  .split-carousel-pill.is-open svg { transform: rotate(180deg); }
+
+  /* position:absolute anchored to the heading's position:relative -- not a
+     transform, so it doesn't create the fixed-descendant stacking trap the
+     bottom-sheet's .app scale transform causes elsewhere in this file. */
+  .split-carousel-pill-menu {
+    position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    min-width: 168px; max-width: 240px; z-index: 2;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+    text-align: left;
+  }
+  .split-carousel-pill-menu-item {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+    background: none; border: none; border-radius: 8px; padding: 8px 10px;
+    font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; font-family: inherit;
+  }
+  .split-carousel-pill-menu-item:hover { background: var(--bg); }
+  .split-carousel-pill-menu-item.is-selected { background: var(--day-accent-bg, var(--sidebar-active)); }
+  .split-carousel-pill-menu-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--day-accent, var(--text-secondary));
+  }
+  .split-carousel-pill-menu-dot.is-rest { background: var(--text-secondary); }
+  .split-carousel-pill-menu-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .split-carousel-pill-menu-check { flex-shrink: 0; margin-left: auto; opacity: 0.8; }
 
   .split-carousel-dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 2px; }
   .split-carousel-dot {
@@ -3511,6 +3537,7 @@
 
   let reviewSchedule = null;         // weekday key -> day label, or the literal "Rest"
   let reviewSelectedIndex = 0;       // index into REVIEW_MONDAY_FIRST
+  let reviewPillMenuOpen = false;    // whether the day-type picker menu is open for the shown day
   // `${label}::${exerciseName}` -> {sets, reps}. Keyed by day label (not by
   // weekday) because the same generated day can land on more than one
   // weekday (a 6-day PPL repeats Push/Pull/Legs) -- editing Monday's Push
@@ -3518,6 +3545,11 @@
   // generated day template, not two independent copies of it.
   let exercisePrescriptions = {};
   let reviewRerenderCarousel = null; // set each time the step renders; lets the editor modal refresh the row it just closed
+  // Both re-bound each time renderSplitStepReview() runs (the wizard can be
+  // opened/closed/reopened many times in one page load); the old pair is
+  // removed first so document listeners don't pile up across reopens.
+  let reviewDismissMenuOnOutsideClick = null;
+  let reviewDismissMenuOnEscape = null;
 
   // JSON.stringify, not a "${label}::${name}" template string: day labels
   // are unrestricted free text on the custom-split path (no maxlength, no
@@ -3547,6 +3579,7 @@
     // Copied rather than aliased so backing out of the step doesn't leave
     // the generated schedule mutated by whatever was tapped here.
     reviewSchedule = { ...splitWizard.generatedSchedule };
+    reviewPillMenuOpen = false; // never carry an open picker menu into a fresh render of this step
     // Open on the first weekday that actually trains, so the carousel
     // starts on a session instead of a rest day.
     const firstTraining = REVIEW_MONDAY_FIRST.findIndex(
@@ -3592,6 +3625,8 @@
       const exercises = day ? day.exercises : [];
       const weekdayName = WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[reviewSelectedIndex]];
 
+      const pillMenuOptions = [...uniqueLabels, "Rest"];
+
       carouselEl.setAttribute("style", rest ? "" : accentStyle(label));
       carouselEl.innerHTML = `
         <div class="split-carousel-nav">
@@ -3600,10 +3635,28 @@
           </button>
           <div class="split-carousel-heading">
             <div class="split-carousel-day">${escapeHtml(weekdayName)}</div>
-            <button type="button" class="split-carousel-pill" data-cycle-day title="${t("workouts.wizard.tapToChange")}">
+            <button type="button" class="split-carousel-pill${reviewPillMenuOpen ? " is-open" : ""}" data-pill-toggle
+                    title="${t("workouts.wizard.tapToChange")}" aria-haspopup="listbox" aria-expanded="${reviewPillMenuOpen}">
               <span class="split-carousel-pill-text">${escapeHtml(rest ? restLabel : label)}</span>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
             </button>
+            ${reviewPillMenuOpen ? `
+              <div class="split-carousel-pill-menu" role="listbox">
+                ${pillMenuOptions.map((opt) => {
+                  const optRest = opt === "Rest";
+                  const selected = opt === (rest ? "Rest" : label);
+                  return `
+                    <button type="button" class="split-carousel-pill-menu-item${selected ? " is-selected" : ""}"
+                            data-select-day="${escapeAttr(opt)}" role="option" aria-selected="${selected}"
+                            style="${optRest ? "" : accentStyle(opt)}">
+                      <span class="split-carousel-pill-menu-dot${optRest ? " is-rest" : ""}"></span>
+                      <span class="split-carousel-pill-menu-label">${escapeHtml(optRest ? restLabel : opt)}</span>
+                      ${selected ? `<svg class="split-carousel-pill-menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ""}
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+            ` : ""}
           </div>
           <button type="button" class="split-carousel-arrow" data-carousel-dir="1" aria-label="${t("common.next")}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
@@ -3643,10 +3696,32 @@
 
     // Delegated once on the container, which outlives its own innerHTML.
     // Tapping a dot just moves the carousel to that day; tapping the pill
-    // in the heading cycles what's scheduled on the day currently showing
-    // (see the data-cycle-day branch below) -- the carousel's equivalent of
-    // the old grid's "tap the already-selected cell" gesture.
+    // opens a menu of every split-type option (plus Rest) so the day can be
+    // reassigned directly, instead of cycling blindly one tap at a time.
     carouselEl.addEventListener("click", (event) => {
+      const pillMenu = event.target.closest(".split-carousel-pill-menu");
+      const pillToggle = event.target.closest("[data-pill-toggle]");
+      if (reviewPillMenuOpen && !pillMenu && !pillToggle) {
+        // A tap anywhere else in the carousel while the menu is open just
+        // dismisses it -- matches how tapping away from any dropdown closes
+        // it without also triggering whatever's underneath.
+        reviewPillMenuOpen = false;
+        renderCarousel();
+        return;
+      }
+      if (pillToggle) {
+        reviewPillMenuOpen = !reviewPillMenuOpen;
+        renderCarousel();
+        return;
+      }
+      const option = event.target.closest("[data-select-day]");
+      if (option) {
+        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+        reviewSchedule[key] = option.dataset.selectDay;
+        reviewPillMenuOpen = false;
+        renderCarousel();
+        return;
+      }
       const arrow = event.target.closest("[data-carousel-dir]");
       if (arrow) {
         reviewSelectedIndex = (reviewSelectedIndex + Number(arrow.dataset.carouselDir) + 7) % 7;
@@ -3659,25 +3734,38 @@
         renderCarousel();
         return;
       }
-      const pill = event.target.closest("[data-cycle-day]");
-      if (pill) {
-        // Tapping the pill cycles what's scheduled on the day the carousel
-        // is currently showing -- the carousel's one equivalent of the old
-        // grid's "tap the already-selected cell" gesture, since there's no
-        // grid of other cells to tap instead.
-        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
-        const options = [...uniqueLabels, "Rest"];
-        const current = options.indexOf(reviewSchedule[key] || "Rest");
-        reviewSchedule[key] = options[(current + 1) % options.length];
-        renderCarousel();
-        return;
-      }
       const exRow = event.target.closest("[data-exercise-edit]");
       if (exRow) {
         const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
         openExercisePrescriptionEditor(reviewSchedule[key], exRow.dataset.exerciseEdit);
       }
     });
+
+    // Dismiss the menu on a tap outside the carousel entirely (e.g. the
+    // rationale text or the Save button), and on Escape.
+    if (reviewDismissMenuOnOutsideClick) document.removeEventListener("click", reviewDismissMenuOnOutsideClick);
+    if (reviewDismissMenuOnEscape) document.removeEventListener("keydown", reviewDismissMenuOnEscape);
+    reviewDismissMenuOnOutsideClick = (event) => {
+      if (!reviewPillMenuOpen) return;
+      // composedPath(), not carouselEl.contains(event.target): a click on the
+      // pill itself is handled by carouselEl's own listener first, which
+      // calls renderCarousel() and replaces carouselEl's children -- by the
+      // time this document-level listener runs in the same bubble phase,
+      // event.target may already be a detached node that .contains() would
+      // wrongly see as "outside". composedPath() is a snapshot taken before
+      // that mutation, so it still reflects the original click location.
+      if (event.composedPath().includes(carouselEl)) return;
+      reviewPillMenuOpen = false;
+      renderCarousel();
+    };
+    reviewDismissMenuOnEscape = (event) => {
+      if (event.key === "Escape" && reviewPillMenuOpen) {
+        reviewPillMenuOpen = false;
+        renderCarousel();
+      }
+    };
+    document.addEventListener("click", reviewDismissMenuOnOutsideClick);
+    document.addEventListener("keydown", reviewDismissMenuOnEscape);
 
     renderCarousel();
     reviewRerenderCarousel = renderCarousel;

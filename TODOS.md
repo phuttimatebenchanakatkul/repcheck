@@ -54,6 +54,8 @@
 
 **Fixed by /qa on feat/assign-week-carousel, 2026-08-13** -- resolved by removal, not a direct fix. The "Assign your week" screen no longer has a weekday grid at all: `renderSplitStepReview()` was redesigned into a one-day-at-a-time carousel, and `.split-week-cell` no longer exists in `templates/workouts.html`. The carousel's own controls have a different (better, though not perfect) sizing profile: `.split-carousel-arrow` is 34px, and day-to-day jumps have two paths -- the arrows, or the new 8px `.split-carousel-dot` row (a secondary/supplementary way to jump directly to a day, not the primary interaction). The dots are below the 44px guideline too, but as optional pagination affordances behind a same-purpose 34px primary control, this is a materially smaller gap than the old grid being users' *only* way to assign a day. Not re-opened as a fresh TODO since it's a common, accepted mobile pattern (photo-gallery-style pagination dots) rather than the primary control missing a target size.
 
+**Addendum (feat/assign-week-day-picker, 2026-08-13):** The day pill's tap-to-cycle gesture was replaced with a tap-to-open `.split-carousel-pill-menu` (see the "day-type picker" entry below). Its `.split-carousel-pill-menu-item` options are `padding: 8px 10px` at 13px font, an effective height under 44px -- and unlike the dots, this IS the primary control for reassigning a day (there's no other path). Flagged as [LOW] confidence by the design review (code-only, not visually measured) and not blocking ship, but worth a closer look if this screen gets another pass -- padding the tappable area without growing the visible menu row would close most of the gap.
+
 ~~**What:** The 7-cell weekday grid in the split-review "Assign your week" screen (`.split-week-cell` in `templates/workouts.html`) renders at roughly 28-36px square on real phone widths (320-375px) -- the primary interactive control of that screen.~~
 
 ~~**Why:** Small miss-taps on the most-used control of a brand-new screen. Clears WCAG 2.2 AA's 24px minimum, but not Apple's stricter 44px HIG recommendation.~~
@@ -90,13 +92,13 @@
 **Priority:** P4
 **Depends on:** None
 
-### Decide what tap-to-cycle should do when it orphans a training day
+### Decide what the day-type picker should do when it orphans a training day
 
-**What:** In the split-review screen, tapping the day pill (formerly: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) cycles its assignment through every unique day label plus Rest. Nothing stops a user from cycling every day to Rest, or cycling away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`.
+**What:** In the split-review screen, tapping the day pill (formerly: cycled its assignment one tap at a time, before the day-type picker menu of 2026-08-13; before that: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) now opens a menu and reassigns the day directly to whichever label or Rest is picked. Nothing stops a user from reassigning every day to Rest, or picking away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`. The underlying risk is unchanged by the interaction-model swap; only how a user reaches that state changed (now one direct tap instead of N cycling taps).
 
 **Why:** This is a product decision, not a confirmed bug -- a user might legitimately decide they don't want a given training day this week. But it's currently silent either way: no warning, no indication a day type has become unscheduled.
 
-**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s "cycles through every unique label then Rest, then wraps back" test pins that normal cycling doesn't crash, but (unlike the pre-carousel test this replaced) doesn't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being cycled away.
+**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s picker-menu tests pin that normal reassignment doesn't crash, but don't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being picked away.
 
 **Effort:** S (once the desired behavior is decided)
 **Priority:** P3
