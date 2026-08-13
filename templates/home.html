@@ -396,20 +396,10 @@
       return { label, exercises: day.exercises };
     }
 
-    function sumMacrosForDay(entries) {
-      const totals = { protein: 0, fat: 0, carbs: 0 };
-      if (!Array.isArray(entries)) return totals;
-      entries.forEach((entry) => {
-        const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
-        items.forEach((item) => {
-          const scale = item.grams / 100;
-          totals.protein += item.baseProtein * scale;
-          totals.fat += item.baseFat * scale;
-          totals.carbs += item.baseCarbs * scale;
-        });
-      });
-      return totals;
-    }
+    // sumMacrosForDay() lives in static/nutrition_macros.js -- shared with
+    // full_stats.html so the two can't silently drift from each other (or
+    // from templates/nutrition.html's own rounding) the way they did before.
+    const sumMacrosForDay = RepCheckNutritionMacros.sumMacrosForDay;
 
     // ---------- Calories & macros summary card ----------
     // Today's totals as 4 color-coded bars, each filled relative to its
@@ -457,7 +447,12 @@
 
     function macroCardRows() {
       const eaten = sumMacrosForDay(nutritionLog[toIsoDate(new Date())]);
-      const eatenKcal = Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4);
+      // Eaten calories come from each entry's own baseCalories (same as
+      // nutrition.html's entryTotals/scaledMacros), not derived from the
+      // macro grams -- a food's listed calories don't always equal exactly
+      // 4P+9F+4C (fiber, alcohol, rounding), so deriving it here silently
+      // disagreed with the Nutrition page's total for the same day.
+      const eatenKcal = Math.round(eaten.calories);
       const goalKcal = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
       return {
         eatenKcal,
@@ -701,7 +696,9 @@
       const mount = document.getElementById("hm-food-body");
       if (!mount) return;
       const eaten = sumMacrosForDay(nutritionLog[toIsoDate(new Date())]);
-      const eatenKcal = Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4);
+      // See macroCardRows() -- eaten calories must come from baseCalories,
+      // not a macro-derived formula, to match the Nutrition page's total.
+      const eatenKcal = Math.round(eaten.calories);
       const goalKcal = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
       const left = goalKcal - eatenKcal;
       const isOver = left < 0;
