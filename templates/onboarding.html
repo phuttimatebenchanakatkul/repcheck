@@ -382,9 +382,25 @@
       .ob-body-type-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
       .ob-field input, .ob-custom-input-row input, .ob-goal-textarea { font-size: 16px; } /* prevents iOS auto-zoom */
     }
+
+    /* Fixed, not inside .ob-wrap -- stays put in the corner across every
+       step instead of scrolling away with the card, since a wrong/unwanted
+       account is something you'd want to escape from at any point in the
+       wizard, not just the first screen. */
+    .ob-logout-form { position: fixed; top: 18px; right: 18px; z-index: 10; }
+    .ob-logout-btn {
+      padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 999px;
+      background: var(--card-bg); color: var(--text-secondary);
+      font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .ob-logout-btn:hover { border-color: var(--text-secondary); color: var(--text); }
   </style>
 </head>
 <body class="ob-body">
+  <form method="post" action="{{ url_for('auth.logout') }}" class="ob-logout-form">
+    <button type="submit" class="ob-logout-btn" data-i18n="sidebar.logout">Log out</button>
+  </form>
   <div class="ob-wrap">
     <img class="ob-logo" src="{{ url_for('static', filename='logo-full.png') }}" alt="RepCheck">
     <div class="ob-card">
