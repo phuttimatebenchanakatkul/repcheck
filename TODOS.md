@@ -2,6 +2,18 @@
 
 ## Workouts
 
+### Rapid double-tap on a sheet-opening button can leak a scroll-lock
+
+**What:** `window.openBottomSheet()` (`base.html`) defers adding its `is-open` class by two `requestAnimationFrame` calls (a standard technique to force a reflow before the CSS transition starts). Any code that guards against double-opening by checking for that class -- e.g. `openSplitModalOverlay()` in `templates/workouts.html` -- has a ~16-33ms window where a second call won't see it yet, double-incrementing `window.__pcSheetLockCount`. Since it's only ever decremented once per close, this leaves body scroll locked (`position: fixed`) permanently after the sheet closes, recoverable only by a page reload.
+
+**Why:** Narrow (needs a real double-tap faster than ~2 animation frames on the exact same button) and low-consequence (a stuck scroll, not data loss), but it's a shared-infrastructure gap, not specific to one sheet -- every sheet in the app that opens via a single button tap has this same exposure, not just the split modal.
+
+**Context:** Surfaced during the split-modal-shrink-regression fix's pre-landing review. Not fixed there since it's pre-existing behavior of `openBottomSheet` itself, not something that PR introduced, and fixing it properly means either debouncing the open button at the click-handler level or making `openBottomSheet` idempotent synchronously (e.g. an immediate "opening" flag set before the rAF pair, not gated on the class the rAFs add).
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
 ### A custom day literally named "Rest" hides its own workout
 
 **What:** `isRestLabel(label)` in the split-review step (and the same pattern in `renderWholeSplitBody`, `templates/workouts.html`) is `!label || label === "Rest"`. Day labels are free text on the custom-split path, so nothing stops a user from naming a training day "Rest" verbatim. When they do, the UI treats it as a non-training day -- the drawer shows "Recovery day, nothing scheduled" instead of the real exercise list, and the grid cell renders with the dashed rest style, even though `plan.days` still has real exercises stored for it.
