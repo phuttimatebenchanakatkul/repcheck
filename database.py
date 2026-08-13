@@ -528,6 +528,47 @@ def remove_nutrition_log_entry(user_id, date_iso, entry_id):
         return day_entries
 
 
+WORKOUT_LOG_KEY = "repcheck_workout_log_v2"
+
+
+def set_workout_log_day(user_id, date_iso, entries):
+    """Atomically replaces one date's entries in the workout log with
+    exactly what's given -- the authoritative write path for every
+    workout-log mutation (add an exercise, delete one, edit its sets/reps/
+    weight), entirely server-side (see POST /api/workout/log-day in
+    app.py). repcheck_workout_log_v2 is in database.py's MERGE_LOG_KEYS, so
+    the generic /api/sync/<key> route merges rather than overwrites it --
+    that route can therefore only ever GAIN entries back from an older
+    stored copy, never remove or change one, so a deleted or edited
+    exercise pushed through that route alone would resurrect or revert on
+    the next sync (this was the actual bug: a workout logged on one device
+    and deleted there would still show on another, because the merge
+    doesn't know the difference between "never existed" and "we removed
+    this"). This instead replaces the entry list for the ONE date given, so
+    additions, edits, and deletions are all represented correctly by a
+    single write, the same way set_weight_log_entry() above already does
+    for weigh-ins. Scoped to one date (not the whole log) so a write here
+    can't clobber a different date's entries even if this request lands
+    out of order relative to another device's edit on a different day.
+    Returns the full updated log so the caller can resync localStorage
+    without a second round trip."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM user_data WHERE user_id = ? AND key = ?",
+            (user_id, WORKOUT_LOG_KEY),
+        ).fetchone()
+        log = json.loads(row["value"]) if row else {}
+        log[date_iso] = entries
+        payload = json.dumps(log)
+        conn.execute(
+            """INSERT INTO user_data (user_id, key, value, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (user_id, WORKOUT_LOG_KEY, payload),
+        )
+        return log
+
+
 WEIGHT_LOG_KEY = "repcheck_weight_log_v1"
 
 

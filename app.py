@@ -105,6 +105,7 @@ from database import (
     set_user_data,
     track_usage,
     set_weight_log_entry,
+    set_workout_log_day,
     update_account,
 )
 from rep_form_analyzer import CHALLENGE_EXERCISES, RepCountError, analyze_reps
@@ -629,6 +630,31 @@ def api_weight_log_entry():
     weight_log = set_weight_log_entry(user["id"], date_iso, entry)
     _track_feature("weight_logged")
     return jsonify({"ok": True, "date": date_iso, "weight_log": weight_log})
+
+
+@app.route("/api/workout/log-day", methods=["POST"])
+def api_workout_log_day():
+    # Authoritative, synchronous write path for a single day's workout log
+    # -- see set_workout_log_day() in database.py for why this exists
+    # instead of relying solely on the generic /api/sync/<key> route.
+    # workouts.html calls this (debounced) on every add/delete/edit to a
+    # day's exercises, sending that ONE day's full, current entry list so
+    # the server can overwrite rather than merge.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    date_iso = str(payload.get("date") or "").strip()
+    entries = payload.get("entries")
+
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    if not isinstance(entries, list):
+        return jsonify({"ok": False, "error": "Invalid entries."}), 400
+
+    workout_log = set_workout_log_day(user["id"], date_iso, entries)
+    return jsonify({"ok": True, "date": date_iso, "workout_log": workout_log})
 
 
 @app.route("/api/checkin/photo", methods=["POST"])
