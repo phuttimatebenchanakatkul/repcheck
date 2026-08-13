@@ -96,7 +96,7 @@
 
 **Why:** This is a product decision, not a confirmed bug -- a user might legitimately decide they don't want a given training day this week. But it's currently silent either way: no warning, no indication a day type has become unscheduled.
 
-**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s "cycling a day that trains 0 times after wrapping does not throw" test pins that the mechanism doesn't crash, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being cycled away.
+**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s "cycles through every unique label then Rest, then wraps back" test pins that normal cycling doesn't crash, but (unlike the pre-carousel test this replaced) doesn't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being cycled away.
 
 **Effort:** S (once the desired behavior is decided)
 **Priority:** P3
