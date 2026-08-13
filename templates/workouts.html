@@ -657,7 +657,15 @@
     flex-shrink: 0;
   }
   .split-modal-title { font-size: 16px; font-weight: 700; }
-  .split-modal-body { overflow-y: auto; padding: 18px; }
+  /* min-height: 0 overrides the flex default (min-height: auto), which
+     otherwise refuses to let this flex child shrink below its content's
+     natural height -- without it, overflow-y: auto never actually engages
+     (there's nothing to scroll within), and content taller than the modal
+     just gets clipped by .split-modal's own overflow: hidden with no way
+     to reach it. Latent on every step; the review step's carousel + a full
+     exercise list + the rationale callout was the first one tall enough to
+     hit it, cutting off the Save button entirely on 4+ exercise days. */
+  .split-modal-body { overflow-y: auto; padding: 18px; min-height: 0; }
   .split-step-label {
     font-size: 12px;
     font-weight: 700;
