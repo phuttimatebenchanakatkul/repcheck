@@ -2616,11 +2616,24 @@
     splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
     splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
     splitModalOverlay.style.display = "flex";
+    // .split-modal-overlay and .mobile-tabbar are both z-index: 100 -- on a
+    // tie the tabbar wins (it's later in the DOM, part of base.html's outer
+    // shell), and it keeps its own pointer-events, so on mobile it sits on
+    // top of the modal's bottom edge and swallows taps meant for whatever
+    // is under it there (the wizard's own Next/Save/Done button, or the
+    // exercise picker's Done button on the "pick exercises" step). Every
+    // other sheet in the app hides the tabbar this way via
+    // window.openBottomSheet/closeBottomSheet; the split wizard predates
+    // that helper and never adopted it. Not switching to the full helper
+    // here -- it also re-parents the overlay and locks body scroll, more
+    // change than this bug needs -- just borrowing the one class it drives.
+    document.documentElement.classList.add("pc-sheet-active");
     renderSplitStepMode();
   }
 
   function closeSplitModal() {
     splitModalOverlay.style.display = "none";
+    document.documentElement.classList.remove("pc-sheet-active");
   }
 
   function renderSplitStepMode() {
@@ -3339,6 +3352,10 @@
     wholeSplitActiveDay = WEEKDAY_KEYS[new Date().getDay()];
     splitModalTitle.textContent = RepCheckI18n.t("workouts.plan.wholeSplitTitle");
     splitModalOverlay.style.display = "flex";
+    // Same tabbar-over-modal overlap as openSplitModal() -- this is a
+    // second, separate entry point into the same overlay (viewing an
+    // already-saved split, reached without going through the wizard).
+    document.documentElement.classList.add("pc-sheet-active");
     renderWholeSplitBody(plan);
   }
 
