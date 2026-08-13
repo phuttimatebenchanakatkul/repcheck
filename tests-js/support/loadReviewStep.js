@@ -53,7 +53,7 @@ export function extractSource() {
  * nodes and its own splitWizard, so tests can run in any order without
  * bleeding state into each other.
  */
-export function loadReviewStep({ generatedDays, generatedSchedule, rationale = null, suggestedSplitType = "ppl" } = {}) {
+export function loadReviewStep({ generatedDays, generatedSchedule, rationale = null, suggestedSplitType = "ppl", isEditingExistingPlan = false } = {}) {
   document.body.innerHTML = `
     <div id="split-modal-title"></div>
     <div id="split-modal-body"></div>
@@ -69,13 +69,11 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   const I18N = {
     "workouts.wizard.assignWeekTitle": "Assign your week",
     "workouts.wizard.chooseWorkoutDays": "Choose which day you want to workout",
-    "workouts.wizard.tapDayHint": "Tap a day to see it. Tap it again to change what's scheduled.",
-    "workouts.wizard.yourSplit": "Your {n}-day split",
-    "workouts.wizard.exerciseCount": "{n} exercises",
     "workouts.wizard.restDayNote": "Recovery day — nothing scheduled.",
     "workouts.wizard.howToPerform": "How to perform →",
     "workouts.wizard.whyThisSchedule": "Why this schedule:",
     "workouts.wizard.savePlan": "Save plan",
+    "workouts.wizard.saveChanges": "Save changes",
     "workouts.wizard.rest": "Rest",
     "workouts.wizard.aiChose": "The AI picked {split} for you",
   };
@@ -93,6 +91,14 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   function getSetsRepsText(name) {
     return /curl|pushdown|raise/i.test(name) ? "3 sets • 10-12 reps" : "4 sets • 8-10 reps";
   }
+  // Deterministic stand-in for the real bucket logic (tested for real in
+  // reviewStep.test.js's own getSetsRepsDefault-adjacent assertions isn't
+  // needed here -- this harness only needs *a* stable default per name so
+  // the carousel's "N×N" meta and the is-edited/reset behaviour have
+  // something consistent to compare against).
+  function getSetsRepsDefault(name) {
+    return /curl|pushdown|raise/i.test(name) ? { sets: 3, reps: 10 } : { sets: 4, reps: 8 };
+  }
   function exerciseDetail() {
     return { description: "Controlled range of motion, steady tempo." };
   }
@@ -105,6 +111,13 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   function renderTodaysPlanCard() {
     calls.replanned = true;
   }
+  // The real function opens a separate static modal that isn't part of this
+  // harness's minimal DOM -- stubbed to just record what it was asked to
+  // open, so review-step tests can assert the row wiring calls it with the
+  // right (label, name) without pulling in the whole editor's own markup.
+  function openExercisePrescriptionEditor(label, name) {
+    calls.editorOpenedWith = { label, name };
+  }
 
   const splitWizard = {
     suggestedSplitType,
@@ -114,6 +127,7 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     rationale,
     generatedDays,
     generatedSchedule,
+    isEditingExistingPlan,
   };
 
   const source = extractSource();
@@ -129,15 +143,17 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "RepCheckI18n",
     "exerciseIconHtml",
     "getSetsRepsText",
+    "getSetsRepsDefault",
     "exerciseDetail",
     "getSplitTypes",
     "closeSplitModal",
     "renderTodaysPlanCard",
+    "openExercisePrescriptionEditor",
     "splitWizard",
-    `${source}\nreturn { renderSplitStepReview };`
+    `${source}\nreturn { renderSplitStepReview, prescriptionKey, getPrescription };`
   );
 
-  const { renderSplitStepReview } = factory(
+  const { renderSplitStepReview, prescriptionKey, getPrescription } = factory(
     WEEKDAY_NAMES,
     SPLIT_PLAN_KEY,
     splitModalTitle,
@@ -145,12 +161,14 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     RepCheckI18n,
     exerciseIconHtml,
     getSetsRepsText,
+    getSetsRepsDefault,
     exerciseDetail,
     getSplitTypes,
     closeSplitModal,
     renderTodaysPlanCard,
+    openExercisePrescriptionEditor,
     splitWizard
   );
 
-  return { renderSplitStepReview, splitModalBody, splitModalTitle, splitWizard, calls, SPLIT_PLAN_KEY };
+  return { renderSplitStepReview, prescriptionKey, getPrescription, splitModalBody, splitModalTitle, splitWizard, calls, SPLIT_PLAN_KEY };
 }
