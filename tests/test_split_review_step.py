@@ -249,3 +249,36 @@ def test_exercise_icon_html_escapes_the_custom_exercise_emoji(workouts_html):
         "it is user-authored (the custom-exercise emoji field) and reaches "
         "innerHTML at every one of exerciseIconHtml's 8 call sites"
     )
+
+
+def test_close_split_modal_resets_the_picker_menu_state(workouts_html):
+    """Closing the wizard (X button, overlay tap) bypasses the picker
+    menu's own dismiss paths -- those only fire on a click/Escape that the
+    menu's own document-level listeners actually observe. Without an
+    explicit reset here, closing the modal while the picker menu happens
+    to be open leaves reviewPillMenuOpen stuck true and both document
+    listeners (reviewDismissMenuOnOutsideClick, reviewDismissMenuOnEscape)
+    permanently registered -- they'd only ever get cleaned up if the
+    wizard reaches this exact step again in the same page session.
+    Flagged independently by both the testing specialist and the
+    adversarial review during /ship's pre-landing review; this is a
+    Python source-text test (not a JS unit test) because closeSplitModal()
+    lives outside renderSplitStepReview()'s extraction region -- the JS
+    test harness only mocks it, it can't exercise the real function body.
+    """
+    match = re.search(r"function closeSplitModal\(\)\s*\{(.*?)\n  \}", workouts_html, re.DOTALL)
+    assert match, "closeSplitModal() is missing"
+    body = match.group(1)
+    assert "reviewPillMenuOpen = false" in body, (
+        "closeSplitModal() must reset reviewPillMenuOpen, the same way "
+        "renderSplitStepReview() does on its own next run -- otherwise a "
+        "picker left open when the modal closes stays 'open' in memory"
+    )
+    assert 'removeEventListener("click", reviewDismissMenuOnOutsideClick)' in body, (
+        "closeSplitModal() must remove the outside-click dismiss listener, "
+        "or it stays registered on document indefinitely once the modal closes"
+    )
+    assert 'removeEventListener("keydown", reviewDismissMenuOnEscape)' in body, (
+        "closeSplitModal() must remove the Escape dismiss listener, "
+        "or it stays registered on document indefinitely once the modal closes"
+    )

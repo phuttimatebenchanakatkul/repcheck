@@ -2995,6 +2995,21 @@
   }
 
   function closeSplitModal() {
+    // Closing the modal (X button, overlay tap) bypasses the picker menu's
+    // own dismiss paths, which only fire on a click/Escape that's actually
+    // observed by those listeners -- so reset the same state here that
+    // renderSplitStepReview() resets on its own next run, rather than
+    // leaving a stale "menu open" flag and two live document listeners
+    // sitting around until the wizard happens to reach this step again.
+    reviewPillMenuOpen = false;
+    if (reviewDismissMenuOnOutsideClick) {
+      document.removeEventListener("click", reviewDismissMenuOnOutsideClick);
+      reviewDismissMenuOnOutsideClick = null;
+    }
+    if (reviewDismissMenuOnEscape) {
+      document.removeEventListener("keydown", reviewDismissMenuOnEscape);
+      reviewDismissMenuOnEscape = null;
+    }
     if (window.closeBottomSheet) {
       window.closeBottomSheet(splitModalOverlay, ".split-modal", () => {
         splitModalOverlay.style.display = "none";

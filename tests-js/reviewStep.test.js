@@ -480,4 +480,25 @@ describe("renderSplitStepReview — trust boundary (real DOM, not source-text re
     expect(pill(splitModalBody).querySelector("img")).toBeNull();
     expect(pill(splitModalBody).textContent).toContain(evilLabel);
   });
+
+  it("escapes a quote in a day label so it can't break out of the picker menu option's data-select-day attribute", () => {
+    // Same failure class as the exercise row's data-exercise-edit (escapeHtml
+    // alone leaves quotes untouched), but for the picker menu option added by
+    // this redesign -- data-select-day="${escapeAttr(opt)}" has never been
+    // exercised against a live DOM before this test.
+    const evilLabel = 'Push" onmouseover="window.__pwned=1';
+    const days = [{ label: evilLabel, exercises: ["Bench Press"] }];
+    const schedule = { monday: evilLabel, tuesday: "Rest", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+
+    pill(splitModalBody).click();
+    const option = pillMenu(splitModalBody).querySelector(".split-carousel-pill-menu-item");
+    expect(option).not.toBeNull();
+    expect(option.getAttribute("onmouseover")).toBeNull();
+    expect(option.dataset.selectDay).toBe(evilLabel);
+  });
 });
