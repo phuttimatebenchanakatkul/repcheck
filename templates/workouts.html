@@ -321,17 +321,6 @@
   .wl-plan-more svg { transition: transform 0.15s ease; }
   .wl-plan-more.is-expanded svg { transform: rotate(180deg); }
 
-  .split-rationale {
-    background: var(--blue-bg);
-    color: var(--text);
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 12px;
-    line-height: 1.5;
-    margin: 4px 0 18px;
-  }
-  .split-rationale strong { color: var(--blue); }
-
   /* Names the split the AI chose on the "Let AI build it" path, where the
      user never picked one themselves. */
   .split-suggested-banner {
@@ -909,7 +898,6 @@
     background: var(--day-accent, var(--border));
   }
   .split-week-legend i.is-rest { background: var(--bg); border: 1px dashed var(--border); }
-  .split-week-hint { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 18px; }
 
   .split-day-drawer {
     background: var(--card-bg);
@@ -923,8 +911,7 @@
     font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
     white-space: nowrap;
     background: var(--day-accent-bg, var(--sidebar-active));
-    /* --text, not the accent: accent-on-accent-bg is only ~3.2:1 in dark
-       theme. This matches how .split-rationale tints a block already. */
+    /* --text, not the accent: accent-on-accent-bg is only ~3.2:1 in dark theme. */
     color: var(--text);
   }
   .split-day-drawer-sub { font-size: 11px; color: var(--text-secondary); margin: 4px 0 2px; }
@@ -3224,10 +3211,8 @@
       <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
       <div class="split-week-grid" id="split-week-grid"></div>
       <div class="split-week-legend" id="split-week-legend"></div>
-      <div class="split-week-hint">${t("workouts.wizard.tapDayHint")}</div>
       <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
       <div class="split-day-drawer" id="split-day-drawer"></div>
-      ${splitWizard.rationale ? `<div class="split-rationale"><strong>${t("workouts.wizard.whyThisSchedule")}</strong> ${escapeHtml(splitWizard.rationale)}</div>` : ""}
       <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${t("workouts.wizard.savePlan")}</button>
     `;
 
