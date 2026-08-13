@@ -36,6 +36,12 @@ function mockFetchAlwaysRejecting() {
   return fetchMock;
 }
 
+function mockFetchResolvingNotOk(status = 401) {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: false, status });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 function bodyOf(fetchMock, callIndex = 0) {
   return JSON.parse(fetchMock.mock.calls[callIndex][1].body);
 }
@@ -51,6 +57,14 @@ describe("saveLog() date targeting", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(bodyOf(fetchMock)).toEqual({ date: "2026-08-13", entries: sync.log["2026-08-13"] });
+    // The harness extracts the template's raw source without Jinja
+    // rendering it, so the URL argument here is the literal
+    // `{{ url_for(...) }}` expression, not a real path -- this suite
+    // can't verify the URL is actually correct in production. That's
+    // covered instead by the Flask route test in
+    // tests/test_workout_log_day_sync.py, which exercises the rendered
+    // endpoint directly.
+    expect(fetchMock.mock.calls[0][0]).toBe("{{ url_for('api_workout_log_day') }}");
   });
 
   it("with an explicit date, syncs that date instead of the selected one -- the quickLogExerciseNow() case", async () => {
@@ -174,5 +188,35 @@ describe("pushWorkoutDay() retry", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(bodyOf(fetchMock, 1).entries[0].sets[0].reps).toBe(15);
+  });
+
+  it("retries when the request resolves but the server rejected it (e.g. 401 session expired) -- not just on a network-level failure", async () => {
+    // Flagged in pre-landing review: fetch() only REJECTS on a network
+    // error -- an HTTP error response still RESOLVES, so response.ok must
+    // be checked or a mid-session auth expiry "succeeds" here with the
+    // write never landing and no retry ever firing.
+    const fetchMock = mockFetchResolvingNotOk(401);
+    const sync = loadWorkoutSync({ selectedDate: "2026-08-13" });
+    sync.log["2026-08-13"] = [{ id: "e1", exercise: "Squat", addedAt: 1, sets: [] }];
+
+    sync.saveLog();
+    await vi.advanceTimersByTimeAsync(400); // first attempt: resolves with ok:false
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2000); // the retry
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a second time when the retry itself also comes back not-ok", async () => {
+    const fetchMock = mockFetchResolvingNotOk(500);
+    const sync = loadWorkoutSync({ selectedDate: "2026-08-13" });
+    sync.log["2026-08-13"] = [{ id: "e1", exercise: "Squat", addedAt: 1, sets: [] }];
+
+    sync.saveLog();
+    await vi.advanceTimersByTimeAsync(400);
+    await vi.advanceTimersByTimeAsync(2000); // the retry, also not-ok
+    await vi.advanceTimersByTimeAsync(10000); // plenty of time for a wrongly-scheduled 3rd attempt
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

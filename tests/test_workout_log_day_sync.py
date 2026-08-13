@@ -25,6 +25,8 @@ way set_weight_log_entry() already does for weigh-ins. workouts.html calls
 POST /api/workout/log-day (debounced) on every mutation.
 """
 
+import threading
+
 import pytest
 
 import app as app_module
@@ -143,6 +145,57 @@ def test_set_workout_log_day_does_not_touch_other_dates(tmp_path, monkeypatch):
     assert stored["2026-08-11"] == [tuesday], f"an unrelated date was clobbered: {stored}"
 
 
+def test_set_workout_log_day_serializes_genuinely_concurrent_writes_to_different_dates(tmp_path, monkeypatch):
+    """Flagged by the performance specialist during /ship's pre-landing
+    review: the whole-log blob is read-modify-written per call, so two
+    devices/tabs writing DIFFERENT dates at nearly the same instant (a
+    realistic scenario now that this function fires on a 400ms debounce
+    from every keystroke, not just discrete add/delete taps) could each
+    SELECT the same pre-write blob before either commits, and whichever
+    commits last silently discards the other's just-written date -- the
+    exact resurrection/lost-update bug class this function exists to
+    prevent, just moved from client-merge to a server-side race. Fixed
+    with BEGIN IMMEDIATE (acquires the write lock before the SELECT, so
+    the second writer blocks and re-reads the up-to-date blob instead of
+    racing against a stale one).
+
+    Runs the race many times in one test (real OS threads, synchronized to
+    start together via a Barrier) rather than once, since a single attempt
+    can get lucky and not hit the narrow window even without the fix."""
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "repcheck-test.db")
+    database.init_db()
+    user_id = _make_user("concurrent-dates@example.com")
+
+    ATTEMPTS = 20
+    for i in range(ATTEMPTS):
+        date_a, date_b = f"2026-01-{(i % 28) + 1:02d}", f"2026-02-{(i % 28) + 1:02d}"
+        entry_a = {"id": f"a-{i}", "exercise": "Push", "addedAt": i, "sets": []}
+        entry_b = {"id": f"b-{i}", "exercise": "Pull", "addedAt": i, "sets": []}
+        barrier = threading.Barrier(2)
+        errors = []
+
+        def write(date_iso, entry):
+            try:
+                barrier.wait(timeout=5)  # both threads call set_workout_log_day at the same instant
+                database.set_workout_log_day(user_id, date_iso, [entry])
+            except Exception as exc:  # noqa: BLE001 -- surfaced via the assertion below
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=write, args=(date_a, entry_a)),
+            threading.Thread(target=write, args=(date_b, entry_b)),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"attempt {i}: concurrent writes raised: {errors}"
+        stored = database.get_all_user_data(user_id)[database.WORKOUT_LOG_KEY]
+        assert stored.get(date_a) == [entry_a], f"attempt {i}: date A's write was lost to a concurrent write on date B: {stored}"
+        assert stored.get(date_b) == [entry_b], f"attempt {i}: date B's write was lost to a concurrent write on date A: {stored}"
+
+
 # ---------- POST /api/workout/log-day ----------
 
 
@@ -184,6 +237,81 @@ def test_log_day_route_rejects_entries_that_are_not_a_list(client):
     res = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": {"not": "a list"}})
     assert res.status_code == 400
     assert res.get_json()["ok"] is False
+
+
+def test_log_day_route_rejects_a_non_dict_item_in_entries(client):
+    """Cross-confirmed by the testing and security specialists during
+    /ship's pre-landing review: a malformed (non-dict) entry stored
+    verbatim would crash EVERY device's rendering of this date the next
+    time it reads the log back -- workouts.html accesses entry.exercise/
+    entry.sets unconditionally, with no defensive isinstance() guard the
+    way the read-only admin/report consumers of this data already have."""
+    user_id = _make_user("route-non-dict-entry@example.com")
+    _login(client, user_id)
+
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": ["not-a-dict", 5, None]})
+    assert res.status_code == 400
+    assert res.get_json()["ok"] is False
+
+    stored = database.get_all_user_data(user_id).get(database.WORKOUT_LOG_KEY, {})
+    assert stored.get("2026-08-13") is None, "the malformed payload must not be persisted"
+
+
+def test_log_day_route_accepts_a_mix_of_valid_dict_entries(client):
+    """The non-dict-item check must not be so strict it rejects genuinely
+    valid multi-entry payloads."""
+    user_id = _make_user("route-valid-multi-entry@example.com")
+    _login(client, user_id)
+
+    entries = [
+        {"id": "e1", "exercise": "Bench Press", "addedAt": 1, "sets": [{"reps": 8}]},
+        {"id": "e2", "exercise": "Squat", "addedAt": 2, "sets": [{"reps": 5}]},
+    ]
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": entries})
+    assert res.status_code == 200
+    assert res.get_json()["workout_log"]["2026-08-13"] == entries
+
+
+def test_log_day_route_rejects_an_oversized_entries_list(client):
+    """Caps entry count so nothing bloats this user's own user_data row
+    (re-serialized on every debounced sync) with an unrealistic payload --
+    flagged by the security specialist. 200 is well beyond any real
+    workout day (a few dozen exercises, tops)."""
+    user_id = _make_user("route-oversized-entries@example.com")
+    _login(client, user_id)
+
+    entries = [{"id": f"e{i}", "exercise": "Squat", "addedAt": i, "sets": []} for i in range(201)]
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": entries})
+    assert res.status_code == 400
+    assert res.get_json()["ok"] is False
+
+
+def test_log_day_route_accepts_exactly_the_cap(client):
+    """Boundary check: 200 entries must still succeed -- only 201+ is rejected."""
+    user_id = _make_user("route-at-cap-entries@example.com")
+    _login(client, user_id)
+
+    entries = [{"id": f"e{i}", "exercise": "Squat", "addedAt": i, "sets": []} for i in range(200)]
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": entries})
+    assert res.status_code == 200
+
+
+def test_log_day_route_round_trips_unicode_and_long_exercise_names_intact(client):
+    """Flagged by the testing specialist: no test previously exercised
+    non-ASCII or boundary-length text through the JSON/SQLite round trip."""
+    user_id = _make_user("route-unicode-entry@example.com")
+    _login(client, user_id)
+
+    long_name = "A" * 500
+    entries = [
+        {"id": "e1", "exercise": "深蹲 🏋️", "addedAt": 1, "sets": [{"reps": 8}]},
+        {"id": "e2", "exercise": long_name, "addedAt": 2, "sets": []},
+    ]
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": entries})
+    assert res.status_code == 200
+
+    stored = database.get_all_user_data(user_id)[database.WORKOUT_LOG_KEY]
+    assert stored["2026-08-13"] == entries
 
 
 def test_log_day_route_scopes_writes_to_the_logged_in_user_only(client):

@@ -551,8 +551,27 @@ def set_workout_log_day(user_id, date_iso, entries):
     can't clobber a different date's entries even if this request lands
     out of order relative to another device's edit on a different day.
     Returns the full updated log so the caller can resync localStorage
-    without a second round trip."""
+    without a second round trip.
+
+    BEGIN IMMEDIATE, not the connection's default deferred transaction:
+    this function is a read-modify-write against the user's WHOLE log
+    blob (every date lives in one row), and unlike the other log-entry
+    writers in this file, it's called on a 400ms debounce from every
+    single keystroke while editing a set's reps/weight -- so two
+    concurrent calls for two DIFFERENT dates (e.g. one tab actively
+    editing today while another backfills yesterday) are a realistic,
+    not just theoretical, scenario. Python's sqlite3 only auto-begins a
+    transaction before a DML statement, not before SELECT, so without an
+    explicit BEGIN IMMEDIATE here, two overlapping calls could each SELECT
+    the same pre-write blob before either commits, and the second commit
+    would silently discard whatever date the first one had just written --
+    the exact resurrection/lost-update bug class this function exists to
+    prevent, just moved from client-side merge to server-side race.
+    BEGIN IMMEDIATE acquires SQLite's write lock up front, so the second
+    call blocks until the first's SELECT+INSERT+COMMIT is fully done and
+    then reads the up-to-date blob."""
     with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             "SELECT value FROM user_data WHERE user_id = ? AND key = ?",
             (user_id, WORKOUT_LOG_KEY),

@@ -1899,18 +1899,32 @@
   // (quickLogExerciseNow() below always targets *today*, independent of
   // whichever date is currently selected in the strip).
   const workoutDaySyncTimers = new Map();
+  const WORKOUT_SYNC_DEBOUNCE_MS = 400;
+  const WORKOUT_SYNC_RETRY_MS = 2000;
   function pushWorkoutDay(dateIso, attempt = 0) {
+    const retry = () => {
+      if (attempt === 0) setTimeout(() => pushWorkoutDay(dateIso, 1), WORKOUT_SYNC_RETRY_MS);
+    };
     fetch("{{ url_for('api_workout_log_day') }}", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: dateIso, entries: log[dateIso] || [] }),
+    }).then((response) => {
+      // fetch() only REJECTS on a network-level failure -- an HTTP error
+      // response (401 session expired, 400 bad payload, 500) still
+      // RESOLVES, so response.ok must be checked explicitly or a
+      // mid-session auth expiry silently "succeeds" here with the write
+      // never actually landing and no retry ever firing: the exact class
+      // of silent data loss this endpoint exists to prevent, just moved
+      // from the generic sync's merge bug to this one's missed status check.
+      if (!response.ok) retry();
     }).catch(() => {
       // Best-effort retry once -- this is the authoritative write that
       // fixes the merge-can-only-grow bug (see set_workout_log_day() in
       // database.py), so it's worth one retry beyond the generic sync's
       // own fire-and-forget beacon. Gives up silently after that; the next
       // edit to this date schedules another attempt anyway.
-      if (attempt === 0) setTimeout(() => pushWorkoutDay(dateIso, 1), 2000);
+      retry();
     });
   }
   function scheduleWorkoutDaySync(dateIso) {
@@ -1918,7 +1932,7 @@
     workoutDaySyncTimers.set(dateIso, setTimeout(() => {
       workoutDaySyncTimers.delete(dateIso);
       pushWorkoutDay(dateIso);
-    }, 400));
+    }, WORKOUT_SYNC_DEBOUNCE_MS));
   }
   // dateIso defaults to selectedDate since nearly every mutation in this
   // file operates on log[selectedDate] -- the one exception,

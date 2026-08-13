@@ -650,7 +650,19 @@ def api_workout_log_day():
 
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
         return jsonify({"ok": False, "error": "Invalid date."}), 400
-    if not isinstance(entries, list):
+    # Caps entry count (a real workout day tops out at a few dozen
+    # exercises; 200 is generous headroom) and requires dict shape per
+    # entry -- both flagged in pre-landing review. Without the count cap,
+    # nothing stops an oversized payload from bloating this user's own
+    # user_data row (read/re-serialized on every debounced sync) or
+    # tripping Python's default JSON recursion limit on deeply nested
+    # input. Without the shape check, a malformed entry (e.g. a bare
+    # string) would be stored verbatim and crash EVERY device's rendering
+    # of this date the next time it reads the log back, not just the one
+    # that sent it -- workouts.html accesses entry.exercise/entry.sets
+    # unconditionally, with no defensive isinstance() guard the way the
+    # read-only admin/report consumers of this same data already have.
+    if not isinstance(entries, list) or len(entries) > 200 or not all(isinstance(e, dict) for e in entries):
         return jsonify({"ok": False, "error": "Invalid entries."}), 400
 
     workout_log = set_workout_log_day(user["id"], date_iso, entries)

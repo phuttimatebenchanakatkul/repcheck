@@ -102,6 +102,42 @@
 **Priority:** P3
 **Depends on:** A product decision on the intended behavior
 
+### Six near-identical read-modify-write-upsert blocks in database.py
+
+**What:** `set_user_data`, `append_nutrition_log_entry`, `remove_nutrition_log_entry`, `set_weight_log_entry`, `append_hyrox_history_entry`, `remove_hyrox_history_entry`, and (as of 2026-08-13) `set_workout_log_day` all repeat the same shape: `SELECT value ... WHERE user_id = ? AND key = ?`, `json.loads`, apply a one-line mutation, `json.dumps`, `INSERT ... ON CONFLICT(user_id, key) DO UPDATE`.
+
+**Why:** Seven copies of the same upsert shell means a future bugfix to the transaction/locking behavior (e.g. the `BEGIN IMMEDIATE` fix `set_workout_log_day` just got, see the entry below) has to be manually re-applied to every copy instead of fixed once.
+
+**Context:** Flagged by the maintainability specialist during the workout-log-sync-fix ship review. Deferred because factoring a shared `_upsert_user_data_json(user_id, key, mutate)` helper means touching five pre-existing, already-shipped functions this PR doesn't otherwise change -- real scope creep for a PR whose actual bug was specific to the workout log.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+### Same date-regex validation line repeated across 5 routes in app.py
+
+**What:** `re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso)` appears identically in the nutrition log-entry POST/DELETE, weight log-entry, checkin photo upload, and (as of 2026-08-13) workout log-day routes.
+
+**Why:** Minor duplication; a future change to date validation (e.g. rejecting impossible calendar dates like "2026-13-99", which the current regex allows -- see `test_log_day_route_date_validation_is_shape_only_not_calendar_aware`) would need five identical edits.
+
+**Context:** Flagged by the maintainability specialist during the workout-log-sync-fix ship review. Deferred for the same reason as the database.py duplication above -- factoring `_valid_iso_date()`/`parse_date_iso_or_400()` means touching four pre-existing routes this PR doesn't otherwise change.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+### Workout/nutrition/weight/HYROX logs store their whole history as one JSON blob per user
+
+**What:** `set_workout_log_day()` (and the sibling functions it mirrors) read, deserialize, mutate, re-serialize, and rewrite the user's ENTIRE multi-date log on every single write -- even though only one date's entries actually changed. The workout log now writes far more often than the others (debounced from every keystroke while editing reps/weight, not just discrete add/delete taps), so this cost scales with both total account history AND active-editing frequency.
+
+**Why:** Not a correctness bug (fixed with `BEGIN IMMEDIATE` for the concurrency angle -- see `set_workout_log_day`'s docstring and `test_set_workout_log_day_serializes_genuinely_concurrent_writes_to_different_dates`), but a standing architectural cost: a long-time user's blob grows with their history, and every keystroke-triggered sync pays for the whole blob's parse+reserialize+write, not just the touched date. SQLite also only allows one writer for the whole database file at a time, so more frequent writes to this table increase how often the global write lock is contended as usage grows.
+
+**Context:** Flagged by the performance specialist during the workout-log-sync-fix ship review. Out of scope for a bugfix PR -- properly fixing this means splitting each key into per-date rows (e.g. `key = f"{WORKOUT_LOG_KEY}:{date_iso}"`), which changes the `user_data` table's read/write shape for every one of the six functions above, not just the workout log.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** None
+
 ## i18n
 
 ### Thai translation missing for the wizard's location step
