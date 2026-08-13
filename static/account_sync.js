@@ -46,6 +46,7 @@
     "repcheck_nutrition_favorites_v1",
     "repcheck_analyze_log_v1",
     "repcheck_coach_chat_v1",
+    "repcheck_workout_chat_v1",
     "repcheck_coaching_profile_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",

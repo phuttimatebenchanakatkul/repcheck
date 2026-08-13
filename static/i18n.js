@@ -510,6 +510,16 @@
       "coach.limitReachedPlaceholder": "Message limit reached",
       "coach.errorReaching": "Something went wrong reaching the coach. Please try again.",
 
+      "workoutChat.title": "Workout AI Chat",
+      "workoutChat.subtitle": "Ask about your last 7 days of training",
+      "workoutChat.inputPlaceholder": "Ask about your recent workouts...",
+      "workoutChat.empty": "Ask about progressive overload, form, or rep maxes for anything you've logged in the last 7 days.",
+      "workoutChat.suggestion1": "How should I progressive overload my most recent exercise?",
+      "workoutChat.suggestion2": "Am I training each muscle enough this week?",
+      "workoutChat.limitReached": "Limit reached — resets in {time}",
+      "workoutChat.limitReachedPlaceholder": "Message limit reached",
+      "workoutChat.errorReaching": "Something went wrong reaching the workout chat. Please try again.",
+
       "analyzeChat.headerTitle": "Ask about this analysis",
       "analyzeChat.headerSub": "Ask a follow-up about your feedback",
       "analyzeChat.inputPlaceholder": "Ask a question about your analysis...",
@@ -1342,6 +1352,16 @@
       "coach.limitReached": "ครบจำนวนที่กำหนดแล้ว — รีเซ็ตใน {time}",
       "coach.limitReachedPlaceholder": "ครบจำนวนข้อความที่กำหนดแล้ว",
       "coach.errorReaching": "เกิดข้อผิดพลาดในการติดต่อโค้ช กรุณาลองใหม่อีกครั้ง",
+
+      "workoutChat.title": "แชท AI สำหรับการออกกำลังกาย",
+      "workoutChat.subtitle": "ถามเกี่ยวกับการฝึกซ้อม 7 วันล่าสุดของคุณ",
+      "workoutChat.inputPlaceholder": "ถามเกี่ยวกับการออกกำลังกายล่าสุดของคุณ...",
+      "workoutChat.empty": "ถามเกี่ยวกับการเพิ่มน้ำหนักแบบก้าวหน้า ท่าทาง หรือน้ำหนักสูงสุดสำหรับสิ่งที่คุณบันทึกไว้ใน 7 วันล่าสุด",
+      "workoutChat.suggestion1": "ฉันควรเพิ่มน้ำหนักแบบก้าวหน้าสำหรับท่าที่เพิ่งฝึกไปอย่างไร?",
+      "workoutChat.suggestion2": "สัปดาห์นี้ฉันฝึกแต่ละกล้ามเนื้อเพียงพอหรือยัง?",
+      "workoutChat.limitReached": "ครบจำนวนที่กำหนดแล้ว — รีเซ็ตใน {time}",
+      "workoutChat.limitReachedPlaceholder": "ครบจำนวนข้อความที่กำหนดแล้ว",
+      "workoutChat.errorReaching": "เกิดข้อผิดพลาดในการติดต่อแชทออกกำลังกาย กรุณาลองใหม่อีกครั้ง",
 
       "analyzeChat.headerTitle": "ถามเกี่ยวกับผลวิเคราะห์นี้",
       "analyzeChat.headerSub": "ถามคำถามเพิ่มเติมเกี่ยวกับผลตอบรับของคุณ",
