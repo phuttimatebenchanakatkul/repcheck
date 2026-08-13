@@ -195,6 +195,27 @@
     return wrap.firstElementChild;
   }
 
+  // Every screen here is built by handing a template string to el(), which
+  // assigns it to innerHTML -- so any user-authored value interpolated into
+  // one of those strings is live markup, not text. Onboarding has three
+  // such sources: custom split day labels (free text on the custom path),
+  // custom exercise names (POST /api/custom-exercises), and the free-text
+  // lifting goal. That is the same stored-XSS sink that food names were in
+  // nutrition.html, so they go through these on the way in, exactly like
+  // that template and workouts.html's copy of this screen do.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  // escapeHtml() round-trips through textContent, which escapes < > and &
+  // but deliberately leaves quotes alone -- correct for a text node, unsafe
+  // the moment the value lands inside a quoted attribute, where one " ends
+  // the attribute and everything after it parses as markup.
+  function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   // Real per-exercise illustration from the icon pack (see
   // exercise_icons.py / workouts.html's identical helper) -- falls back
   // to a generic barbell for any exercise the pack doesn't cover.
@@ -683,7 +704,7 @@
       w.customDays.forEach((name, i) => {
         daysList.appendChild(el(`
           <div class="ob-custom-day-row">
-            <span>${name}</span>
+            <span>${escapeHtml(name)}</span>
             <button type="button" class="ob-custom-day-remove" data-action="remove-custom-day" data-value="${i}">&times;</button>
           </div>
         `));
@@ -714,7 +735,7 @@
         <div class="ob-wizard-step-label">${t("workouts.wizard.stepGoal")}</div>
         <div class="ob-field-hint" style="margin-bottom:12px;">${t("workouts.wizard.goalHint")}</div>
         <div class="ob-field">
-          <textarea id="ob-goal-text" class="ob-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${w.liftingGoal}</textarea>
+          <textarea id="ob-goal-text" class="ob-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${escapeHtml(w.liftingGoal)}</textarea>
         </div>
       </div>
     `);
@@ -819,7 +840,7 @@
 
   function renderResult() {
     if (w.error) {
-      const wrap = el(`<div><div class="ob-error">${w.error}</div></div>`);
+      const wrap = el(`<div><div class="ob-error">${escapeHtml(w.error)}</div></div>`);
       wrap.appendChild(el(`
         <div class="ob-wizard-actions">
           <button type="button" class="ob-btn-secondary" data-action="back-to-days">${t("common.back")}</button>
@@ -875,17 +896,17 @@
             <div class="ob-review-day">
               <div class="ob-review-day-header">
                 <div class="ob-review-day-icon">${iconSvg("dumbbell")}</div>
-                <div class="ob-review-day-title">Day ${i + 1} · ${day.label}</div>
+                <div class="ob-review-day-title">Day ${i + 1} · ${escapeHtml(day.label)}</div>
               </div>
               <div class="ob-review-exercise-chips">
-                ${day.exercises.map((ex) => `<span class="ob-review-exercise-chip"><span class="ob-review-exercise-chip-icon">${exerciseIconHtml(ex)}</span>${ex}</span>`).join("")}
+                ${day.exercises.map((ex) => `<span class="ob-review-exercise-chip"><span class="ob-review-exercise-chip-icon">${exerciseIconHtml(ex)}</span>${escapeHtml(ex)}</span>`).join("")}
               </div>
             </div>
           `).join("")}
           ${w.rationale ? `
             <div class="ob-rationale">
               <div class="ob-rationale-label">${iconSvg("bulb")}<span>${t("workouts.wizard.whyThisSchedule")}</span></div>
-              <div class="ob-rationale-text">${w.rationale}</div>
+              <div class="ob-rationale-text">${escapeHtml(w.rationale)}</div>
             </div>
           ` : ""}
           <div class="ob-section-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
@@ -903,7 +924,7 @@
             <label>${MONDAY_FIRST_LABELS[i]}</label>
             <select data-weekday="${key}">
               <option value="Rest" ${w.generatedSchedule[key] === "Rest" ? "selected" : ""}>${restLabel}</option>
-              ${uniqueLabels.map((label) => `<option value="${label}" ${w.generatedSchedule[key] === label ? "selected" : ""}>${label}</option>`).join("")}
+              ${uniqueLabels.map((label) => `<option value="${escapeAttr(label)}" ${w.generatedSchedule[key] === label ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
             </select>
           </div>
         `));
