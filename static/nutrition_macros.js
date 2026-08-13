@@ -1,13 +1,13 @@
 /* RepCheck day-level nutrition macro totals.
  *
  * Single source of truth for summing a day's logged food entries into
- * { calories, protein, fat, carbs }. Previously home.html and
- * full_stats.html each carried their own copy-pasted sumMacrosForDay(),
- * which is how they drifted from templates/nutrition.html's actual
- * rendered totals (see entryTotals()/scaledMacros() there) in two
- * different ways: deriving calories from the macro grams instead of
- * summing each entry's own baseCalories, and rounding once across the
- * whole day instead of rounding each entry first.
+ * { calories, protein, fat, carbs }. Previously home.html, full_stats.html,
+ * and coaching.js's week chart each carried their own copy-pasted
+ * sumMacrosForDay(), which is how they drifted from templates/
+ * nutrition.html's actual rendered totals (see entryTotals()/
+ * scaledMacros() there) in two different ways: deriving calories from the
+ * macro grams instead of summing each entry's own baseCalories, and
+ * rounding once across the whole day instead of rounding each entry first.
  *
  * Rounds PER ENTRY before accumulating into the day total, matching
  * nutrition.html's entryTotals() + scaledMacros() + renderSummary()

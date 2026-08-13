@@ -244,23 +244,13 @@
     }, 0);
   }
 
-  // Same per-entry scaling as sumCaloriesForDay, but broken out by macro
-  // (grams, not calories) -- used to show "eaten so far today" against
-  // the coaching card's protein/fat/carb targets.
-  function sumMacrosForDay(entries) {
-    const totals = { protein: 0, fat: 0, carbs: 0 };
-    if (!Array.isArray(entries)) return totals;
-    entries.forEach((entry) => {
-      const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
-      items.forEach((item) => {
-        const scale = item.grams / 100;
-        totals.protein += item.baseProtein * scale;
-        totals.fat += item.baseFat * scale;
-        totals.carbs += item.baseCarbs * scale;
-      });
-    });
-    return totals;
-  }
+  // sumMacrosForDay() lives in static/nutrition_macros.js (loaded globally
+  // via base.html before this file) -- shared with home.html/full_stats.html
+  // so the week chart's calories can't independently drift from theirs (or
+  // from nutrition.html's own Today's Totals ring, rendered on this same
+  // page) the way it used to when this file had its own copy that derived
+  // calories from macro grams instead of summing each entry's baseCalories.
+  const sumMacrosForDay = RepCheckNutritionMacros.sumMacrosForDay;
 
   function hasEntries(dateIso, nutritionLog) {
     const entries = nutritionLog[dateIso];
@@ -1197,7 +1187,10 @@
           isToday: dateIso === todayIso,
           isSelected: dateIso === this.selectedChartDay,
           consumed: {
-            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
+            // eaten.calories comes from each entry's own baseCalories (see
+            // sumMacrosForDay() above), not a macro-derived formula -- must
+            // match nutrition.html's Today's Totals ring on this same page.
+            calories: Math.round(eaten.calories),
             protein: Math.round(eaten.protein),
             fat: Math.round(eaten.fat),
             carbs: Math.round(eaten.carbs),
@@ -1314,7 +1307,9 @@
           isToday: dateIso === todayIso,
           isSelected: dateIso === this.selectedChartDay,
           consumed: {
-            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
+            // See renderWeekChart() above -- must use eaten.calories, not
+            // a macro-derived formula.
+            calories: Math.round(eaten.calories),
             protein: Math.round(eaten.protein),
             fat: Math.round(eaten.fat),
             carbs: Math.round(eaten.carbs),
