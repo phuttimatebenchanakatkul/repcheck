@@ -1796,6 +1796,9 @@
       wrap.appendChild(this.renderHeroCard());
       wrap.appendChild(this.renderLeaderboardCard(false));
 
+      const myBestsCard = this.renderMyBestsCard();
+      if (myBestsCard) wrap.appendChild(myBestsCard);
+
       // Weight standards sits right under the intro -- it's the "what the
       // race asks of you" reference. Needs category + gender to show the
       // correct weights, so it only appears once those are picked on the
@@ -2987,6 +2990,57 @@
             </div>
           </div>
         `));
+      });
+      return card;
+    }
+
+    // Your own PBs, scoped to your own gender and split into a Singles
+    // section and a Doubles section -- shown on the setup screen right
+    // under the leaderboard. Different from renderPersonalBests() above
+    // (the history screen's card): that one shows every combo you've ever
+    // raced, including a different gender if you ever switched your
+    // leaderboard preference mid-history. This one uses the exact same
+    // gender the leaderboard tabs are scoped to (resolveLeaderboardGender())
+    // so "your" bests match what "your" leaderboard shows -- a man never
+    // sees a women's-category PB in this card, and vice versa. No gender
+    // resolved yet (first visit, no race finished, no coaching profile) ->
+    // nothing to scope to, so the card doesn't render at all rather than
+    // guessing.
+    renderMyBestsCard() {
+      const gender = this.resolveLeaderboardGender();
+      if (!gender) return null;
+      const bests = this.getAllPersonalBests().filter((r) => r.gender === gender);
+      if (!bests.length) return null;
+
+      const card = el(`
+        <div class="hx-card">
+          <div class="hx-step-label">${t("hyrox.pb.myBestsTitle")}</div>
+          <div data-my-pb-sections></div>
+        </div>
+      `);
+      const sectionsEl = card.querySelector("[data-my-pb-sections]");
+      // FORMAT_IDS order (singles, doubles) fixes the section order; within
+      // each section, entries are already fastest-to-slowest because
+      // getAllPersonalBests() sorts ascending by time and filtering by
+      // gender/format preserves relative order.
+      FORMAT_IDS.forEach((formatId) => {
+        const rows = bests.filter((r) => r.format === formatId);
+        if (!rows.length) return; // no Doubles PB yet -- skip the section, don't show it empty
+        const section = el(`<div class="hx-pb-format-section"></div>`);
+        section.appendChild(el(`<div class="hx-pb-section-title">${formatTitle(formatId)}</div>`));
+        rows.forEach((r) => {
+          const dateLabel = new Date(r.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" });
+          section.appendChild(el(`
+            <div class="hx-pb-row">
+              <div class="hx-pb-row-time">${formatClock(r.totalSeconds)}</div>
+              <div class="hx-history-meta">
+                <span class="hx-history-tag">${categoryTitle(r.category)}</span>
+                <div style="margin-top:4px;">${t("hyrox.pb.setPrefix", { date: dateLabel })}</div>
+              </div>
+            </div>
+          `));
+        });
+        sectionsEl.appendChild(section);
       });
       return card;
     }

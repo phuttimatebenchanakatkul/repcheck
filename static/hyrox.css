@@ -969,6 +969,16 @@
 }
 .hx-pb-row-time { font-size: 18px; font-weight: 700; min-width: 76px; color: var(--blue); font-variant-numeric: tabular-nums; }
 
+/* Singles/Doubles grouping on the setup screen's "your bests" card. */
+.hx-pb-format-section { margin-bottom: 18px; }
+.hx-pb-format-section:last-child { margin-bottom: 0; }
+.hx-pb-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
 /* ---------- History ---------- */
 .hx-history-row {
   display: flex;
