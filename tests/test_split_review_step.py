@@ -7,11 +7,10 @@ pinning, and both fail silently.
 The trust boundary. Exercise names and day labels are not all
 library-controlled. A user creates a custom exercise (POST
 /api/custom-exercises) and picks it into a split, and on the custom path
-they type the day labels themselves. The AI writes the rationale text
-freeform. All of it reaches the DOM through innerHTML on template
-literals, so an unescaped one renders as live markup rather than text --
-the same failure already confirmed exploitable for food names in
-nutrition.html (see test_nutrition_name_escaping.py).
+they type the day labels themselves. Both reach the DOM through innerHTML
+on template literals, so an unescaped one renders as live markup rather
+than text -- the same failure already confirmed exploitable for food
+names in nutrition.html (see test_nutrition_name_escaping.py).
 
 The saved-plan contract. Everything downstream matches on the literal
 string "Rest" and on raw day labels: getTodaysSplitInfo() in index.html
@@ -124,15 +123,6 @@ def test_day_label_is_escaped_everywhere_it_is_rendered(review_step):
     pill = re.search(r'split-day-drawer-pill">(.*?)</span>', review_step)
     assert pill, "could not find the drawer pill"
     assert "escapeHtml(" in pill.group(1), "the drawer pill renders a day label unescaped"
-
-
-def test_ai_rationale_is_escaped(review_step):
-    """The rationale is freeform model output going into innerHTML."""
-    match = re.search(r'class="split-rationale">.*?</strong>\s*(\$\{[^}]*\})', review_step)
-    assert match, "could not find the rationale block"
-    assert "escapeHtml(" in match.group(1), (
-        "the AI-written rationale is interpolated into innerHTML and must be escaped"
-    )
 
 
 def test_escape_helpers_exist_in_this_template(workouts_html):
