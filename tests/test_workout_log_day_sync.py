@@ -202,3 +202,170 @@ def test_log_day_route_scopes_writes_to_the_logged_in_user_only(client):
 
     owner_stored = database.get_all_user_data(owner_id)[database.WORKOUT_LOG_KEY]
     assert owner_stored["2026-08-13"] == [owner_entry], "attacker's write leaked into another user's log"
+
+
+def test_log_day_route_delete_via_route_does_not_resurrect(client):
+    """The actual regression, exercised through the HTTP route rather than
+    calling set_workout_log_day() directly: logging an exercise then
+    deleting it (entries: []) through POST /api/workout/log-day must not
+    leave it in storage -- this is the exact request workouts.html's
+    saveLog() -> pushWorkoutDay() sends on delete. All the other
+    set_workout_log_day() tests above cover the database function in
+    isolation; this covers the endpoint workouts.html actually calls."""
+    user_id = _make_user("route-delete@example.com")
+    _login(client, user_id)
+
+    entry = {"id": "entry-1", "exercise": "Row", "addedAt": 1, "sets": [{"reps": 10}]}
+    res1 = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": [entry]})
+    assert res1.status_code == 200
+    assert res1.get_json()["workout_log"]["2026-08-13"] == [entry]
+
+    res2 = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": []})
+    assert res2.status_code == 200
+    assert res2.get_json()["workout_log"]["2026-08-13"] == []
+
+    stored = database.get_all_user_data(user_id)[database.WORKOUT_LOG_KEY]
+    assert stored["2026-08-13"] == [], f"deleted entry resurrected via the route: {stored}"
+
+
+def test_log_day_route_does_not_touch_other_dates(client):
+    """Same guarantee as test_set_workout_log_day_does_not_touch_other_dates
+    above, but through the HTTP route -- the route wires straight into
+    set_workout_log_day() but that wiring itself (date_iso, entries pulled
+    off the right payload keys) is what's actually under test here."""
+    user_id = _make_user("route-date-scoping@example.com")
+    _login(client, user_id)
+
+    monday = {"id": "mon-1", "exercise": "Push", "addedAt": 1, "sets": []}
+    tuesday = {"id": "tue-1", "exercise": "Pull", "addedAt": 2, "sets": []}
+    client.post("/api/workout/log-day", json={"date": "2026-08-10", "entries": [monday]})
+    client.post("/api/workout/log-day", json={"date": "2026-08-11", "entries": [tuesday]})
+
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-10", "entries": []})
+    assert res.status_code == 200
+
+    stored = database.get_all_user_data(user_id)[database.WORKOUT_LOG_KEY]
+    assert stored["2026-08-10"] == []
+    assert stored["2026-08-11"] == [tuesday], f"an unrelated date was clobbered via the route: {stored}"
+
+
+def test_log_day_route_response_includes_the_full_log_not_just_the_touched_day(client):
+    """set_workout_log_day() returns the whole log "so the caller can resync
+    localStorage without a second round trip" (see its docstring) -- the
+    route must pass that full dict straight through, not just the date that
+    was written."""
+    user_id = _make_user("route-full-log@example.com")
+    _login(client, user_id)
+
+    monday = {"id": "mon-1", "exercise": "Push", "addedAt": 1, "sets": []}
+    client.post("/api/workout/log-day", json={"date": "2026-08-10", "entries": [monday]})
+
+    tuesday = {"id": "tue-1", "exercise": "Pull", "addedAt": 2, "sets": []}
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-11", "entries": [tuesday]})
+
+    body = res.get_json()["workout_log"]
+    assert body["2026-08-10"] == [monday], f"response dropped an untouched date: {body}"
+    assert body["2026-08-11"] == [tuesday]
+
+
+def test_log_day_route_rejects_missing_entries_key(client):
+    """entries missing from the payload entirely (payload.get("entries") is
+    None) must be rejected the same as a wrong-typed value -- distinct code
+    path from test_log_day_route_rejects_entries_that_are_not_a_list, which
+    exercises a present-but-wrong-type value instead."""
+    user_id = _make_user("route-missing-entries@example.com")
+    _login(client, user_id)
+
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-13"})
+    assert res.status_code == 400
+    assert res.get_json()["ok"] is False
+
+
+def test_log_day_route_rejects_missing_date_key(client):
+    """date missing from the payload entirely -- payload.get("date") is
+    None, str(None or "") is "", which the regex rejects."""
+    user_id = _make_user("route-missing-date@example.com")
+    _login(client, user_id)
+
+    res = client.post("/api/workout/log-day", json={"entries": []})
+    assert res.status_code == 400
+    assert res.get_json()["ok"] is False
+
+
+def test_log_day_route_rejects_an_empty_body(client):
+    """No JSON body at all: request.get_json(silent=True) returns None, the
+    route falls back to {}, and validation must still reject it rather than
+    raising."""
+    user_id = _make_user("route-empty-body@example.com")
+    _login(client, user_id)
+
+    res = client.post("/api/workout/log-day", content_type="application/json", data="")
+    assert res.status_code == 400
+    assert res.get_json()["ok"] is False
+
+
+def test_log_day_route_date_validation_is_shape_only_not_calendar_aware(client):
+    """The date regex (^\\d{4}-\\d{2}-\\d{2}$) checks shape, not that the date
+    is a real calendar date. Documented here as the current, intentional
+    behavior (workouts.html only ever sends real dates it generated itself)
+    so a future tightening of the regex is a deliberate choice made against
+    a failing test, not an accidental behavior change."""
+    user_id = _make_user("route-shape-only-date@example.com")
+    _login(client, user_id)
+
+    res = client.post("/api/workout/log-day", json={"date": "2026-13-99", "entries": []})
+    assert res.status_code == 200
+    assert res.get_json()["workout_log"]["2026-13-99"] == []
+
+
+def test_log_day_route_repeated_writes_to_same_date_converge_on_the_latest(client):
+    """Mirrors pushWorkoutDay()'s retry-once-on-failure and the debounce
+    collapsing rapid edits: if two requests for the same date land back to
+    back, the last one to land wins outright -- no merging, no
+    duplication."""
+    user_id = _make_user("route-repeated-writes@example.com")
+    _login(client, user_id)
+
+    first = {"id": "entry-1", "exercise": "Squat", "addedAt": 1, "sets": [{"reps": 5}]}
+    client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": [first]})
+
+    second = {"id": "entry-1", "exercise": "Squat", "addedAt": 1, "sets": [{"reps": 8, "weightKg": 60}]}
+    res = client.post("/api/workout/log-day", json={"date": "2026-08-13", "entries": [second]})
+
+    assert res.get_json()["workout_log"]["2026-08-13"] == [second]
+    stored = database.get_all_user_data(user_id)[database.WORKOUT_LOG_KEY]
+    assert stored["2026-08-13"] == [second]
+
+
+def test_set_workout_log_day_does_not_protect_against_a_stale_merge_landing_after(tmp_path, monkeypatch):
+    """Documents the boundary of what this fix protects, as a companion to
+    test_set_workout_log_day_survives_a_stale_generic_merge_landing_first
+    above: set_workout_log_day() only wins when it lands AFTER the generic
+    merge, which is the expected order (the merge fires immediately on
+    localStorage.setItem, the authoritative call is debounced 400ms later).
+    If a stale merge instead lands AFTER the authoritative delete --
+    out-of-order network delivery -- it can still resurrect the entry; that
+    residual race belongs to the generic merge route itself and is not
+    something set_workout_log_day() claims to fix. Pinned here so a change
+    that silently narrows (or widens) that boundary gets noticed."""
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "repcheck-test.db")
+    database.init_db()
+    user_id = _make_user("race-reversed-order@example.com")
+
+    entry = {"id": "entry-1", "exercise": "Squat", "addedAt": 1, "sets": [{"reps": 10}]}
+    set_workout_log_day(user_id, "2026-08-13", [entry])
+
+    # The authoritative delete lands first this time.
+    set_workout_log_day(user_id, "2026-08-13", [])
+
+    # A stale generic merge -- still carrying the pre-delete entry -- lands
+    # after it (out-of-order delivery).
+    set_user_data(user_id, database.WORKOUT_LOG_KEY, {"2026-08-13": [entry]})
+
+    stored = database.get_all_user_data(user_id)[database.WORKOUT_LOG_KEY]
+    assert stored["2026-08-13"] == [entry], (
+        "this pins a known, accepted limitation (a merge landing after the "
+        "authoritative delete still resurrects the entry); if this now "
+        f"fails because it's [] instead, protection improved elsewhere -- "
+        f"update this test's expectation to match, got: {stored}"
+    )
