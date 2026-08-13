@@ -2697,6 +2697,52 @@
     });
   }
 
+  // Sets how many day chips a self-build (or literal "custom" type) split
+  // has, growing or shrinking splitWizard.customDays to match rather than
+  // asking the day count as a separate independent field -- the server's
+  // custom-split path derives the plan's day count directly from
+  // len(custom_days) (see build_fallback_plan's "custom" branch in
+  // split_planner.py), so the two can never be allowed to disagree.
+  function applyDayCount(n) {
+    const current = splitWizard.customDays;
+    if (n === current.length) return;
+    if (n < current.length) {
+      // Trim from the end -- drop the extra days and whatever exercises
+      // were picked for them.
+      const removed = current.splice(n);
+      removed.forEach((name) => delete splitWizard.customDayExercises[name]);
+    } else {
+      const t = RepCheckI18n.t;
+      // Cycle through this split type's own day-name template to fill the
+      // new slots (e.g. PPL grown to 6 days repeats Push/Pull/Legs), or a
+      // generic "Custom" label when there's no template (the literal
+      // "custom" type, chosen without self-build). Positional, not
+      // template-relative, so it keeps making sense even if the user has
+      // already hand-edited the list away from a clean multiple of the
+      // template's length.
+      const baseLabels = SELF_BUILD_DAY_LABELS[splitWizard.type] || [t("workouts.split.custom")];
+      let cursor = current.length;
+      while (current.length < n) {
+        const base = baseLabels[cursor % baseLabels.length];
+        const cycle = Math.floor(cursor / baseLabels.length) + 1;
+        let label = cycle > 1 ? `${base} ${cycle}` : base;
+        // customDayExercises is keyed by name -- two identically-named days
+        // would silently share (and clobber) each other's picked exercises,
+        // so guard against colliding with a name the user already typed by
+        // hand, not just against the generated cycle itself.
+        let bump = cycle;
+        while (current.includes(label)) {
+          bump += 1;
+          label = `${base} ${bump}`;
+        }
+        current.push(label);
+        cursor += 1;
+      }
+    }
+    splitWizard.daysPerWeek = current.length;
+    renderSplitStepType();
+  }
+
   function renderSplitStepType() {
     const t = RepCheckI18n.t;
     const selfBuild = splitWizard.mode === "self";
@@ -2711,6 +2757,12 @@
         `).join("")}
       </div>
       ${(splitWizard.type === "custom" || selfBuild) ? `
+        <div class="split-step-label">${t("workouts.wizard.chooseWeekTitle")}</div>
+        <div class="split-days-grid">
+          ${[1, 2, 3, 4, 5, 6, 7].map((n) => `
+            <button type="button" class="split-day-btn ${splitWizard.customDays.length === n ? "is-selected" : ""}" data-day-count="${n}">${n}</button>
+          `).join("")}
+        </div>
         <div class="split-custom-input-row">
           <input type="text" id="split-custom-input" data-i18n-placeholder="workouts.wizard.customPlaceholder" placeholder="e.g. Chest Day" autocomplete="off">
           <button type="button" class="split-custom-add-btn" id="split-custom-add-btn">${t("workouts.wizard.add")}</button>
@@ -2737,6 +2789,9 @@
     });
 
     if (splitWizard.type === "custom" || selfBuild) {
+      splitModalBody.querySelectorAll("[data-day-count]").forEach((btn) => {
+        btn.addEventListener("click", () => applyDayCount(parseInt(btn.dataset.dayCount, 10)));
+      });
       renderCustomDays();
       const addBtn = document.getElementById("split-custom-add-btn");
       const input = document.getElementById("split-custom-input");
