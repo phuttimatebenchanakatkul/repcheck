@@ -28,26 +28,30 @@
 
 ### Weekday grid tap targets are below Apple's 44px touch guideline
 
-**What:** The 7-cell weekday grid in the split-review "Assign your week" screen (`.split-week-cell` in `templates/workouts.html`) renders at roughly 28-36px square on real phone widths (320-375px) -- the primary interactive control of that screen.
+**Fixed by /qa on feat/assign-week-carousel, 2026-08-13** -- resolved by removal, not a direct fix. The "Assign your week" screen no longer has a weekday grid at all: `renderSplitStepReview()` was redesigned into a one-day-at-a-time carousel, and `.split-week-cell` no longer exists in `templates/workouts.html`. The carousel's own controls have a different (better, though not perfect) sizing profile: `.split-carousel-arrow` is 34px, and day-to-day jumps have two paths -- the arrows, or the new 8px `.split-carousel-dot` row (a secondary/supplementary way to jump directly to a day, not the primary interaction). The dots are below the 44px guideline too, but as optional pagination affordances behind a same-purpose 34px primary control, this is a materially smaller gap than the old grid being users' *only* way to assign a day. Not re-opened as a fresh TODO since it's a common, accepted mobile pattern (photo-gallery-style pagination dots) rather than the primary control missing a target size.
 
-**Why:** Small miss-taps on the most-used control of a brand-new screen. Clears WCAG 2.2 AA's 24px minimum, but not Apple's stricter 44px HIG recommendation.
+~~**What:** The 7-cell weekday grid in the split-review "Assign your week" screen (`.split-week-cell` in `templates/workouts.html`) renders at roughly 28-36px square on real phone widths (320-375px) -- the primary interactive control of that screen.~~
 
-**Context:** Flagged by the design specialist during the split-review-redesign ship review, confirmed by hand-computing the actual rendered width (modal padding + grid padding + 6px gaps across 7 columns leaves ~28.6px per cell at 320px). Fitting 7 columns of 44px cells plus gaps needs more horizontal room than a 320px phone has inside the current modal chrome, so a real fix means either extending the tappable hit-area beyond the visible swatch (padding trick, doesn't shrink the swatch) or reworking the layout (e.g. fewer visible columns with horizontal scroll). Not done at ship time because it's a layout change, not a quick CSS tweak, and the review found it late.
+~~**Why:** Small miss-taps on the most-used control of a brand-new screen. Clears WCAG 2.2 AA's 24px minimum, but not Apple's stricter 44px HIG recommendation.~~
+
+~~**Context:** Flagged by the design specialist during the split-review-redesign ship review, confirmed by hand-computing the actual rendered width (modal padding + grid padding + 6px gaps across 7 columns leaves ~28.6px per cell at 320px). Fitting 7 columns of 44px cells plus gaps needs more horizontal room than a 320px phone has inside the current modal chrome, so a real fix means either extending the tappable hit-area beyond the visible swatch (padding trick, doesn't shrink the swatch) or reworking the layout (e.g. fewer visible columns with horizontal scroll). Not done at ship time because it's a layout change, not a quick CSS tweak, and the review found it late.~~
 
 **Effort:** M
-**Priority:** P2
+**Priority:** P2 (resolved)
 **Depends on:** None
 
 ### Colorblind fallback when abbreviation AND accent collide
 
-**What:** When two day labels collide as prefixes (e.g. "Push" / "Push Day"), both abbreviate to the same 2 letters. If their accent colours also repeat (6+ unique custom day types, since `DAY_ACCENTS` only has 5 entries), a colorblind user sees two visually identical grid cells with no way to tell them apart.
+**Fixed by /qa on feat/assign-week-carousel, 2026-08-13** -- resolved by removal. The `labelAbbrev` text-abbreviation mechanism this TODO describes no longer exists; `renderSplitStepReview()`'s carousel redesign dropped it entirely. The current UI never asks a user to distinguish two day types by a 1-2 letter abbreviation -- the day pill always spells out the full label as text (`Push`, `Push Day`, etc.), so a colorblind user reads the actual label rather than relying on color or an ambiguous abbreviation. The underlying `DAY_ACCENTS` 5-color-repeat-past-5 behavior is unchanged (still applies to dot colors), but color is now purely decorative/supplementary, not load-bearing for distinguishing days the way an ambiguous letter pair was.
 
-**Why:** Real accessibility gap, but narrow -- needs a prefix collision AND 6+ custom day types AND colorblindness stacked together.
+~~**What:** When two day labels collide as prefixes (e.g. "Push" / "Push Day"), both abbreviate to the same 2 letters. If their accent colours also repeat (6+ unique custom day types, since `DAY_ACCENTS` only has 5 entries), a colorblind user sees two visually identical grid cells with no way to tell them apart.~~
 
-**Context:** Flagged by the design specialist during the split-review-redesign ship review. The accent-repeat-past-5 behavior itself is intentionally documented (not hidden) via `tests-js/reviewStep.test.js`'s "assigns a distinct accent... reused past 5 via modulo" test. A real fix adds a secondary differentiator (dot, pattern, or a wider accent palette) for the collision case in `renderSplitStepReview()` (`templates/workouts.html`).
+~~**Why:** Real accessibility gap, but narrow -- needs a prefix collision AND 6+ custom day types AND colorblindness stacked together.~~
+
+~~**Context:** Flagged by the design specialist during the split-review-redesign ship review. The accent-repeat-past-5 behavior itself is intentionally documented (not hidden) via `tests-js/reviewStep.test.js`'s "assigns a distinct accent... reused past 5 via modulo" test. A real fix adds a secondary differentiator (dot, pattern, or a wider accent palette) for the collision case in `renderSplitStepReview()` (`templates/workouts.html`).~~
 
 **Effort:** S
-**Priority:** P3
+**Priority:** P3 (resolved)
 **Depends on:** None
 
 ### Two magic-number/duplication cleanups in the split review step
@@ -64,7 +68,7 @@
 
 ### Decide what tap-to-cycle should do when it orphans a training day
 
-**What:** In the split-review screen, tapping the already-selected weekday cell cycles its assignment through every unique day label plus Rest. Nothing stops a user from cycling every day to Rest, or cycling away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`.
+**What:** In the split-review screen, tapping the day pill (formerly: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) cycles its assignment through every unique day label plus Rest. Nothing stops a user from cycling every day to Rest, or cycling away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`.
 
 **Why:** This is a product decision, not a confirmed bug -- a user might legitimately decide they don't want a given training day this week. But it's currently silent either way: no warning, no indication a day type has become unscheduled.
 
