@@ -3517,7 +3517,7 @@
       <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
       <div class="split-carousel" id="split-carousel"></div>
       ${splitWizard.rationale ? `<div class="split-rationale"><p>${escapeHtml(splitWizard.rationale)}</p></div>` : ""}
-      <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${t("workouts.wizard.savePlan")}</button>
+      <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${splitWizard.isEditingExistingPlan ? t("workouts.wizard.saveChanges") : t("workouts.wizard.savePlan")}</button>
     `;
 
     const carouselEl = document.getElementById("split-carousel");
