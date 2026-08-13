@@ -656,6 +656,7 @@
       this.leaderboardGender = localStorage.getItem(LEADERBOARD_GENDER_KEY) || null;
       this.leaderboardTab = { category: "open", format: "singles" };
       this.leaderboardCache = null; // { key, loading, data|error } -- see loadLeaderboard()
+      this.myBestsCache = null; // { gender, loading, entries } -- see loadMyBests()
       // Transient modal state (not race data, so it lives outside
       // resetSetup): which station's how-to/video popup is open, and the
       // per-race AI analysis cache keyed by race id (see loadRaceAnalysis).
@@ -765,6 +766,7 @@
         localStorage.setItem(HISTORY_SYNCED_KEY, "1");
         // Whatever's currently cached/showing is now stale.
         this.leaderboardCache = null;
+        this.myBestsCache = null;
         this.render();
       } catch (err) {
         // Leave the flag unset so this retries on the next page load.
@@ -1511,6 +1513,49 @@
         this.leaderboardCache = { key, loading: false, data };
       } catch (err) {
         this.leaderboardCache = { key, loading: false, error: true };
+      }
+      this.render();
+    }
+
+    // The "Your personal bests" card (renderMyBestsCard()) used to read
+    // straight from local `history` -- but that's this browser's local
+    // race log, not the account's actual record. A result recorded on
+    // another device, or synced before this card existed, or simply
+    // missing after a cache clear, is still very much a real PB the
+    // leaderboard itself already knows about (it's in `hyrox_results`
+    // server-side) -- the card would just silently fail to show it,
+    // looking like the user has no bests at all despite ranking #1 on
+    // their own leaderboard. Sourcing from the same /api/hyrox/leaderboard
+    // endpoint the leaderboard card already uses (its `me` field is
+    // exactly "this user's best in this exact gender/category/format")
+    // makes the two cards agree by construction, regardless of which
+    // device recorded the race.
+    async loadMyBests() {
+      const gender = this.resolveLeaderboardGender();
+      if (!gender) return;
+      if (this.myBestsCache && this.myBestsCache.gender === gender) return; // already loaded/loading
+
+      this.myBestsCache = { gender, loading: true };
+      try {
+        const combos = [
+          { category: "open", format: "singles" },
+          { category: "pro", format: "singles" },
+          { category: "open", format: "doubles" },
+          { category: "pro", format: "doubles" },
+        ];
+        const results = await Promise.all(
+          combos.map(async ({ category, format }) => {
+            const response = await fetch(`/api/hyrox/leaderboard?gender=${gender}&category=${category}&format=${format}`);
+            const data = await response.json();
+            if (!data.ok || !data.me) return null; // hasn't raced this combo
+            return { gender, category, format, totalSeconds: data.me.best_seconds };
+          })
+        );
+        if (this.myBestsCache && this.myBestsCache.gender !== gender) return; // superseded by a newer gender switch
+        const entries = results.filter(Boolean).sort((a, b) => a.totalSeconds - b.totalSeconds);
+        this.myBestsCache = { gender, loading: false, entries };
+      } catch (err) {
+        this.myBestsCache = { gender, loading: false, entries: [] };
       }
       this.render();
     }
@@ -2997,19 +3042,26 @@
     // Your own PBs, scoped to your own gender and split into a Singles
     // section and a Doubles section -- shown on the setup screen right
     // under the leaderboard. Different from renderPersonalBests() above
-    // (the history screen's card): that one shows every combo you've ever
-    // raced, including a different gender if you ever switched your
-    // leaderboard preference mid-history. This one uses the exact same
-    // gender the leaderboard tabs are scoped to (resolveLeaderboardGender())
-    // so "your" bests match what "your" leaderboard shows -- a man never
-    // sees a women's-category PB in this card, and vice versa. No gender
-    // resolved yet (first visit, no race finished, no coaching profile) ->
-    // nothing to scope to, so the card doesn't render at all rather than
-    // guessing.
+    // (the history screen's card): that one reads local `history` and
+    // shows every combo you've ever raced, including a different gender
+    // if you ever switched your leaderboard preference mid-history. This
+    // one is sourced from the server (loadMyBests(), same endpoint the
+    // leaderboard card itself uses) so it always agrees with what your own
+    // leaderboard shows -- a result recorded on another device, or before
+    // this card existed, is still correctly shown here, not silently
+    // dropped because this particular browser's local history doesn't
+    // have it. No gender resolved yet (first visit, no race finished, no
+    // coaching profile) -> nothing to scope to, so the card doesn't render
+    // at all rather than guessing.
     renderMyBestsCard() {
       const gender = this.resolveLeaderboardGender();
       if (!gender) return null;
-      const bests = this.getAllPersonalBests().filter((r) => r.gender === gender);
+      if (!this.myBestsCache || this.myBestsCache.gender !== gender) {
+        this.loadMyBests(); // async; re-renders itself once the 4 combos resolve
+        return null;
+      }
+      if (this.myBestsCache.loading) return null;
+      const bests = this.myBestsCache.entries;
       if (!bests.length) return null;
 
       const card = el(`
@@ -3021,21 +3073,34 @@
       const sectionsEl = card.querySelector("[data-my-pb-sections]");
       // FORMAT_IDS order (singles, doubles) fixes the section order; within
       // each section, entries are already fastest-to-slowest because
-      // getAllPersonalBests() sorts ascending by time and filtering by
-      // gender/format preserves relative order.
+      // loadMyBests() sorts ascending by time and filtering by format
+      // preserves relative order.
       FORMAT_IDS.forEach((formatId) => {
         const rows = bests.filter((r) => r.format === formatId);
         if (!rows.length) return; // no Doubles PB yet -- skip the section, don't show it empty
         const section = el(`<div class="hx-pb-format-section"></div>`);
         section.appendChild(el(`<div class="hx-pb-section-title">${formatTitle(formatId)}</div>`));
         rows.forEach((r) => {
-          const dateLabel = new Date(r.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" });
+          // The server's leaderboard `me` field is just {rank, best_seconds,
+          // name} -- no date. Best-effort only: if this exact time also
+          // happens to be in this browser's local history (the common case
+          // -- most races are still recorded and viewed on the same
+          // device), show when it was set; otherwise omit the date line
+          // rather than fabricate one.
+          const localMatch = this.history.find(
+            (h) => !h.flagged && h.gender === r.gender && h.category === r.category && h.format === r.format && Math.abs(h.totalSeconds - r.totalSeconds) < 0.5
+          );
+          const dateHtml = localMatch
+            ? `<div style="margin-top:4px;">${t("hyrox.pb.setPrefix", {
+                date: new Date(localMatch.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }),
+              })}</div>`
+            : "";
           section.appendChild(el(`
             <div class="hx-pb-row">
               <div class="hx-pb-row-time">${formatClock(r.totalSeconds)}</div>
               <div class="hx-history-meta">
                 <span class="hx-history-tag">${categoryTitle(r.category)}</span>
-                <div style="margin-top:4px;">${t("hyrox.pb.setPrefix", { date: dateLabel })}</div>
+                ${dateHtml}
               </div>
             </div>
           `));
