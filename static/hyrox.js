@@ -565,6 +565,16 @@
     return wrap.firstElementChild;
   }
 
+  // The Hyrox leaderboard renders OTHER users' display names -- every
+  // entrant's row, not just your own -- so an unescaped interpolation
+  // here is exploitable against anyone who never touched the vulnerable
+  // form themselves. Same sink, same fix as nutrition.html/workouts.html.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
   function showHistorySaveError(message) {
     const existing = document.querySelector(".hx-save-error-toast");
     if (existing) existing.remove();
@@ -3031,7 +3041,7 @@
         const rowHtml = (rank, name, seconds, isMe) => `
           <div class="hx-lb-row ${isMe ? "is-me" : ""}">
             <span class="hx-lb-rank ${rank <= 3 ? `is-top is-top-${rank}` : ""}">${rank}</span>
-            <span class="hx-lb-name">${name}${isMe ? `<span class="hx-lb-you">${t("hyrox.leaderboard.you")}</span>` : ""}</span>
+            <span class="hx-lb-name">${escapeHtml(name)}${isMe ? `<span class="hx-lb-you">${t("hyrox.leaderboard.you")}</span>` : ""}</span>
             <span class="hx-lb-time">${formatClock(seconds)}</span>
           </div>
         `;

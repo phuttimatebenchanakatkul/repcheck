@@ -176,8 +176,8 @@
       myFriends.forEach((f) => {
         listEl.appendChild(el(`
           <div class="fr-friend-row">
-            <div class="fr-friend-avatar">${f.name[0].toUpperCase()}</div>
-            <div>${f.name}</div>
+            <div class="fr-friend-avatar">${escapeHtml(f.name[0].toUpperCase())}</div>
+            <div>${escapeHtml(f.name)}</div>
           </div>
         `));
       });
@@ -187,6 +187,16 @@
       const wrap = document.createElement("div");
       wrap.innerHTML = html.trim();
       return wrap.firstElementChild;
+    }
+
+    // Friend rows render OTHER users' display names -- f.name is whoever
+    // you added, not you -- so an unescaped interpolation here is
+    // exploitable against a friend who never touched the vulnerable form
+    // themselves. Same sink, same fix as nutrition.html/workouts.html.
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
     }
 
     async function addFriendByCode(code) {
