@@ -85,6 +85,55 @@ def test_gemini_failure_degrades_instead_of_raising(monkeypatch):
     assert "isn't reachable" in result["reply"]
 
 
+def test_successful_generation_returns_gemini_text_verbatim(monkeypatch):
+    """The role-mapping test above pins the request shape but never checks
+    what get_workout_chat_reply() actually returns on a real success --
+    covering that here so a change that mangles the response (e.g. wrapping
+    it, dropping whitespace handling) doesn't slip through unnoticed."""
+    from google import genai as real_genai
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            class Response:
+                text = "  - Try **34 kg** for 6 reps next session.  "
+            return Response()
+
+    class FakeClient:
+        def __init__(self, **_):
+            self.models = FakeModels()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(real_genai, "Client", FakeClient)
+
+    result = get_workout_chat_reply("how do I progress?", [], {"workout_summary": "..."})
+    assert result["reply"] == "- Try **34 kg** for 6 reps next session."
+    assert result["limited"] is False
+    assert result["retry_after_seconds"] == 0
+
+
+def test_empty_gemini_text_falls_back_to_a_generic_retry_message(monkeypatch):
+    """Gemini can return a response with empty/whitespace-only text (e.g.
+    safety filtering with no candidates); that must not surface as a blank
+    chat bubble."""
+    from google import genai as real_genai
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            class Response:
+                text = "   "
+            return Response()
+
+    class FakeClient:
+        def __init__(self, **_):
+            self.models = FakeModels()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(real_genai, "Client", FakeClient)
+
+    result = get_workout_chat_reply("how do I progress?", [], {})
+    assert result["reply"] == "Sorry, I couldn't come up with a reply there — could you try asking that again?"
+
+
 def test_history_role_mapping_matches_analyze_chat_convention(monkeypatch):
     """Client history uses {role: "user"|"assistant"}, same as
     analyze_chat.py (NOT coach_chat.py's "coach") -- pin the mapping so a
