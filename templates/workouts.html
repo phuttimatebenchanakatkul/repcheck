@@ -911,14 +911,18 @@
   .split-carousel-day { font-size: 16px; font-weight: 700; }
   .split-carousel-pill {
     display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
-    font-size: 11px; font-weight: 700; padding: 3px 9px 3px 10px; border-radius: 999px;
-    white-space: nowrap; border: none; cursor: pointer; font-family: inherit;
+    max-width: 100%; font-size: 11px; font-weight: 700; padding: 3px 9px 3px 10px; border-radius: 999px;
+    border: none; cursor: pointer; font-family: inherit;
     background: var(--day-accent-bg, var(--sidebar-active));
     /* --text, not the accent: accent-on-accent-bg is only ~3.2:1 in dark theme. */
     color: var(--text);
   }
   .split-carousel-pill:hover { filter: brightness(0.96); }
   :root[data-theme="dark"] .split-carousel-pill:hover { filter: brightness(1.2); }
+  /* Day labels are free text on the custom path -- truncate instead of
+     letting a long one push past the modal's edge (regression caught by
+     /qa: a long custom label ran clean off the card with no ellipsis). */
+  .split-carousel-pill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .split-carousel-pill svg { flex-shrink: 0; opacity: 0.6; }
 
   .split-carousel-dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 2px; }
@@ -3464,7 +3468,7 @@
           <div class="split-carousel-heading">
             <div class="split-carousel-day">${escapeHtml(weekdayName)}</div>
             <button type="button" class="split-carousel-pill" data-cycle-day title="${t("workouts.wizard.tapToChange")}">
-              ${escapeHtml(rest ? restLabel : label)}
+              <span class="split-carousel-pill-text">${escapeHtml(rest ? restLabel : label)}</span>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
             </button>
           </div>

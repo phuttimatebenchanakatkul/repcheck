@@ -96,6 +96,24 @@ describe("renderSplitStepReview — carousel", () => {
     expect(rows[0].querySelector(".split-ex-meta").textContent).toMatch(/^\d+×\d+$/);
   });
 
+  it("wraps the pill's day label in a truncating span, so a long custom label ellipsizes instead of overflowing the card", () => {
+    // Regression: /qa caught a custom day label running clean off the
+    // right edge of the modal with no ellipsis -- .split-carousel-pill had
+    // no max-width and the label had no truncating wrapper of its own.
+    const longLabel = "A Very Long Custom Day Name That Might Overflow The Pill";
+    const days = [{ label: longLabel, exercises: ["Bench Press"] }];
+    const schedule = { monday: longLabel, tuesday: "Rest", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+
+    const textEl = pill(splitModalBody).querySelector(".split-carousel-pill-text");
+    expect(textEl).not.toBeNull();
+    expect(textEl.textContent).toBe(longLabel);
+  });
+
   it("renders the rationale callout when the wizard has one, omits it when it doesn't", () => {
     const withRationale = loadReviewStep({
       generatedDays: PPL_DAYS,
