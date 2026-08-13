@@ -1429,6 +1429,28 @@
   const PLUS_ICON = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
   const TRASH_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
 
+  // Exercise names are not all library-controlled: a user can create a
+  // custom exercise (POST /api/custom-exercises, which only trims and caps
+  // the name at 60 chars) and pick it into a split, and split day labels
+  // are free text on the custom path. Both end up interpolated into
+  // innerHTML below, which is the same sink that made food names an
+  // injection vector in nutrition.html -- so they go through these on the
+  // way in, exactly like that template and static/onboarding.js do.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  // escapeHtml() round-trips through textContent, which escapes < > and &
+  // but deliberately leaves quotes alone -- correct for a text node, unsafe
+  // the moment the value lands inside a quoted attribute, where one " ends
+  // the attribute and everything after it parses as markup. The attribute
+  // sites read the value back via dataset, and the parser turns &quot;
+  // back into " on the way out, so escaping here costs nothing downstream.
+  function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   // ---------- Exercise detail modal (emoji + video + description) ----------
   function exerciseDetail(name) {
     return EXERCISE_DETAILS[name] || {
@@ -1439,8 +1461,13 @@
   function exerciseEmoji(name) {
     // A custom exercise shows the emoji the user picked for it; everything
     // else uses the library's per-exercise emoji.
+    // The picked emoji is whatever the user sent: POST /api/custom-exercises
+    // only caps it at 8 chars, and every caller of this drops the result
+    // straight into innerHTML via exerciseIconHtml(). Eight characters is
+    // too short for a working handler but long enough to open a tag and
+    // swallow the markup after it, so escape here rather than trust the cap.
     const meta = customExerciseMeta[name];
-    if (meta && meta.emoji) return meta.emoji;
+    if (meta && meta.emoji) return escapeHtml(meta.emoji);
     return exerciseDetail(name).emoji;
   }
   // Prefer the real per-exercise illustration from the icon pack; fall
@@ -1697,7 +1724,7 @@
           <div class="wl-entry-card ${complete ? "is-complete" : ""}" data-toggle-entry="${entry.id}">
             <div class="wl-entry-iconwrap"><div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}</div><span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
             <div class="wl-entry-info">
-              <div class="wl-entry-name">${entry.exercise}</div>
+              <div class="wl-entry-name">${escapeHtml(entry.exercise)}</div>
               <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry)}</div>
             </div>
             <button type="button" class="wl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? t("common.minimize") : "Expand"}">
@@ -2115,10 +2142,10 @@
   function exerciseRowHtml(name) {
     const isFav = exerciseFavorites.has(name);
     return `
-      <div class="ex-modal-result-item" data-name="${name}">
+      <div class="ex-modal-result-item" data-name="${escapeAttr(name)}">
         <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-        <span>${name}</span>
-        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${name}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
+        <span>${escapeHtml(name)}</span>
+        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
       </div>
     `;
   }
@@ -2428,14 +2455,14 @@
       </div>
       <div class="wl-plan-exercise-list">
         ${shown.map((name, i) => `
-          <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+          <div class="wl-plan-exercise-row" data-exercise-detail="${escapeAttr(name)}" title="Tap to see how to perform this">
             <span class="wl-plan-exercise-num">${i + 1}</span>
             <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
             <span class="wl-plan-exercise-info">
-              <span class="wl-plan-exercise-name">${name}</span>
-              <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+              <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
+              <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
             </span>
-            <button type="button" class="wl-plan-quick-add" data-quick-add="${name}" aria-label="Log ${name} now" title="Log now">+</button>
+            <button type="button" class="wl-plan-quick-add" data-quick-add="${escapeAttr(name)}" aria-label="Log ${escapeAttr(name)} now" title="Log now">+</button>
             <span class="wl-plan-exercise-grip">${PLAN_GRIP_SVG}</span>
           </div>
         `).join("")}
@@ -2721,7 +2748,7 @@
     splitModalBody.innerHTML = `
       <div class="split-step-label">${t(aiSuggest() ? "workouts.wizard.stepGoalAi" : "workouts.wizard.stepGoalEdit")}</div>
       <div class="split-goal-hint">${t("workouts.wizard.goalHint")}</div>
-      <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${splitWizard.goal.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
+      <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${escapeHtml(splitWizard.goal)}</textarea>
       <button type="button" class="split-primary-btn" id="split-goal-next-btn">${t("common.next")}</button>
     `;
     document.getElementById("split-goal-next-btn").addEventListener("click", () => {
@@ -2749,7 +2776,7 @@
       const pickedCount = (splitWizard.customDayExercises[name] || []).length;
       return `
         <div class="split-custom-day-row">
-          <span class="split-custom-day-name">${name}</span>
+          <span class="split-custom-day-name">${escapeHtml(name)}</span>
           <button type="button" class="split-custom-pick-btn" data-pick-exercises="${i}">
             ${pickedCount ? t("workouts.wizard.exercisesPicked", { n: pickedCount }) : t("workouts.wizard.pickExercises")}
           </button>
@@ -2810,9 +2837,9 @@
           <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
           ${filteredCustom.map((ex) => `
             <label class="split-ex-picker-item">
-              <input type="checkbox" data-exercise="${ex.name}" ${selected.has(ex.name) ? "checked" : ""}>
+              <input type="checkbox" data-exercise="${escapeAttr(ex.name)}" ${selected.has(ex.name) ? "checked" : ""}>
               <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
-              <span>${ex.name}</span>
+              <span>${escapeHtml(ex.name)}</span>
               <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
             </label>
           `).join("")}
@@ -2827,9 +2854,9 @@
             <div class="split-ex-picker-category-title">${category}</div>
             ${filtered.map((name) => `
               <label class="split-ex-picker-item">
-                <input type="checkbox" data-exercise="${name}" ${selected.has(name) ? "checked" : ""}>
+                <input type="checkbox" data-exercise="${escapeAttr(name)}" ${selected.has(name) ? "checked" : ""}>
                 <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-                <span>${name}</span>
+                <span>${escapeHtml(name)}</span>
               </label>
             `).join("")}
           </div>
@@ -3052,24 +3079,24 @@
       <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
       ${days.map((day, i) => `
         <div class="split-review-day">
-          <div class="split-review-day-title">Day ${i + 1} · ${day.label}</div>
+          <div class="split-review-day-title">Day ${i + 1} · ${escapeHtml(day.label)}</div>
           <div class="split-review-exercise-chips">
             ${day.exercises.map((e) => `
-              <button type="button" class="split-review-exercise-chip" data-exercise-detail="${e}">
-                <span class="split-review-exercise-chip-emoji">${exerciseIconHtml(e)}</span>${e}
+              <button type="button" class="split-review-exercise-chip" data-exercise-detail="${escapeAttr(e)}">
+                <span class="split-review-exercise-chip-emoji">${exerciseIconHtml(e)}</span>${escapeHtml(e)}
               </button>
             `).join("")}
           </div>
         </div>
       `).join("")}
-      ${splitWizard.rationale ? `<div class="split-rationale"><strong>${t("workouts.wizard.whyThisSchedule")}</strong> ${splitWizard.rationale}</div>` : ""}
+      ${splitWizard.rationale ? `<div class="split-rationale"><strong>${t("workouts.wizard.whyThisSchedule")}</strong> ${escapeHtml(splitWizard.rationale)}</div>` : ""}
       <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
       ${mondayFirst.map((key, i) => `
         <div class="split-weekday-row">
           <label>${WEEKDAY_NAMES[[1,2,3,4,5,6,0][i]].slice(0, 3)}</label>
           <select data-weekday="${key}">
             <option value="Rest" ${defaultSchedule[key] === "Rest" ? "selected" : ""}>${restLabel}</option>
-            ${uniqueLabels.map((label) => `<option value="${label}" ${defaultSchedule[key] === label ? "selected" : ""}>${label}</option>`).join("")}
+            ${uniqueLabels.map((label) => `<option value="${escapeAttr(label)}" ${defaultSchedule[key] === label ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
           </select>
         </div>
       `).join("")}
@@ -3140,12 +3167,12 @@
         ? `<div class="wl-plan-rest">${t("workouts.plan.restText")}</div>`
         : `<div class="wl-plan-exercise-list">
             ${activeDay.exercises.map((name, i) => `
-              <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+              <div class="wl-plan-exercise-row" data-exercise-detail="${escapeAttr(name)}" title="Tap to see how to perform this">
                 <span class="wl-plan-exercise-num">${i + 1}</span>
                 <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
                 <span class="wl-plan-exercise-info">
-                  <span class="wl-plan-exercise-name">${name}</span>
-                  <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+                  <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
+                  <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
                 </span>
               </div>
             `).join("")}
