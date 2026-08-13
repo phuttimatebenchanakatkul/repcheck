@@ -100,7 +100,7 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     return /curl|pushdown|raise/i.test(name) ? { sets: 3, reps: 10 } : { sets: 4, reps: 8 };
   }
   function exerciseDetail() {
-    return { description: "Controlled range of motion, steady tempo." };
+    return { description: ["Controlled range of motion.", "Steady tempo."] };
   }
   function getSplitTypes() {
     return [{ id: "ppl", title: "Push / Pull / Legs" }];

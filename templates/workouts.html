@@ -93,7 +93,7 @@
         </span>
       </a>
       <div class="exd-desc-label">How to perform it</div>
-      <p class="exd-desc-text" id="exd-modal-desc"></p>
+      <ol class="exd-desc-list" id="exd-modal-desc"></ol>
     </div>
   </div>
 </div>
@@ -1109,7 +1109,17 @@
   .exd-video-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
   .exd-video-card-sub { font-size: 11px; color: var(--text-secondary); }
   .exd-desc-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
-  .exd-desc-text { font-size: 13px; line-height: 1.6; color: var(--text); margin: 0; }
+  .exd-desc-list { margin: 0; padding: 0; list-style: none; counter-reset: exd-step; display: flex; flex-direction: column; gap: 10px; }
+  .exd-desc-list li {
+    counter-increment: exd-step; position: relative; padding-left: 30px;
+    font-size: 13px; line-height: 1.5; color: var(--text);
+  }
+  .exd-desc-list li::before {
+    content: counter(exd-step); position: absolute; left: 0; top: -1px;
+    width: 20px; height: 20px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--blue-bg); color: var(--blue); font-size: 10.5px; font-weight: 800;
+  }
 
   .split-week-tabs { display: flex; gap: 5px; margin-bottom: 16px; }
   .split-week-tab {
@@ -1627,7 +1637,10 @@
   function exerciseDetail(name) {
     return EXERCISE_DETAILS[name] || {
       emoji: "🏋️",
-      description: "Move through a full, controlled range of motion with a steady tempo — avoid using momentum or swinging your body to move the weight, and stop a rep or two before your form breaks down.",
+      description: [
+        "Move through a full, controlled range of motion with a steady tempo.",
+        "Avoid using momentum or swinging your body to move the weight, and stop a rep or two before your form breaks down.",
+      ],
     };
   }
   function exerciseEmoji(name) {
@@ -1673,7 +1686,15 @@
     const detail = exerciseDetail(name);
     exdEmojiEl.innerHTML = exerciseIconHtml(name);
     exdTitleEl.textContent = name;
-    exdDescEl.textContent = detail.description;
+    // Built as real <li> nodes via textContent (not innerHTML) so each
+    // step's text is never parsed as markup, same guarantee textContent
+    // gave the old single-paragraph rendering.
+    exdDescEl.innerHTML = "";
+    detail.description.forEach((step) => {
+      const li = document.createElement("li");
+      li.textContent = step;
+      exdDescEl.appendChild(li);
+    });
     exdVideoLink.href = youtubeSearchUrl(name);
     exdOverlay.style.display = "flex";
   }
