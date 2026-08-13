@@ -851,6 +851,7 @@ def workouts():
         active_nav="workouts",
         exercise_library=WORKOUT_EXERCISES,
         exercise_details=EXERCISE_DETAILS,
+        exercise_videos=EXERCISE_VIDEOS,
         exercise_categories=EXERCISE_CATEGORIES,
         exercise_icons=EXERCISE_ICONS,
         unilateral_exercises=sorted(UNILATERAL_EXERCISES),

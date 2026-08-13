@@ -68,8 +68,9 @@
   "<exercise name> proper form tutorial", so it's always a real, current,
   relevant result instead of a guess.
 -->
-<div class="exd-modal-overlay" id="exd-modal-overlay" style="display:none;">
+<div class="exd-modal-overlay" id="exd-modal-overlay">
   <div class="exd-modal">
+    <div class="exd-modal-handle"></div>
     <div class="exd-modal-header">
       <div class="exd-modal-title-row">
         <span class="exd-modal-emoji" id="exd-modal-emoji"></span>
@@ -78,22 +79,18 @@
       <button type="button" class="ex-modal-close" id="exd-modal-close" aria-label="Close">&times;</button>
     </div>
     <div class="exd-modal-body">
-      <!--
-        YouTube blocks embedding its search-results page in an iframe (and
-        there's no way to safely hardcode a specific video id per exercise
-        from here without risking a wrong, deleted, or unrelated video) —
-        so this links out to a real, live YouTube search instead of
-        showing a broken/empty player.
-      -->
+      <div id="exd-video-container"></div>
+      <div class="exd-desc-head">
+        <span class="exd-desc-label">How to perform it correctly</span>
+      </div>
+      <ol class="exd-desc-list" id="exd-modal-desc"></ol>
       <a class="exd-video-card" id="exd-video-link" target="_blank" rel="noopener noreferrer">
         <span class="exd-video-card-play">▶</span>
         <span class="exd-video-card-text">
-          <span class="exd-video-card-title">Watch a demonstration</span>
-          <span class="exd-video-card-sub">Opens real YouTube results for this exercise in a new tab</span>
+          <span class="exd-video-card-title">Watch on YouTube</span>
+          <span class="exd-video-card-sub">Open full search results on YouTube</span>
         </span>
       </a>
-      <div class="exd-desc-label">How to perform it</div>
-      <ol class="exd-desc-list" id="exd-modal-desc"></ol>
     </div>
   </div>
 </div>
@@ -1065,26 +1062,38 @@
 
   /* ---------- Exercise detail modal (video + description) ---------- */
   .exd-modal-overlay {
-    /* 420, not 210: the "How to perform" link inside the new sets/reps
-       editor (.split-ex-editor-overlay, z-index 410) opens this modal on
-       top of itself -- at 210 it would render BEHIND the editor, the same
-       invisible-overlay bug the editor itself had before this fix. This
-       modal is also reachable directly from outside any wizard (the
-       Today's Plan card's exercise rows), where a high z-index is harmless
-       since nothing else on that page competes above it. */
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 420; padding: 16px;
+    position: fixed; inset: 0; z-index: 420;
+    display: flex; align-items: flex-end; justify-content: center;
+    pointer-events: none; opacity: 0;
+    background: rgba(0, 0, 0, 0.4);
+    transition: opacity 0.46s ease;
+  }
+  .exd-modal-overlay.is-in, .exd-modal-overlay.is-open {
+    pointer-events: auto; opacity: 1;
   }
   .exd-modal {
+    pointer-events: auto;
+    width: 100%; max-width: 560px; max-height: 92vh;
+    display: flex; flex-direction: column;
     background: var(--card-bg); color: var(--text);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow);
-    width: 100%; max-width: 480px; max-height: 88vh;
-    display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 48px rgba(0,0,0,0.42);
+    transform: translateY(100%);
+    transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+    overflow: hidden;
   }
+  .exd-modal-overlay.is-in .exd-modal, .exd-modal-overlay.is-open .exd-modal {
+    transform: translateY(0);
+  }
+  .exd-modal-handle {
+    width: 38px; height: 5px; border-radius: 999px;
+    background: var(--border); margin: 9px auto 2px; flex-shrink: 0;
+    cursor: grab;
+  }
+  .exd-modal-handle:active { cursor: grabbing; }
   .exd-modal-header {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    padding: 12px 20px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
   }
   .exd-modal-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .exd-modal-emoji {
@@ -1093,32 +1102,52 @@
     font-size: 18px; flex-shrink: 0; overflow: hidden;
   }
   .exd-modal-title { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .exd-modal-body { padding: 18px; overflow-y: auto; }
+  .exd-modal-body { padding: 16px 20px 24px; overflow-y: auto; flex: 1; min-height: 0; }
+
+  .exd-video-wrap {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    margin-bottom: 16px;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  }
+  .exd-video-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
   .exd-video-card {
     display: flex; align-items: center; gap: 14px;
-    border-radius: 14px; background: var(--blue-bg); padding: 16px;
-    margin-bottom: 16px; text-decoration: none; color: var(--text);
+    border-radius: 14px; background: var(--blue-bg); padding: 14px 16px;
+    margin-top: 16px; text-decoration: none; color: var(--text);
   }
   .exd-video-card:hover { opacity: 0.9; }
   .exd-video-card-play {
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    width: 44px; height: 44px; border-radius: 50%; background: var(--blue); color: #fff;
-    font-size: 15px; padding-left: 3px; /* optically center the triangle */
+    width: 36px; height: 36px; border-radius: 50%; background: var(--blue); color: #fff;
+    font-size: 13px; padding-left: 2px;
   }
   .exd-video-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .exd-video-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .exd-video-card-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
   .exd-video-card-sub { font-size: 11px; color: var(--text-secondary); }
-  .exd-desc-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+
+  .exd-desc-head { margin-bottom: 10px; margin-top: 4px; }
+  .exd-desc-label { font-size: 11.5px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
   .exd-desc-list { margin: 0; padding: 0; list-style: none; counter-reset: exd-step; display: flex; flex-direction: column; gap: 10px; }
   .exd-desc-list li {
-    counter-increment: exd-step; position: relative; padding-left: 30px;
-    font-size: 13px; line-height: 1.5; color: var(--text);
+    counter-increment: exd-step; position: relative; padding-left: 32px;
+    font-size: 13.5px; line-height: 1.5; color: var(--text);
   }
   .exd-desc-list li::before {
-    content: counter(exd-step); position: absolute; left: 0; top: -1px;
-    width: 20px; height: 20px; border-radius: 7px;
+    content: counter(exd-step); position: absolute; left: 0; top: 1px;
+    width: 22px; height: 22px; border-radius: 7px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--blue-bg); color: var(--blue); font-size: 10.5px; font-weight: 800;
+    background: var(--blue-bg); color: var(--blue); font-size: 12px; font-weight: 800;
   }
 
   .split-week-tabs { display: flex; gap: 5px; margin-bottom: 16px; }
@@ -1328,7 +1357,11 @@
     position: relative;
     flex-shrink: 0;
     line-height: 0;
+    cursor: pointer;
+    transition: transform 0.16s ease;
   }
+  .wl-entry-iconwrap:hover { transform: scale(1.06); }
+  .wl-entry-iconwrap:active { transform: scale(0.92); }
   .wl-entry-icon {
     width: 44px;
     height: 44px;
@@ -1553,6 +1586,7 @@
 <script>
   const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
   const EXERCISE_DETAILS = {{ exercise_details | tojson }};
+  const EXERCISE_VIDEOS = {{ exercise_videos | tojson }};
   const EXERCISE_CATEGORIES = {{ exercise_categories | tojson }};
   const EXERCISE_ICONS = {{ exercise_icons | tojson }};
   // Exercises that can be logged one side at a time (see UNILATERAL_EXERCISES
@@ -1684,32 +1718,74 @@
 
   function openExerciseDetailModal(name) {
     const detail = exerciseDetail(name);
+    const vidId = EXERCISE_VIDEOS ? EXERCISE_VIDEOS[name] : null;
+
     exdEmojiEl.innerHTML = exerciseIconHtml(name);
     exdTitleEl.textContent = name;
-    // Built as real <li> nodes via textContent (not innerHTML) so each
-    // step's text is never parsed as markup, same guarantee textContent
-    // gave the old single-paragraph rendering.
+
+    const videoContainer = document.getElementById("exd-video-container");
+    if (videoContainer) {
+      if (vidId) {
+        videoContainer.innerHTML = `
+          <div class="exd-video-wrap">
+            <iframe class="exd-video-iframe" src="https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&rel=0&modestbranding=1" title="${escapeAttr(name)} Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+          </div>
+        `;
+      } else {
+        const query = encodeURIComponent(`${name} proper form tutorial`);
+        videoContainer.innerHTML = `
+          <div class="exd-video-wrap">
+            <iframe class="exd-video-iframe" src="https://www.youtube-nocookie.com/embed?listType=search&list=${query}" title="${escapeAttr(name)} Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+          </div>
+        `;
+      }
+    }
+
     exdDescEl.innerHTML = "";
     detail.description.forEach((step) => {
       const li = document.createElement("li");
       li.textContent = step;
       exdDescEl.appendChild(li);
     });
+
     exdVideoLink.href = youtubeSearchUrl(name);
-    exdOverlay.style.display = "flex";
+
+    if (window.openBottomSheet) {
+      window.openBottomSheet(exdOverlay, ".exd-modal");
+    } else {
+      exdOverlay.classList.add("is-open");
+    }
   }
+
   function closeExerciseDetailModal() {
-    exdOverlay.style.display = "none";
+    if (window.closeBottomSheet) {
+      window.closeBottomSheet(exdOverlay, ".exd-modal", () => {
+        const videoContainer = document.getElementById("exd-video-container");
+        if (videoContainer) videoContainer.innerHTML = "";
+      });
+    } else {
+      exdOverlay.classList.remove("is-open");
+      const videoContainer = document.getElementById("exd-video-container");
+      if (videoContainer) videoContainer.innerHTML = "";
+    }
   }
+
+  if (window.bindSheetDrag) {
+    window.bindSheetDrag(exdOverlay, ".exd-modal", ".exd-modal-handle", closeExerciseDetailModal);
+  }
+
   exdCloseBtn.addEventListener("click", closeExerciseDetailModal);
   exdOverlay.addEventListener("click", (event) => {
     if (event.target === exdOverlay) closeExerciseDetailModal();
   });
-  // Delegated on <body> so it works no matter which parent re-renders
-  // the chip (split wizard modal vs. the Today's plan card).
+
   document.body.addEventListener("click", (event) => {
-    const chip = event.target.closest("[data-exercise-detail]");
-    if (chip) openExerciseDetailModal(chip.dataset.exerciseDetail);
+    const chip = event.target.closest("[data-exercise-detail], [data-exercise-video]");
+    if (chip) {
+      event.stopPropagation();
+      const name = chip.dataset.exerciseDetail || chip.dataset.exerciseVideo;
+      if (name) openExerciseDetailModal(name);
+    }
   });
 
   // ---------- Split wizard review step: per-exercise sets/reps editor ----------
@@ -2017,7 +2093,7 @@
         </button>
         <div class="wl-swipe-content">
           <div class="wl-entry-card ${complete ? "is-complete" : ""}" data-toggle-entry="${entry.id}">
-            <div class="wl-entry-iconwrap"><div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}</div><span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
+            <div class="wl-entry-iconwrap" data-exercise-video="${escapeAttr(entry.exercise)}" title="Watch video & tutorial"><div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}</div><span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
             <div class="wl-entry-info">
               <div class="wl-entry-name">${entry.exercise}</div>
               <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry)}</div>
@@ -2230,6 +2306,15 @@
   }
 
   function wireTimelineEvents() {
+    dayEl.querySelectorAll("[data-exercise-video]").forEach((iconWrap) => {
+      iconWrap.addEventListener("click", (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        const name = iconWrap.dataset.exerciseVideo;
+        if (name) openExerciseDetailModal(name);
+      });
+    });
+
     // Clicking anywhere on the card (except the inputs/buttons inside the
     // expanded detail) minimizes/expands that exercise.
     dayEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
