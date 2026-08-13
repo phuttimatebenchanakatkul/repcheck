@@ -2,6 +2,30 @@
 
 ## Workouts
 
+### Edited sets/reps in the review step's exercise editor are a write-only round-trip
+
+**What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `openEditSplitModal()` (re-opening "Edit split" on an existing plan) rehydrates `splitWizard` from the saved plan's `days`/`goal`/etc. but never reads `exercisePrescriptions` back into the in-memory map, and `renderSplitStepReview()` unconditionally resets it to `{}` on every entry regardless of whether the plan already had customizations.
+
+**Why:** A user can tap an exercise, edit sets/reps, watch the box turn amber ("edited"), tap Save -- and that customization is never shown anywhere again. Re-opening "Edit split" silently discards it with no warning. The amber-highlight/reset-to-standard UI strongly implies the intent was for this to be the plan's real, persisted sets/reps, not a value that's saved but functionally inert.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Not fixed in that branch because closing the loop is a product decision, not a one-line fix: does `getSetsRepsText`'s "N sets • X-Y reps" range-display format even make sense to replace with a specific `sets×reps` once customized? Does `openEditSplitModal()` need to seed `exercisePrescriptions` from the saved plan, and does the exact-match `prescriptionKey(label, name)` lookup still make sense once a plan has been edited and re-saved (label reuse across regenerations)?
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Same exercise appearing twice in one generated day would share one prescription
+
+**What:** `getPrescription(label, name)` (`templates/workouts.html`) keys only by `(label, name)`. If `day.exercises` ever contains the same exercise name twice for one day, both instances would share one prescription object and edit in lockstep with no UI indication. The self-build exercise picker structurally prevents this (uses a `Set`), but the AI-suggest path's generated days (`split_planner.py`, not audited here) haven't been checked for whether the server can ever emit a duplicate exercise name within one day.
+
+**Why:** Low-probability, not attacker-facing (the user's own data), but would read as a confusing bug if it ever happened -- editing one instance's sets/reps would silently change the other's too.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Needs a check against `split_planner.py`'s generation logic, which is outside that branch's changed files.
+
+**Effort:** S (once confirmed whether it can actually happen)
+**Priority:** P3
+**Depends on:** None
+
 ### Rapid double-tap on a sheet-opening button can leak a scroll-lock
 
 **What:** `window.openBottomSheet()` (`base.html`) defers adding its `is-open` class by two `requestAnimationFrame` calls (a standard technique to force a reflow before the CSS transition starts). Any code that guards against double-opening by checking for that class -- e.g. `openSplitModalOverlay()` in `templates/workouts.html` -- has a ~16-33ms window where a second call won't see it yet, double-incrementing `window.__pcSheetLockCount`. Since it's only ever decremented once per close, this leaves body scroll locked (`position: fixed`) permanently after the sheet closes, recoverable only by a page reload.
