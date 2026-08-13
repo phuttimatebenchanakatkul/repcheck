@@ -69,9 +69,6 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   const I18N = {
     "workouts.wizard.assignWeekTitle": "Assign your week",
     "workouts.wizard.chooseWorkoutDays": "Choose which day you want to workout",
-    "workouts.wizard.tapDayHint": "Tap a day to see it. Tap it again to change what's scheduled.",
-    "workouts.wizard.yourSplit": "Your {n}-day split",
-    "workouts.wizard.exerciseCount": "{n} exercises",
     "workouts.wizard.restDayNote": "Recovery day — nothing scheduled.",
     "workouts.wizard.howToPerform": "How to perform →",
     "workouts.wizard.whyThisSchedule": "Why this schedule:",

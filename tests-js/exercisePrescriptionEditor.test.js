@@ -85,6 +85,33 @@ describe("exercise prescription editor — editing", () => {
 
     expect(ed.getPrescription("Push", "Bench Press").sets).toBe(4); // untouched
   });
+
+  it("clamps a typed value past the input's own max to the stored prescription", () => {
+    // Regression: a typed value (unlike a spinner click) isn't clamped by
+    // the browser on its own -- sets-input has max="20", reps-input max="50".
+    const ed = loadExercisePrescriptionEditor();
+    ed.openExercisePrescriptionEditor("Push", "Bench Press");
+
+    ed.setsInput.value = "999";
+    ed.setsInput.dispatchEvent(new Event("input"));
+    expect(ed.getPrescription("Push", "Bench Press").sets).toBe(20); // clamped to max
+
+    ed.repsInput.value = "500";
+    ed.repsInput.dispatchEvent(new Event("input"));
+    expect(ed.getPrescription("Push", "Bench Press").reps).toBe(50); // clamped to max
+  });
+
+  it("doesn't overwrite the visible input while typing, but snaps it to the clamped value on blur", () => {
+    const ed = loadExercisePrescriptionEditor();
+    ed.openExercisePrescriptionEditor("Push", "Bench Press");
+
+    ed.setsInput.value = "999";
+    ed.setsInput.dispatchEvent(new Event("input"));
+    expect(ed.setsInput.value).toBe("999"); // not fought mid-keystroke
+
+    ed.setsInput.dispatchEvent(new Event("blur"));
+    expect(ed.setsInput.value).toBe("20"); // corrected once the user leaves the field
+  });
 });
 
 describe("exercise prescription editor — reset", () => {

@@ -1707,22 +1707,32 @@
     // it needs to reflect whatever was just edited.
     if (reviewRerenderCarousel) reviewRerenderCarousel();
   }
-  exEditorSetsInput.addEventListener("input", (event) => {
-    if (!exEditorCurrent) return;
-    const v = parseInt(event.target.value, 10);
-    if (Number.isFinite(v) && v > 0) {
-      getPrescription(exEditorCurrent.label, exEditorCurrent.name).sets = v;
-      refreshExEditorScaledState();
-    }
-  });
-  exEditorRepsInput.addEventListener("input", (event) => {
-    if (!exEditorCurrent) return;
-    const v = parseInt(event.target.value, 10);
-    if (Number.isFinite(v) && v > 0) {
-      getPrescription(exEditorCurrent.label, exEditorCurrent.name).reps = v;
-      refreshExEditorScaledState();
-    }
-  });
+  // Shared between the sets and reps inputs -- identical besides which
+  // prescription property they write and which input's own min/max they
+  // enforce. Clamps the STORED value to the input's declared max (a typed
+  // value, unlike a spinner click, isn't clamped by the browser on its
+  // own) without fighting the user mid-keystroke: the visible field keeps
+  // showing whatever they typed until blur, when it snaps to the clamped
+  // stored value -- so typing "1", "10", "100" never gets a digit silently
+  // overwritten out from under them, but the number that ends up saved is
+  // always in range.
+  function wireEditorInput(inputEl, prop) {
+    const max = Number(inputEl.max) || Infinity;
+    inputEl.addEventListener("input", (event) => {
+      if (!exEditorCurrent) return;
+      const v = parseInt(event.target.value, 10);
+      if (Number.isFinite(v) && v > 0) {
+        getPrescription(exEditorCurrent.label, exEditorCurrent.name)[prop] = Math.min(v, max);
+        refreshExEditorScaledState();
+      }
+    });
+    inputEl.addEventListener("blur", () => {
+      if (!exEditorCurrent) return;
+      inputEl.value = getPrescription(exEditorCurrent.label, exEditorCurrent.name)[prop];
+    });
+  }
+  wireEditorInput(exEditorSetsInput, "sets");
+  wireEditorInput(exEditorRepsInput, "reps");
   exEditorReset.addEventListener("click", () => {
     if (!exEditorCurrent) return;
     const std = getSetsRepsDefault(exEditorCurrent.name);
@@ -2648,26 +2658,34 @@
   // No prescribed set/rep data exists per exercise anywhere in the app --
   // this buckets by movement pattern the same way a coach would default
   // them, purely for the "N sets • X-Y reps" line under each name.
-  function getSetsRepsText(name) {
-    const lower = name.toLowerCase();
-    if (/lateral raise|rear delt|face pull|front raise/.test(lower)) return "3 sets • 12-15 reps";
-    if (/curl|extension|pushdown|crusher|kickback|fly|flye|shrug|calf raise/.test(lower)) return "3 sets • 10-12 reps";
-    if (/^(flat bench press|overhead press|barbell row|deadlift|back squat|front squat)$/.test(lower)) return "4 sets • 6-8 reps";
-    if (/press|squat|deadlift|row|pull-?up|lat pulldown|leg press/.test(lower)) return "4 sets • 8-10 reps";
-    return "3 sets • 10-12 reps";
-  }
+  // Single source of truth for the sets/reps buckets -- getSetsRepsText()
+  // (the "N sets • X-Y reps" display string) and getSetsRepsDefault() (the
+  // review step's editable numeric starting point) used to hand-duplicate
+  // this same 4-branch regex chain, which could silently desync if only one
+  // copy was ever updated. First matching bucket wins; order matters.
+  const SETS_REPS_BUCKETS = [
+    { test: /lateral raise|rear delt|face pull|front raise/, sets: 3, repsLow: 12, repsHigh: 15 },
+    { test: /curl|extension|pushdown|crusher|kickback|fly|flye|shrug|calf raise/, sets: 3, repsLow: 10, repsHigh: 12 },
+    { test: /^(flat bench press|overhead press|barbell row|deadlift|back squat|front squat)$/, sets: 4, repsLow: 6, repsHigh: 8 },
+    { test: /press|squat|deadlift|row|pull-?up|lat pulldown|leg press/, sets: 4, repsLow: 8, repsHigh: 10 },
+  ];
+  const SETS_REPS_FALLBACK = { sets: 3, repsLow: 10, repsHigh: 12 };
 
+  function getSetsRepsBucket(name) {
+    const lower = name.toLowerCase();
+    return SETS_REPS_BUCKETS.find((bucket) => bucket.test.test(lower)) || SETS_REPS_FALLBACK;
+  }
+  function getSetsRepsText(name) {
+    const b = getSetsRepsBucket(name);
+    return `${b.sets} sets • ${b.repsLow}-${b.repsHigh} reps`;
+  }
   // Numeric twin of getSetsRepsText() above, for the review step's editable
   // sets/reps boxes -- same buckets, but a single starting rep count (the
-  // low end of the displayed range) instead of a "X-Y" string, since an
-  // editable number field needs one value to start from.
+  // low end of the range) instead of a "X-Y" string, since an editable
+  // number field needs one value to start from.
   function getSetsRepsDefault(name) {
-    const lower = name.toLowerCase();
-    if (/lateral raise|rear delt|face pull|front raise/.test(lower)) return { sets: 3, reps: 12 };
-    if (/curl|extension|pushdown|crusher|kickback|fly|flye|shrug|calf raise/.test(lower)) return { sets: 3, reps: 10 };
-    if (/^(flat bench press|overhead press|barbell row|deadlift|back squat|front squat)$/.test(lower)) return { sets: 4, reps: 6 };
-    if (/press|squat|deadlift|row|pull-?up|lat pulldown|leg press/.test(lower)) return { sets: 4, reps: 8 };
-    return { sets: 3, reps: 10 };
+    const b = getSetsRepsBucket(name);
+    return { sets: b.sets, reps: b.repsLow };
   }
 
   function renderTodaysPlanCard() {
