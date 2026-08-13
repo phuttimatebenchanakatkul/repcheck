@@ -104,4 +104,28 @@ describe("RepCheckNutritionMacros.sumMacrosForDay() vs nutrition.html's real ren
     expect(sumMacrosForDay([]).calories).toBe(0);
     expect(sumMacrosForDay(undefined).calories).toBe(0);
   });
+
+  it("a malformed entry contributes 0, not NaN, and doesn't poison the rest of the day", () => {
+    // Regression: adversarial review flagged that consolidating three
+    // independent implementations into this shared function widened the
+    // blast radius of a bad entry -- before, only nutrition.html could be
+    // corrupted by a NaN field; now home.html, full_stats.html, and
+    // coaching.js all read this same total.
+    const entries = [
+      { grams: 150, baseCalories: 240, baseProtein: 20, baseFat: 8, baseCarbs: 15 },
+      { grams: 100, baseCalories: undefined, baseProtein: "not-a-number", baseFat: null, baseCarbs: 5 },
+    ];
+
+    const eaten = sumMacrosForDay(entries);
+
+    expect(Number.isFinite(eaten.calories)).toBe(true);
+    expect(Number.isFinite(eaten.protein)).toBe(true);
+    expect(Number.isFinite(eaten.fat)).toBe(true);
+    expect(Number.isFinite(eaten.carbs)).toBe(true);
+    // The good entry's contribution (240 cal @ 150g = 360) must survive
+    // intact -- the bad entry contributes 0 for its malformed fields, not
+    // NaN, so it doesn't zero out or NaN the whole day.
+    expect(eaten.calories).toBe(360);
+    expect(eaten.protein).toBe(30);
+  });
 });

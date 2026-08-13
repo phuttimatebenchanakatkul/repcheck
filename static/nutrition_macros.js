@@ -23,6 +23,17 @@
 (function (global) {
   "use strict";
 
+  // Coerces to a finite number, defaulting to 0 -- a single malformed/
+  // missing field (bad sync, corrupted localStorage, a future code path
+  // that forgets to set one) now feeds THREE pages via this shared
+  // function instead of just nutrition.html, so one bad entry contributing
+  // 0 instead of NaN keeps the rest of the day's total (and the other
+  // entries' contributions) intact rather than poisoning the whole sum.
+  function num(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
   function sumMacrosForDay(entries) {
     const totals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
     if (!Array.isArray(entries)) return totals;
@@ -30,11 +41,11 @@
       const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
       const raw = { calories: 0, protein: 0, fat: 0, carbs: 0 };
       items.forEach((item) => {
-        const scale = item.grams / 100;
-        raw.calories += item.baseCalories * scale;
-        raw.protein += item.baseProtein * scale;
-        raw.fat += item.baseFat * scale;
-        raw.carbs += item.baseCarbs * scale;
+        const scale = num(item.grams) / 100;
+        raw.calories += num(item.baseCalories) * scale;
+        raw.protein += num(item.baseProtein) * scale;
+        raw.fat += num(item.baseFat) * scale;
+        raw.carbs += num(item.baseCarbs) * scale;
       });
       totals.calories += Math.round(raw.calories);
       totals.protein += Math.round(raw.protein);
