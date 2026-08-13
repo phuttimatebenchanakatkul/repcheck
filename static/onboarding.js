@@ -510,7 +510,7 @@
           <label for="ob-rate-slider">${label} <span id="ob-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
           <input type="range" id="ob-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
           <div class="ob-field-hint" id="ob-rate-hint"></div>
-          <div class="ob-field-hint" id="ob-rate-eta"></div>
+          <div class="ob-eta-card" id="ob-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
         </div>
       `);
       const slider = rateField.querySelector("#ob-rate-slider");
@@ -526,10 +526,16 @@
             })
           : "";
       };
+      // Shown as a card (see .ob-eta-card in onboarding.html), not the
+      // plain hint text the other fields use -- the goal date is the one
+      // number in this step worth a user's eye landing on it first, so it
+      // gets its own visually distinct treatment. The card hides itself via
+      // CSS's :empty selector when there's nothing to show, so this only
+      // ever needs to set/clear textContent, same as every other hint here.
       updateRateEta = () => {
         const eta = estimateGoalDate(w.weightKg, w.goalWeightKg, w[rateKey]);
         etaEl.textContent = eta
-          ? t("coaching.wizard.rateEta", { date: eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }) })
+          ? eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" })
           : "";
       };
       slider.addEventListener("input", (e) => {

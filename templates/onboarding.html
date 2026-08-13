@@ -142,6 +142,14 @@
       accent-color: var(--blue); height: 22px; cursor: pointer;
     }
     .ob-field-hint { font-size: 12px; color: var(--text-secondary); margin-top: 8px; min-height: 14px; }
+    /* Card treatment for the goal-date estimate -- collapses to nothing via
+       :empty when there's no estimate yet, so the JS side only ever sets or
+       clears textContent, same as every other hint in this step. */
+    .ob-eta-card:not(:empty) {
+      margin-top: 8px; padding: 12px 14px; border-radius: 14px; background: var(--green-bg); text-align: center;
+      font-size: 16px; font-weight: 800; color: var(--green); letter-spacing: -0.01em;
+    }
+    .ob-eta-card:not(:empty)::after { content: attr(data-label); display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); margin-top: 3px; }
     .ob-goal-textarea {
       width: 100%; min-height: 120px; padding: 13px 15px; border: 1.5px solid var(--border);
       background: var(--bg); color: var(--text); border-radius: 14px; font-size: 14px; font-family: inherit;

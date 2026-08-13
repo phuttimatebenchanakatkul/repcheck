@@ -1723,7 +1723,7 @@
             <label for="pc-rate-slider">${label} <span id="pc-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
             <input type="range" id="pc-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
             <div class="pc-field-hint" id="pc-rate-hint"></div>
-            <div class="pc-field-hint" id="pc-rate-eta"></div>
+            <div class="pc-eta-card" id="pc-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
           </div>
         `);
         const slider = rateField.querySelector("#pc-rate-slider");
@@ -1739,10 +1739,13 @@
               })
             : "";
         };
+        // Card treatment (see .pc-eta-card in coaching.css), same reasoning
+        // as onboarding.js's identical field -- hides itself via CSS's
+        // :empty selector, so this only ever sets/clears textContent.
         updateRateEta = () => {
           const eta = estimateGoalDate(w.weightKg, w.goalWeightKg, w[rateKey]);
           etaEl.textContent = eta
-            ? t("coaching.wizard.rateEta", { date: eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }) })
+            ? eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" })
             : "";
         };
         slider.addEventListener("click", (e) => e.stopPropagation());
