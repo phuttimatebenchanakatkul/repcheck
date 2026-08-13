@@ -114,4 +114,18 @@
 
 **Effort:** S
 **Priority:** P2
+
+## Nutrition
+
+### Nutrition log entries aren't validated for numeric shape server-side
+
+**What:** `POST /api/nutrition/log-entry` (`app.py`'s `api_nutrition_log_entry()`) only checks that `entry` is a dict with a truthy `id` before persisting it via `append_nutrition_log_entry()` (`database.py`). It never validates that `grams`/`baseCalories`/`baseProtein`/`baseFat`/`baseCarbs` exist or are numeric.
+
+**Why:** A malformed entry (buggy import path, tampered localStorage synced up via `account_sync.js`, a future code path that forgets a field) is accepted and stored as-is, then synced to every device. `static/nutrition_macros.js`'s `sumMacrosForDay()` now guards against this client-side (coerces bad fields to 0 instead of NaN-poisoning the day total), but that's a display-layer mitigation, not a data-integrity fix -- the bad entry is still persisted and re-served to every consumer.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `fix/homepage-nutrition-calorie-mismatch`. Deferred because it's a server-side schema-validation decision independent of that branch's client-side calorie-math fix, and needs a call on where in the stack to enforce it (route-level schema check vs. a shared validator also used by other nutrition-log write paths).
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
 **Depends on:** None
