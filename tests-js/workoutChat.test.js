@@ -206,6 +206,61 @@ describe("sendMessage", () => {
   });
 });
 
+describe("renderSuggestions", () => {
+  it("sends the suggestion text as a message when a suggestion chip is clicked", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      json: async () => ({ ok: true, reply: "ok", limited: false, retry_after_seconds: 0 }),
+    });
+    const { renderSuggestions, dom } = loadWorkoutChat({ fetchImpl });
+
+    renderSuggestions();
+    const chip = dom.suggestionsEl.querySelector("[data-suggestion]");
+    expect(chip).not.toBeNull();
+    chip.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [, options] = fetchImpl.mock.calls[0];
+    expect(JSON.parse(options.body).message).toBe(chip.dataset.suggestion);
+  });
+});
+
+describe("clear chat button", () => {
+  it("wipes the conversation from state and localStorage on click", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      json: async () => ({ ok: true, reply: "hi", limited: false, retry_after_seconds: 0 }),
+    });
+    const { sendMessage, dom, getChatHistory } = loadWorkoutChat({ fetchImpl });
+    dom.inputEl.value = "hello";
+    await sendMessage();
+    expect(getChatHistory().length).toBeGreaterThan(0);
+
+    dom.clearBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(getChatHistory()).toEqual([]);
+    expect(JSON.parse(localStorage.getItem("repcheck_workout_chat_v1"))).toEqual([]);
+  });
+});
+
+describe("sendMessage double-submit guard", () => {
+  it("ignores a second send while the first request is still in flight", async () => {
+    let resolveFetch;
+    const fetchImpl = vi.fn(() => new Promise((resolve) => { resolveFetch = resolve; }));
+    const { sendMessage, dom } = loadWorkoutChat({ fetchImpl });
+
+    dom.inputEl.value = "first";
+    const p1 = sendMessage();
+    dom.inputEl.value = "second";
+    const p2 = sendMessage(); // isSending is already true -- should be a no-op
+
+    resolveFetch({ json: async () => ({ ok: true, reply: "ok", limited: false, retry_after_seconds: 0 }) });
+    await Promise.all([p1, p2]);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("applyLimitLockout / formatCountdown", () => {
   beforeEach(() => {
     vi.useFakeTimers();

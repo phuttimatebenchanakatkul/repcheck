@@ -168,6 +168,16 @@ def test_history_role_mapping_matches_analyze_chat_convention(monkeypatch):
     assert roles == ["user", "model", "user"]
 
 
+def test_malformed_history_item_degrades_to_fallback_instead_of_raising(monkeypatch):
+    """History is client-supplied (localStorage) and re-sent verbatim, so a
+    non-dict entry (corrupted storage, a bad merge) must not 500 the route --
+    the whole content-building block is inside get_workout_chat_reply's
+    try/except, so this should degrade exactly like a Gemini failure."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    result = get_workout_chat_reply("hi", ["not-a-dict", {"role": "user", "text": "ok"}], {})
+    assert "isn't reachable" in result["reply"]
+
+
 # ---------- the HTTP surface ----------
 
 @pytest.fixture
