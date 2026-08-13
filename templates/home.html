@@ -396,21 +396,10 @@
       return { label, exercises: day.exercises };
     }
 
-    function sumMacrosForDay(entries) {
-      const totals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
-      if (!Array.isArray(entries)) return totals;
-      entries.forEach((entry) => {
-        const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
-        items.forEach((item) => {
-          const scale = item.grams / 100;
-          totals.calories += item.baseCalories * scale;
-          totals.protein += item.baseProtein * scale;
-          totals.fat += item.baseFat * scale;
-          totals.carbs += item.baseCarbs * scale;
-        });
-      });
-      return totals;
-    }
+    // sumMacrosForDay() lives in static/nutrition_macros.js -- shared with
+    // full_stats.html so the two can't silently drift from each other (or
+    // from templates/nutrition.html's own rounding) the way they did before.
+    const sumMacrosForDay = RepCheckNutritionMacros.sumMacrosForDay;
 
     // ---------- Calories & macros summary card ----------
     // Today's totals as 4 color-coded bars, each filled relative to its

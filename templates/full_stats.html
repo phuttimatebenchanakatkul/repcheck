@@ -150,21 +150,10 @@
     const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
     const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
 
-    function sumMacrosForDay(entries) {
-      const totals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
-      if (!Array.isArray(entries)) return totals;
-      entries.forEach((entry) => {
-        const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
-        items.forEach((item) => {
-          const scale = item.grams / 100;
-          totals.calories += item.baseCalories * scale;
-          totals.protein += item.baseProtein * scale;
-          totals.fat += item.baseFat * scale;
-          totals.carbs += item.baseCarbs * scale;
-        });
-      });
-      return totals;
-    }
+    // sumMacrosForDay() lives in static/nutrition_macros.js -- shared with
+    // home.html so the two can't silently drift from each other (or from
+    // templates/nutrition.html's own rounding) the way they did before.
+    const sumMacrosForDay = RepCheckNutritionMacros.sumMacrosForDay;
 
     // A day counts as "on target" within this fraction of the calorie goal.
     // Hitting a macro goal to the calorie is not a thing anyone does, so a
