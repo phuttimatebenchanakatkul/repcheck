@@ -150,10 +150,10 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "renderTodaysPlanCard",
     "openExercisePrescriptionEditor",
     "splitWizard",
-    `${source}\nreturn { renderSplitStepReview };`
+    `${source}\nreturn { renderSplitStepReview, prescriptionKey, getPrescription };`
   );
 
-  const { renderSplitStepReview } = factory(
+  const { renderSplitStepReview, prescriptionKey, getPrescription } = factory(
     WEEKDAY_NAMES,
     SPLIT_PLAN_KEY,
     splitModalTitle,
@@ -170,5 +170,5 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     splitWizard
   );
 
-  return { renderSplitStepReview, splitModalBody, splitModalTitle, splitWizard, calls, SPLIT_PLAN_KEY };
+  return { renderSplitStepReview, prescriptionKey, getPrescription, splitModalBody, splitModalTitle, splitWizard, calls, SPLIT_PLAN_KEY };
 }

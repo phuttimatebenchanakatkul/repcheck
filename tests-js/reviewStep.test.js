@@ -202,6 +202,30 @@ describe("renderSplitStepReview — exercise editor wiring", () => {
 
     expect(calls.editorOpenedWith).toEqual({ label: "Push", name: "Overhead Press" });
   });
+
+  it("a day label containing the old '::' join character doesn't collide with an unrelated exercise's prescription key", () => {
+    // Regression: prescriptionKey() used to join label+name with a bare
+    // "::" -- day labels are unrestricted free text (no maxlength, no
+    // character filter on #split-custom-input), so label="Push::Legs",
+    // name="Bench Press" produced the SAME key as label="Push",
+    // name="Legs::Bench Press". Two unrelated (day, exercise) pairs would
+    // silently share one prescription object. Testing the real
+    // prescriptionKey()/getPrescription() directly (not derived display
+    // text) since the exact sets/reps bucket values aren't the point here.
+    const { prescriptionKey, getPrescription } = loadReviewStep({
+      generatedDays: PPL_DAYS,
+      generatedSchedule: PPL_SCHEDULE,
+    });
+
+    const keyA = prescriptionKey("Push::Legs", "Bench Press");
+    const keyB = prescriptionKey("Push", "Legs::Bench Press");
+    expect(keyA).not.toBe(keyB);
+
+    const prescriptionA = getPrescription("Push::Legs", "Bench Press");
+    prescriptionA.sets = 99; // mutate A specifically
+    const prescriptionB = getPrescription("Push", "Legs::Bench Press");
+    expect(prescriptionB.sets).not.toBe(99); // B is a distinct object, unaffected by A's edit
+  });
 });
 
 describe("renderSplitStepReview — save", () => {

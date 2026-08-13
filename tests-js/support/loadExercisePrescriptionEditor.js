@@ -98,8 +98,11 @@ export function loadExercisePrescriptionEditor() {
     return /curl|pushdown|raise/i.test(name) ? { sets: 3, reps: 10 } : { sets: 4, reps: 8 };
   }
   const prescriptions = {};
+  // JSON.stringify, matching the real prescriptionKey() -- see its comment
+  // in templates/workouts.html for why a "::"-joined string collides on
+  // free-text day labels/exercise names.
   function getPrescription(label, name) {
-    const key = `${label}::${name}`;
+    const key = JSON.stringify([label, name]);
     if (!prescriptions[key]) prescriptions[key] = getSetsRepsDefault(name);
     return prescriptions[key];
   }

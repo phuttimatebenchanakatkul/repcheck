@@ -3519,7 +3519,15 @@
   let exercisePrescriptions = {};
   let reviewRerenderCarousel = null; // set each time the step renders; lets the editor modal refresh the row it just closed
 
-  function prescriptionKey(label, name) { return `${label}::${name}`; }
+  // JSON.stringify, not a "${label}::${name}" template string: day labels
+  // are unrestricted free text on the custom-split path (no maxlength, no
+  // character filter on #split-custom-input), so a label of literally
+  // "Push::Legs" would collide with label="Push", name="Legs::Bench" -- two
+  // unrelated (day, exercise) pairs silently sharing one prescription,
+  // caught by /ship's adversarial review. JSON.stringify's array form
+  // can't collide this way: ["Push::Legs","Bench"] and ["Push","Legs::Bench"]
+  // are different JSON strings no matter what either field contains.
+  function prescriptionKey(label, name) { return JSON.stringify([label, name]); }
   function getPrescription(label, name) {
     const key = prescriptionKey(label, name);
     if (!exercisePrescriptions[key]) exercisePrescriptions[key] = getSetsRepsDefault(name);
