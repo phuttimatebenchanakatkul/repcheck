@@ -49,6 +49,7 @@
 
 <div class="split-modal-overlay" id="split-modal-overlay" style="display:none;">
   <div class="split-modal">
+    <div class="split-modal-handle"></div>
     <div class="split-modal-header">
       <div class="split-modal-title" id="split-modal-title" data-i18n="workouts.wizard.title">Plan your split</div>
       <button type="button" class="ex-modal-close" id="split-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
@@ -594,27 +595,55 @@
   .ex-create-save:disabled { opacity: 0.6; cursor: default; }
   .ex-create-error { margin-top: 10px; font-size: 13px; color: var(--red); text-align: center; min-height: 18px; }
 
-  /* ---------- Split planner wizard modal ---------- */
+  /* ---------- Split planner wizard modal ----------
+     A real bottom sheet now, matching .log-sheet-overlay's pattern exactly
+     (see static/style.css) rather than the centered pop-in dialog this used
+     to be. No own backdrop scrim -- the page behind (.app) dims and recedes
+     on its own via the pc-sheet-active rule, same as every other sheet.
+     top/height track --pc-vvt/--pc-vvh (the real visible viewport, set in
+     base.html) rather than `inset: 0`, so an open keyboard doesn't push the
+     sheet's top edge off-screen. */
   .split-modal-overlay {
     position: fixed;
-    inset: 0;
-    background: rgba(15, 15, 20, 0.5);
+    left: 0;
+    right: 0;
+    top: var(--pc-vvt, 0px);
+    height: var(--pc-vvh, 100vh);
+    z-index: 400;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    z-index: 100;
-    padding: 16px;
-    animation: wl-pop-in 0.15s ease;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.46s ease;
   }
+  .split-modal-overlay.is-open,
+  .split-modal-overlay.is-in { opacity: 1; pointer-events: auto; }
   .split-modal {
+    pointer-events: auto;
     width: 100%;
     max-width: 480px;
-    max-height: 86vh;
+    max-height: calc(var(--pc-vvh, 100vh) * 0.86);
     background: var(--card-bg);
-    border-radius: var(--radius-lg);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.42);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transform: translateY(100%);
+    transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .split-modal-overlay.is-open .split-modal,
+  .split-modal-overlay.is-in .split-modal { transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .split-modal { transition: none; }
+  }
+  .split-modal-handle {
+    width: 38px; height: 5px;
+    border-radius: 999px;
+    background: var(--border);
+    margin: 9px auto 3px;
+    flex-shrink: 0;
   }
   .split-modal-header {
     display: flex;
@@ -2642,10 +2671,52 @@
   }
 
   function openSplitModal() {
-    splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
+    splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null, isEditingExistingPlan: false };
     splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
     openSplitModalOverlay();
     renderSplitStepMode();
+  }
+
+  // "Edit split" used to hand off to openSplitModal() -- the same blank
+  // slate as building one from scratch, mode selection and all, with
+  // whatever the user already had thrown away the moment they saved
+  // changes. This drops straight into the day/exercise editor
+  // (renderSplitStepType(), self-build's own screen) pre-loaded with the
+  // CURRENT plan, skipping mode selection and the split-type templates
+  // entirely -- there's nothing to choose, they're editing what they
+  // already have. Every add-a-day, remove-a-day, and pick-exercises
+  // control on that screen already works exactly like this by construction
+  // (canProceedFromType() and generatePlan() don't know or care whether
+  // the days it's looking at came from a template or an existing plan).
+  function openEditSplitModal() {
+    const plan = loadSplitPlan();
+    if (!plan) return;
+    const validTypeIds = getSplitTypes().map((st) => st.id);
+    splitWizard = {
+      mode: "self",
+      // Falls back to "custom" for anything that isn't one of the
+      // template ids (a hand-typed split, or a stored type this version
+      // of the template list no longer recognizes) -- the day list and
+      // its exercises are what's being edited, not which template card
+      // is highlighted, so an unrecognized type is harmless here.
+      type: validTypeIds.includes(plan.splitType) ? plan.splitType : "custom",
+      location: null,
+      customDays: plan.days.map((d) => d.label),
+      // Every day label in a saved plan is already unique -- both the
+      // AI-suggest templates (Push/Pull/Legs, ...) and the day-count
+      // picker's own collision guard (see applyDayCount()) guarantee
+      // it -- so keying by label can't silently merge two days here.
+      customDayExercises: Object.fromEntries(plan.days.map((d) => [d.label, [...d.exercises]])),
+      goal: plan.goal || "",
+      daysPerWeek: plan.days.length,
+      generatedDays: null,
+      generatedSchedule: null,
+      rationale: null,
+      isEditingExistingPlan: true,
+    };
+    splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
+    openSplitModalOverlay();
+    renderSplitStepType();
   }
 
   function closeSplitModal() {
@@ -2769,7 +2840,7 @@
         </div>
         <div class="split-custom-days" id="split-custom-days"></div>
       ` : ""}
-      <button type="button" class="split-primary-btn" id="split-next-btn" ${canProceedFromType() ? "" : "disabled"}>${(splitWizard.type === "custom" || selfBuild) ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
+      <button type="button" class="split-primary-btn" id="split-next-btn" ${canProceedFromType() ? "" : "disabled"}>${(splitWizard.type === "custom" || selfBuild) ? (splitWizard.isEditingExistingPlan ? t("workouts.wizard.saveChanges") : t("workouts.wizard.generatePlan")) : t("common.next")}</button>
     `;
     RepCheckI18n.applyI18n(splitModalBody);
 
@@ -3486,10 +3557,17 @@
         renderWholeSplitBody(plan);
       });
     });
-    document.getElementById("split-edit-from-view-btn").addEventListener("click", openSplitModal);
+    document.getElementById("split-edit-from-view-btn").addEventListener("click", openEditSplitModal);
   }
 
-  planBtnEl.addEventListener("click", openSplitModal);
+  // This button's own label already flips to "Edit split" once a plan
+  // exists (see renderTodaysPlanCard() above) -- the click handler needs
+  // to match that promise instead of always starting the blank-slate
+  // wizard regardless of what the label says.
+  planBtnEl.addEventListener("click", () => {
+    if (loadSplitPlan()) openEditSplitModal();
+    else openSplitModal();
+  });
   document.getElementById("wl-plan-title").addEventListener("click", renderWholeSplitView);
   splitModalClose.addEventListener("click", closeSplitModal);
   splitModalOverlay.addEventListener("click", (event) => {
