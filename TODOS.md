@@ -114,6 +114,7 @@
 
 **Effort:** S
 **Priority:** P2
+**Depends on:** None
 
 ## Nutrition
 
@@ -127,5 +128,4 @@
 
 **Effort:** S
 **Priority:** P2
-**Depends on:** None
 **Depends on:** None
