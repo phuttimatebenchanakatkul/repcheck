@@ -97,6 +97,37 @@
   </div>
 </div>
 
+<!-- Split wizard review step: tap an exercise to edit its sets/reps for
+     this generated day. Same big-number-as-input pattern as the Hyrox
+     weight/rounds editor (static/hyrox.css .hx-pro-weight-stat). -->
+<div class="split-ex-editor-overlay" id="split-ex-editor-overlay">
+  <div class="split-ex-editor-modal">
+    <div class="split-ex-editor-head">
+      <div class="split-ex-editor-title-row">
+        <span class="split-ex-editor-icon" id="split-ex-editor-icon"></span>
+        <span class="split-ex-editor-title" id="split-ex-editor-title"></span>
+      </div>
+      <button type="button" class="split-ex-editor-close" id="split-ex-editor-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="split-ex-editor-body">
+      <div class="split-ex-editor-stats">
+        <div class="split-ex-editor-stat" id="split-ex-editor-sets-box">
+          <input type="number" class="split-ex-editor-input" id="split-ex-editor-sets-input" min="1" max="20">
+          <div class="split-ex-editor-label" id="split-ex-editor-sets-label"></div>
+          <div class="split-ex-editor-base" id="split-ex-editor-sets-base"></div>
+        </div>
+        <div class="split-ex-editor-stat" id="split-ex-editor-reps-box">
+          <input type="number" class="split-ex-editor-input" id="split-ex-editor-reps-input" min="1" max="50">
+          <div class="split-ex-editor-label" id="split-ex-editor-reps-label"></div>
+          <div class="split-ex-editor-base" id="split-ex-editor-reps-base"></div>
+        </div>
+      </div>
+      <button type="button" class="split-ex-editor-reset" id="split-ex-editor-reset"></button>
+      <button type="button" class="split-ex-editor-howto" id="split-ex-editor-howto"></button>
+    </div>
+  </div>
+</div>
+
 <!-- Confirm-before-delete dialog for the swipe-to-delete gesture on a
      logged exercise (see wireSwipeToDelete). Deliberately a real confirm
      step, not an instant delete, so a stray swipe + tap can't wipe a set. -->
@@ -847,111 +878,141 @@
 
   .split-loading { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 13px; }
 
-  /* ---------- Review step: the whole week as one grid, plus a day drawer ----------
-     This replaces a stack of every day's exercises followed by seven
-     <select> rows. Both the schedule and the session you're inspecting now
-     fit above the fold: colour identifies a day type, the legend maps
-     colour back to its label, and only the selected day's exercises are
-     expanded. --day-accent / --day-accent-bg are set inline per element,
+  /* ---------- Review step: one day at a time, carousel-style ----------
+     Replaced the whole-week grid + colour legend + separate day drawer
+     (three things a first-time user had to cross-reference) with a single
+     focused card: one day's name, its split-type pill, and that day's
+     exercises, with prev/next arrows and a row of dots for the rest of the
+     week. --day-accent / --day-accent-bg are set inline per element,
      because day labels are arbitrary text and can't have static classes. */
-  .split-week-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
+  .split-carousel {
     background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 12px 8px;
+    border-radius: var(--radius-lg);
+    padding: 16px;
   }
-  .split-week-cell {
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
-    background: none; border: none; padding: 0; min-width: 0;
-    cursor: pointer; font-family: inherit;
-  }
-  .split-week-cell-dow { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
-  .split-week-cell-swatch {
-    width: 100%; aspect-ratio: 1; border-radius: 9px;
+  .split-carousel-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .split-carousel-arrow {
+    width: 34px; height: 34px; border-radius: 50%; border: none; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    /* Sized for the 2-character worst case at ~35px wide (a 320px phone). */
-    font-size: 11.5px; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
-    color: var(--day-ink, #fff);
-    background: var(--day-accent, var(--border));
+    background: var(--bg); color: var(--text-secondary); cursor: pointer;
   }
-  .split-week-cell-swatch.is-rest {
-    background: var(--bg);
-    border: 1px dashed var(--border);
-    color: var(--text-secondary);
-  }
-  .split-week-cell.is-selected .split-week-cell-swatch {
-    box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--blue);
-  }
-  .split-week-cell:hover:not(.is-selected) .split-week-cell-swatch { box-shadow: 0 0 0 2px var(--border); }
-  .split-week-cell:active .split-week-cell-swatch { transform: scale(0.94); }
-
-  .split-week-legend {
-    display: flex; flex-wrap: wrap; gap: 10px;
-    margin: 10px 0 6px; font-size: 11px; color: var(--text-secondary);
-  }
-  .split-week-legend span { display: flex; align-items: center; gap: 5px; }
-  .split-week-legend i {
-    width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0;
-    background: var(--day-accent, var(--border));
-  }
-  .split-week-legend i.is-rest { background: var(--bg); border: 1px dashed var(--border); }
-
-  .split-day-drawer {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 14px 14px 4px;
-  }
-  .split-day-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .split-day-drawer-title { font-size: 14px; font-weight: 700; }
-  .split-day-drawer-pill {
-    font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
-    white-space: nowrap;
+  .split-carousel-arrow:hover { color: var(--text); }
+  .split-carousel-arrow:active { transform: scale(0.92); }
+  .split-carousel-heading { flex: 1; min-width: 0; text-align: center; }
+  .split-carousel-day { font-size: 16px; font-weight: 700; }
+  .split-carousel-pill {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+    font-size: 11px; font-weight: 700; padding: 3px 9px 3px 10px; border-radius: 999px;
+    white-space: nowrap; border: none; cursor: pointer; font-family: inherit;
     background: var(--day-accent-bg, var(--sidebar-active));
     /* --text, not the accent: accent-on-accent-bg is only ~3.2:1 in dark theme. */
     color: var(--text);
   }
-  .split-day-drawer-sub { font-size: 11px; color: var(--text-secondary); margin: 4px 0 2px; }
-  .split-day-rest-note { font-size: 12.5px; color: var(--text-secondary); padding: 10px 0 12px; }
+  .split-carousel-pill:hover { filter: brightness(0.96); }
+  :root[data-theme="dark"] .split-carousel-pill:hover { filter: brightness(1.2); }
+  .split-carousel-pill svg { flex-shrink: 0; opacity: 0.6; }
 
-  /* Sets and reps sit in the collapsed row on purpose — that's the thing
-     you're reviewing, so it shouldn't cost a tap. The expander holds the
-     description and demo link, which are reference material. */
-  .split-ex-row { border-top: 1px solid var(--border); }
-  .split-ex-row:first-of-type { border-top: none; }
-  .split-ex-main {
-    display: flex; align-items: center; gap: 11px; width: 100%;
-    background: none; border: none; padding: 10px 0;
-    cursor: pointer; font-family: inherit; text-align: left; color: var(--text);
+  .split-carousel-dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 2px; }
+  .split-carousel-dot {
+    width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+    background: var(--day-accent, var(--border));
   }
-  .split-ex-main:hover .split-ex-name { color: var(--blue); }
+  .split-carousel-dot.is-active { width: 18px; border-radius: 4px; }
+
+  .split-day-rest-note { font-size: 12.5px; color: var(--text-secondary); padding: 20px 0 8px; text-align: center; }
+
+  .split-ex-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .split-ex-row {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    background: var(--bg); border: none; border-radius: var(--radius-md);
+    padding: 9px 11px; cursor: pointer; font-family: inherit; text-align: left; color: var(--text);
+  }
+  .split-ex-row:hover { filter: brightness(0.98); }
+  :root[data-theme="dark"] .split-ex-row:hover { filter: brightness(1.12); }
   .split-ex-emoji {
     display: inline-flex; align-items: center; justify-content: center;
     width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; overflow: hidden;
-    background: var(--day-accent-bg, var(--bg)); font-size: 16px;
+    background: var(--card-bg); font-size: 16px;
   }
-  .split-ex-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .split-ex-name {
-    font-size: 13px; font-weight: 600;
+    flex: 1; min-width: 0; font-size: 13px; font-weight: 600;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .split-ex-meta { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
-  .split-ex-chevron {
-    flex-shrink: 0; color: var(--text-secondary); font-size: 10px;
-    transition: transform 0.15s;
+  .split-ex-meta { flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); }
+  .split-ex-chevron { flex-shrink: 0; color: var(--text-secondary); font-size: 13px; }
+
+  .split-rationale { margin-top: 12px; background: var(--blue-bg); border-radius: 12px; padding: 10px 12px; }
+  .split-rationale p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--blue); }
+
+  /* ---------- Exercise editor (sets/reps) ----------
+     Same big-number-as-input pattern as the Hyrox weight/rounds editor
+     (.hx-pro-weight-stat in static/hyrox.css): the number IS the field, a
+     dotted underline is the only "editable" cue at rest, and a box turns
+     amber the moment its value stops matching the derived standard. */
+  .split-ex-editor-overlay {
+    position: fixed; inset: 0; z-index: 205;
+    background: rgba(0, 0, 0, 0.5);
+    display: none; align-items: center; justify-content: center; padding: 16px;
   }
-  .split-ex-row.is-open .split-ex-chevron { transform: rotate(180deg); }
-  .split-ex-detail { display: none; padding: 0 0 12px 45px; }
-  .split-ex-row.is-open .split-ex-detail { display: block; }
-  .split-ex-detail-text { font-size: 12px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 8px; }
-  .split-ex-detail-link {
+  .split-ex-editor-overlay.is-open { display: flex; }
+  .split-ex-editor-modal {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    width: 100%; max-width: 400px; overflow: hidden;
+  }
+  .split-ex-editor-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid var(--border);
+  }
+  .split-ex-editor-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .split-ex-editor-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 11px; background: var(--blue-bg);
+    font-size: 17px; flex-shrink: 0; overflow: hidden;
+  }
+  .split-ex-editor-title { font-size: 15.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .split-ex-editor-close {
+    width: 34px; height: 34px; border-radius: 50%; border: none; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text-secondary); font-size: 16px; cursor: pointer;
+  }
+  .split-ex-editor-close:hover { background: var(--sidebar-active); color: var(--text); }
+  .split-ex-editor-body { padding: 18px; }
+  .split-ex-editor-stats { display: flex; gap: 12px; }
+  .split-ex-editor-stat {
+    flex: 1; text-align: center; background: var(--bg);
+    border-radius: 14px; padding: 12px 8px 10px;
+  }
+  .split-ex-editor-stat.is-edited { background: var(--amber-bg); }
+  .split-ex-editor-input {
+    width: 100%; max-width: 66px; border: none;
+    border-bottom: 1.5px dotted var(--text-secondary);
+    background: none; color: var(--text); font-family: inherit;
+    font-size: 26px; font-weight: 800; line-height: 1; text-align: center;
+    padding: 0 0 4px; -moz-appearance: textfield; font-variant-numeric: tabular-nums;
+  }
+  .split-ex-editor-input::-webkit-inner-spin-button,
+  .split-ex-editor-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .split-ex-editor-input:focus { outline: none; color: var(--blue); border-bottom-color: var(--blue); border-bottom-style: solid; }
+  .split-ex-editor-stat.is-edited .split-ex-editor-input { color: var(--amber); border-bottom-color: var(--amber); }
+  .split-ex-editor-label {
+    font-size: 10px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px;
+  }
+  .split-ex-editor-base { font-size: 10px; color: var(--text-secondary); margin-top: 3px; }
+  .split-ex-editor-reset {
+    display: block; margin: 12px auto 0; border: none; background: none;
+    color: var(--blue); font-size: 12px; font-weight: 700; cursor: pointer;
+    font-family: inherit; padding: 4px 0;
+  }
+  .split-ex-editor-reset:hover { text-decoration: underline; }
+  .split-ex-editor-howto {
+    display: block; margin-top: 14px; text-align: center;
     font-size: 12px; font-weight: 700; color: var(--blue);
-    background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+    background: none; border: none; cursor: pointer; font-family: inherit; padding: 4px 0;
   }
-  .split-ex-detail-link:hover { text-decoration: underline; }
+  .split-ex-editor-howto:hover { text-decoration: underline; }
 
   /* ---------- Exercise detail modal (video + description) ---------- */
   .exd-modal-overlay {
@@ -1552,6 +1613,94 @@
   document.body.addEventListener("click", (event) => {
     const chip = event.target.closest("[data-exercise-detail]");
     if (chip) openExerciseDetailModal(chip.dataset.exerciseDetail);
+  });
+
+  // ---------- Split wizard review step: per-exercise sets/reps editor ----------
+  const exEditorOverlay = document.getElementById("split-ex-editor-overlay");
+  const exEditorIcon = document.getElementById("split-ex-editor-icon");
+  const exEditorTitle = document.getElementById("split-ex-editor-title");
+  const exEditorClose = document.getElementById("split-ex-editor-close");
+  const exEditorSetsBox = document.getElementById("split-ex-editor-sets-box");
+  const exEditorSetsInput = document.getElementById("split-ex-editor-sets-input");
+  const exEditorSetsLabel = document.getElementById("split-ex-editor-sets-label");
+  const exEditorSetsBase = document.getElementById("split-ex-editor-sets-base");
+  const exEditorRepsBox = document.getElementById("split-ex-editor-reps-box");
+  const exEditorRepsInput = document.getElementById("split-ex-editor-reps-input");
+  const exEditorRepsLabel = document.getElementById("split-ex-editor-reps-label");
+  const exEditorRepsBase = document.getElementById("split-ex-editor-reps-base");
+  const exEditorReset = document.getElementById("split-ex-editor-reset");
+  const exEditorHowto = document.getElementById("split-ex-editor-howto");
+  let exEditorCurrent = null; // { label, name } for the exercise the editor is currently open on
+
+  function refreshExEditorScaledState() {
+    if (!exEditorCurrent) return;
+    const p = getPrescription(exEditorCurrent.label, exEditorCurrent.name);
+    const std = getSetsRepsDefault(exEditorCurrent.name);
+    exEditorSetsBox.classList.toggle("is-edited", p.sets !== std.sets);
+    exEditorRepsBox.classList.toggle("is-edited", p.reps !== std.reps);
+  }
+
+  function openExercisePrescriptionEditor(label, name) {
+    const t = RepCheckI18n.t;
+    exEditorCurrent = { label, name };
+    const p = getPrescription(label, name);
+    const std = getSetsRepsDefault(name);
+    exEditorIcon.innerHTML = exerciseIconHtml(name);
+    exEditorTitle.textContent = name;
+    exEditorSetsInput.value = p.sets;
+    exEditorRepsInput.value = p.reps;
+    exEditorSetsLabel.textContent = t("workouts.wizard.sets");
+    exEditorRepsLabel.textContent = t("workouts.wizard.reps");
+    exEditorSetsBase.textContent = t("workouts.wizard.standardValue", { n: std.sets });
+    exEditorRepsBase.textContent = t("workouts.wizard.standardValue", { n: std.reps });
+    exEditorReset.textContent = t("workouts.wizard.resetToStandard");
+    exEditorHowto.textContent = t("workouts.wizard.howToPerform");
+    refreshExEditorScaledState();
+    exEditorOverlay.classList.add("is-open");
+    window.requestAnimationFrame(() => exEditorSetsInput.focus());
+  }
+  function closeExercisePrescriptionEditor() {
+    exEditorOverlay.classList.remove("is-open");
+    exEditorCurrent = null;
+    // The row behind the modal shows sets/reps in its collapsed state, so
+    // it needs to reflect whatever was just edited.
+    if (reviewRerenderCarousel) reviewRerenderCarousel();
+  }
+  exEditorSetsInput.addEventListener("input", (event) => {
+    if (!exEditorCurrent) return;
+    const v = parseInt(event.target.value, 10);
+    if (Number.isFinite(v) && v > 0) {
+      getPrescription(exEditorCurrent.label, exEditorCurrent.name).sets = v;
+      refreshExEditorScaledState();
+    }
+  });
+  exEditorRepsInput.addEventListener("input", (event) => {
+    if (!exEditorCurrent) return;
+    const v = parseInt(event.target.value, 10);
+    if (Number.isFinite(v) && v > 0) {
+      getPrescription(exEditorCurrent.label, exEditorCurrent.name).reps = v;
+      refreshExEditorScaledState();
+    }
+  });
+  exEditorReset.addEventListener("click", () => {
+    if (!exEditorCurrent) return;
+    const std = getSetsRepsDefault(exEditorCurrent.name);
+    const p = getPrescription(exEditorCurrent.label, exEditorCurrent.name);
+    p.sets = std.sets;
+    p.reps = std.reps;
+    exEditorSetsInput.value = p.sets;
+    exEditorRepsInput.value = p.reps;
+    refreshExEditorScaledState();
+  });
+  exEditorHowto.addEventListener("click", () => {
+    if (exEditorCurrent) openExerciseDetailModal(exEditorCurrent.name);
+  });
+  exEditorClose.addEventListener("click", closeExercisePrescriptionEditor);
+  exEditorOverlay.addEventListener("click", (event) => {
+    if (event.target === exEditorOverlay) closeExercisePrescriptionEditor();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && exEditorOverlay.classList.contains("is-open")) closeExercisePrescriptionEditor();
   });
 
   function loadLog() {
@@ -2467,6 +2616,19 @@
     return "3 sets • 10-12 reps";
   }
 
+  // Numeric twin of getSetsRepsText() above, for the review step's editable
+  // sets/reps boxes -- same buckets, but a single starting rep count (the
+  // low end of the displayed range) instead of a "X-Y" string, since an
+  // editable number field needs one value to start from.
+  function getSetsRepsDefault(name) {
+    const lower = name.toLowerCase();
+    if (/lateral raise|rear delt|face pull|front raise/.test(lower)) return { sets: 3, reps: 12 };
+    if (/curl|extension|pushdown|crusher|kickback|fly|flye|shrug|calf raise/.test(lower)) return { sets: 3, reps: 10 };
+    if (/^(flat bench press|overhead press|barbell row|deadlift|back squat|front squat)$/.test(lower)) return { sets: 4, reps: 6 };
+    if (/press|squat|deadlift|row|pull-?up|lat pulldown|leg press/.test(lower)) return { sets: 4, reps: 8 };
+    return { sets: 3, reps: 10 };
+  }
+
   function renderTodaysPlanCard() {
     const t = RepCheckI18n.t;
     const planBodyEl = document.getElementById("wl-plan-body");
@@ -3210,9 +3372,22 @@
   // Monday-first column maps back through this.
   const REVIEW_WEEKDAY_NAME_INDEX = [1, 2, 3, 4, 5, 6, 0];
 
-  let reviewSchedule = null;      // weekday key -> day label, or the literal "Rest"
-  let reviewSelectedIndex = 0;    // index into REVIEW_MONDAY_FIRST
-  let reviewOpenExercise = null;  // index of the expanded exercise row, if any
+  let reviewSchedule = null;         // weekday key -> day label, or the literal "Rest"
+  let reviewSelectedIndex = 0;       // index into REVIEW_MONDAY_FIRST
+  // `${label}::${exerciseName}` -> {sets, reps}. Keyed by day label (not by
+  // weekday) because the same generated day can land on more than one
+  // weekday (a 6-day PPL repeats Push/Pull/Legs) -- editing Monday's Push
+  // sets is meant to apply to Friday's Push too, since it's the same
+  // generated day template, not two independent copies of it.
+  let exercisePrescriptions = {};
+  let reviewRerenderCarousel = null; // set each time the step renders; lets the editor modal refresh the row it just closed
+
+  function prescriptionKey(label, name) { return `${label}::${name}`; }
+  function getPrescription(label, name) {
+    const key = prescriptionKey(label, name);
+    if (!exercisePrescriptions[key]) exercisePrescriptions[key] = getSetsRepsDefault(name);
+    return exercisePrescriptions[key];
+  }
 
   function renderSplitStepReview() {
     const t = RepCheckI18n.t;
@@ -3227,13 +3402,13 @@
     // Copied rather than aliased so backing out of the step doesn't leave
     // the generated schedule mutated by whatever was tapped here.
     reviewSchedule = { ...splitWizard.generatedSchedule };
-    // Open on the first weekday that actually trains, so the drawer starts
-    // on a session instead of a rest day.
+    // Open on the first weekday that actually trains, so the carousel
+    // starts on a session instead of a rest day.
     const firstTraining = REVIEW_MONDAY_FIRST.findIndex(
       (key) => reviewSchedule[key] && reviewSchedule[key] !== "Rest"
     );
     reviewSelectedIndex = firstTraining === -1 ? 0 : firstTraining;
-    reviewOpenExercise = null;
+    exercisePrescriptions = {};
 
     // On the suggest path the user never picked a split, so the plan is the
     // first time they learn which one they got -- name it explicitly rather
@@ -3241,49 +3416,6 @@
     const suggestedTitle = splitWizard.suggestedSplitType
       ? (getSplitTypes().find((st) => st.id === splitWizard.suggestedSplitType) || {}).title
       : null;
-
-    // "Push" and "Pull" both start with P, and PPL is the default split, so
-    // a one-letter swatch collides on the most common plan there is. Taking
-    // a longer prefix instead spells "Pus", so this keeps the first letter
-    // and adds the first letter that actually differs: Ps / Pl / L.
-    // Array.from throughout so a multi-byte label isn't cut mid-character.
-    //
-    // Object.create(null), not {}: day labels are free text on the custom
-    // path, and a label of exactly "__proto__" assigned onto a plain object
-    // hits the inherited Object.prototype accessor -- the assignment
-    // silently no-ops (the setter ignores non-object values), so the later
-    // read returns Object.prototype itself (truthy) instead of the missing
-    // abbreviation, and the swatch renders "[object Object]". A null-
-    // prototype object has no such accessor, so "__proto__" behaves like
-    // any other key.
-    const labelAbbrev = Object.create(null);
-    uniqueLabels.forEach((label) => {
-      const chars = Array.from(String(label).trim());
-      if (!chars.length) {
-        labelAbbrev[label] = "";
-        return;
-      }
-      const rivals = uniqueLabels
-        .filter((other) => other !== label)
-        .map((other) => Array.from(String(other).trim()))
-        .filter((other) => other[0] === chars[0]);
-      if (!rivals.length) {
-        labelAbbrev[label] = chars[0];
-        return;
-      }
-      // i < rival.length guards a prefix relationship ("Push" vs "Push
-      // Day"): past the shorter rival's length, rival[i] is undefined,
-      // which !== char is trivially true and would misfire as "found a
-      // differing character" -- exactly the case the comment below says
-      // should fall through to the two-char fallback instead.
-      const at = chars.findIndex(
-        (char, i) => i > 0 && rivals.every((rival) => i < rival.length && rival[i] !== char)
-      );
-      // No differing character means one label is a prefix of another
-      // ("Push" vs "Push Day") -- fall back to two chars and let colour
-      // carry the difference rather than inventing one.
-      labelAbbrev[label] = at === -1 ? chars.slice(0, 2).join("") : chars[0] + chars[at];
-    });
 
     // Inline custom properties: day labels are free text on the custom
     // path, so there's no fixed set of classes to style them with.
@@ -3300,107 +3432,110 @@
     splitModalBody.innerHTML = `
       ${suggestedTitle ? `<div class="split-suggested-banner">${t("workouts.wizard.aiChose", { split: suggestedTitle })}</div>` : ""}
       <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
-      <div class="split-week-grid" id="split-week-grid"></div>
-      <div class="split-week-legend" id="split-week-legend"></div>
-      <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
-      <div class="split-day-drawer" id="split-day-drawer"></div>
+      <div class="split-carousel" id="split-carousel"></div>
+      ${splitWizard.rationale ? `<div class="split-rationale"><p>${escapeHtml(splitWizard.rationale)}</p></div>` : ""}
       <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${t("workouts.wizard.savePlan")}</button>
     `;
 
-    const gridEl = document.getElementById("split-week-grid");
-    const legendEl = document.getElementById("split-week-legend");
-    const drawerEl = document.getElementById("split-day-drawer");
+    const carouselEl = document.getElementById("split-carousel");
 
-    function renderGrid() {
-      gridEl.innerHTML = REVIEW_MONDAY_FIRST.map((key, i) => {
-        const label = reviewSchedule[key];
-        const rest = isRestLabel(label);
-        return `
-          <button type="button" class="split-week-cell${i === reviewSelectedIndex ? " is-selected" : ""}"
-                  data-weekday-cell="${i}" style="${rest ? "" : accentStyle(label)}">
-            <span class="split-week-cell-dow">${escapeHtml(WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[i]].slice(0, 3))}</span>
-            <span class="split-week-cell-swatch${rest ? " is-rest" : ""}">${rest ? "" : escapeHtml(labelAbbrev[label] || "")}</span>
-          </button>
-        `;
-      }).join("");
-    }
-
-    function renderLegend() {
-      legendEl.innerHTML = uniqueLabels
-        .map((label) => `<span style="${accentStyle(label)}"><i></i>${escapeHtml(label)}</span>`)
-        .join("") + `<span><i class="is-rest"></i>${escapeHtml(restLabel)}</span>`;
-    }
-
-    function renderDrawer() {
+    function renderCarousel() {
       const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
       const label = reviewSchedule[key];
       const rest = isRestLabel(label);
       const day = rest ? null : days.find((d) => d.label === label);
       const exercises = day ? day.exercises : [];
       const weekdayName = WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[reviewSelectedIndex]];
-      drawerEl.setAttribute("style", rest ? "" : accentStyle(label));
-      drawerEl.innerHTML = `
-        <div class="split-day-drawer-head">
-          <span class="split-day-drawer-title">${escapeHtml(weekdayName)}</span>
-          <span class="split-day-drawer-pill">${escapeHtml(rest ? restLabel : label)}</span>
+
+      carouselEl.setAttribute("style", rest ? "" : accentStyle(label));
+      carouselEl.innerHTML = `
+        <div class="split-carousel-nav">
+          <button type="button" class="split-carousel-arrow" data-carousel-dir="-1" aria-label="${t("common.back")}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="split-carousel-heading">
+            <div class="split-carousel-day">${escapeHtml(weekdayName)}</div>
+            <button type="button" class="split-carousel-pill" data-cycle-day title="${t("workouts.wizard.tapToChange")}">
+              ${escapeHtml(rest ? restLabel : label)}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+          <button type="button" class="split-carousel-arrow" data-carousel-dir="1" aria-label="${t("common.next")}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="split-carousel-dots">
+          ${REVIEW_MONDAY_FIRST.map((key2, i) => {
+            const l = reviewSchedule[key2];
+            const r = isRestLabel(l);
+            return `
+              <button type="button" class="split-carousel-dot${i === reviewSelectedIndex ? " is-active" : ""}"
+                      data-weekday-cell="${i}" style="${r ? "" : accentStyle(l)}"
+                      aria-label="${escapeAttr(WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[i]])}"></button>
+            `;
+          }).join("")}
         </div>
         ${rest
           ? `<div class="split-day-rest-note">${t("workouts.wizard.restDayNote")}</div>`
-          : `<div class="split-day-drawer-sub">${t("workouts.wizard.exerciseCount", { n: exercises.length })}</div>
-            ${exercises.map((name, i) => `
-              <div class="split-ex-row${reviewOpenExercise === i ? " is-open" : ""}">
-                <button type="button" class="split-ex-main" data-exercise-toggle="${i}">
-                  <span class="split-ex-emoji">${exerciseIconHtml(name)}</span>
-                  <span class="split-ex-info">
-                    <span class="split-ex-name">${escapeHtml(name)}</span>
-                    <span class="split-ex-meta">${escapeHtml(getSetsRepsText(name))}</span>
-                  </span>
-                  <span class="split-ex-chevron">▾</span>
-                </button>
-                <div class="split-ex-detail">
-                  <p class="split-ex-detail-text">${escapeHtml(exerciseDetail(name).description)}</p>
-                  <button type="button" class="split-ex-detail-link" data-exercise-detail="${escapeAttr(name)}">
-                    ${t("workouts.wizard.howToPerform")}
-                  </button>
-                </div>
-              </div>
-            `).join("")}`
+          : `<ul class="split-ex-list">
+              ${exercises.map((name) => {
+                const p = getPrescription(label, name);
+                return `
+                  <li>
+                    <button type="button" class="split-ex-row" data-exercise-edit="${escapeAttr(name)}">
+                      <span class="split-ex-emoji">${exerciseIconHtml(name)}</span>
+                      <span class="split-ex-name">${escapeHtml(name)}</span>
+                      <span class="split-ex-meta">${p.sets}&times;${p.reps}</span>
+                      <span class="split-ex-chevron" aria-hidden="true">&#8250;</span>
+                    </button>
+                  </li>
+                `;
+              }).join("")}
+            </ul>`
         }
       `;
     }
 
-    // Delegated once on the containers, which outlive their own innerHTML.
-    gridEl.addEventListener("click", (event) => {
-      const cell = event.target.closest("[data-weekday-cell]");
-      if (!cell) return;
-      const i = Number(cell.dataset.weekdayCell);
-      // Tapping the day you're already on cycles what's scheduled there;
-      // tapping any other day just moves the drawer to it. That keeps
-      // "look at this day" from ever changing the plan by accident.
-      if (i === reviewSelectedIndex) {
-        const options = [...uniqueLabels, "Rest"];
-        const current = options.indexOf(reviewSchedule[REVIEW_MONDAY_FIRST[i]] || "Rest");
-        reviewSchedule[REVIEW_MONDAY_FIRST[i]] = options[(current + 1) % options.length];
+    // Delegated once on the container, which outlives its own innerHTML.
+    // Tapping a dot just moves the carousel to that day; tapping the pill
+    // in the heading cycles what's scheduled on the day currently showing
+    // (see the data-cycle-day branch below) -- the carousel's equivalent of
+    // the old grid's "tap the already-selected cell" gesture.
+    carouselEl.addEventListener("click", (event) => {
+      const arrow = event.target.closest("[data-carousel-dir]");
+      if (arrow) {
+        reviewSelectedIndex = (reviewSelectedIndex + Number(arrow.dataset.carouselDir) + 7) % 7;
+        renderCarousel();
+        return;
       }
-      reviewSelectedIndex = i;
-      reviewOpenExercise = null;
-      renderGrid();
-      renderDrawer();
+      const dot = event.target.closest("[data-weekday-cell]");
+      if (dot) {
+        reviewSelectedIndex = Number(dot.dataset.weekdayCell);
+        renderCarousel();
+        return;
+      }
+      const pill = event.target.closest("[data-cycle-day]");
+      if (pill) {
+        // Tapping the pill cycles what's scheduled on the day the carousel
+        // is currently showing -- the carousel's one equivalent of the old
+        // grid's "tap the already-selected cell" gesture, since there's no
+        // grid of other cells to tap instead.
+        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+        const options = [...uniqueLabels, "Rest"];
+        const current = options.indexOf(reviewSchedule[key] || "Rest");
+        reviewSchedule[key] = options[(current + 1) % options.length];
+        renderCarousel();
+        return;
+      }
+      const exRow = event.target.closest("[data-exercise-edit]");
+      if (exRow) {
+        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+        openExercisePrescriptionEditor(reviewSchedule[key], exRow.dataset.exerciseEdit);
+      }
     });
 
-    drawerEl.addEventListener("click", (event) => {
-      // The demo link inside an expanded row carries data-exercise-detail
-      // and is handled by the delegated body listener, not this one.
-      const toggle = event.target.closest("[data-exercise-toggle]");
-      if (!toggle) return;
-      const i = Number(toggle.dataset.exerciseToggle);
-      reviewOpenExercise = reviewOpenExercise === i ? null : i;
-      renderDrawer();
-    });
-
-    renderGrid();
-    renderLegend();
-    renderDrawer();
+    renderCarousel();
+    reviewRerenderCarousel = renderCarousel;
 
     document.getElementById("split-save-btn").addEventListener("click", () => {
       const plan = {
@@ -3414,6 +3549,7 @@
         // Values here stay the literal "Rest" / raw day labels, never the
         // translated ones -- everything downstream matches on those.
         schedule: { ...reviewSchedule },
+        exercisePrescriptions: { ...exercisePrescriptions },
       };
       localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
       closeSplitModal();

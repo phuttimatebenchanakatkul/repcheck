@@ -93,6 +93,14 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   function getSetsRepsText(name) {
     return /curl|pushdown|raise/i.test(name) ? "3 sets • 10-12 reps" : "4 sets • 8-10 reps";
   }
+  // Deterministic stand-in for the real bucket logic (tested for real in
+  // reviewStep.test.js's own getSetsRepsDefault-adjacent assertions isn't
+  // needed here -- this harness only needs *a* stable default per name so
+  // the carousel's "N×N" meta and the is-edited/reset behaviour have
+  // something consistent to compare against).
+  function getSetsRepsDefault(name) {
+    return /curl|pushdown|raise/i.test(name) ? { sets: 3, reps: 10 } : { sets: 4, reps: 8 };
+  }
   function exerciseDetail() {
     return { description: "Controlled range of motion, steady tempo." };
   }
@@ -104,6 +112,13 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   }
   function renderTodaysPlanCard() {
     calls.replanned = true;
+  }
+  // The real function opens a separate static modal that isn't part of this
+  // harness's minimal DOM -- stubbed to just record what it was asked to
+  // open, so review-step tests can assert the row wiring calls it with the
+  // right (label, name) without pulling in the whole editor's own markup.
+  function openExercisePrescriptionEditor(label, name) {
+    calls.editorOpenedWith = { label, name };
   }
 
   const splitWizard = {
@@ -129,10 +144,12 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "RepCheckI18n",
     "exerciseIconHtml",
     "getSetsRepsText",
+    "getSetsRepsDefault",
     "exerciseDetail",
     "getSplitTypes",
     "closeSplitModal",
     "renderTodaysPlanCard",
+    "openExercisePrescriptionEditor",
     "splitWizard",
     `${source}\nreturn { renderSplitStepReview };`
   );
@@ -145,10 +162,12 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     RepCheckI18n,
     exerciseIconHtml,
     getSetsRepsText,
+    getSetsRepsDefault,
     exerciseDetail,
     getSplitTypes,
     closeSplitModal,
     renderTodaysPlanCard,
+    openExercisePrescriptionEditor,
     splitWizard
   );
 

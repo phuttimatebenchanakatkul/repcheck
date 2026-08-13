@@ -1,8 +1,9 @@
 """Guards the split wizard's "Assign your week" review step.
 
-This is the last step of the split wizard: a colour-coded week grid plus a
-drawer showing the selected day's exercises. Two things about it are worth
-pinning, and both fail silently.
+This is the last step of the split wizard: a one-day-at-a-time carousel
+(prev/next arrows, a row of dots for the rest of the week, a tappable pill
+that cycles the shown day's assignment) plus that day's exercise list. Two
+things about it are worth pinning, and both fail silently.
 
 The trust boundary. Exercise names and day labels are not all
 library-controlled. A user creates a custom exercise (POST
@@ -80,49 +81,40 @@ def review_step(workouts_html):
 # ---------- the trust boundary ----------
 
 
-def test_exercise_name_is_escaped_in_the_drawer(review_step):
+def test_exercise_name_is_escaped_in_the_row(review_step):
     """A custom exercise name is user-authored text."""
     match = re.search(r'split-ex-name">(.*?)</span>', review_step)
     assert match, "could not find the exercise name element"
     assert match.group(1) == "${escapeHtml(name)}", (
-        "the drawer renders a custom exercise name unescaped -- a name like "
-        "'<img src=x onerror=...>' becomes a live element here"
+        "the exercise row renders a custom exercise name unescaped -- a name "
+        "like '<img src=x onerror=...>' becomes a live element here"
     )
 
 
-def test_demo_link_attribute_uses_attribute_escaping(review_step):
-    """data-exercise-detail carries the name into a quoted attribute.
+def test_exercise_row_attribute_uses_attribute_escaping(review_step):
+    """data-exercise-edit carries the name into a quoted attribute.
 
     escapeHtml leaves " untouched, which is correct for a text node and
     useless here: one quote closes the attribute and the rest of the name
     parses as new attributes on the button.
     """
-    match = re.search(r'data-exercise-detail="(.*?)"', review_step)
-    assert match, "could not find the demo-link attribute"
+    match = re.search(r'data-exercise-edit="(.*?)"', review_step)
+    assert match, "could not find the exercise row's data-exercise-edit attribute"
     assert match.group(1) == "${escapeAttr(name)}", (
-        "data-exercise-detail must use escapeAttr -- escapeHtml does not "
+        "data-exercise-edit must use escapeAttr -- escapeHtml does not "
         "escape the quote that would break out of the attribute"
     )
 
 
-def test_day_label_is_escaped_everywhere_it_is_rendered(review_step):
+def test_day_label_is_escaped_in_the_pill(review_step):
     """Day labels are free text on the custom-split path.
 
-    The label reaches three places: the grid swatch (abbreviated), the
-    legend, and the drawer's pill. Missing any one of them reopens the
-    hole.
+    The carousel only ever renders the label as text in one place -- the
+    heading pill (dots carry colour via a style attribute, not text).
     """
-    swatch = re.search(r'split-week-cell-swatch\$\{.*?\}">(.*?)</span>', review_step)
-    assert swatch, "could not find the grid swatch element"
-    assert "escapeHtml(" in swatch.group(1), "the grid swatch renders a day label unescaped"
-
-    legend = re.search(r'<span style="\$\{accentStyle\(label\)\}"><i></i>(.*?)</span>', review_step)
-    assert legend, "could not find the legend entry"
-    assert legend.group(1) == "${escapeHtml(label)}", "the legend renders a day label unescaped"
-
-    pill = re.search(r'split-day-drawer-pill">(.*?)</span>', review_step)
-    assert pill, "could not find the drawer pill"
-    assert "escapeHtml(" in pill.group(1), "the drawer pill renders a day label unescaped"
+    pill = re.search(r'split-carousel-pill" data-cycle-day.*?>\s*(.*?)\n', review_step)
+    assert pill, "could not find the carousel pill"
+    assert "escapeHtml(" in pill.group(1), "the carousel pill renders a day label unescaped"
 
 
 def test_escape_helpers_exist_in_this_template(workouts_html):
@@ -170,7 +162,7 @@ def test_rest_detection_matches_the_literal(review_step):
 
 
 def test_save_handler_reads_the_wizard_state_not_dropdowns(review_step):
-    """The seven <select> elements are gone; the grid is the source now.
+    """The seven <select> elements are gone; the carousel is the source now.
 
     A stale `querySelectorAll("[data-weekday]")` would silently save an
     empty schedule, since nothing renders that attribute any more.
@@ -181,7 +173,21 @@ def test_save_handler_reads_the_wizard_state_not_dropdowns(review_step):
         "the save handler still queries the removed weekday <select> elements"
     )
     assert "...reviewSchedule" in handler, (
-        "the save handler must copy the grid's schedule into the saved plan"
+        "the save handler must copy the carousel's schedule into the saved plan"
+    )
+
+
+def test_save_handler_writes_the_edited_prescriptions(review_step):
+    """Sets/reps edited in the exercise editor must reach the saved plan.
+
+    Without this, the editor modal would look like it works (the amber
+    "edited" state, the reset link) but every value would evaporate the
+    moment the user hits Save.
+    """
+    save_index = review_step.index('id="split-save-btn"')
+    handler = review_step[save_index:]
+    assert "...exercisePrescriptions" in handler, (
+        "the save handler must copy exercisePrescriptions into the saved plan"
     )
 
 
