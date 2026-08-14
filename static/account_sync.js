@@ -368,6 +368,23 @@
       var now = Date.now();
 
       SYNC_KEYS.forEach(function (key) {
+        // Reconciling one key must not abort every OTHER key's sync for
+        // this page load if it throws (e.g. QuotaExceededError from
+        // nativeSetItem below -- now reachable for MERGE_LOG_KEYS entries
+        // like Hyrox history since they're no longer capped, see
+        // hyrox.js's saveHistory()). Without this, one throwing key
+        // silently starved every key after it in Set-insertion order, on
+        // every page load, until whatever raised it cleared -- invisibly,
+        // since the outer fetch(...).then(...).catch(function () {})
+        // below swallows it too, with no per-key visibility.
+        try {
+          reconcileOneSyncKey(key);
+        } catch (err) {
+          /* best-effort, same as the outer .catch() -- not user-facing */
+        }
+      });
+
+      function reconcileOneSyncKey(key) {
         var hasServer = Object.prototype.hasOwnProperty.call(serverValues, key);
         var localRaw = localStorage.getItem(key);
 
@@ -510,7 +527,7 @@
             nativeRemoveItem(key);
           }
         }
-      });
+      }
 
       // Forcing a reload while the user has an open modal (search, "add
       // to log" amount confirm, a wizard, ...) yanks the page out from
