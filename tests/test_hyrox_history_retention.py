@@ -39,6 +39,22 @@ def save_history_body(hyrox_js):
     return hyrox_js[start:end]
 
 
+@pytest.fixture(scope="module")
+def find_race_body(hyrox_js):
+    start = hyrox_js.index("findRace(raceId) {")
+    end = hyrox_js.index("hydrateAnalysisFromRecord(race) {")
+    assert end > start, "findRace() extraction markers moved -- update this test"
+    return hyrox_js[start:end]
+
+
+@pytest.fixture(scope="module")
+def render_history_body(hyrox_js):
+    start = hyrox_js.index("renderHistory() {")
+    end = hyrox_js.index('document.addEventListener("DOMContentLoaded"')
+    assert end > start, "renderHistory() extraction markers moved -- update this test"
+    return hyrox_js[start:end]
+
+
 def test_max_history_cap_does_not_exist(hyrox_js):
     """The count-based eviction constant itself must be gone, not just
     unused -- its continued presence would invite a future re-introduction
@@ -71,3 +87,31 @@ def test_history_reading_surfaces_are_not_pre_filtered_by_count(hyrox_js):
         assert not re.search(r"this\.history\.(slice|splice)\(", body), (
             f"{fn_start} must scan the full this.history, not a truncated copy"
         )
+
+
+def test_find_race_scans_the_full_array(find_race_body):
+    """findRace() backs the race-detail modal opened from both the history
+    list and the personal-bests card -- it must .find() across the whole
+    this.history, not a truncated copy, or an older race's row would open
+    to a blank/missing detail view instead of its real splits."""
+    assert "this.history.find(" in find_race_body
+    assert not re.search(r"this\.history\.(slice|splice|pop|shift)\(", find_race_body), (
+        "findRace() must not scan a truncated copy of this.history"
+    )
+
+
+def test_render_history_reads_full_array_and_does_not_truncate(render_history_body):
+    """renderHistory() (the saved-times list on the history screen) clones
+    this.history via a bare .slice() purely to sort by date without
+    mutating the original array in place -- that clone must stay a full,
+    unbounded copy. A bounded slice (e.g. slice(-50)) or a splice/pop/shift
+    here would silently hide older races from the list even with
+    saveHistory() itself fixed."""
+    assert "this.history.slice()" in render_history_body
+    assert not re.search(r"this\.history\.(splice|pop|shift)\(", render_history_body), (
+        "renderHistory() must not trim this.history via splice/pop/shift"
+    )
+    assert not re.search(r"this\.history\.slice\([^)]+\)", render_history_body), (
+        "renderHistory() must not bound its this.history clone with slice arguments "
+        "(a bare slice() for sorting is fine; slice(-N) or slice(0, N) is a truncation)"
+    )
