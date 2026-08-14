@@ -252,6 +252,18 @@
 **Priority:** P3
 **Depends on:** None
 
+### No recovery path once a device's localStorage quota is hit for Hyrox history
+
+**What:** `saveHistory()`'s catch (added on `fix/never-evict-race-history`) surfaces a toast when `localStorage.setItem` throws `QuotaExceededError`, but `this.history` only ever grows and a failed save is never retried. Every future write on that device -- finishing a race, deleting one, caching an AI analysis -- re-triggers the same failure until the array shrinks. The only shrink path is `removeHistory()`, one entry at a time; there's no bulk-clear UI, and the toast copy just says "try another device."
+
+**Why:** Product/UX gap, not a code defect -- the underlying data is safe (server-authoritative, never lost), but a device that hits this has a genuinely degraded experience with no clear way out short of manually deleting races one by one or switching devices.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `fix/never-evict-race-history`, as a follow-on to the QuotaExceededError catch it also verified. Needs a product decision: a bulk "free up space" flow (e.g. clear local cache for races already confirmed synced server-side, since they're recoverable via hydration), or accept the one-at-a-time deletion path as sufficient given how rare hitting the quota actually is.
+
+**Effort:** M (once the desired recovery UX is decided)
+**Priority:** P4
+**Depends on:** A product decision on the intended recovery flow
+
 ## Nutrition
 
 ### Nutrition log entries aren't validated for numeric shape server-side
