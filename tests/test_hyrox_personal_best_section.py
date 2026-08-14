@@ -278,3 +278,47 @@ def test_div_role_button_triggers_get_keyboard_activation(hyrox_js):
     body = hyrox_js[start:end]
     assert 'event.target.closest(\'[data-action][role="button"]\')' in body
     assert "target.click();" in body
+
+
+def test_keydown_ignores_keys_other_than_enter_or_space(hyrox_js):
+    """Any other key (Tab, Escape, an arrow key, ...) landing on the
+    trigger must fall through untouched -- only Enter/Space replay a
+    synthetic click."""
+    start = hyrox_js.index("handleKeydown(event) {")
+    end = hyrox_js.index("// ---------- AI analysis: short/detail toggle ----------")
+    body = hyrox_js[start:end]
+    assert 'if (event.key !== "Enter" && event.key !== " ") return;' in body
+
+
+def test_keydown_ignores_events_that_originate_on_the_nested_button(hyrox_js):
+    """closest() alone isn't enough: Enter/Space fired while focus is on the
+    nested pb-time-btn (a real <button>, inside the trigger div) would also
+    match `.closest('[data-action][role="button"]')` by walking up to the
+    outer div. That real button already gets free keyboard activation from
+    the browser, so replaying a synthetic click on the outer trigger too
+    would double-fire. The guard must require event.target to BE the
+    matched trigger, not just be contained in it."""
+    start = hyrox_js.index("handleKeydown(event) {")
+    end = hyrox_js.index("// ---------- AI analysis: short/detail toggle ----------")
+    body = hyrox_js[start:end]
+    assert "if (!target || event.target !== target) return;" in body
+
+
+def test_open_state_drives_both_the_open_class_and_aria_expanded(render_my_bests_card):
+    """togglePbFormat() only flips a Set entry and re-renders -- the visual
+    open/closed state (and the state AT assistive tech sees) both have to
+    be recomputed from that Set on every render, not cached or left stale."""
+    assert 'const isOpen = this.pbExpandedFormats.has(formatId);' in render_my_bests_card
+    assert '<div class="pb-section ${isOpen ? "is-open" : ""}">' in render_my_bests_card
+    assert 'aria-expanded="${isOpen}"' in render_my_bests_card
+
+
+def test_detail_rows_render_every_tier_with_the_shared_time_button_and_date_fallback(render_my_bests_card):
+    """The expanded detail list must reuse pbTimeButtonHtml() for every
+    tier (not hand-roll a second row template that could drift from the
+    hero row's local-match/no-match wiring), and fall back to an em dash
+    -- not a blank string, not a fabricated date -- when that tier has no
+    local-history match."""
+    assert 'const btn = this.pbTimeButtonHtml(r, "pb-time-btn pb-detail-time");' in render_my_bests_card
+    assert re.search(r'const dateHtml = localMatch\s*\n?\s*\?\s*t\("hyrox\.pb\.setPrefix"', render_my_bests_card)
+    assert ': "&mdash;";' in render_my_bests_card
