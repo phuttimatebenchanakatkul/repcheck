@@ -588,9 +588,17 @@
     return wrap.firstElementChild;
   }
 
+  // Both toast variants share the same fixed bottom-center slot, so only
+  // one can be legible at a time -- clear any toast of EITHER class, not
+  // just this one's own, before inserting (a delayed save-error toast
+  // landing on top of a freshly-tapped info toast would otherwise stack
+  // both, unreadable).
+  function clearExistingToasts() {
+    document.querySelectorAll(".hx-save-error-toast, .hx-info-toast").forEach((t) => t.remove());
+  }
+
   function showHistorySaveError(message) {
-    const existing = document.querySelector(".hx-save-error-toast");
-    if (existing) existing.remove();
+    clearExistingToasts();
     const toast = el(`<div class="hx-save-error-toast">${message}</div>`);
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);
@@ -601,8 +609,7 @@
   // failures. Reusing the red error toast for those would tell the user
   // something went wrong when nothing did.
   function showInfoToast(message) {
-    const existing = document.querySelector(".hx-info-toast");
-    if (existing) existing.remove();
+    clearExistingToasts();
     const toast = el(`<div class="hx-info-toast">${message}</div>`);
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);
@@ -3196,9 +3203,15 @@
     // open; the button still exists, but taps it show a toast instead of
     // silently doing nothing or opening a fake report.
     pbTimeButtonHtml(r, cls) {
-      const localMatch = this.history.find(
+      // Closest match wins, not first match: two attempts at the same
+      // combo within 0.5s of each other would otherwise let array order
+      // pick the wrong race's report to open behind the PB's own time.
+      const candidates = this.history.filter(
         (h) => !h.flagged && h.gender === r.gender && h.category === r.category && h.format === r.format && Math.abs(h.totalSeconds - r.totalSeconds) < 0.5
       );
+      const localMatch = candidates.length
+        ? candidates.reduce((closest, h) => (Math.abs(h.totalSeconds - r.totalSeconds) < Math.abs(closest.totalSeconds - r.totalSeconds) ? h : closest))
+        : undefined;
       const attrs = localMatch ? `data-action="show-race-detail" data-id="${localMatch.id}"` : `data-action="pb-no-detail"`;
       return { html: `<button type="button" class="${cls}" ${attrs}>${formatClock(r.totalSeconds)}</button>`, localMatch };
     }

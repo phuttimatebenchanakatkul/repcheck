@@ -98,11 +98,20 @@ def test_date_lookup_is_best_effort_only_not_authoritative(render_my_bests_card)
     """The server's `me` field has no date. A matching local-history entry
     (same device, common case) may supply one for display; the PB's
     existence and time must never depend on finding that match."""
-    assert "this.history.find(" in render_my_bests_card
+    assert "this.history.filter(" in render_my_bests_card
     assert re.search(r"const dateHtml = localMatch\s*\?", render_my_bests_card), (
         "the date line must be optional (empty string when no local match), "
         "not required for the row to render"
     )
+
+
+def test_local_match_picks_the_closest_candidate_not_the_first(render_my_bests_card):
+    """Two attempts at the same combo can both fall within the 0.5s
+    tolerance of each other; array order must not silently decide which
+    one's report opens behind the PB's own time -- the closest one must
+    win, via an explicit distance comparison over every candidate."""
+    assert "candidates.reduce((closest, h) =>" in render_my_bests_card
+    assert "Math.abs(h.totalSeconds - r.totalSeconds) < Math.abs(closest.totalSeconds - r.totalSeconds)" in render_my_bests_card
 
 
 # ---------- gender isolation ----------
@@ -324,3 +333,17 @@ def test_detail_rows_render_every_tier_with_the_shared_time_button_and_date_fall
     assert 'const btn = this.pbTimeButtonHtml(r, "pb-time-btn pb-detail-time");' in render_my_bests_card
     assert re.search(r'const dateHtml = localMatch\s*\n?\s*\?\s*t\("hyrox\.pb\.setPrefix"', render_my_bests_card)
     assert ': "&mdash;";' in render_my_bests_card
+
+
+def test_both_toast_helpers_clear_either_toast_class_before_inserting(hyrox_js):
+    """showHistorySaveError() and showInfoToast() share one fixed
+    bottom-center slot. A delayed save-error toast (persistHistoryEntry()
+    is fire-and-forget) landing while the new PB card's info toast is
+    still showing would otherwise stack both, unreadable -- so each
+    helper must clear ANY existing toast of either class, not just its
+    own, before inserting."""
+    start = hyrox_js.index("function clearExistingToasts() {")
+    end = hyrox_js.index("// Confirms a finished race is durably saved server-side")
+    toast_block = hyrox_js[start:end]
+    assert ".hx-save-error-toast, .hx-info-toast" in toast_block
+    assert toast_block.count("clearExistingToasts();") == 2
