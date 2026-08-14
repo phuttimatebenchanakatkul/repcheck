@@ -323,7 +323,14 @@
     flex-shrink: 0;
   }
   .wl-plan-quick-add:hover { background: var(--sidebar-active); }
-  .wl-plan-quick-add.is-added { color: var(--green); }
+  .wl-plan-quick-add svg { width: 13px; height: 13px; }
+  .wl-plan-quick-add.is-added {
+    background: var(--green);
+    color: color-mix(in srgb, var(--green) 45%, white);
+    cursor: default;
+    pointer-events: none;
+  }
+  .wl-plan-quick-add.is-added:hover { background: var(--green); }
   .wl-plan-exercise-grip {
     width: 22px;
     height: 22px;
@@ -1203,10 +1210,8 @@
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.25);
-    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    transition: transform 0.1s ease;
   }
-  .wl-log-btn:hover { box-shadow: 0 10px 24px rgba(47, 102, 232, 0.32); }
   .wl-log-btn:active { transform: scale(0.98); }
   .wl-log-btn svg { flex-shrink: 0; }
 
@@ -2938,13 +2943,24 @@
     const expanded = WORKOUTS_PLAN_EXPANDED.has(info.label);
     const shown = expanded ? info.exercises : info.exercises.slice(0, 3);
     const remaining = info.exercises.length - 3;
+    // Quick-add is per plan-row, not per exercise slot -- so "already
+    // added" is read straight off today's actual log entries (the only
+    // source of truth) rather than a separate tracked Set, the same way
+    // entryIsComplete() derives its state from entry.sets instead of a
+    // shadow flag. Re-logging the same exercise later some other way
+    // (the "Log an exercise" modal) still correctly flips this row's
+    // button to added on the next render.
+    const todayIso = toIsoDate(new Date());
+    const loggedToday = new Set((log[todayIso] || []).map((entry) => entry.exercise));
     planBodyEl.innerHTML = `
       <div class="wl-plan-day-label">
         <span class="wl-plan-day-icon">${PLAN_CALENDAR_SVG}</span>
         <span>${t("workouts.plan.dayLabel", { weekday: info.weekdayName, label: info.label })}</span>
       </div>
       <div class="wl-plan-exercise-list">
-        ${shown.map((name, i) => `
+        ${shown.map((name, i) => {
+          const isAdded = loggedToday.has(name);
+          return `
           <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
             <span class="wl-plan-exercise-num">${i + 1}</span>
             <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
@@ -2952,24 +2968,33 @@
               <span class="wl-plan-exercise-name">${name}</span>
               <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
             </span>
-            <button type="button" class="wl-plan-quick-add" data-quick-add="${name}" aria-label="Log ${name} now" title="Log now">+</button>
+            <button type="button" class="wl-plan-quick-add${isAdded ? " is-added" : ""}" data-quick-add="${name}" aria-label="${isAdded ? `${name} already logged today` : `Log ${name} now`}" title="${isAdded ? "Already logged today" : "Log now"}"${isAdded ? ' aria-disabled="true"' : ""}>${isAdded ? SMALL_CHECK_ICON : "+"}</button>
             <span class="wl-plan-exercise-grip">${PLAN_GRIP_SVG}</span>
           </div>
-        `).join("")}
+        `;
+        }).join("")}
       </div>
       ${remaining > 0 ? `<button type="button" class="wl-plan-more${expanded ? " is-expanded" : ""}" id="wl-plan-more-btn">${expanded ? t("common.minimize") : t("common.tapToSeeMore")}${PLAN_CHEVRON_SVG}</button>` : ""}
     `;
-    planBodyEl.querySelectorAll("[data-quick-add]").forEach((btn) => {
+    planBodyEl.querySelectorAll("[data-quick-add]:not(.is-added)").forEach((btn) => {
+      // aria-disabled + the .is-added class's own pointer-events: none,
+      // not the native disabled property -- setting .disabled = true in
+      // the same tick as the class change froze this button's
+      // background/color transition at its PRE-click colors (a real
+      // browser quirk: an element disabled mid-transition stops
+      // repainting), so the checkmark rendered dark-on-white instead of
+      // light-green-on-green until the next full page re-render. {once:
+      // true} is the actual re-click guard now that disabled isn't doing
+      // that job.
       btn.addEventListener("click", (event) => {
         event.stopPropagation(); // don't also trigger the row's exercise-detail modal
         quickLogExerciseNow(btn.dataset.quickAdd);
-        btn.textContent = "✓";
+        btn.innerHTML = SMALL_CHECK_ICON;
         btn.classList.add("is-added");
-        setTimeout(() => {
-          btn.textContent = "+";
-          btn.classList.remove("is-added");
-        }, 1200);
-      });
+        btn.setAttribute("aria-disabled", "true");
+        btn.setAttribute("aria-label", `${btn.dataset.quickAdd} already logged today`);
+        btn.title = "Already logged today";
+      }, { once: true });
     });
     const moreBtn = document.getElementById("wl-plan-more-btn");
     if (moreBtn) {
