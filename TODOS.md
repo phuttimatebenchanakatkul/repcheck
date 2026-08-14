@@ -26,6 +26,30 @@
 **Priority:** P2
 **Depends on:** None
 
+### Duplicate day labels now have write-path exposure, not just display-path
+
+**What:** `renderWholeSplitBody()`'s inline edit controls (added in `edit-split-flow-redesign`) resolve which `plan.days` entry to mutate via `plan.days.find((d) => d.label === activeLabel)` -- the same label-keyed lookup the existing "A custom day literally named 'Rest' hides its own workout" TODO already flags as a display-path collision risk. If `plan.days` ever contains two entries with the same label (nothing in the custom-split builder enforces uniqueness), `.find()` silently returns only the first match. Before this branch, that collision only affected which day's content got *displayed*; now the inline remove-exercise and pick-exercises buttons write through that same lookup, so an edit intended for the second same-labeled day would silently mutate the first one's exercise list instead.
+
+**Why:** Previously a confusing-but-harmless display quirk; now a genuine data-corruption path -- a user editing what they believe is one day's exercises could silently corrupt a different day's data, with no error or indication anything went wrong.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same root cause and same fix options as the existing "custom day literally named 'Rest'" TODO above (day-label uniqueness isn't enforced anywhere in the custom-split builder) -- properly fixing either finding likely fixes both, since both stem from `plan.days` entries being addressed by label instead of a stable id. Deferred as an architectural change (adding a real per-day id touches the saved-plan schema and every place that currently keys off `label`), not a one-line fix, and this branch's own scope is the edit-entry-flow redesign, not the underlying data model.
+
+**Effort:** M (touches the saved-plan schema if done properly)
+**Priority:** P3
+**Depends on:** None
+
+### Inline split-plan edits increase repcheck_split_plan_v1's sync write frequency with no ordering guarantee
+
+**What:** `repcheck_split_plan_v1` is synced by `static/account_sync.js` as a plain last-write-wins key (not in `MERGE_LOG_KEYS`), pushed via independent fire-and-forget `sendBeacon`/`fetch` PUTs with no version or ordering guarantee -- the same architecture already flagged for `repcheck_workout_log_v2` below ("account_sync.js's generic merge push can still resurrect a deleted workout entry if delivered late"). Before `edit-split-flow-redesign`, `persistSplitPlan()` (then inline in the wizard's save handler) only fired once per completed wizard flow. This branch calls it on every inline exercise add/remove tap in the week view too, so a single editing session can now fire many more of these unordered writes in quick succession.
+
+**Why:** More frequent unordered writes to the same key widens the window for a stale write (a backgrounded tab, a delayed beacon, a flaky connection retried later) to land after a newer one and silently revert exercise additions/removals a user already made and saw persist -- the exact failure mode already documented for the workout log, now applicable to split plans too because the write pattern changed from occasional to frequent.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same fix shape as the workout-log entry below: `account_sync.js` would need per-key version/ordering guarantees (or a dedicated CRUD endpoint instead of whole-blob last-write-wins), which is shared sync infrastructure touching every key in `SYNC_KEYS`, not something this branch's scope (the edit-entry-flow redesign) should take on.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
 ### Same exercise appearing twice in one generated day would share one prescription
 
 **What:** `getPrescription(label, name)` (`templates/workouts.html`) keys only by `(label, name)`. If `day.exercises` ever contains the same exercise name twice for one day, both instances would share one prescription object and edit in lockstep with no UI indication. The self-build exercise picker structurally prevents this (uses a `Set`), but the AI-suggest path's generated days (`split_planner.py`, not audited here) haven't been checked for whether the server can ever emit a duplicate exercise name within one day.

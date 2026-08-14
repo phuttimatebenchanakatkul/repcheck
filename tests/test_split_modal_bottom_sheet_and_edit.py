@@ -75,6 +75,13 @@ def whole_split_body_fn(workouts_html):
     return workouts_html[start:end]
 
 
+@pytest.fixture(scope="module")
+def exercise_picker_fn(workouts_html):
+    start = workouts_html.index("async function renderExercisePickerStep(dayName")
+    end = workouts_html.index("function renderSplitStepDays()", start)
+    return workouts_html[start:end]
+
+
 # ---------- bottom sheet ----------
 
 
@@ -197,6 +204,7 @@ def test_week_view_resets_the_modal_title_on_every_render(whole_split_body_fn):
     title bar stays stuck on that text after the user is done picking."""
     assert re.search(
         r'function renderWholeSplitBody\(plan\) \{\s*'
+        r'splitModalGeneration\+\+;\s*'
         r'const t = RepCheckI18n\.t;\s*'
         r'(?://[^\n]*\n\s*)*'
         r'splitModalTitle\.textContent = t\("workouts\.plan\.wholeSplitTitle"\);',
@@ -239,15 +247,22 @@ def test_week_view_remove_button_persists_immediately(whole_split_body_fn):
     )
 
 
-def test_persistSplitPlan_refreshes_the_todays_plan_card(workouts_html):
+def test_persistSplitPlan_refreshes_the_todays_plan_card_even_if_the_write_fails(workouts_html):
     """persistSplitPlan() must do both the localStorage write AND refresh
     renderTodaysPlanCard() -- the card sitting behind the split modal.
     Without the second call, removing/adding an exercise inline updates
     the saved plan correctly but leaves that card showing the pre-edit
-    exercise list until the next full page load."""
+    exercise list until the next full page load. And the setItem() call
+    must be wrapped in its own try/catch, OUTSIDE of which
+    renderTodaysPlanCard() sits unconditionally: a quota-exceeded or
+    private-browsing write failure shouldn't stop the UI from reflecting
+    the in-memory plan every caller already mutated before calling this."""
     assert re.search(
         r"function persistSplitPlan\(plan\) \{\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"try \{\s*"
         r"localStorage\.setItem\(SPLIT_PLAN_KEY, JSON\.stringify\(plan\)\);\s*"
+        r"\} catch \(err\) \{\}\s*"
         r"renderTodaysPlanCard\(\);\s*\}",
         workouts_html,
     )
@@ -291,12 +306,31 @@ def test_week_view_shows_empty_state_when_a_day_has_no_exercises_left(whole_spli
     )
 
 
-def test_add_remove_controls_are_skipped_entirely_on_a_rest_day(whole_split_body_fn):
+def test_add_remove_controls_are_skipped_entirely_when_theres_no_active_day(whole_split_body_fn):
     """There's no activeDay object on a rest day (plan.schedule maps it to
-    "Rest", not a day label), so the remove/pick-exercises wiring must be
-    gated behind the same isRest check the rest-text branch uses --
-    calling activeDay.exercises on null would throw."""
-    assert "if (!isRest) {" in whole_split_body_fn
+    "Rest", not a day label) NOR when the schedule names a label that
+    doesn't match any entry in plan.days (a data inconsistency) -- either
+    way the remove/pick-exercises wiring must be gated behind the same
+    showExerciseList flag the exercise-list-vs-rest-text branch uses, since
+    calling activeDay.exercises on null/undefined would throw."""
+    assert "const showExerciseList = !isRest && !!activeDay;" in whole_split_body_fn
+    assert "if (showExerciseList) {" in whole_split_body_fn
+    assert "if (!isRest) {" not in whole_split_body_fn
+
+
+def test_exercise_list_template_branch_also_falls_back_on_a_missing_active_day(whole_split_body_fn):
+    """The rest-text-vs-exercise-list ternary in the template itself must
+    branch on showExerciseList too, not just the event-wiring below it --
+    otherwise a missing activeDay would skip the click handlers safely but
+    still crash on activeDay.exercises.map() while building the innerHTML
+    string in the first place."""
+    assert re.search(
+        r"\$\{!showExerciseList\s*"
+        r"\? `<div class=\"wl-plan-rest\">\$\{t\(\"workouts\.plan\.restText\"\)\}</div>`\s*"
+        r": `<div class=\"wl-plan-exercise-list\">",
+        whole_split_body_fn,
+    )
+    assert "${isRest\n" not in whole_split_body_fn
 
 
 # ---------- exercise picker: generalized for both callers ----------
@@ -328,4 +362,58 @@ def test_wizard_pick_exercises_still_writes_back_to_splitWizard(workouts_html):
         r"else delete splitWizard\.customDayExercises\[dayName\];\s*"
         r"renderSplitStepType\(\);",
         workouts_html,
+    )
+
+
+# ---------- async render-generation guard (adversarial-review fix) ----------
+#
+# renderExercisePickerStep() is the one step in this whole wizard/view
+# system that's async -- it awaits loadCustomExercises() before rendering
+# anything. If the user navigates elsewhere in that window (another
+# weekday tab, "Edit split", a fresh wizard save) and something else
+# replaces #split-modal-body, the picker's resumed continuation would
+# previously overwrite it with stale UI wired to a stale plan/activeDay
+# closure -- silently writing an old plan back over one the user saved in
+# the meantime. Every function that replaces #split-modal-body bumps a
+# shared splitModalGeneration counter; the picker captures its own value
+# before awaiting and bails if the counter moved on.
+
+RENDER_GENERATION_ENTRY_POINTS = [
+    "renderSplitStepMode",
+    "renderSplitStepType",
+    "renderSplitStepLocation",
+    "renderSplitStepGoal",
+    "renderSplitStepDays",
+    "renderSplitStepReview",
+    "renderWholeSplitBody",
+]
+
+
+@pytest.mark.parametrize("fn_name", RENDER_GENERATION_ENTRY_POINTS)
+def test_every_modal_body_render_function_bumps_the_generation_counter(workouts_html, fn_name):
+    assert re.search(
+        r"function " + fn_name + r"\([^)]*\) \{\s*splitModalGeneration\+\+;",
+        workouts_html,
+    ), f"{fn_name}() must bump splitModalGeneration as its first statement"
+
+
+def test_exercise_picker_captures_its_generation_before_awaiting(exercise_picker_fn):
+    assert re.search(
+        r"async function renderExercisePickerStep\(dayName, \{ getSelected, onDone \}\) \{\s*"
+        r"const myGeneration = \+\+splitModalGeneration;",
+        exercise_picker_fn,
+    )
+
+
+def test_exercise_picker_bails_if_stale_after_the_await(exercise_picker_fn):
+    """The bail-out check must happen AFTER the await and BEFORE the
+    splitModalBody.innerHTML assignment -- checking before the await would
+    be pointless (nothing could have changed yet), and rendering first
+    then checking would still leak the stale UI onto the screen."""
+    assert re.search(
+        r"await loadCustomExercises\(\);\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"if \(myGeneration !== splitModalGeneration\) return;\s*"
+        r"splitModalBody\.innerHTML = `",
+        exercise_picker_fn,
     )

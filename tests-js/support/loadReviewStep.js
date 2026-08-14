@@ -114,7 +114,9 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   // the renderTodaysPlanCard() refresh, in one call -- since the save
   // handler now goes through it instead of doing both inline.
   function persistSplitPlan(plan) {
-    localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+    try {
+      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+    } catch (err) {}
     renderTodaysPlanCard();
   }
   // The real function opens a separate static modal that isn't part of this
@@ -156,6 +158,7 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "persistSplitPlan",
     "openExercisePrescriptionEditor",
     "splitWizard",
+    "splitModalGeneration",
     `${source}\nreturn { renderSplitStepReview, prescriptionKey, getPrescription };`
   );
 
@@ -174,7 +177,8 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     renderTodaysPlanCard,
     persistSplitPlan,
     openExercisePrescriptionEditor,
-    splitWizard
+    splitWizard,
+    0 // splitModalGeneration -- renderSplitStepReview() only increments this local copy; the harness doesn't need to observe it, just needs the free variable to resolve so the extracted source doesn't throw
   );
 
   return { renderSplitStepReview, prescriptionKey, getPrescription, splitModalBody, splitModalTitle, splitWizard, calls, SPLIT_PLAN_KEY };
