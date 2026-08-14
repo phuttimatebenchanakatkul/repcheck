@@ -82,6 +82,76 @@ describe("renderRateSlider", () => {
     expect(onChange).toHaveBeenLastCalledWith(LOSS_RATE_MAX_PCT);
   });
 
+  it("keyboard ArrowRight/ArrowLeft/PageUp/PageDown step by the documented small/big fractions", () => {
+    const { renderRateSlider } = loadRateSlider();
+    const onChange = vi.fn();
+    const { el } = renderRateSlider({ isLose: true, value: 1.0, weightKg: "75", onChange });
+    const slider = el.querySelector("#ob-rate-slider");
+    const span = LOSS_RATE_MAX_PCT - LOSS_RATE_MIN_PCT;
+    const smallStep = span / 100;
+    const bigStep = span / 10;
+    // Repeated float add/subtract doesn't round-trip exactly (1.0 + step -
+    // step lands at 0.9999999999999999, not 1.0), so assert with tolerance
+    // rather than the exact literal -- that's a float-precision artifact,
+    // not a bug in the step arithmetic itself.
+    const lastCall = () => onChange.mock.calls.at(-1)[0];
+
+    slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+    expect(lastCall()).toBeCloseTo(1.0 + smallStep, 9);
+    slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true }));
+    expect(lastCall()).toBeCloseTo(1.0, 9);
+    slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }));
+    expect(lastCall()).toBeCloseTo(1.0 + smallStep, 9);
+    slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    expect(lastCall()).toBeCloseTo(1.0, 9);
+    slider.dispatchEvent(new KeyboardEvent("keydown", { key: "PageUp", bubbles: true, cancelable: true }));
+    expect(lastCall()).toBeCloseTo(1.0 + bigStep, 9);
+    slider.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown", bubbles: true, cancelable: true }));
+    expect(lastCall()).toBeCloseTo(1.0, 9);
+  });
+
+  it("loss mode with zero/invalid bodyweight renders no zone and no badge, same as gain mode", () => {
+    // renderRateSlider only computes a zone when `isLose && wv > 0`
+    // (see the `let zoneMinPct = null` branch) -- an onboarding user who
+    // reaches this step with an unset/invalid weightKg must not crash or
+    // show a nonsensical zone positioned from a 0 or NaN bodyweight.
+    const { renderRateSlider } = loadRateSlider();
+    const { el } = renderRateSlider({ isLose: true, value: 0.5, weightKg: "", onChange: () => {} });
+    expect(el.querySelector("#ob-rate-zone")).toBeNull();
+    expect(el.querySelector("#ob-rate-badge").textContent).toBe("");
+  });
+
+  it("pointermove continues tracking after pointerdown, and pointerup stops it", () => {
+    // The QA pass that manually verified dragging (see
+    // .gstack/qa-reports/qa-report-localhost-2026-08-14.md) exercised a
+    // single click-to-position, not a multi-point pointerdown -> several
+    // pointermove -> pointerup sequence -- so the live-drag-tracking path
+    // and the "stop tracking after pointerup" path had no coverage at all,
+    // unit or E2E. This closes that gap directly.
+    const { renderRateSlider } = loadRateSlider();
+    const onChange = vi.fn();
+    const { el } = renderRateSlider({ isLose: true, value: 0.5, weightKg: "75", onChange });
+    const slider = el.querySelector("#ob-rate-slider");
+    document.body.appendChild(el);
+    slider.getBoundingClientRect = () => ({ left: 0, right: 200, width: 200, top: 0, bottom: 24, height: 24 });
+
+    dispatchPointer(slider, "pointerdown", 0); // ratio 0 -> min
+    expect(onChange).toHaveBeenLastCalledWith(LOSS_RATE_MIN_PCT);
+
+    dispatchPointer(slider, "pointermove", 100); // ratio 0.5, mid-drag
+    const mid = LOSS_RATE_MIN_PCT + 0.5 * (LOSS_RATE_MAX_PCT - LOSS_RATE_MIN_PCT);
+    expect(onChange).toHaveBeenLastCalledWith(mid);
+
+    dispatchPointer(slider, "pointermove", 200); // ratio 1.0 -> max, still mid-drag
+    expect(onChange).toHaveBeenLastCalledWith(LOSS_RATE_MAX_PCT);
+
+    dispatchPointer(slider, "pointerup", 200);
+    const callsAtRelease = onChange.mock.calls.length;
+    dispatchPointer(slider, "pointermove", 0); // move AFTER release must be ignored (dragging = false)
+    expect(onChange.mock.calls.length).toBe(callsAtRelease);
+    expect(slider.classList.contains("is-dragging")).toBe(false);
+  });
+
   // Regression test for a real bug found during manual browser verification:
   // setPointerCapture() is undefined in some environments (confirmed: jsdom
   // has no PointerEvent/setPointerCapture support at all) and can also
