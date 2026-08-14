@@ -957,15 +957,83 @@
 }
 .hx-pb-row-time { font-size: 18px; font-weight: 700; min-width: 76px; color: var(--blue); font-variant-numeric: tabular-nums; }
 
-/* Singles/Doubles grouping on the setup screen's "your bests" card. */
-.hx-pb-format-section { margin-bottom: 18px; }
-.hx-pb-format-section:last-child { margin-bottom: 0; }
-.hx-pb-section-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
+/* ---------- "Your personal bests" card (renderMyBestsCard()) ----------
+   Trophy-badge header matches the Leaderboard card's own .hx-lb-trophy
+   treatment (same gradient/shadow) so the two cards read as one family. */
+.pb-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.pb-trophy {
+  width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
+  box-shadow: 0 6px 14px rgba(185, 131, 42, 0.35);
 }
+.pb-trophy svg { width: 15px; height: 15px; }
+.pb-header .hx-step-label { margin-bottom: 0; }
+
+/* Singles/Doubles grouping: each format collapses to one hero time (the
+   fastest tier raced) with an inline tier tag. A second tier raced adds
+   a chevron to expand into every tier -- see hyrox.js's renderMyBestsCard()
+   for why a format with only one tier gets no chevron at all. */
+.pb-section { border-radius: 14px; overflow: hidden; margin-bottom: 8px; }
+.pb-section:last-child { margin-bottom: 0; }
+
+.pb-section-trigger {
+  display: flex; align-items: center; width: 100%;
+  padding: 12px 14px; border-radius: 14px;
+  background: var(--bg);
+  transition: background-color 0.15s ease;
+}
+[role="button"].pb-section-trigger { cursor: pointer; }
+[role="button"].pb-section-trigger:hover { background: var(--sidebar-active); }
+[role="button"].pb-section-trigger:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }
+
+.pb-trigger-main { flex: 1; min-width: 0; }
+.pb-format-title {
+  font-size: 12px; font-weight: 700; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px;
+}
+.pb-hero-row { display: flex; align-items: baseline; gap: 9px; }
+
+/* Time is its own tappable control (opens the full race report) nested
+   inside the section's own toggle -- see the constructor comment in
+   hyrox.js for why the trigger is a div[role=button] rather than a real
+   button. No underline; a color shift on hover/focus is affordance
+   enough, matching this card's existing minimal-chrome rows. */
+.pb-time-btn {
+  background: none; border: none; padding: 0; font-family: inherit; cursor: pointer;
+  font-variant-numeric: tabular-nums; color: var(--text);
+  transition: color 0.15s ease;
+}
+.pb-time-btn:hover { color: var(--amber); }
+.pb-time-btn:focus-visible { color: var(--amber); outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+.pb-hero-time { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.pb-detail-time { font-size: 16px; font-weight: 800; min-width: 66px; text-align: left; }
+
+.pb-hero-tag {
+  display: inline-flex; padding: 3px 9px; border-radius: 999px;
+  background: var(--amber-bg); color: var(--amber); font-size: 10px; font-weight: 700;
+}
+
+.pb-chevron { color: var(--text-secondary); flex-shrink: 0; margin-left: 10px; display: flex; transition: transform 0.2s ease; }
+.pb-section.is-open .pb-chevron { transform: rotate(180deg); color: var(--amber); }
+
+.pb-detail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.22s ease; }
+@media (prefers-reduced-motion: reduce) { .pb-detail { transition: none; } }
+.pb-section.is-open .pb-detail { grid-template-rows: 1fr; }
+.pb-detail-inner { overflow: hidden; }
+
+.pb-detail-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; margin: 6px 2px 0;
+  border-top: 1px solid var(--border);
+}
+.pb-detail-row:first-child { border-top: none; margin-top: 4px; padding-top: 2px; }
+.pb-detail-meta { flex: 1; min-width: 0; }
+.pb-detail-tag {
+  font-size: 10px; font-weight: 700; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.pb-detail-date { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 
 /* ---------- History ---------- */
 .hx-history-row {
@@ -1294,12 +1362,12 @@
    look as nutrition.html's .nl-save-error-toast, duplicated here since
    this page's styles live in their own stylesheet rather than a
    template's inline <style> block. */
-.hx-save-error-toast {
+.hx-save-error-toast,
+.hx-info-toast {
   position: fixed;
   left: 50%;
   bottom: 90px;
   transform: translateX(-50%);
-  background: var(--red);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -1310,6 +1378,14 @@
   max-width: 90vw;
   text-align: center;
   animation: hx-toast-fade-in 0.15s ease;
+}
+.hx-save-error-toast {
+  background: var(--red);
+}
+.hx-info-toast {
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 @keyframes hx-toast-fade-in {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
