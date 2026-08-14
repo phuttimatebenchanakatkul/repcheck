@@ -37,20 +37,13 @@
 
 {% endif %}
 
-<!-- "Today" glance grid: four simple cards, one plain fact each — how
-     much is left to eat, current weight, fastest race, last form check.
-     The dense weekly macro chart (4 rows + a Consumed/Remaining toggle)
-     was the most jargon-heavy thing on the page; the full chart still
-     lives on the Nutrition page, where it belongs. -->
 <div class="hm-section-title" data-i18n="home.today">Today</div>
 
 <!-- Calories & macros summary: bar-chart-style card (blue=calories,
      red=protein, amber=fat, green=carbs), same color coding as the
      interactive week chart's own dots/bars (coaching.css's
      .pc-week-bar-*), just collapsed to today's totals instead of a
-     7-day grid. Replaces the old .hm-chart-card week view that used to
-     sit below the glance grid -- moved above it per user request, with
-     "Full stats" pill linking to its own dedicated weekly page
+     7-day grid. "Full stats" pill links to its own dedicated weekly page
      (templates/full_stats.html) instead of the rest of the card, which
      still goes to Nutrition -- stops propagation the same way the day
      columns/toggle further down do, since it sits inside that link. -->
@@ -66,48 +59,6 @@
   <div id="hm-macro-big"></div>
   <div id="hm-macro-bars"></div>
 </a>
-
-<div class="hm-glance-grid">
-  <a class="hm-glance" href="{{ url_for('nutrition') }}">
-    <div class="hm-glance-head">
-      <span class="hm-glance-chip hm-qi-green"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a2 2 0 0 0 4 0V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3Zm0 0v7"/></svg></span>
-      <span class="hm-glance-label" data-i18n="home.food.title">Food today</span>
-    </div>
-    <div id="hm-food-body"></div>
-  </a>
-
-  <!-- Was a plain link out to the full weight-history page; now opens the
-       same shared "Log weight" bottom sheet as the "+" menu (base.html's
-       #lw-modal-overlay already had a dormant hook for exactly this,
-       document.getElementById("hm-quick-log-weight") in its openTriggers
-       list, just never wired up to anything). Gets the identical recede
-       motion for free since it's the same shared sheet system. The sheet
-       itself now also shows recent weigh-ins + a link to the full history
-       page, so that page doesn't become orphaned by dropping this link. -->
-  <button type="button" class="hm-glance" id="hm-quick-log-weight">
-    <div class="hm-glance-head">
-      <span class="hm-glance-chip hm-qi-red"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
-      <span class="hm-glance-label" data-i18n="home.weight.title">Weight</span>
-    </div>
-    <div id="hm-weight-body"></div>
-  </button>
-
-  <a class="hm-glance" href="{{ url_for('hyrox') }}">
-    <div class="hm-glance-head">
-      <span class="hm-glance-chip hm-qi-slate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6M12 2v3"/></svg></span>
-      <span class="hm-glance-label" data-i18n="home.hyrox.title">HYROX</span>
-    </div>
-    <div id="hm-hyrox-body"></div>
-  </a>
-
-  <a class="hm-glance" href="{{ url_for('analyze_page') }}">
-    <div class="hm-glance-head">
-      <span class="hm-glance-chip hm-qi-purple"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg></span>
-      <span class="hm-glance-label" data-i18n="home.lastFormCheck">Form check</span>
-    </div>
-    <div id="hm-analyze-body"></div>
-  </a>
-</div>
 
 <style>
   /* ---------- Hero ---------- */
@@ -186,21 +137,6 @@
   /* ---------- Section titles ---------- */
   .hm-section-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; margin: 0 4px 10px; }
 
-  /* ---------- Glance-card icon chip colors (also used below by
-     .hm-glance-chip) ---------- */
-  .hm-qi-green { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 5px 12px rgba(31, 169, 113, 0.35); }
-  .hm-qi-red { background: linear-gradient(135deg, #e2685f, var(--red)); box-shadow: 0 5px 12px rgba(209, 69, 59, 0.35); }
-  .hm-qi-purple { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 5px 12px rgba(124, 79, 224, 0.35); }
-  .hm-qi-slate { background: linear-gradient(135deg, #566078, #363c4b); box-shadow: 0 5px 12px rgba(54, 60, 75, 0.4); }
-
-  /* ---------- "Today" glance grid: one simple fact per card ---------- */
-  .hm-glance-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
   /* ---------- Calories & macros summary card: header + big number +
      4 color-coded bars (blue=calories, red=protein, amber=fat,
      green=carbs), styled after a "Heart Rate" bar-chart mockup the user
@@ -255,85 +191,17 @@
      defines margin-bottom for when it sits above other content. */
   .hm-macro-toggle { margin-top: 14px; margin-bottom: 0; }
 
-  .hm-glance {
-    display: flex; flex-direction: column;
-    background: var(--card-bg); color: inherit; text-decoration: none;
-    border-radius: 20px; box-shadow: var(--shadow);
-    padding: 16px;
-    min-height: 128px;
-    transition: transform 0.13s ease, box-shadow 0.15s ease;
-    /* Button-element resets (the WEIGHT tile is a <button>, not a link,
-       since it opens a sheet instead of navigating) -- no-ops on the
-       other tiles, which are still plain <a>s. */
-    border: none; width: 100%; text-align: left; font-family: inherit; cursor: pointer;
-  }
-  .hm-glance:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(20, 20, 20, 0.1); }
-  .hm-glance:active { transform: scale(0.98); }
-  .hm-glance-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-  .hm-glance-chip {
-    width: 26px; height: 26px; border-radius: 8px; color: #fff; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .hm-glance-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
-  .hm-glance-value { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-top: auto; }
-  .hm-glance-value .hm-glance-unit { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-left: 3px; letter-spacing: 0; }
-  .hm-glance-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 4px; }
-  .hm-glance-value.is-over { color: var(--red); }
-
-  .hm-food-bar { height: 6px; border-radius: 999px; background: var(--bg); overflow: hidden; margin-top: 10px; }
-  .hm-food-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #29b87e, var(--green)); transition: width 0.4s ease; }
-  .hm-food-bar-fill.is-over { background: linear-gradient(90deg, #e2685f, var(--red)); }
-
-  .hm-weight-delta { font-size: 12px; font-weight: 800; margin-left: 6px; }
-  .hm-weight-delta.is-down { color: var(--green); }
-  .hm-weight-delta.is-up { color: var(--red); }
-  .hm-sparkline { width: 100%; height: 30px; margin-top: 10px; }
-
-  .hm-pb-badge {
-    display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
-    background: var(--green-bg); color: var(--green); font-size: 11px; font-weight: 800;
-    border-radius: 999px; padding: 3px 9px; margin-top: 6px;
-  }
-
-  .hm-analyze-row { display: flex; align-items: center; gap: 9px; margin-top: auto; }
-  .hm-analyze-thumb {
-    width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
-    background: var(--purple-bg); color: var(--purple);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; overflow: hidden;
-  }
-  .hm-analyze-name { font-size: 14px; font-weight: 700; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-
-  /* Empty state inside a glance card: one soft line + a colored action line. */
-  .hm-glance-empty { margin-top: auto; }
-  .hm-glance-empty-text { font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
-  .hm-glance-empty-cta { display: inline-block; font-size: 12.5px; font-weight: 800; margin-top: 8px; }
-  .hm-cta-green { color: var(--green); }
-  .hm-cta-red { color: var(--red); }
-  .hm-cta-purple { color: var(--purple); }
-  .hm-cta-slate { color: var(--text); }
-
-
   @media (max-width: 720px) {
     .hm-hero { padding: 18px; }
     .hm-hero-title { font-size: 23px; }
     .hm-hero-day-num { width: 30px; height: 30px; font-size: 12px; }
-  }
-  @media (max-width: 330px) {
-    .hm-glance-grid { grid-template-columns: 1fr; }
   }
 </style>
 
 <script>
   (function () {
     const t = RepCheckI18n.t;
-    const EXERCISE_ICONS = {{ exercise_icons | tojson }};
 
-    function exerciseIconHtml(name, fallbackEmoji) {
-      const path = EXERCISE_ICONS[name];
-      if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
-      return fallbackEmoji;
-    }
     function toIsoDate(date) {
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -353,10 +221,6 @@
     // nutrition.html/coaching.js), always derived from protein/fat/carbs
     // below so it can't drift out of sync with the macro targets.
     const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
-    const analyzeLog = loadJson("repcheck_analyze_log_v1", []);
-    const hyroxHistoryRaw = loadJson("repcheck_hyrox_history_v1", []);
-    const hyroxHistory = (Array.isArray(hyroxHistoryRaw) ? hyroxHistoryRaw : [])
-      .filter((r) => !r.flagged && typeof r.totalSeconds === "number");
 
     function hasActivityOn(iso) {
       const w = workoutLog[iso];
@@ -579,35 +443,6 @@
       });
     }
 
-    function buildSparkline(values) {
-      if (values.length < 2) return "";
-      const w = 260, h = 34, pad = 4;
-      const min = Math.min(...values), max = Math.max(...values);
-      const range = max - min || 1;
-      const step = (w - pad * 2) / (values.length - 1);
-      const points = values.map((v, i) => {
-        const x = pad + i * step;
-        const y = pad + (1 - (v - min) / range) * (h - pad * 2);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      });
-      const [lastX, lastY] = points[points.length - 1].split(",");
-      return `
-        <svg class="hm-sparkline" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-          <polyline points="${points.join(" ")}" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="${lastX}" cy="${lastY}" r="3.5" fill="var(--red)"/>
-        </svg>
-      `;
-    }
-
-    function formatDuration(totalSeconds) {
-      const s = Math.round(totalSeconds);
-      const hrs = Math.floor(s / 3600);
-      const mins = Math.floor((s % 3600) / 60);
-      const secs = s % 60;
-      if (hrs > 0) return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-      return `${mins}:${String(secs).padStart(2, "0")}`;
-    }
-
     // ---------- Hero ----------
     function renderHero() {
       const dateEl = document.getElementById("hm-hero-date");
@@ -691,131 +526,9 @@
       `;
     }
 
-    // ---------- Food today: one number -- how much is left to eat ----------
-    function renderFood() {
-      const mount = document.getElementById("hm-food-body");
-      if (!mount) return;
-      const eaten = sumMacrosForDay(nutritionLog[toIsoDate(new Date())]);
-      // See macroCardRows() -- eaten calories must come from baseCalories,
-      // not a macro-derived formula, to match the Nutrition page's total.
-      const eatenKcal = Math.round(eaten.calories);
-      const goalKcal = Math.round(nutritionGoals.protein * 4 + nutritionGoals.fat * 9 + nutritionGoals.carbs * 4);
-      const left = goalKcal - eatenKcal;
-      const isOver = left < 0;
-      const pct = goalKcal > 0 ? Math.max(0, Math.min(100, (eatenKcal / goalKcal) * 100)) : 0;
-      mount.innerHTML = `
-        <div class="hm-glance-value ${isOver ? "is-over" : ""}">${Math.abs(left).toLocaleString(RepCheckI18n.locale())}<span class="hm-glance-unit">${t(isOver ? "home.food.kcalOver" : "home.food.kcalLeft")}</span></div>
-        <div class="hm-food-bar"><div class="hm-food-bar-fill ${isOver ? "is-over" : ""}" style="width:${pct}%;"></div></div>
-        <div class="hm-glance-sub">${t("home.food.ofGoal", { n: goalKcal.toLocaleString(RepCheckI18n.locale()) })}</div>
-      `;
-    }
-
-    // ---------- Weight: latest number + trend line ----------
-    function renderWeight() {
-      const mount = document.getElementById("hm-weight-body");
-      if (!mount) return;
-      // Re-read fresh each call (not a page-load-time const) -- this now
-      // also re-renders right after the "Log weight" sheet saves, so a
-      // stale snapshot would show the old number until a full reload.
-      const weightLog = loadJson("repcheck_weight_log_v1", {});
-      const entries = Object.keys(weightLog)
-        .map((date) => ({ date, kg: weightLog[date].kg }))
-        .filter((e) => typeof e.kg === "number")
-        .sort((a, b) => a.date.localeCompare(b.date));
-
-      if (!entries.length) {
-        mount.innerHTML = `
-          <div class="hm-glance-empty">
-            <div class="hm-glance-empty-text">${t("home.weight.emptyText")}</div>
-            <span class="hm-glance-empty-cta hm-cta-red">${t("home.weight.emptyCta")}</span>
-          </div>
-        `;
-        return;
-      }
-
-      const latest = entries[entries.length - 1];
-      // Compare against the entry closest to (but not after) 7 days
-      // before the latest weigh-in, so the delta reads as "vs a week
-      // ago" rather than "vs whenever logging started".
-      const weekAgoCutoff = new Date(latest.date + "T00:00:00");
-      weekAgoCutoff.setDate(weekAgoCutoff.getDate() - 7);
-      const weekAgoIso = toIsoDate(weekAgoCutoff);
-      const priorCandidates = entries.filter((e) => e.date <= weekAgoIso && e.date !== latest.date);
-      const prior = priorCandidates.length ? priorCandidates[priorCandidates.length - 1] : null;
-      const delta = prior ? latest.kg - prior.kg : 0;
-      const showDelta = prior && Math.abs(delta) >= 0.05;
-      const deltaHtml = showDelta
-        ? `<span class="hm-weight-delta ${delta < 0 ? "is-down" : "is-up"}">${delta > 0 ? "+" : "-"}${RepCheckUnits.formatWeightKg(Math.abs(delta))}</span>`
-        : "";
-      // Human date instead of a raw 2026-07-17: "Today" for today,
-      // otherwise a short localized "Jul 15".
-      const latestIso = latest.date;
-      const dateLabel = latestIso === toIsoDate(new Date())
-        ? t("home.today")
-        : new Date(latestIso + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
-      mount.innerHTML = `
-        <div class="hm-glance-value">${RepCheckUnits.kgToDisplay(latest.kg)}<span class="hm-glance-unit">${RepCheckUnits.weightUnitLabel()}</span>${deltaHtml}</div>
-        ${buildSparkline(entries.slice(-10).map((e) => e.kg))}
-        <div class="hm-glance-sub">${t("home.weight.lastLogged", { date: dateLabel })}</div>
-      `;
-    }
-
-    // ---------- HYROX: most recent race time ----------
-    function renderHyrox() {
-      const mount = document.getElementById("hm-hyrox-body");
-      if (!mount) return;
-      if (!hyroxHistory.length) {
-        mount.innerHTML = `
-          <div class="hm-glance-empty">
-            <div class="hm-glance-empty-text">${t("home.hyrox.empty")}</div>
-            <span class="hm-glance-empty-cta hm-cta-slate">${t("home.hyrox.tapToStart")}</span>
-          </div>
-        `;
-        return;
-      }
-      const sorted = hyroxHistory.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
-      const mostRecent = sorted[0];
-      const best = hyroxHistory.slice().sort((a, b) => a.totalSeconds - b.totalSeconds)[0];
-      const isPb = mostRecent.id === best.id;
-      const dateLabel = new Date(mostRecent.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
-      mount.innerHTML = `
-        <div class="hm-glance-value">${formatDuration(mostRecent.totalSeconds)}</div>
-        ${isPb
-          ? `<span class="hm-pb-badge">${t("home.hyrox.pb")}</span>`
-          : `<div class="hm-glance-sub">${t("home.hyrox.pbPrefix", { time: formatDuration(best.totalSeconds) })}</div>`}
-        <div class="hm-glance-sub">${t("home.hyrox.lastRace", { date: dateLabel })}</div>
-      `;
-    }
-
-    // ---------- Form check: most recently analyzed exercise ----------
-    function renderAnalyze() {
-      const mount = document.getElementById("hm-analyze-body");
-      if (!mount) return;
-      const recent = (Array.isArray(analyzeLog) ? analyzeLog : []).slice().sort((a, b) => b.analyzedAt - a.analyzedAt);
-      if (!recent.length) {
-        mount.innerHTML = `
-          <div class="hm-glance-empty">
-            <div class="hm-glance-empty-text">${t("home.analyze.emptyText")}</div>
-            <span class="hm-glance-empty-cta hm-cta-purple">${t("home.analyze.emptyCta")}</span>
-          </div>
-        `;
-        return;
-      }
-      mount.innerHTML = `
-        <div class="hm-analyze-row">
-          <span class="hm-analyze-thumb">${exerciseIconHtml(recent[0].exercise, "🎯")}</span>
-          <span class="hm-analyze-name">${recent[0].exercise}</span>
-        </div>
-      `;
-    }
-
     function renderAll() {
       renderHero();
       renderCheckinBanner();
-      renderFood();
-      renderWeight();
-      renderHyrox();
-      renderAnalyze();
       renderMacroCard();
     }
 
@@ -823,9 +536,7 @@
     document.addEventListener("repcheck:language-changed", renderAll);
     document.addEventListener("repcheck:units-changed", renderAll);
     // Fired by base.html's shared "Log weight" sheet right after a
-    // successful save -- keep this card's number/delta in sync without
-    // needing a page reload.
-    document.addEventListener("repcheck:weight-logged", renderWeight);
+    // successful save.
     document.addEventListener("repcheck:weight-logged", renderCheckinBanner);
 
     // ---------- Personalized greeting ----------
