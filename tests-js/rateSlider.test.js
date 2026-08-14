@@ -152,6 +152,31 @@ describe("renderRateSlider", () => {
     expect(slider.classList.contains("is-dragging")).toBe(false);
   });
 
+  // Regression test for a real bug introduced (and caught before commit)
+  // while fixing a performance finding: the thumb's drag-scale bump moved
+  // from a stylesheet rule (`.is-dragging .ob-rate-slider-thumb { transform:
+  // scale(1.15) }`, reverted automatically by the class removal on
+  // pointerup) into the same inline `transform` string redraw() writes on
+  // every frame -- an inline style always wins over a stylesheet rule on
+  // the same property, so once the scale moved inline, removing the
+  // `is-dragging` class alone stopped being enough to undo it. Without an
+  // explicit redraw() call in onPointerUp, the thumb would stay visually
+  // scaled up forever after every release.
+  it("thumb scale reverts after pointerup, not just the is-dragging class", () => {
+    const { renderRateSlider } = loadRateSlider();
+    const { el } = renderRateSlider({ isLose: true, value: 0.5, weightKg: "75", onChange: () => {} });
+    const slider = el.querySelector("#ob-rate-slider");
+    const thumb = el.querySelector("#ob-rate-thumb");
+    document.body.appendChild(el);
+    slider.getBoundingClientRect = () => ({ left: 0, right: 200, width: 200, top: 0, bottom: 24, height: 24 });
+
+    dispatchPointer(slider, "pointerdown", 100);
+    expect(thumb.style.transform).toContain("scale(1.15)");
+
+    dispatchPointer(slider, "pointerup", 100);
+    expect(thumb.style.transform).not.toContain("scale");
+  });
+
   // Regression test for a real bug found during manual browser verification:
   // setPointerCapture() is undefined in some environments (confirmed: jsdom
   // has no PointerEvent/setPointerCapture support at all) and can also
@@ -161,6 +186,17 @@ describe("renderRateSlider", () => {
   // down -- dragging looked like it did nothing. jsdom's real absence of
   // the API exercises this exact failure path directly, no manual
   // exception-throwing mock needed.
+  it("falls back to the slider's min when the track has zero width (e.g. rendered while hidden)", () => {
+    const { renderRateSlider } = loadRateSlider();
+    const onChange = vi.fn();
+    const { el } = renderRateSlider({ isLose: true, value: 1.0, weightKg: "75", onChange });
+    const slider = el.querySelector("#ob-rate-slider");
+    document.body.appendChild(el);
+    slider.getBoundingClientRect = () => ({ left: 0, right: 0, width: 0, top: 0, bottom: 24, height: 24 });
+    dispatchPointer(slider, "pointerdown", 100);
+    expect(onChange).toHaveBeenLastCalledWith(LOSS_RATE_MIN_PCT);
+  });
+
   it("pointerdown still updates the value and fires onChange when setPointerCapture is unavailable", () => {
     const { renderRateSlider } = loadRateSlider();
     const onChange = vi.fn();

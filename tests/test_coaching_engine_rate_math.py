@@ -102,3 +102,17 @@ def test_gain_rate_above_new_ceiling_is_clamped():
     profile = {**BASE_PROFILE, "aspiration": "gain", "gain_rate_pct": 99}
     at_max = {**BASE_PROFILE, "aspiration": "gain", "gain_rate_pct": ce.GAIN_RATE_MAX_PCT}
     assert ce.calculate_targets(profile) == ce.calculate_targets(at_max)
+
+
+def test_gain_rate_below_min_is_clamped_not_erroring():
+    # Mirrors test_loss_rate_below_min_is_clamped_not_negative_or_erroring
+    # for the gain side -- calculate_targets() clamps gain_rate_pct
+    # independently of app.py's own request validation (defense in depth),
+    # but only the loss side's below-min clamp was pinned by this file.
+    # Uses -5, not 0: `profile.get("gain_rate_pct") or GAIN_RATE_DEFAULT_PCT`
+    # treats a literal 0 as falsy (same as missing), which falls back to
+    # the default rather than exercising the min/max clamp this test wants
+    # -- that's pre-existing behavior of the `or` pattern, not a clamp bug.
+    profile = {**BASE_PROFILE, "aspiration": "gain", "gain_rate_pct": -5}
+    at_min = {**BASE_PROFILE, "aspiration": "gain", "gain_rate_pct": ce.GAIN_RATE_MIN_PCT}
+    assert ce.calculate_targets(profile) == ce.calculate_targets(at_min)

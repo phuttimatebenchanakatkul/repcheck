@@ -546,7 +546,16 @@
 
     function redraw() {
       const t01 = (current - min) / (max - min);
-      thumbEl.style.left = `${t01 * 100}%`;
+      // transform, not left -- this runs on every pointermove/keydown
+      // during a drag, and a `left` write is layout-triggering while a
+      // `transform` write is compositor-only (see .ob-rate-slider-thumb's
+      // `left: 0` in onboarding.html; the -13px half-width centering now
+      // lives in this calc() instead of a static CSS margin-left). The
+      // drag-scale bump is folded into this same string -- an inline
+      // transform overrides a stylesheet transform.scale() rule on the
+      // same property rather than combining with it, so that effect can't
+      // live in a separate CSS class alongside this.
+      thumbEl.style.transform = `translateX(calc(${t01 * 100}% - 13px))${dragging ? " scale(1.15)" : ""}`;
       sliderEl.setAttribute("aria-valuenow", current.toFixed(3));
 
       const standard = inZone(current);
@@ -585,13 +594,19 @@
       onChange(current);
     }
 
-    function valueFromClientX(clientX) {
-      const rect = sliderEl.getBoundingClientRect();
+    function valueFromClientX(clientX, rect) {
       const ratio = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
       return min + Math.max(0, Math.min(1, ratio)) * (max - min);
     }
 
     let dragging = false;
+    // Cached once per drag gesture in onPointerDown, reused for every
+    // pointermove until pointerup -- re-querying getBoundingClientRect() on
+    // every pointermove (which can fire many times per animation frame)
+    // forces a synchronous layout flush each time, since the browser must
+    // resolve any pending layout before it can answer. The slider's own
+    // position never changes mid-drag, so one read per gesture is enough.
+    let dragRect = null;
     function onPointerDown(e) {
       dragging = true;
       sliderEl.classList.add("is-dragging");
@@ -603,18 +618,24 @@
       // exception here would simply never run.
       try { sliderEl.setPointerCapture(e.pointerId); } catch (err) {}
       sliderEl.focus();
-      setValue(valueFromClientX(e.clientX));
+      dragRect = sliderEl.getBoundingClientRect();
+      setValue(valueFromClientX(e.clientX, dragRect));
       e.preventDefault();
     }
     function onPointerMove(e) {
       if (!dragging) return;
-      setValue(valueFromClientX(e.clientX));
+      setValue(valueFromClientX(e.clientX, dragRect));
     }
     function onPointerUp(e) {
       if (!dragging) return;
       dragging = false;
       sliderEl.classList.remove("is-dragging");
       try { sliderEl.releasePointerCapture(e.pointerId); } catch (err) {}
+      // redraw()'s transform string includes the drag-scale bump only
+      // while `dragging` is true (see redraw() above) -- without this
+      // call, the thumb would stay visually scaled up after release,
+      // since nothing else re-renders it once the drag ends.
+      redraw();
     }
     sliderEl.addEventListener("pointerdown", onPointerDown);
     sliderEl.addEventListener("pointermove", onPointerMove);
