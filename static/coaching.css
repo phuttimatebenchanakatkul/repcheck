@@ -367,10 +367,16 @@
   accent-color: var(--blue); height: 20px; cursor: pointer;
 }
 .pc-field-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; min-height: 14px; }
-/* Card treatment for the goal-date estimate -- see .ob-eta-card in
-   onboarding.html for the identical (duplicated) field this mirrors. */
+/* Row holding the goal-date estimate card and, for an existing user with a
+   current budget, the current-budget card beside it (left). flex:1 on each
+   card means a lone ETA card (no budget yet) still fills the row exactly
+   like before this row wrapper existed -- see .ob-eta-card in
+   onboarding.html for the standalone (no budget preview) version of this
+   same field. */
+.pc-eta-row { display: flex; gap: 8px; margin-top: 6px; }
+.pc-eta-row .pc-eta-card { flex: 1; }
 .pc-eta-card:not(:empty) {
-  margin-top: 6px; padding: 10px 12px; border-radius: 12px; background: var(--green-bg); text-align: center;
+  padding: 10px 12px; border-radius: 12px; background: var(--green-bg); text-align: center;
   font-size: 15px; font-weight: 800; color: var(--green); letter-spacing: -0.01em;
 }
 .pc-eta-card:not(:empty)::after { content: attr(data-label); display: block; font-size: 10px; font-weight: 500; color: var(--text-secondary); margin-top: 2px; }

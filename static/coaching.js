@@ -1718,12 +1718,30 @@
         const step = isLose ? 0.1 : 0.05;
         const decimals = isLose ? 1 : 2;
         const label = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
+
+        // Hoisted above rateField's own template (rather than computed
+        // alongside the calorie-estimate preview further down, where this
+        // used to live) so the current budget can render as a card beside
+        // the ETA card, not just as a plain hint line below the slider.
+        // Same existing-profile gate the preview below still uses.
+        const canPreviewCalories = !!(this.profile && w.bodyFatRangeId && w.activityLevel && w.proteinPreference);
+        const currentGoals = canPreviewCalories ? loadJson(GOALS_KEY, null) : null;
+        // Same protein*4 + fat*9 + carbs*4 the macro chart already uses to
+        // derive a calorie number from GOALS_KEY (which only ever stores
+        // the three macros, never calories itself -- see there).
+        const currentCalories = currentGoals
+          ? Math.round(currentGoals.protein * 4 + currentGoals.fat * 9 + currentGoals.carbs * 4)
+          : null;
+
         const rateField = el(`
           <div class="pc-field">
             <label for="pc-rate-slider">${label} <span id="pc-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
             <input type="range" id="pc-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
             <div class="pc-field-hint" id="pc-rate-hint"></div>
-            <div class="pc-eta-card" id="pc-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
+            <div class="pc-eta-row">
+              ${currentCalories ? `<div class="pc-eta-card" id="pc-current-budget" data-label="${t("coaching.wizard.currentBudgetLabel")}">${currentCalories} ${t("coaching.wizard.kcalPerDay")}</div>` : ""}
+              <div class="pc-eta-card" id="pc-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
+            </div>
           </div>
         `);
         const slider = rateField.querySelector("#pc-rate-slider");
@@ -1772,18 +1790,11 @@
         // profile has nothing to seed them with, and asking the server to
         // calculate against missing inputs would just 400 -- so the whole
         // preview is skipped rather than shown against guessed values.
-        const canPreviewCalories = !!(this.profile && w.bodyFatRangeId && w.activityLevel && w.proteinPreference);
+        // canPreviewCalories/currentCalories are computed above, before
+        // rateField, since currentCalories now renders as a card there.
         if (canPreviewCalories) {
-          const currentGoals = loadJson(GOALS_KEY, null);
-          // Same protein*4 + fat*9 + carbs*4 the macro chart already uses to
-          // derive a calorie number from GOALS_KEY (which only ever stores
-          // the three macros, never calories itself -- see there).
-          const currentCalories = currentGoals
-            ? Math.round(currentGoals.protein * 4 + currentGoals.fat * 9 + currentGoals.carbs * 4)
-            : null;
           const previewField = el(`
             <div class="pc-field">
-              ${currentCalories ? `<div class="pc-field-hint">${t("coaching.wizard.currentBudget", { calories: currentCalories })}</div>` : ""}
               <div class="pc-field-hint" id="pc-rate-calorie-estimate"></div>
             </div>
           `);
