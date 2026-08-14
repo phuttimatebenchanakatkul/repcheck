@@ -10,3 +10,6 @@ cd ~/.claude/skills/gstack && ./setup --team
 
 Skills like /qa, /ship, /review, /investigate, and /browse become available after install.
 Use /browse for all web browsing. Use ~/.claude/skills/gstack/... for gstack file paths.
+
+## API server
+Don't start the backend/API server unless the current task actually requires it running.
