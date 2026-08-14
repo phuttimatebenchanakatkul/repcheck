@@ -287,3 +287,15 @@
 **Effort:** S
 **Priority:** P2
 **Depends on:** None
+
+### Widening the onboarding rate range changed the null-rate fallback for the separate coaching.js wizard too
+
+**What:** `coaching_engine.py`'s `LOSS_RATE_DEFAULT_PCT`/`GAIN_RATE_MAX_PCT` are shared server-side constants used by `_validate_coaching_profile()` (`app.py`) for TWO independent wizards: the new onboarding flow (`static/onboarding.js`, this branch's scope) and the separate "Personalized Coaching" wizard (`static/coaching.js`, deliberately left untouched -- its own slider still shows the old 1.0-2.0% / 0.25-0.5% ranges). `_validate_coaching_profile()` substitutes `LOSS_RATE_DEFAULT_PCT` whenever a caller sends an explicit `null` for `loss_rate_pct` (a real, previously-tested path -- see `tests/test_coaching_rate_null.py`), not just when the key is missing. Since that default changed from 1.5% to ~0.267% as part of recalibrating onboarding's range to a 0.2-0.8 kg/week target, a `coaching.js` user who happens to hit this null-fallback path now gets a rate value well below what `coaching.js`'s own slider UI would ever let them select (it never goes below 1.0%) -- their saved profile would disagree with what their own wizard shows as the valid range.
+
+**Why:** Narrow (requires a `coaching.js` user's client to send an explicit `null` rate rather than omitting the key or a real value, which per that test file's own docstring is a real, previously-fixed reachable path, not purely theoretical) but a genuine behavioral bleed-through across a boundary this branch intentionally tried to keep clean (onboarding-only scope, confirmed via explicit user decision before implementation).
+
+**Context:** Found while implementing the onboarding rate-slider redesign (`weight-loss-rate-slider-redesign` branch) -- widening `coaching_engine.py`'s shared MIN/MAX/DEFAULT constants was an explicit, confirmed decision for this branch (needed so the new 0.2-0.8 kg/week loss zone and 0.6 kg/week gain ceiling are even reachable), but the null-fallback DEFAULT bleeding into the other wizard's users is a side effect of that shared file, not something this branch's own scope covers fixing. A real fix means giving each wizard its own default (e.g. a `default_pct` argument threaded through `_validate_coaching_profile()` instead of a bare module constant), which touches the validation function's signature and every caller, not just the onboarding flow this branch actually changed.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
