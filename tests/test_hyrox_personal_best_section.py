@@ -176,3 +176,105 @@ def test_card_title_i18n_key_exists_in_both_locales():
     assert i18n_js.count('"hyrox.pb.myBestsTitle":') == 2, (
         "hyrox.pb.myBestsTitle must have both an English and a Thai entry"
     )
+
+
+# ---------- expand-to-full-report ----------
+#
+# Each format section shows only its fastest tier by default (rows[0] --
+# loadMyBests() already sorts ascending, so this is always the hero). A
+# second tier raced adds a tap-to-expand chevron; tapping any time opens
+# the exact same race-detail modal (breakdown + AI analysis) the History
+# screen already uses, IF that result also matches this device's local
+# history -- the server leaderboard `me` field this card is built from has
+# no race id, so there is nothing to open otherwise, and taps must say so
+# instead of silently doing nothing or opening a fake report.
+
+
+@pytest.fixture(scope="module")
+def handle_click_body(hyrox_js):
+    start = hyrox_js.index("handleClick(event) {")
+    end = hyrox_js.index("handleKeydown(event) {")
+    assert end > start, "handleClick()/handleKeydown() extraction markers moved -- update this test"
+    return hyrox_js[start:end]
+
+
+def test_hero_row_uses_the_fastest_tier(render_my_bests_card):
+    """rows[0] is always the fastest because loadMyBests() sorts ascending
+    and the per-format .filter() preserves order (see
+    test_render_does_not_re_sort_the_already_sorted_entries) -- the hero
+    button must be built from that first row, not last or unsorted."""
+    assert 'this.pbTimeButtonHtml(rows[0], "pb-time-btn pb-hero-time")' in render_my_bests_card
+
+
+def test_format_with_only_one_tier_gets_no_expand_affordance(render_my_bests_card):
+    """A user who has only raced Singles Open (no Pro yet) must not see a
+    chevron that expands into nothing -- that's a dead tap target."""
+    assert "const hasMultiple = rows.length > 1;" in render_my_bests_card
+    assert re.search(r"hasMultiple\s*\n?\s*\?\s*`data-action=\"toggle-pb-format\"", render_my_bests_card), (
+        "the trigger's data-action/role/tabindex must be conditional on hasMultiple, "
+        "not always present"
+    )
+    assert re.search(r"\$\{hasMultiple \? `<span class=\"pb-chevron\">", render_my_bests_card)
+
+
+def test_section_trigger_is_a_div_not_a_real_button(render_my_bests_card):
+    """Regression: the trigger wraps its own nested <button> (the hero
+    time). Real <button> elements can't nest inside each other -- it's
+    invalid HTML, and the browser silently auto-closes the outer one,
+    corrupting every sibling section rendered after it (the Doubles
+    section ended up rendered as a sibling of the whole card instead of
+    inside it the first time this was tried). The trigger must stay a div
+    with role="button", never a real <button>."""
+    assert '<div class="pb-section-trigger" ${triggerAttrs}>' in render_my_bests_card
+    assert '<button type="button" class="pb-section-trigger"' not in render_my_bests_card
+
+
+def test_time_click_opens_the_real_race_detail_modal_when_local_match_exists(render_my_bests_card):
+    """Reuses showRaceDetail()/renderRaceDetailModal() verbatim -- the same
+    modal History already opens -- rather than building a second one."""
+    assert 'data-action="show-race-detail" data-id="${localMatch.id}"' in render_my_bests_card
+
+
+def test_time_click_shows_a_toast_when_no_local_match_exists(render_my_bests_card, handle_click_body):
+    """The server's `me` field never has a race id, so a PB set on another
+    device (or before local history existed) has nothing to open. The
+    button must still exist and respond -- not silently no-op, not fake a
+    report -- so it dispatches to a toast instead."""
+    assert 'data-action="pb-no-detail"' in render_my_bests_card
+    assert 'if (action === "pb-no-detail") return showHistorySaveError(t("hyrox.pb.noDetailAvailable"));' in handle_click_body
+
+
+def test_no_detail_toast_i18n_key_exists_in_both_locales():
+    with open("static/i18n.js", encoding="utf-8") as f:
+        i18n_js = f.read()
+    assert i18n_js.count('"hyrox.pb.noDetailAvailable":') == 2, (
+        "hyrox.pb.noDetailAvailable must have both an English and a Thai entry"
+    )
+
+
+def test_expand_state_is_tracked_per_format_not_globally(hyrox_js):
+    """Expanding Singles must not also expand Doubles -- pbExpandedFormats
+    is a Set keyed by format id, same pattern as analysisExpanded."""
+    assert "this.pbExpandedFormats = new Set();" in hyrox_js
+    assert re.search(
+        r"togglePbFormat\(formatId\) \{\s*if \(this\.pbExpandedFormats\.has\(formatId\)\) this\.pbExpandedFormats\.delete\(formatId\);\s*else this\.pbExpandedFormats\.add\(formatId\);",
+        hyrox_js,
+    )
+
+
+def test_toggle_pb_format_action_is_wired_in_the_click_dispatcher(handle_click_body):
+    assert 'if (action === "toggle-pb-format") return this.togglePbFormat(target.dataset.format);' in handle_click_body
+
+
+def test_div_role_button_triggers_get_keyboard_activation(hyrox_js):
+    """A div[role=button] gets no free Enter/Space handling the way a real
+    <button> does -- handleKeydown() must replay it as a synthetic click,
+    scoped to [data-action][role="button"] so it doesn't double-fire on
+    elements (like the nested time button) that are real buttons already."""
+    assert 'this.root.addEventListener("keydown", (event) => this.handleKeydown(event));' in hyrox_js
+    start = hyrox_js.index("handleKeydown(event) {")
+    end = hyrox_js.index("// ---------- AI analysis: short/detail toggle ----------")
+    assert end > start, "handleKeydown() extraction markers moved -- update this test"
+    body = hyrox_js[start:end]
+    assert 'event.target.closest(\'[data-action][role="button"]\')' in body
+    assert "target.click();" in body
