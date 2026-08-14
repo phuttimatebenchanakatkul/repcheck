@@ -62,14 +62,25 @@
   const MIN_WEIGHT_KG = 35;
   const MAX_WEIGHT_KG = 400;
   // Mirrors coaching_engine.py's LOSS_RATE_*/GAIN_RATE_* constants exactly
-  // -- keep these in sync if those ever change. Gain's range sits lower
-  // than loss's (see that file's GAIN_RATE_* comment for why).
-  const LOSS_RATE_MIN_PCT = 1.0;
+  // -- keep these in sync if those ever change, including the derivation
+  // (kg/week target at RATE_REFERENCE_WEIGHT_KG, not a bare %) so the two
+  // files can't silently drift to different numbers for the same intent.
+  const RATE_REFERENCE_WEIGHT_KG = 75;
+  const LOSS_STANDARD_MIN_KG_PER_WEEK = 0.2;
+  const LOSS_STANDARD_MAX_KG_PER_WEEK = 0.8;
+  const LOSS_RATE_MIN_PCT = 0.1;
   const LOSS_RATE_MAX_PCT = 2.0;
-  const LOSS_RATE_DEFAULT_PCT = 1.5;
+  const LOSS_RATE_DEFAULT_PCT = (LOSS_STANDARD_MIN_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100;
   const GAIN_RATE_MIN_PCT = 0.25;
-  const GAIN_RATE_MAX_PCT = 0.5;
+  const GAIN_STANDARD_MAX_KG_PER_WEEK = 0.6;
+  const GAIN_RATE_MAX_PCT = (GAIN_STANDARD_MAX_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100;
   const GAIN_RATE_DEFAULT_PCT = 0.35;
+  // How many weeks a "per month" readout multiplies the weekly rate by --
+  // the precise average (365.25 / 7 / 12), not the common but slightly-off
+  // "4 weeks" shorthand, since this is arithmetic the app is asserting as
+  // a specific number to the user (see the "Per Month" row in
+  // renderRateSlider()), not just a rough label.
+  const WEEKS_PER_MONTH = 365.25 / 7 / 12;
 
   const ASPIRATION_IDS = ["lose", "maintain", "gain"];
   const ACTIVITY_IDS = ["lift_and_cardio", "cardio_only", "lift_only", "none"];
@@ -457,6 +468,200 @@
     return eta;
   }
 
+  // Custom continuous slider for "how fast" (rate of weight loss/gain),
+  // replacing the old native <input type="range">. Two things a native
+  // range input can't do that this step needs: (1) a highlighted "standard"
+  // zone on the track whose position depends on the user's own bodyweight,
+  // not a fixed spot, and (2) genuinely continuous dragging (no discrete
+  // step "clicks") for a smoother feel than a coarse native step allows.
+  // Value is always % of bodyweight/week internally -- see the
+  // LOSS_RATE_*/GAIN_RATE_* comment above for why kg/week is only a display
+  // conversion, never the stored unit.
+  function renderRateSlider({ isLose, value, weightKg, onChange }) {
+    const min = isLose ? LOSS_RATE_MIN_PCT : GAIN_RATE_MIN_PCT;
+    const max = isLose ? LOSS_RATE_MAX_PCT : GAIN_RATE_MAX_PCT;
+    const wv = parseFloat(weightKg) || 0;
+    // Only the loss direction gets a highlighted "standard" zone -- gain
+    // just gets the same smooth continuous slider with a wider range, since
+    // that's the only thing asked for on the gain side.
+    let zoneMinPct = null;
+    let zoneMaxPct = null;
+    if (isLose && wv > 0) {
+      zoneMinPct = Math.max(min, Math.min(max, (LOSS_STANDARD_MIN_KG_PER_WEEK / wv) * 100));
+      zoneMaxPct = Math.max(min, Math.min(max, (LOSS_STANDARD_MAX_KG_PER_WEEK / wv) * 100));
+    }
+
+    const rateLabel = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
+    const unitLabel = RepCheckUnits.weightUnitLabel();
+    const pctUnitLabel = t("coaching.wizard.percentBodyweightUnit");
+    const wrap = el(`
+      <div class="ob-field ob-rate-field">
+        <label>${rateLabel} <span id="ob-rate-header-value"></span>${t("coaching.wizard.perWeek")}</label>
+        <div class="ob-rate-badge" id="ob-rate-badge"></div>
+        <div class="ob-rate-slider" id="ob-rate-slider" role="slider" tabindex="0"
+             aria-valuemin="${min}" aria-valuemax="${max}" aria-label="${rateLabel}">
+          <div class="ob-rate-slider-track">
+            ${zoneMinPct !== null ? `<div class="ob-rate-slider-zone" id="ob-rate-zone"></div>` : ""}
+          </div>
+          <div class="ob-rate-slider-thumb" id="ob-rate-thumb"></div>
+        </div>
+        <div class="ob-rate-readout-row">
+          <span class="ob-rate-readout-sign">+</span>
+          <div class="ob-rate-readout-box"><span id="ob-rate-kg-week"></span><span class="ob-rate-readout-unit">${unitLabel}</span></div>
+          <div class="ob-rate-readout-box ob-rate-readout-box-pct"><span id="ob-rate-pct-week"></span><span class="ob-rate-readout-unit">${pctUnitLabel}</span></div>
+          <span class="ob-rate-readout-freq">${t("coaching.wizard.perWeekLabel")}</span>
+        </div>
+        <div class="ob-rate-readout-row">
+          <span class="ob-rate-readout-sign">+</span>
+          <div class="ob-rate-readout-box"><span id="ob-rate-kg-month"></span><span class="ob-rate-readout-unit">${unitLabel}</span></div>
+          <div class="ob-rate-readout-box ob-rate-readout-box-pct"><span id="ob-rate-pct-month"></span><span class="ob-rate-readout-unit">${pctUnitLabel}</span></div>
+          <span class="ob-rate-readout-freq">${t("coaching.wizard.perMonthLabel")}</span>
+        </div>
+        <div class="ob-eta-card" id="ob-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
+      </div>
+    `);
+
+    const sliderEl = wrap.querySelector("#ob-rate-slider");
+    const zoneEl = wrap.querySelector("#ob-rate-zone");
+    const thumbEl = wrap.querySelector("#ob-rate-thumb");
+    const badgeEl = wrap.querySelector("#ob-rate-badge");
+    const headerValueEl = wrap.querySelector("#ob-rate-header-value");
+    const kgWeekEl = wrap.querySelector("#ob-rate-kg-week");
+    const pctWeekEl = wrap.querySelector("#ob-rate-pct-week");
+    const kgMonthEl = wrap.querySelector("#ob-rate-kg-month");
+    const pctMonthEl = wrap.querySelector("#ob-rate-pct-month");
+
+    if (zoneEl && zoneMinPct !== null) {
+      const zoneLeft = ((zoneMinPct - min) / (max - min)) * 100;
+      const zoneWidth = ((zoneMaxPct - zoneMinPct) / (max - min)) * 100;
+      zoneEl.style.left = `${zoneLeft}%`;
+      zoneEl.style.width = `${zoneWidth}%`;
+    }
+
+    let current = Math.max(min, Math.min(max, value));
+
+    function inZone(val) {
+      return zoneMinPct !== null && val >= zoneMinPct && val <= zoneMaxPct;
+    }
+
+    function redraw() {
+      const t01 = (current - min) / (max - min);
+      // transform, not left -- this runs on every pointermove/keydown
+      // during a drag, and a `left` write is layout-triggering while a
+      // `transform` write is compositor-only (see .ob-rate-slider-thumb's
+      // `left: 0` in onboarding.html; the -13px half-width centering now
+      // lives in this calc() instead of a static CSS margin-left). The
+      // drag-scale bump is folded into this same string -- an inline
+      // transform overrides a stylesheet transform.scale() rule on the
+      // same property rather than combining with it, so that effect can't
+      // live in a separate CSS class alongside this.
+      thumbEl.style.transform = `translateX(calc(${t01 * 100}% - 13px))${dragging ? " scale(1.15)" : ""}`;
+      sliderEl.setAttribute("aria-valuenow", current.toFixed(3));
+
+      const standard = inZone(current);
+      thumbEl.classList.toggle("is-standard", standard);
+      headerValueEl.textContent = current.toFixed(2);
+
+      if (zoneMinPct !== null) {
+        // Small drag tolerance around the zone's lower edge -- the
+        // "Standard (Recommended)" label calls out the specific
+        // recommended entry point, not just "anywhere in the zone", but
+        // landing back on one exact float value via a continuous drag
+        // isn't a realistic target without some tolerance.
+        const tolerance = (max - min) * 0.02;
+        const atRecommended = Math.abs(current - zoneMinPct) <= tolerance;
+        let badgeKey = "coaching.wizard.rateStandard";
+        if (current < zoneMinPct) badgeKey = "coaching.wizard.rateSlower";
+        else if (current > zoneMaxPct) badgeKey = "coaching.wizard.rateFaster";
+        else if (atRecommended) badgeKey = "coaching.wizard.rateStandardRecommended";
+        badgeEl.textContent = t(badgeKey);
+        badgeEl.className = "ob-rate-badge" + (standard ? " is-standard" : "");
+      } else {
+        badgeEl.textContent = "";
+        badgeEl.className = "ob-rate-badge";
+      }
+
+      const weekKg = (current / 100) * wv;
+      kgWeekEl.textContent = RepCheckUnits.kgToDisplay(weekKg);
+      pctWeekEl.textContent = current.toFixed(2);
+      kgMonthEl.textContent = RepCheckUnits.kgToDisplay(weekKg * WEEKS_PER_MONTH);
+      pctMonthEl.textContent = (current * WEEKS_PER_MONTH).toFixed(2);
+    }
+
+    function setValue(next) {
+      current = Math.max(min, Math.min(max, next));
+      redraw();
+      onChange(current);
+    }
+
+    function valueFromClientX(clientX, rect) {
+      const ratio = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+      return min + Math.max(0, Math.min(1, ratio)) * (max - min);
+    }
+
+    let dragging = false;
+    // Cached once per drag gesture in onPointerDown, reused for every
+    // pointermove until pointerup -- re-querying getBoundingClientRect() on
+    // every pointermove (which can fire many times per animation frame)
+    // forces a synchronous layout flush each time, since the browser must
+    // resolve any pending layout before it can answer. The slider's own
+    // position never changes mid-drag, so one read per gesture is enough.
+    let dragRect = null;
+    function onPointerDown(e) {
+      dragging = true;
+      sliderEl.classList.add("is-dragging");
+      // Capture is a nice-to-have (keeps the drag tracking correctly if the
+      // pointer strays outside the slider's own bounds mid-drag) but must
+      // never block the value update below -- a failed capture (seen on
+      // some browsers/input types) would otherwise silently break dragging
+      // entirely for that pointer, since every line after a thrown
+      // exception here would simply never run.
+      try { sliderEl.setPointerCapture(e.pointerId); } catch (err) {}
+      sliderEl.focus();
+      dragRect = sliderEl.getBoundingClientRect();
+      setValue(valueFromClientX(e.clientX, dragRect));
+      e.preventDefault();
+    }
+    function onPointerMove(e) {
+      if (!dragging) return;
+      setValue(valueFromClientX(e.clientX, dragRect));
+    }
+    function onPointerUp(e) {
+      if (!dragging) return;
+      dragging = false;
+      sliderEl.classList.remove("is-dragging");
+      try { sliderEl.releasePointerCapture(e.pointerId); } catch (err) {}
+      // redraw()'s transform string includes the drag-scale bump only
+      // while `dragging` is true (see redraw() above) -- without this
+      // call, the thumb would stay visually scaled up after release,
+      // since nothing else re-renders it once the drag ends.
+      redraw();
+    }
+    sliderEl.addEventListener("pointerdown", onPointerDown);
+    sliderEl.addEventListener("pointermove", onPointerMove);
+    sliderEl.addEventListener("pointerup", onPointerUp);
+    sliderEl.addEventListener("pointercancel", onPointerUp);
+
+    // Keyboard control -- a custom slider loses the native <input
+    // type="range">'s built-in arrow-key handling for free, so it has to
+    // be reimplemented explicitly here to not regress keyboard
+    // accessibility relative to what it's replacing.
+    sliderEl.addEventListener("keydown", (e) => {
+      const smallStep = (max - min) / 100;
+      const bigStep = (max - min) / 10;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") { setValue(current + smallStep); e.preventDefault(); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") { setValue(current - smallStep); e.preventDefault(); }
+      else if (e.key === "PageUp") { setValue(current + bigStep); e.preventDefault(); }
+      else if (e.key === "PageDown") { setValue(current - bigStep); e.preventDefault(); }
+      else if (e.key === "Home") { setValue(min); e.preventDefault(); }
+      else if (e.key === "End") { setValue(max); e.preventDefault(); }
+    });
+
+    redraw();
+
+    return { el: wrap, etaEl: wrap.querySelector("#ob-rate-eta") };
+  }
+
   function renderGoalWeightStep() {
     const weightUnit = RepCheckUnits.weightUnitLabel();
     const displayGoalWeight = w.goalWeightKg ? RepCheckUnits.kgToDisplay(parseFloat(w.goalWeightKg)) : "";
@@ -500,32 +705,15 @@
     if (w.aspiration === "lose" || w.aspiration === "gain") {
       const isLose = w.aspiration === "lose";
       const rateKey = isLose ? "lossRatePct" : "gainRatePct";
-      const min = isLose ? LOSS_RATE_MIN_PCT : GAIN_RATE_MIN_PCT;
-      const max = isLose ? LOSS_RATE_MAX_PCT : GAIN_RATE_MAX_PCT;
-      const step = isLose ? 0.1 : 0.05;
-      const decimals = isLose ? 1 : 2;
-      const label = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
-      const rateField = el(`
-        <div class="ob-field">
-          <label for="ob-rate-slider">${label} <span id="ob-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
-          <input type="range" id="ob-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
-          <div class="ob-field-hint" id="ob-rate-hint"></div>
-          <div class="ob-eta-card" id="ob-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
-        </div>
-      `);
-      const slider = rateField.querySelector("#ob-rate-slider");
-      const valueLabel = rateField.querySelector("#ob-rate-value");
-      const rateHintEl = rateField.querySelector("#ob-rate-hint");
-      const etaEl = rateField.querySelector("#ob-rate-eta");
-      const updateRateHint = () => {
-        const wv = parseFloat(w.weightKg) || 0;
-        rateHintEl.textContent = wv > 0
-          ? t("coaching.wizard.rateHint", {
-              rate: RepCheckUnits.formatWeightKg(w[rateKey] / 100 * wv),
-              weight: RepCheckUnits.formatWeightKg(wv),
-            })
-          : "";
-      };
+      const rateSlider = renderRateSlider({
+        isLose,
+        value: w[rateKey],
+        weightKg: w.weightKg,
+        onChange: (next) => {
+          w[rateKey] = next;
+          updateRateEta();
+        },
+      });
       // Shown as a card (see .ob-eta-card in onboarding.html), not the
       // plain hint text the other fields use -- the goal date is the one
       // number in this step worth a user's eye landing on it first, so it
@@ -534,19 +722,12 @@
       // ever needs to set/clear textContent, same as every other hint here.
       updateRateEta = () => {
         const eta = estimateGoalDate(w.weightKg, w.goalWeightKg, w[rateKey]);
-        etaEl.textContent = eta
+        rateSlider.etaEl.textContent = eta
           ? eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" })
           : "";
       };
-      slider.addEventListener("input", (e) => {
-        w[rateKey] = parseFloat(e.target.value);
-        valueLabel.textContent = w[rateKey].toFixed(decimals);
-        updateRateHint();
-        updateRateEta();
-      });
-      updateRateHint();
       updateRateEta();
-      wrap.appendChild(rateField);
+      wrap.appendChild(rateSlider.el);
     }
 
     const canProceed = () => {
