@@ -228,15 +228,17 @@
 
 ### "No detail available" toast always blames "another device" even when the real cause is local-history eviction
 
-**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.
+**Fixed on `fix/never-evict-race-history`, 2026-08-14** -- resolved at the root cause. `MAX_HISTORY` (the count-based `saveHistory()` trim this TODO was about) is gone entirely; local Hyrox history is never truncated by count or age. The toast's "set on another device" copy is no longer a false-attribution risk, since local-history eviction is no longer a thing that can happen.
 
-**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.
+~~**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.~~
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.
+~~**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.~~
+
+~~**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.~~
 
 **Effort:** S
-**Priority:** P4
-**Depends on:** A product decision on the intended wording
+**Priority:** P4 (resolved)
+**Depends on:** None
 
 ## Nutrition
 
