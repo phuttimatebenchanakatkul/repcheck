@@ -239,9 +239,11 @@ def test_time_click_shows_a_toast_when_no_local_match_exists(render_my_bests_car
     """The server's `me` field never has a race id, so a PB set on another
     device (or before local history existed) has nothing to open. The
     button must still exist and respond -- not silently no-op, not fake a
-    report -- so it dispatches to a toast instead."""
+    report -- so it dispatches to a toast instead. This is an expected,
+    benign state (not a failure), so it must use the neutral info toast,
+    not the red save/delete-error toast."""
     assert 'data-action="pb-no-detail"' in render_my_bests_card
-    assert 'if (action === "pb-no-detail") return showHistorySaveError(t("hyrox.pb.noDetailAvailable"));' in handle_click_body
+    assert 'if (action === "pb-no-detail") return showInfoToast(t("hyrox.pb.noDetailAvailable"));' in handle_click_body
 
 
 def test_no_detail_toast_i18n_key_exists_in_both_locales():

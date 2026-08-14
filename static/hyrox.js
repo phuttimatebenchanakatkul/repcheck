@@ -596,6 +596,18 @@
     setTimeout(() => toast.remove(), 6000);
   }
 
+  // Same toast shell as showHistorySaveError(), but neutral-styled -- for
+  // states that are expected/benign (e.g. "no detail available"), not
+  // failures. Reusing the red error toast for those would tell the user
+  // something went wrong when nothing did.
+  function showInfoToast(message) {
+    const existing = document.querySelector(".hx-info-toast");
+    if (existing) existing.remove();
+    const toast = el(`<div class="hx-info-toast">${message}</div>`);
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+  }
+
   // Confirms a finished race is durably saved server-side (see POST
   // /api/hyrox/history-entry in app.py). The generic account_sync.js blob
   // sync (which saveHistory() also triggers via the wrapped localStorage
@@ -966,7 +978,7 @@
       if (action === "reset-custom-stations") return this.resetCustomStations();
       if (action === "open-station-picker") return this.openStationPickerSheet();
       if (action === "toggle-pb-format") return this.togglePbFormat(target.dataset.format);
-      if (action === "pb-no-detail") return showHistorySaveError(t("hyrox.pb.noDetailAvailable"));
+      if (action === "pb-no-detail") return showInfoToast(t("hyrox.pb.noDetailAvailable"));
     }
 
     // Enter/Space activation for div[role=button] triggers (see the

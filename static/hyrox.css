@@ -1362,12 +1362,12 @@
    look as nutrition.html's .nl-save-error-toast, duplicated here since
    this page's styles live in their own stylesheet rather than a
    template's inline <style> block. */
-.hx-save-error-toast {
+.hx-save-error-toast,
+.hx-info-toast {
   position: fixed;
   left: 50%;
   bottom: 90px;
   transform: translateX(-50%);
-  background: var(--red);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -1378,6 +1378,14 @@
   max-width: 90vw;
   text-align: center;
   animation: hx-toast-fade-in 0.15s ease;
+}
+.hx-save-error-toast {
+  background: var(--red);
+}
+.hx-info-toast {
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 @keyframes hx-toast-fade-in {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
