@@ -53,7 +53,7 @@ export function extractSource() {
  * nodes and its own splitWizard, so tests can run in any order without
  * bleeding state into each other.
  */
-export function loadReviewStep({ generatedDays, generatedSchedule, rationale = null, suggestedSplitType = "ppl", isEditingExistingPlan = false } = {}) {
+export function loadReviewStep({ generatedDays, generatedSchedule, rationale = null, suggestedSplitType = "ppl" } = {}) {
   document.body.innerHTML = `
     <div id="split-modal-title"></div>
     <div id="split-modal-body"></div>
@@ -73,7 +73,6 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "workouts.wizard.howToPerform": "How to perform →",
     "workouts.wizard.whyThisSchedule": "Why this schedule:",
     "workouts.wizard.savePlan": "Save plan",
-    "workouts.wizard.saveChanges": "Save changes",
     "workouts.wizard.rest": "Rest",
     "workouts.wizard.aiChose": "The AI picked {split} for you",
   };
@@ -127,7 +126,6 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     rationale,
     generatedDays,
     generatedSchedule,
-    isEditingExistingPlan,
   };
 
   const source = extractSource();
