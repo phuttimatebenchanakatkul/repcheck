@@ -200,6 +200,44 @@
 **Priority:** P2
 **Depends on:** None
 
+## Hyrox
+
+### PB card's div[role="button"] trigger wraps a real nested `<button>`
+
+**What:** The new "Your personal bests" card's per-format section trigger (`renderMyBestsCard()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="pb-time-btn">` (the hero time). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
+
+**Why:** Real accessibility gap on a brand-new, genuinely keyboard-operable widget (this PR also added the first working keydown handler in this file). Not blocking because the underlying HTML5 constraint that caused this shape is real and the current implementation does correctly avoid double-firing (see `handleKeydown`'s `event.target !== target` guard), but the ARIA pattern itself should be revisited.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. A real fix likely means moving the expand affordance to a dedicated control adjacent to, not wrapping, the hero time (e.g. a separate chevron button next to the time button, both siblings under a non-interactive row container) -- a layout change, not a one-line fix.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+### PB card's keyboard toggle drops focus back to `<body>` on expand/collapse
+
+**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. `togglePbFormat()` calls `render()`, so a keyboard user who presses Enter/Space to expand a PB section loses focus back to `<body>` and must re-tab from the top to continue.
+
+**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to this PR, but this PR is the first to attach a newly-working custom keyboard handler (`handleKeydown`) to a disclosure control, making the gap freshly user-facing rather than theoretical.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-format`) around the `render()` call in `togglePbFormat()` specifically -- the narrower, more tractable option if only this toggle is fixed rather than the pattern app-wide.
+
+**Effort:** S (narrow fix, just this toggle) / L (app-wide)
+**Priority:** P3
+**Depends on:** None
+
+### "No detail available" toast always blames "another device" even when the real cause is local-history eviction
+
+**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.
+
+**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** A product decision on the intended wording
+
 ## Nutrition
 
 ### Nutrition log entries aren't validated for numeric shape server-side
