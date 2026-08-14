@@ -288,6 +288,18 @@
 **Priority:** P2
 **Depends on:** None
 
+### Onboarding rate-of-change slider's thumb is below the 44px touch guideline
+
+**What:** `.ob-rate-slider-thumb` (`templates/onboarding.html`, the custom rate-of-weight-change slider added on `weight-loss-rate-slider-redesign`) is 26x26px, and the slider's overall hit area (`.ob-rate-slider`, which captures pointerdown across its full width) is 32px tall -- both below Apple's 44px HIG touch-target guideline.
+
+**Why:** Same class of finding already resolved elsewhere in this app (see the now-resolved "Weekday grid tap targets" entry above) -- small miss-taps on a control users interact with directly. Low severity: the slider is draggable across its full width, not a discrete tap target, and the visible thumb is only the drag handle, not the sole interactive surface.
+
+**Context:** Flagged by the design specialist during `/ship` on `weight-loss-rate-slider-redesign` (LOW confidence -- code-level detection only, not verified visually). Deferred as a minor visual-density tradeoff: increasing the slider's height to 44px would need matching adjustments to the badge/readout spacing above and below it to avoid the step feeling oversized.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
 ### Widening the onboarding rate range changed the null-rate fallback for the separate coaching.js wizard too
 
 **What:** `coaching_engine.py`'s `LOSS_RATE_DEFAULT_PCT`/`GAIN_RATE_MAX_PCT` are shared server-side constants used by `_validate_coaching_profile()` (`app.py`) for TWO independent wizards: the new onboarding flow (`static/onboarding.js`, this branch's scope) and the separate "Personalized Coaching" wizard (`static/coaching.js`, deliberately left untouched -- its own slider still shows the old 1.0-2.0% / 0.25-0.5% ranges). `_validate_coaching_profile()` substitutes `LOSS_RATE_DEFAULT_PCT` whenever a caller sends an explicit `null` for `loss_rate_pct` (a real, previously-tested path -- see `tests/test_coaching_rate_null.py`), not just when the key is missing. Since that default changed from 1.5% to ~0.267% as part of recalibrating onboarding's range to a 0.2-0.8 kg/week target, a `coaching.js` user who happens to hit this null-fallback path now gets a rate value well below what `coaching.js`'s own slider UI would ever let them select (it never goes below 1.0%) -- their saved profile would disagree with what their own wizard shows as the valid range.
