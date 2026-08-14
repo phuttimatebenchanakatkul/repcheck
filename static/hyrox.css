@@ -67,7 +67,6 @@
   background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
   border: none; border-radius: 999px; padding: 13px;
   font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;
-  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.35);
   transition: opacity 0.15s ease, transform 0.1s ease;
 }
 .hx-hero-cta:hover { opacity: 0.92; }
