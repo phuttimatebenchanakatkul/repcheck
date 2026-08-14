@@ -846,9 +846,7 @@ def home():
     # new signups.
     if user and not user["onboarding_completed"]:
         return redirect(url_for("onboarding_page"))
-    return render_template(
-        "home.html", active_nav="home", i18n_page="home", exercise_icons=EXERCISE_ICONS
-    )
+    return render_template("home.html", active_nav="home", i18n_page="home")
 
 
 @app.route("/onboarding", methods=["GET"])

@@ -176,11 +176,11 @@
 
 ### Unescaped entry.exercise in workout log rendering (pre-existing, self-XSS only)
 
-**What:** `templates/workouts.html` and `home.html` interpolate `entry.exercise` into rendered HTML without escaping when displaying logged workout entries. The self-build exercise picker uses a fixed list so this isn't reachable through normal UI, but the field isn't server-validated against that list -- a crafted `POST /api/workout/log-day` payload (or a modified client) could store an entry name containing markup.
+**What:** `templates/workouts.html` interpolates `entry.exercise` into rendered HTML without escaping when displaying logged workout entries. The self-build exercise picker uses a fixed list so this isn't reachable through normal UI, but the field isn't server-validated against that list -- a crafted `POST /api/workout/log-day` payload (or a modified client) could store an entry name containing markup.
 
 **Why:** Impact is limited to self-XSS (a user can only inject into their own view of their own data; nothing here reads another user's entries), so this doesn't meet the bar for an urgent fix, but it's a real gap worth closing with proper escaping.
 
-**Context:** Found during adversarial review of the workout-log-sync-fix. Confirmed pre-existing -- not introduced by this PR's changes, which only added a new authoritative write path and didn't touch how entries are rendered. Deferred as out of scope for a sync-bugfix PR.
+**Context:** Found during adversarial review of the workout-log-sync-fix. Confirmed pre-existing -- not introduced by this PR's changes, which only added a new authoritative write path and didn't touch how entries are rendered. Deferred as out of scope for a sync-bugfix PR. Narrowed to `workouts.html` only as of 2026-08-14: `home.html`'s matching unescaped `recent[0].exercise` interpolation (the "Form check" glance card's `renderAnalyze()`) was removed wholesale along with the rest of the "Today" glance grid -- not fixed for escaping, just gone along with the feature it belonged to.
 
 **Effort:** S
 **Priority:** P3

@@ -1776,8 +1776,8 @@ html.an-result .mobile-tabbar { display: none; }
 .an-sec-detail[hidden] { display: none; }
 
 /* Each category's tint + label colour. Same accent-on-soft-tint pairing
-   the rest of the app already uses (see .an-note above, .hm-pb-badge), so
-   these read as part of the set rather than a new palette. The dark theme
+   the rest of the app already uses (see .an-note above), so these read as
+   part of the set rather than a new palette. The dark theme
    only re-tints the *-bg tokens, which keeps the pairing working there
    without a second set of rules. */
 .an-sec-positives { background: var(--green-bg); }
