@@ -865,8 +865,21 @@
     // by id, purely additive), but renderHistory()/renderPersonalBests()/
     // findRace() all read this array directly, so the drop was real on
     // that device's own UI.
+    //
+    // Now unbounded, so a long-lived device can eventually hit the
+    // browser's localStorage quota (setItem throws QuotaExceededError
+    // synchronously). Every caller (finishRace/removeHistory/the
+    // analysis-cache write) does more work AFTER this call -- render(),
+    // persistHistoryEntry(), persistRemoveHistoryEntry() -- so an
+    // uncaught throw here would abort those too, which is a worse outcome
+    // than the eviction bug this replaced: the race wouldn't even reach
+    // the server-authoritative save. Caught and surfaced instead.
     saveHistory() {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(this.history));
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(this.history));
+      } catch (err) {
+        showHistorySaveError(t("hyrox.history.storageFullError"));
+      }
     }
 
     // ---------- Derived state ----------

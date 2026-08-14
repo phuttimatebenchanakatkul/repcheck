@@ -115,3 +115,44 @@ def test_render_history_reads_full_array_and_does_not_truncate(render_history_bo
         "renderHistory() must not bound its this.history clone with slice arguments "
         "(a bare slice() for sorting is fine; slice(-N) or slice(0, N) is a truncation)"
     )
+
+
+def test_save_history_catches_quota_errors_instead_of_throwing(save_history_body):
+    """Removing the count cap means a long-lived device can eventually hit
+    the browser's localStorage quota, which makes setItem throw
+    QuotaExceededError synchronously. Every caller of saveHistory()
+    (finishRace/removeHistory/the analysis-cache write) does more work
+    right after it -- render(), persistHistoryEntry(),
+    persistRemoveHistoryEntry() -- so an uncaught throw here would abort
+    those too, silently losing a race even harder than the eviction bug
+    this file exists to prevent. Must be caught and surfaced, not left to
+    propagate."""
+    assert re.search(r"try\s*\{\s*localStorage\.setItem\(HISTORY_KEY", save_history_body), (
+        "the localStorage write in saveHistory() must be wrapped in try/catch"
+    )
+    assert 'showHistorySaveError(t("hyrox.history.storageFullError"));' in save_history_body
+
+
+def test_storage_full_error_i18n_key_exists_in_both_locales():
+    with open("static/i18n.js", encoding="utf-8") as f:
+        i18n_js = f.read()
+    assert i18n_js.count('"hyrox.history.storageFullError":') == 2, (
+        "hyrox.history.storageFullError must have both an English and a Thai entry"
+    )
+
+
+def test_pb_time_button_html_scans_the_full_array(hyrox_js):
+    """pbTimeButtonHtml() (the Personal Bests card's tap-time-to-open-report
+    wiring, and the exact code path the 'set on another device' toast this
+    file's TODO entry is about depends on) resolves a server-reported PB to
+    a local race record via this.history.filter(...). It must scan the
+    full array, not a truncated copy -- a future slice() here would
+    reproduce the original eviction bug on this specific surface without
+    any of the other tests in this file catching it."""
+    start = hyrox_js.index("pbTimeButtonHtml(r, cls) {")
+    end = hyrox_js.index("\n    }\n", start)
+    body = hyrox_js[start:end]
+    assert "this.history.filter(" in body
+    assert not re.search(r"this\.history\.(slice|splice|pop|shift)\(", body), (
+        "pbTimeButtonHtml() must scan the full this.history, not a truncated copy"
+    )
