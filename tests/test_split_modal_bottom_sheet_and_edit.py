@@ -143,6 +143,19 @@ def test_isEditingExistingPlan_no_longer_referenced(workouts_html):
     assert "isEditingExistingPlan" not in workouts_html
 
 
+def test_split_step_type_button_always_says_generate_plan(workouts_html):
+    """renderSplitStepType()'s own primary button ("split-next-btn") had
+    the same isEditingExistingPlan ? saveChanges : generatePlan branch as
+    the review step's save button (see reviewStep.test.js's equivalent
+    "always labels the primary button 'Save plan'" coverage) -- this is
+    the source-level counterpart for the type step, asserting the exact
+    simplified ternary rather than only the flag's absence."""
+    assert (
+        '${(splitWizard.type === "custom" || selfBuild) ? t("workouts.wizard.generatePlan") : t("common.next")}'
+        in workouts_html
+    )
+
+
 def test_plan_button_routes_to_the_week_view_when_a_plan_exists(workouts_html):
     """The main "Today's plan" card button, once a plan exists, now opens
     the same read-only week view as tapping the "Today's plan" title --
