@@ -197,6 +197,46 @@ describe("renderRateSlider", () => {
     expect(onChange).toHaveBeenLastCalledWith(LOSS_RATE_MIN_PCT);
   });
 
+  // Regression-shaped test for the cached-rect performance fix itself:
+  // dragRect is captured once in onPointerDown and reused for every
+  // pointermove in the same gesture (see the comment above `let dragRect`
+  // in onboarding.js) instead of re-querying getBoundingClientRect() on
+  // every move, which would force a synchronous layout flush each time.
+  // Every other drag test in this file mocks a getBoundingClientRect that
+  // never changes mid-drag, so they'd pass identically whether the rect
+  // were cached or re-queried live -- this test is the only one that
+  // actually distinguishes the two by changing the mock's return value
+  // between pointerdown and pointermove and asserting the move still uses
+  // the stale (cached) rect, plus that the DOM method itself is invoked
+  // only once per gesture.
+  it("caches the slider's bounding rect once per drag gesture instead of re-querying it on every pointermove", () => {
+    const { renderRateSlider } = loadRateSlider();
+    const onChange = vi.fn();
+    const { el } = renderRateSlider({ isLose: true, value: 0.5, weightKg: "75", onChange });
+    const slider = el.querySelector("#ob-rate-slider");
+    document.body.appendChild(el);
+
+    const rectAtDown = { left: 0, right: 200, width: 200, top: 0, bottom: 24, height: 24 };
+    const rectDuringMove = { left: 1000, right: 1200, width: 200, top: 0, bottom: 24, height: 24 };
+    const getRect = vi.fn(() => rectAtDown);
+    slider.getBoundingClientRect = getRect;
+
+    dispatchPointer(slider, "pointerdown", 100); // ratio 0.5 against rectAtDown
+    const midFromDown = LOSS_RATE_MIN_PCT + 0.5 * (LOSS_RATE_MAX_PCT - LOSS_RATE_MIN_PCT);
+    expect(onChange).toHaveBeenLastCalledWith(midFromDown);
+    expect(getRect).toHaveBeenCalledTimes(1);
+
+    // Swap the mock so any *new* call to getBoundingClientRect would report
+    // a slider that has moved 1000px to the right -- if pointermove were
+    // re-querying instead of reusing the cached rect, clientX=100 would now
+    // resolve to a ratio of (100-1000)/200, clamped to 0 -> the slider's
+    // min, not the same 0.5 ratio as pointerdown.
+    slider.getBoundingClientRect = vi.fn(() => rectDuringMove);
+    dispatchPointer(slider, "pointermove", 100);
+    expect(onChange).toHaveBeenLastCalledWith(midFromDown);
+    expect(slider.getBoundingClientRect).not.toHaveBeenCalled();
+  });
+
   it("pointerdown still updates the value and fires onChange when setPointerCapture is unavailable", () => {
     const { renderRateSlider } = loadRateSlider();
     const onChange = vi.fn();
