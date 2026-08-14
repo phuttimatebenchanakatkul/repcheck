@@ -240,6 +240,18 @@
 **Priority:** P4 (resolved)
 **Depends on:** None
 
+### Unbounded Hyrox history re-uploads the full blob on every single save
+
+**What:** `repcheck_hyrox_history_v1` is one of `account_sync.js`'s `SYNC_KEYS`, so every `saveHistory()` write (finishing a race, deleting one, or caching an AI analysis result) already re-uploads the entire history array via the wrapped `localStorage.setItem` -- this was true even before `fix/never-evict-race-history`. What that fix changes is the *size ceiling*: the array can no longer be capped at ~200 entries, so a long-lived account's full-blob re-upload grows without bound on every single write, including ones that only touch one record (e.g. caching one race's AI analysis text).
+
+**Why:** Not a correctness bug -- `account_sync.js`'s `pushToServer()` already has documented fallback handling for oversized payloads (sendBeacon queue-full retries via fetch, keepalive-quota-exceeded retries without keepalive), so this degrades gracefully rather than failing outright. But it's a standing efficiency cost that scales with account age: JSON.stringify of the whole array plus a full network re-transmission, repeated on every write, for the life of the account, when most writes only change one record.
+
+**Context:** Found by the security and performance specialists during `/ship` on `fix/never-evict-race-history` (both independently flagged the same root cause). A real fix means either delta/batched sync for this key specifically (only the changed record, not the whole array) or restructuring the synced value's shape (e.g. per-race rows instead of one array blob) -- the same "one JSON blob per user, whole-blob read-modify-write" architectural pattern already tracked for workout/nutrition/weight logs elsewhere in this file, now also true of Hyrox history now that it's unbounded. Out of scope for a bugfix branch whose actual mandate was "never evict race data."
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** None
+
 ## Nutrition
 
 ### Nutrition log entries aren't validated for numeric shape server-side
