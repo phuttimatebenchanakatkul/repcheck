@@ -3845,9 +3845,8 @@
         schedule: { ...reviewSchedule },
         exercisePrescriptions: { ...exercisePrescriptions },
       };
-      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+      persistSplitPlan(plan);
       closeSplitModal();
-      renderTodaysPlanCard();
     });
   }
 

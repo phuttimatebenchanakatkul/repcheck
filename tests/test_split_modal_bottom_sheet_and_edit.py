@@ -253,6 +253,21 @@ def test_persistSplitPlan_refreshes_the_todays_plan_card(workouts_html):
     )
 
 
+def test_wizard_save_handler_uses_persistSplitPlan_too(workouts_html):
+    """All three plan-saving call sites -- the two inline week-view edits
+    and the wizard's own final Save button -- must go through the same
+    persistSplitPlan() helper rather than duplicating its
+    setItem+renderTodaysPlanCard pairing inline. A bare localStorage.setItem
+    here would still save correctly but silently drop the "Today's Plan"
+    card refresh this helper exists to guarantee."""
+    assert re.search(
+        r"persistSplitPlan\(plan\);\s*"
+        r"closeSplitModal\(\);\s*\}\);",
+        workouts_html,
+    )
+    assert "localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));\n      closeSplitModal();" not in workouts_html
+
+
 def test_week_view_has_a_pick_exercises_button_that_persists_immediately(whole_split_body_fn):
     assert 'id="split-view-pick-exercises-btn"' in whole_split_body_fn
     assert re.search(

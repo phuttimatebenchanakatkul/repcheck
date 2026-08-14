@@ -110,6 +110,13 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   function renderTodaysPlanCard() {
     calls.replanned = true;
   }
+  // Mirrors the real persistSplitPlan(plan) -- the localStorage write plus
+  // the renderTodaysPlanCard() refresh, in one call -- since the save
+  // handler now goes through it instead of doing both inline.
+  function persistSplitPlan(plan) {
+    localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+    renderTodaysPlanCard();
+  }
   // The real function opens a separate static modal that isn't part of this
   // harness's minimal DOM -- stubbed to just record what it was asked to
   // open, so review-step tests can assert the row wiring calls it with the
@@ -146,6 +153,7 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "getSplitTypes",
     "closeSplitModal",
     "renderTodaysPlanCard",
+    "persistSplitPlan",
     "openExercisePrescriptionEditor",
     "splitWizard",
     `${source}\nreturn { renderSplitStepReview, prescriptionKey, getPrescription };`
@@ -164,6 +172,7 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     getSplitTypes,
     closeSplitModal,
     renderTodaysPlanCard,
+    persistSplitPlan,
     openExercisePrescriptionEditor,
     splitWizard
   );
