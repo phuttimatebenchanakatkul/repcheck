@@ -2550,6 +2550,23 @@
     try { return JSON.parse(localStorage.getItem(SPLIT_PLAN_KEY)); } catch (err) { return null; }
   }
 
+  // The week view's inline exercise add/remove writes straight to the
+  // saved plan instead of going through the wizard's own explicit Save
+  // button -- renderTodaysPlanCard() (the "Today's Plan" card sitting
+  // behind the modal) must be refreshed alongside every such write, or it
+  // keeps showing the pre-edit exercise list until the next full page
+  // load.
+  function persistSplitPlan(plan) {
+    // plan is already the source of truth in memory (every caller mutates it
+    // before calling this) -- a quota-exceeded or private-browsing write
+    // failure here shouldn't stop the UI from reflecting that mutation, it
+    // just means the change won't survive a reload.
+    try {
+      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+    } catch (err) {}
+    renderTodaysPlanCard();
+  }
+
   function getTodaysSplitInfo() {
     const plan = loadSplitPlan();
     if (!plan || !plan.schedule || !plan.days) return null;
@@ -2984,6 +3001,15 @@
 
   let splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null, suggestedSplitType: null };
 
+  // Bumped by every function that replaces #split-modal-body's content.
+  // renderExercisePickerStep() is the one async step (it awaits
+  // loadCustomExercises() before rendering anything) -- if the user
+  // navigates elsewhere in that window (another weekday tab, "Edit
+  // split", a fresh wizard save), the resumed picker must detect it's no
+  // longer current and bail instead of overwriting whatever's now on
+  // screen with stale markup wired to a stale plan/activeDay closure.
+  let splitModalGeneration = 0;
+
   // The "Let AI build it" path, where the AI picks the split type too --
   // it has one step fewer than the self-build path (no "choose a split"),
   // so the remaining steps renumber.
@@ -3077,52 +3103,10 @@
   }
 
   function openSplitModal() {
-    splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null, isEditingExistingPlan: false };
+    splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
     splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
     openSplitModalOverlay();
     renderSplitStepMode();
-  }
-
-  // "Edit split" used to hand off to openSplitModal() -- the same blank
-  // slate as building one from scratch, mode selection and all, with
-  // whatever the user already had thrown away the moment they saved
-  // changes. This drops straight into the day/exercise editor
-  // (renderSplitStepType(), self-build's own screen) pre-loaded with the
-  // CURRENT plan, skipping mode selection and the split-type templates
-  // entirely -- there's nothing to choose, they're editing what they
-  // already have. Every add-a-day, remove-a-day, and pick-exercises
-  // control on that screen already works exactly like this by construction
-  // (canProceedFromType() and generatePlan() don't know or care whether
-  // the days it's looking at came from a template or an existing plan).
-  function openEditSplitModal() {
-    const plan = loadSplitPlan();
-    if (!plan) return;
-    const validTypeIds = getSplitTypes().map((st) => st.id);
-    splitWizard = {
-      mode: "self",
-      // Falls back to "custom" for anything that isn't one of the
-      // template ids (a hand-typed split, or a stored type this version
-      // of the template list no longer recognizes) -- the day list and
-      // its exercises are what's being edited, not which template card
-      // is highlighted, so an unrecognized type is harmless here.
-      type: validTypeIds.includes(plan.splitType) ? plan.splitType : "custom",
-      location: null,
-      customDays: plan.days.map((d) => d.label),
-      // Every day label in a saved plan is already unique -- both the
-      // AI-suggest templates (Push/Pull/Legs, ...) and the day-count
-      // picker's own collision guard (see applyDayCount()) guarantee
-      // it -- so keying by label can't silently merge two days here.
-      customDayExercises: Object.fromEntries(plan.days.map((d) => [d.label, [...d.exercises]])),
-      goal: plan.goal || "",
-      daysPerWeek: plan.days.length,
-      generatedDays: null,
-      generatedSchedule: null,
-      rationale: null,
-      isEditingExistingPlan: true,
-    };
-    splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
-    openSplitModalOverlay();
-    renderSplitStepType();
   }
 
   function closeSplitModal() {
@@ -3137,6 +3121,7 @@
   }
 
   function renderSplitStepMode() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.title");
     splitModalBody.innerHTML = `
@@ -3221,6 +3206,7 @@
   }
 
   function renderSplitStepType() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     const selfBuild = splitWizard.mode === "self";
     splitModalTitle.textContent = t("workouts.wizard.title");
@@ -3246,7 +3232,7 @@
         </div>
         <div class="split-custom-days" id="split-custom-days"></div>
       ` : ""}
-      <button type="button" class="split-primary-btn" id="split-next-btn" ${canProceedFromType() ? "" : "disabled"}>${(splitWizard.type === "custom" || selfBuild) ? (splitWizard.isEditingExistingPlan ? t("workouts.wizard.saveChanges") : t("workouts.wizard.generatePlan")) : t("common.next")}</button>
+      <button type="button" class="split-primary-btn" id="split-next-btn" ${canProceedFromType() ? "" : "disabled"}>${(splitWizard.type === "custom" || selfBuild) ? t("workouts.wizard.generatePlan") : t("common.next")}</button>
     `;
     RepCheckI18n.applyI18n(splitModalBody);
 
@@ -3323,6 +3309,7 @@
   // full equipment-heavy pool, and "hybrid" gets both plus a dedicated
   // strength-and-endurance/conditioning day blended into the split.
   function renderSplitStepLocation() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     const selfBuild = splitWizard.mode === "self";
     splitModalTitle.textContent = t("workouts.wizard.locationTitle");
@@ -3359,6 +3346,7 @@
   }
 
   function renderSplitStepGoal() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.goalTitle");
     splitModalBody.innerHTML = `
@@ -3410,7 +3398,14 @@
     daysEl.querySelectorAll("[data-pick-exercises]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const dayName = splitWizard.customDays[parseInt(btn.dataset.pickExercises, 10)];
-        renderExercisePickerStep(dayName);
+        renderExercisePickerStep(dayName, {
+          getSelected: () => splitWizard.customDayExercises[dayName] || [],
+          onDone: (selected) => {
+            if (selected.length) splitWizard.customDayExercises[dayName] = selected;
+            else delete splitWizard.customDayExercises[dayName];
+            renderSplitStepType();
+          },
+        });
       });
     });
     document.getElementById("split-next-btn").disabled = !canProceedFromType();
@@ -3424,12 +3419,23 @@
   // Prenatal / Low-Impact) instead of only relying on the app's guess
   // from the day's typed name. Picking is optional -- skip it and the
   // backend still guesses a sensible pool for that day's name.
-  async function renderExercisePickerStep(dayName) {
+  async function renderExercisePickerStep(dayName, { getSelected, onDone }) {
+    const myGeneration = ++splitModalGeneration;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.pickExercisesTitle", { day: dayName });
-    const selected = new Set(splitWizard.customDayExercises[dayName] || []);
+    const selected = new Set(getSelected());
 
     await loadCustomExercises();
+
+    // Something else took over #split-modal-body while loadCustomExercises()
+    // was in flight (another weekday tab, "Edit split", a fresh wizard
+    // save) -- rendering now would silently overwrite whatever the user is
+    // looking at, and worse, wire a Done button whose onDone closure still
+    // points at the plan/activeDay from before that navigation, so tapping
+    // it later would write a stale plan back over whatever was saved since.
+    // Whatever ran during the gap already set its own title/body; just
+    // bail rather than undo it.
+    if (myGeneration !== splitModalGeneration) return;
 
     splitModalBody.innerHTML = `
       <input type="text" id="split-ex-picker-search" class="split-ex-picker-search" placeholder="${t("workouts.search.placeholder")}" autocomplete="off">
@@ -3583,16 +3589,12 @@
     updateDoneLabel();
 
     document.getElementById("split-ex-picker-done-btn").addEventListener("click", () => {
-      if (selected.size) {
-        splitWizard.customDayExercises[dayName] = Array.from(selected);
-      } else {
-        delete splitWizard.customDayExercises[dayName];
-      }
-      renderSplitStepType();
+      onDone(Array.from(selected));
     });
   }
 
   function renderSplitStepDays() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.chooseWeekTitle");
     splitModalBody.innerHTML = `
@@ -3713,6 +3715,7 @@
   }
 
   function renderSplitStepReview() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.assignWeekTitle");
     const days = splitWizard.generatedDays;
@@ -3757,7 +3760,7 @@
       <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
       <div class="split-carousel" id="split-carousel"></div>
       ${splitWizard.rationale ? `<div class="split-rationale"><p>${escapeHtml(splitWizard.rationale)}</p></div>` : ""}
-      <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${splitWizard.isEditingExistingPlan ? t("workouts.wizard.saveChanges") : t("workouts.wizard.savePlan")}</button>
+      <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${t("workouts.wizard.savePlan")}</button>
     `;
 
     const carouselEl = document.getElementById("split-carousel");
@@ -3874,9 +3877,8 @@
         schedule: { ...reviewSchedule },
         exercisePrescriptions: { ...exercisePrescriptions },
       };
-      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+      persistSplitPlan(plan);
       closeSplitModal();
-      renderTodaysPlanCard();
     });
   }
 
@@ -3887,7 +3889,6 @@
     const plan = loadSplitPlan();
     if (!plan) return;
     wholeSplitActiveDay = WEEKDAY_KEYS[new Date().getDay()];
-    splitModalTitle.textContent = RepCheckI18n.t("workouts.plan.wholeSplitTitle");
     // Second, separate entry point into the same overlay (viewing an
     // already-saved split, reached without going through the wizard) --
     // see openSplitModalOverlay() above for what this actually does.
@@ -3896,11 +3897,23 @@
   }
 
   function renderWholeSplitBody(plan) {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
+    // Set on every render, not just the initial renderWholeSplitView()
+    // entry -- returning here from renderExercisePickerStep()'s "Done"
+    // (which sets its own title) would otherwise leave the modal's title
+    // bar stuck on "Pick exercises — {day}".
+    splitModalTitle.textContent = t("workouts.plan.wholeSplitTitle");
     const todayKey = WEEKDAY_KEYS[new Date().getDay()];
     const activeLabel = plan.schedule[wholeSplitActiveDay];
     const isRest = !activeLabel || activeLabel === "Rest";
     const activeDay = isRest ? null : plan.days.find((d) => d.label === activeLabel);
+    // schedule[wholeSplitActiveDay] can name a label that no longer has a
+    // matching entry in plan.days (e.g. the day was deleted by an edit that
+    // didn't clean up the schedule) -- mirrors getTodaysSplitInfo()'s
+    // `if (!day) return null;` by falling back to the same empty-state
+    // rendering as a rest day instead of letting activeDay.exercises throw.
+    const showExerciseList = !isRest && !!activeDay;
     const activeWeekdayName = WEEKDAY_NAMES[WEEKDAY_KEYS.indexOf(wholeSplitActiveDay)];
     const isToday = wholeSplitActiveDay === todayKey;
     const weekdayForLabel = isToday ? t("workouts.plan.today") : activeWeekdayName;
@@ -3922,7 +3935,7 @@
         }).join("")}
       </div>
       <div class="split-day-plan-label">${planLabel}</div>
-      ${isRest
+      ${!showExerciseList
         ? `<div class="wl-plan-rest">${t("workouts.plan.restText")}</div>`
         : `<div class="wl-plan-exercise-list">
             ${activeDay.exercises.map((name, i) => `
@@ -3933,9 +3946,12 @@
                   <span class="wl-plan-exercise-name">${name}</span>
                   <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
                 </span>
+                <button type="button" class="split-custom-remove-btn" data-remove-day-exercise="${i}" aria-label="${t("common.remove")}">&times;</button>
               </div>
             `).join("")}
-          </div>`
+            ${!activeDay.exercises.length ? `<div class="wl-plan-rest">${t("workouts.plan.noExercisesText")}</div>` : ""}
+          </div>
+          <button type="button" class="split-secondary-btn" id="split-view-pick-exercises-btn" style="margin-top:12px;">${t("workouts.wizard.pickExercises")}</button>`
       }
       <button type="button" class="split-primary-btn" id="split-edit-from-view-btn" style="margin-top:18px;">${t("workouts.plan.editSplit")}</button>
     `;
@@ -3945,15 +3961,43 @@
         renderWholeSplitBody(plan);
       });
     });
-    document.getElementById("split-edit-from-view-btn").addEventListener("click", openEditSplitModal);
+    if (showExerciseList) {
+      splitModalBody.querySelectorAll("[data-remove-day-exercise]").forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          // Nested inside a [data-exercise-detail] row -- without this, the
+          // click would also bubble to document.body's delegated listener
+          // (see openExerciseDetailModal wiring) and pop the how-to-perform
+          // modal on top of removing the exercise. Same pattern as
+          // renderTodaysPlanCard()'s data-quick-add button.
+          event.stopPropagation();
+          const i = parseInt(btn.dataset.removeDayExercise, 10);
+          activeDay.exercises.splice(i, 1);
+          persistSplitPlan(plan);
+          renderWholeSplitBody(plan);
+        });
+      });
+      document.getElementById("split-view-pick-exercises-btn").addEventListener("click", () => {
+        renderExercisePickerStep(activeLabel, {
+          getSelected: () => activeDay.exercises,
+          onDone: (selected) => {
+            activeDay.exercises = selected;
+            persistSplitPlan(plan);
+            renderWholeSplitBody(plan);
+          },
+        });
+      });
+    }
+    document.getElementById("split-edit-from-view-btn").addEventListener("click", openSplitModal);
   }
 
   // This button's own label already flips to "Edit split" once a plan
-  // exists (see renderTodaysPlanCard() above) -- the click handler needs
-  // to match that promise instead of always starting the blank-slate
-  // wizard regardless of what the label says.
+  // exists (see renderTodaysPlanCard() above). When a plan exists, land on
+  // the same read-only week view as tapping the "Today's Plan" title --
+  // that's now the one entry point into editing an existing split (add or
+  // remove exercises inline there, or tap its own "Edit split" button to
+  // rebuild the whole thing via the AI-vs-customize wizard).
   planBtnEl.addEventListener("click", () => {
-    if (loadSplitPlan()) openEditSplitModal();
+    if (loadSplitPlan()) renderWholeSplitView();
     else openSplitModal();
   });
   document.getElementById("wl-plan-title").addEventListener("click", renderWholeSplitView);

@@ -53,7 +53,7 @@ export function extractSource() {
  * nodes and its own splitWizard, so tests can run in any order without
  * bleeding state into each other.
  */
-export function loadReviewStep({ generatedDays, generatedSchedule, rationale = null, suggestedSplitType = "ppl", isEditingExistingPlan = false } = {}) {
+export function loadReviewStep({ generatedDays, generatedSchedule, rationale = null, suggestedSplitType = "ppl" } = {}) {
   document.body.innerHTML = `
     <div id="split-modal-title"></div>
     <div id="split-modal-body"></div>
@@ -73,7 +73,6 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "workouts.wizard.howToPerform": "How to perform →",
     "workouts.wizard.whyThisSchedule": "Why this schedule:",
     "workouts.wizard.savePlan": "Save plan",
-    "workouts.wizard.saveChanges": "Save changes",
     "workouts.wizard.rest": "Rest",
     "workouts.wizard.aiChose": "The AI picked {split} for you",
   };
@@ -111,6 +110,15 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
   function renderTodaysPlanCard() {
     calls.replanned = true;
   }
+  // Mirrors the real persistSplitPlan(plan) -- the localStorage write plus
+  // the renderTodaysPlanCard() refresh, in one call -- since the save
+  // handler now goes through it instead of doing both inline.
+  function persistSplitPlan(plan) {
+    try {
+      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+    } catch (err) {}
+    renderTodaysPlanCard();
+  }
   // The real function opens a separate static modal that isn't part of this
   // harness's minimal DOM -- stubbed to just record what it was asked to
   // open, so review-step tests can assert the row wiring calls it with the
@@ -127,7 +135,6 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     rationale,
     generatedDays,
     generatedSchedule,
-    isEditingExistingPlan,
   };
 
   const source = extractSource();
@@ -148,8 +155,10 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     "getSplitTypes",
     "closeSplitModal",
     "renderTodaysPlanCard",
+    "persistSplitPlan",
     "openExercisePrescriptionEditor",
     "splitWizard",
+    "splitModalGeneration",
     `${source}\nreturn { renderSplitStepReview, prescriptionKey, getPrescription };`
   );
 
@@ -166,8 +175,10 @@ export function loadReviewStep({ generatedDays, generatedSchedule, rationale = n
     getSplitTypes,
     closeSplitModal,
     renderTodaysPlanCard,
+    persistSplitPlan,
     openExercisePrescriptionEditor,
-    splitWizard
+    splitWizard,
+    0 // splitModalGeneration -- renderSplitStepReview() only increments this local copy; the harness doesn't need to observe it, just needs the free variable to resolve so the extracted source doesn't throw
   );
 
   return { renderSplitStepReview, prescriptionKey, getPrescription, splitModalBody, splitModalTitle, splitWizard, calls, SPLIT_PLAN_KEY };

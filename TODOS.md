@@ -4,14 +4,50 @@
 
 ### Edited sets/reps in the review step's exercise editor are a write-only round-trip
 
-**What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `openEditSplitModal()` (re-opening "Edit split" on an existing plan) rehydrates `splitWizard` from the saved plan's `days`/`goal`/etc. but never reads `exercisePrescriptions` back into the in-memory map, and `renderSplitStepReview()` unconditionally resets it to `{}` on every entry regardless of whether the plan already had customizations.
+**What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `renderSplitStepReview()` also unconditionally resets `exercisePrescriptions` to `{}` on every entry, regardless of whether the plan already had customizations -- so any prior prescription is silently discarded the next time the AI-suggest path is used to rebuild the split.
 
-**Why:** A user can tap an exercise, edit sets/reps, watch the box turn amber ("edited"), tap Save -- and that customization is never shown anywhere again. Re-opening "Edit split" silently discards it with no warning. The amber-highlight/reset-to-standard UI strongly implies the intent was for this to be the plan's real, persisted sets/reps, not a value that's saved but functionally inert.
+**Why:** A user can tap an exercise, edit sets/reps, watch the box turn amber ("edited"), tap Save -- and that customization is never shown anywhere in the app afterward, and is silently discarded the next time a split gets regenerated. The amber-highlight/reset-to-standard UI strongly implies the intent was for this to be the plan's real, persisted sets/reps, not a value that's saved but functionally inert.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Not fixed in that branch because closing the loop is a product decision, not a one-line fix: does `getSetsRepsText`'s "N sets • X-Y reps" range-display format even make sense to replace with a specific `sets×reps` once customized? Does `openEditSplitModal()` need to seed `exercisePrescriptions` from the saved plan, and does the exact-match `prescriptionKey(label, name)` lookup still make sense once a plan has been edited and re-saved (label reuse across regenerations)?
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Not fixed in that branch because closing the loop is a product decision, not a one-line fix: does `getSetsRepsText`'s "N sets • X-Y reps" range-display format even make sense to replace with a specific `sets×reps` once customized? Does the exact-match `prescriptionKey(label, name)` lookup still make sense once a plan has been rebuilt (label reuse across regenerations)? Note (2026-08-14, `edit-split-flow-redesign` branch): the "edit an existing split" entry point no longer rehydrates the wizard from the saved plan at all (see the removed `openEditSplitModal()` -- editing a split now always starts blank, same as building one from scratch), which removes one specific place this gap used to bite but doesn't touch the core problem described above.
 
 **Effort:** M
 **Priority:** P2
+**Depends on:** None
+
+### The week view's inline exercise add/remove has no real-execution test coverage
+
+**What:** `renderWholeSplitBody()`'s inline exercise remove button, the "Pick exercises" button, and `persistSplitPlan()` (all added in `edit-split-flow-redesign`) are only covered by Python source-level regex assertions against the rendered Jinja template (`tests/test_split_modal_bottom_sheet_and_edit.py`) -- nothing actually executes this code in a JS runtime. The sibling wizard step (`renderSplitStepReview()`) already has a real jsdom extraction harness (`tests-js/support/loadReviewStep.js`, used by `tests-js/reviewStep.test.js`) that runs the real function and asserts on actual DOM/state changes, but no equivalent harness exists for `renderWholeSplitBody`/`renderExercisePickerStep`.
+
+**Why:** A regex match against the template string can only catch structural regressions (a line got deleted, a call site changed), not runtime bugs in the actual logic -- index-based splice correctness, the closure-captured `getSelected`/`onDone` callbacks actually firing in the right order, or `persistSplitPlan`'s side effects actually running. This isn't theoretical: both real bugs found during this branch's development (the "Today's Plan" card going stale after an inline edit, and the modal title getting stuck on "Pick exercises — {day}") were runtime behavior issues caught only by manual browser testing -- neither would have been caught by a regex test, and neither was anticipated until observed. A real jsdom harness would have plausibly caught at least the stale-card bug directly (assert `calls.replanned` after a remove, same pattern the wizard's save test already uses successfully).
+
+**Context:** Flagged by the testing specialist during this branch's `/ship` pre-landing review (confidence 58/10, not certain but empirically supported by the finding above). Deferred rather than built inline because a proper extraction harness for `renderWholeSplitBody`/`renderExercisePickerStep` is comparable in size to `loadReviewStep.js` itself (~150-200 lines) -- real new infrastructure, not a quick addition to this PR.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Duplicate day labels now have write-path exposure, not just display-path
+
+**What:** `renderWholeSplitBody()`'s inline edit controls (added in `edit-split-flow-redesign`) resolve which `plan.days` entry to mutate via `plan.days.find((d) => d.label === activeLabel)` -- the same label-keyed lookup the existing "A custom day literally named 'Rest' hides its own workout" TODO already flags as a display-path collision risk. If `plan.days` ever contains two entries with the same label (nothing in the custom-split builder enforces uniqueness), `.find()` silently returns only the first match. Before this branch, that collision only affected which day's content got *displayed*; now the inline remove-exercise and pick-exercises buttons write through that same lookup, so an edit intended for the second same-labeled day would silently mutate the first one's exercise list instead.
+
+**Why:** Previously a confusing-but-harmless display quirk; now a genuine data-corruption path -- a user editing what they believe is one day's exercises could silently corrupt a different day's data, with no error or indication anything went wrong.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same root cause and same fix options as the existing "custom day literally named 'Rest'" TODO above (day-label uniqueness isn't enforced anywhere in the custom-split builder) -- properly fixing either finding likely fixes both, since both stem from `plan.days` entries being addressed by label instead of a stable id. Deferred as an architectural change (adding a real per-day id touches the saved-plan schema and every place that currently keys off `label`), not a one-line fix, and this branch's own scope is the edit-entry-flow redesign, not the underlying data model.
+
+**Effort:** M (touches the saved-plan schema if done properly)
+**Priority:** P3
+**Depends on:** None
+
+### Inline split-plan edits increase repcheck_split_plan_v1's sync write frequency with no ordering guarantee
+
+**What:** `repcheck_split_plan_v1` is synced by `static/account_sync.js` as a plain last-write-wins key (not in `MERGE_LOG_KEYS`), pushed via independent fire-and-forget `sendBeacon`/`fetch` PUTs with no version or ordering guarantee -- the same architecture already flagged for `repcheck_workout_log_v2` below ("account_sync.js's generic merge push can still resurrect a deleted workout entry if delivered late"). Before `edit-split-flow-redesign`, `persistSplitPlan()` (then inline in the wizard's save handler) only fired once per completed wizard flow. This branch calls it on every inline exercise add/remove tap in the week view too, so a single editing session can now fire many more of these unordered writes in quick succession.
+
+**Why:** More frequent unordered writes to the same key widens the window for a stale write (a backgrounded tab, a delayed beacon, a flaky connection retried later) to land after a newer one and silently revert exercise additions/removals a user already made and saw persist -- the exact failure mode already documented for the workout log, now applicable to split plans too because the write pattern changed from occasional to frequent.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same fix shape as the workout-log entry below: `account_sync.js` would need per-key version/ordering guarantees (or a dedicated CRUD endpoint instead of whole-blob last-write-wins), which is shared sync infrastructure touching every key in `SYNC_KEYS`, not something this branch's scope (the edit-entry-flow redesign) should take on.
+
+**Effort:** M
+**Priority:** P3
 **Depends on:** None
 
 ### Same exercise appearing twice in one generated day would share one prescription
