@@ -11,11 +11,13 @@
 
 {% if current_user %}
 <!--
-  Hero: the one deliberately dark, gradient surface on the page. Leads
-  with today's date, the streak flame (the single most motivating
-  daily-return stat, promoted here from a buried mid-grid tile), a
-  plain-language headline for today ("Push Day" / "Rest day" / "Let's
-  get moving"), the week's activity dots, and ONE clear call to action.
+  Hero: leads with today's date, the streak flame (the single most
+  motivating daily-return stat, promoted here from a buried mid-grid
+  tile), a plain-language headline for today ("Push Day" / "Rest day" /
+  "Let's get moving"), the week's activity dots, and ONE clear call to
+  action. Same var(--card-bg)/var(--text) theme-following surface as
+  every other card on the page (used to be a fixed dark gradient
+  regardless of light/dark mode).
 -->
 <div class="hm-hero">
   <div class="hm-hero-top">
@@ -112,53 +114,45 @@
 <style>
   /* ---------- Hero ---------- */
   .hm-hero {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(145deg, #263356 0%, #17181d 62%);
-    color: #fff;
+    background: var(--card-bg);
+    color: var(--text);
     border-radius: 22px;
     box-shadow: var(--shadow);
     padding: 22px;
     margin-bottom: 18px;
   }
-  /* Soft blue glow in the corner so the dark card feels alive, not flat. */
-  .hm-hero::before {
-    content: "";
-    position: absolute;
-    top: -70px; right: -50px;
-    width: 220px; height: 220px;
-    border-radius: 50%;
-    background: radial-gradient(closest-side, rgba(77, 127, 245, 0.4), transparent);
-    pointer-events: none;
-  }
-  .hm-hero > * { position: relative; }
   .hm-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .hm-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+  .hm-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+  /* Neutral pill by default, same treatment as .hm-macro-card-pill below --
+     only turns amber once there's an actual streak to celebrate. */
   .hm-streak-chip {
     display: inline-flex; align-items: center; gap: 5px;
-    background: rgba(255, 255, 255, 0.1); color: #fff;
+    background: var(--bg); color: var(--text-secondary);
     border-radius: 999px; padding: 6px 13px; min-height: 44px; box-sizing: border-box;
     font-size: 13px; font-weight: 800; text-decoration: none;
     transition: transform 0.1s ease;
   }
   .hm-streak-chip:active { transform: scale(0.94); }
   .hm-streak-chip.is-active {
-    background: linear-gradient(135deg, #f5a94e, #e8832f);
+    background: linear-gradient(135deg, #f5a94e, #e8832f); color: #fff;
     box-shadow: 0 6px 14px rgba(232, 131, 47, 0.4);
   }
   .hm-hero-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; }
-  .hm-hero-sub { font-size: 13.5px; color: rgba(255, 255, 255, 0.6); margin-top: 5px; }
+  .hm-hero-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 5px; }
   .hm-hero-week { display: flex; justify-content: space-between; gap: 6px; margin-top: 18px; }
   .hm-hero-day { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; }
-  .hm-hero-day-letter { font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.45); }
+  .hm-hero-day-letter { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
   .hm-hero-day-num {
     width: 34px; height: 34px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.85);
+    background: var(--border); color: var(--text-secondary);
     font-size: 13px; font-weight: 700;
   }
   .hm-hero-day.has-activity .hm-hero-day-num { background: linear-gradient(135deg, #29b87e, #1fa971); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.4); }
-  .hm-hero-day.is-today .hm-hero-day-num { background: #fff; color: #101114; box-shadow: 0 4px 12px rgba(255, 255, 255, 0.25); }
+  /* A ring instead of an inverted fill -- same "today" treatment
+     logging_history.html's .lh-circle.is-today already uses, so it reads
+     correctly regardless of what's underneath it. */
+  .hm-hero-day.is-today .hm-hero-day-num { box-shadow: 0 0 0 2px var(--blue); }
   .hm-hero-cta {
     display: block; text-align: center; margin-top: 18px;
     background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;

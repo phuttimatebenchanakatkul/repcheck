@@ -23,39 +23,27 @@
 /* Shared intro-paragraph style (used by the training-space section). */
 .hx-guide-intro { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: -6px 0 16px; }
 
-/* ---------- Hero (same design language as the home page's hm-hero:
-   one dark gradient surface with a soft blue glow, leading with your
-   fastest time, the 8 stations as tappable icon chips, and one CTA) */
+/* ---------- Hero (same var(--card-bg)/var(--text) theme-following
+   surface as .hx-card above, leading with your fastest time, the 8
+   stations as tappable icon chips, and one CTA) */
 .hx-hero {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(145deg, #263356 0%, #17181d 62%);
-  color: #fff;
+  background: var(--card-bg);
+  color: var(--text);
   border-radius: 22px;
   box-shadow: var(--shadow);
   padding: 22px;
   margin-bottom: 16px;
 }
-.hx-hero::before {
-  content: "";
-  position: absolute;
-  top: -70px; right: -50px;
-  width: 220px; height: 220px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(77, 127, 245, 0.4), transparent);
-  pointer-events: none;
-}
-.hx-hero > * { position: relative; }
 .hx-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.hx-hero-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+.hx-hero-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
 .hx-hero-chip {
   display: inline-flex; align-items: center; gap: 5px;
-  background: rgba(255, 255, 255, 0.1); color: #fff;
+  background: var(--bg); color: var(--text-secondary);
   border-radius: 999px; padding: 6px 13px;
   font-size: 13px; font-weight: 800;
 }
 .hx-hero-title { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.hx-hero-sub { font-size: 13.5px; color: rgba(255, 255, 255, 0.6); margin-top: 5px; }
+.hx-hero-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 5px; }
 .hx-hero-stations { display: flex; justify-content: space-between; gap: 5px; margin-top: 18px; }
 .hx-hero-station {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -65,15 +53,15 @@
   transition: transform 0.1s ease;
 }
 .hx-hero-station:active { transform: scale(0.9); }
-.hx-hero-station-num { font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.45); }
+.hx-hero-station-num { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
 .hx-hero-station-icon {
   width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.85);
+  background: var(--border); color: var(--text-secondary);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-.hx-hero-station:hover .hx-hero-station-icon { background: rgba(77, 127, 245, 0.5); color: #fff; }
-.hx-hero-hint { font-size: 11px; color: rgba(255, 255, 255, 0.45); text-align: center; margin-top: 10px; }
+.hx-hero-station:hover .hx-hero-station-icon { background: var(--blue-bg); color: var(--blue); }
+.hx-hero-hint { font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 10px; }
 .hx-hero-cta {
   display: block; width: 100%; text-align: center; margin-top: 16px;
   background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
@@ -92,10 +80,10 @@
   display: block; width: 100%; min-height: 44px; box-sizing: border-box;
   text-align: center; margin-top: 6px; padding: 8px;
   background: none; border: none;
-  color: rgba(255, 255, 255, 0.72); font-size: 13px; font-weight: 700;
+  color: var(--text-secondary); font-size: 13px; font-weight: 700;
   font-family: inherit; cursor: pointer;
 }
-.hx-hero-history-link:hover { color: #fff; }
+.hx-hero-history-link:hover { color: var(--text); }
 .hx-hero-history-link:active { opacity: 0.7; }
 
 /* ---------- Race-setup page header, and the add-station picker sheet's
