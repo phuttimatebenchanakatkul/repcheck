@@ -271,7 +271,17 @@
       // transform overrides a stylesheet transform.scale() rule on the
       // same property rather than combining with it, so that effect can't
       // live in a separate CSS class alongside this.
-      thumbEl.style.transform = `translateX(calc(${t01 * 100}% - 13px))${dragging ? " scale(1.15)" : ""}`;
+      //
+      // The offset must be in px, not %: a CSS transform percentage
+      // resolves against the THUMB's own border box (26px), not the
+      // track it's positioned in, so `translateX(t01 * 100%)` only ever
+      // moved the thumb a few px regardless of value. Reuse the cached
+      // drag-gesture rect while dragging (same perf reasoning as
+      // dragRect elsewhere in this function); otherwise take one
+      // fresh measurement, which redraw() only needs for keydown/init,
+      // not on every pointermove.
+      const trackWidth = dragging && dragRect ? dragRect.width : sliderEl.getBoundingClientRect().width;
+      thumbEl.style.transform = `translateX(calc(${t01 * trackWidth}px - 13px))${dragging ? " scale(1.15)" : ""}`;
       sliderEl.setAttribute("aria-valuenow", current.toFixed(3));
 
       const standard = inZone(current);
@@ -587,6 +597,8 @@
       if (action === "dismiss-inactivity") return this.dismissInactivity();
       if (action === "open-checkin") return this.openCheckin();
       if (action === "cycle-checkin-day") return this.cycleCheckinDayStatus(target.dataset.date);
+      if (action === "toggle-checkin-high-carb-day") return this.toggleCheckinFlag("highCarbDays", target.dataset.date);
+      if (action === "toggle-checkin-bloated-day") return this.toggleCheckinFlag("bloatedDays", target.dataset.date);
       if (action === "checkin-submit") return this.submitCheckin();
       if (action === "checkin-done") return this.closeCheckin();
       if (action === "checkin-set-new-goals") return this.closeCheckin(() => this.openWizard());
@@ -714,6 +726,15 @@
         todayIso,
         weekDates,
         dayStatuses,
+        // Sparse maps -- only flagged dates are present as keys, same
+        // shape as dayStatusMap's own storage convention (see
+        // cycleCheckinDayStatus() below) -- rather than every weekDate
+        // defaulting to false. Sent to /api/coaching/weekly-adjustment so
+        // a high-carb or bloated day's weigh-in can be read as likely
+        // water weight, not real gain, instead of triggering a bigger
+        // calorie cut than the week's actual trend warrants.
+        highCarbDays: {},
+        bloatedDays: {},
         alreadyLoggedToday: !!todaysEntry,
         weightInput: todaysEntry ? String(RepCheckUnits.kgToDisplay(todaysEntry.kg)) : "",
         frontPhotoFile: null,
@@ -747,6 +768,18 @@
       }
       saveJson(DAY_STATUS_KEY, dayStatusMap);
       this.checkin.dayStatuses[dateIso] = getDayStatus(dateIso, nutritionLog, dayStatusMap);
+      this.render();
+    }
+
+    // Plain on/off toggle (unlike cycleCheckinDayStatus's 2-option cycle
+    // above) -- high-carb and bloating are independent yes/no flags per
+    // day, not mutually exclusive states, and aren't persisted outside
+    // this one check-in session (no localStorage key of their own),
+    // unlike dayStatuses.
+    toggleCheckinFlag(flagKey, dateIso) {
+      const flags = this.checkin[flagKey];
+      if (flags[dateIso]) delete flags[dateIso];
+      else flags[dateIso] = true;
       this.render();
     }
 
@@ -976,6 +1009,8 @@
                 week_weight_entries: weekWeightEntries,
                 week_calorie_days: weekCalorieDays,
                 photo_ids: photoIds,
+                high_carb_days: Object.keys(c.highCarbDays),
+                bloating_days: Object.keys(c.bloatedDays),
               }),
             });
           } finally {
@@ -2277,6 +2312,34 @@
       `;
     }
 
+    // Same day-pill idiom as renderCheckinDayGrid() above, but a plain
+    // on/off toggle instead of a status cycle -- data-active (not
+    // data-status) drives the highlighted look in CSS. Two of these
+    // (high-carb, bloated) let the user flag which specific weigh-in(s)
+    // this week had a plausible non-fat explanation for a jump, which
+    // feeds into the AI's read of the trend (see checkin_analyzer.py's
+    // _build_prompt()) rather than the deterministic baseline math --
+    // that math stays untouched as the safety anchor/fallback it already
+    // is; this is additional context for the layer whose job is judgment.
+    renderCheckinFlagGrid(flagKey, action, flagLabel) {
+      const c = this.checkin;
+      const days = c.weekDates.map((iso) => {
+        const active = !!c[flagKey][iso];
+        const dateObj = new Date(iso + "T00:00:00");
+        const weekdayLetter = dateObj.toLocaleDateString(RepCheckI18n.locale(), { weekday: "narrow" });
+        // Toggle state here is color-only in CSS (amber vs. default pill) --
+        // aria-pressed/aria-label carry the same on/off state for screen
+        // readers and don't rely on color perception.
+        const fullDateLabel = dateObj.toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", month: "short", day: "numeric" });
+        return `
+          <button type="button" class="pc-ck-day pc-ck-flag-day" data-action="${action}" data-date="${iso}" data-active="${active}" aria-pressed="${active}" aria-label="${flagLabel} — ${fullDateLabel}">
+            ${weekdayLetter}
+          </button>
+        `;
+      }).join("");
+      return `<div class="pc-ck-day-grid">${days}</div>`;
+    }
+
     // Small helper for the check-in's sectioned layout: gradient icon
     // chip + title (+ optional sub) above whatever the section holds.
     ckSectionHead(chipClass, iconSvg, title, sub) {
@@ -2297,6 +2360,7 @@
       const CAL_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
       const SCALE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>`;
       const CAM_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
+      const DROPLET_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>`;
 
       const wrap = el(`
         <div class="pc-ck">
@@ -2312,6 +2376,18 @@
             <div class="pc-ck-section">
               ${this.ckSectionHead("pc-ck-chip-green", CAL_SVG, t("coaching.checkin.daysLabel"))}
               ${this.renderCheckinDayGrid()}
+            </div>
+
+            <div class="pc-ck-section">
+              ${this.ckSectionHead("pc-ck-chip-amber", DROPLET_SVG, t("coaching.checkin.contextLabel"), t("coaching.checkin.contextSub"))}
+              <div class="pc-ck-context-row">
+                <span class="pc-ck-context-label">${t("coaching.checkin.highCarbLabel")}</span>
+                ${this.renderCheckinFlagGrid("highCarbDays", "toggle-checkin-high-carb-day", t("coaching.checkin.highCarbLabel"))}
+              </div>
+              <div class="pc-ck-context-row">
+                <span class="pc-ck-context-label">${t("coaching.checkin.bloatedLabel")}</span>
+                ${this.renderCheckinFlagGrid("bloatedDays", "toggle-checkin-bloated-day", t("coaching.checkin.bloatedLabel"))}
+              </div>
             </div>
 
             <div class="pc-ck-section">

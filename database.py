@@ -422,6 +422,13 @@ LOG_MERGE_DATE_KEYED_KEYS = {
     "repcheck_nutrition_log_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
+    # Workout chat history is now date-keyed (one thread per calendar day,
+    # kept permanently so past days stay readable) rather than a single
+    # rolling array that self-cleared at midnight -- a plain overwrite
+    # could now silently wipe WEEKS of chat history from a stale device,
+    # not just today's few messages, so it needs the same merge protection
+    # as the workout log it's attached to.
+    "repcheck_workout_chat_v1",
 }
 MERGE_LOG_KEYS = LOG_MERGE_ARRAY_KEYS | LOG_MERGE_DATE_KEYED_KEYS
 
