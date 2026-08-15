@@ -350,9 +350,12 @@
   }
   .wl-plan-quick-add:hover { background: var(--sidebar-active); }
   .wl-plan-quick-add svg { width: 13px; height: 13px; }
+  /* White-on-green, same pairing as .wl-entry-check's proven badge below --
+     color-mix(green 45%, white) here read as a near-invisible checkmark
+     against the identical-hue green background. */
   .wl-plan-quick-add.is-added {
     background: var(--green);
-    color: color-mix(in srgb, var(--green) 45%, white);
+    color: #fff;
     cursor: default;
     pointer-events: none;
   }
@@ -3233,9 +3236,9 @@
       // background/color transition at its PRE-click colors (a real
       // browser quirk: an element disabled mid-transition stops
       // repainting), so the checkmark rendered dark-on-white instead of
-      // light-green-on-green until the next full page re-render. {once:
-      // true} is the actual re-click guard now that disabled isn't doing
-      // that job.
+      // white-on-green until the next full page re-render. {once: true}
+      // is the actual re-click guard now that disabled isn't doing that
+      // job.
       btn.addEventListener("click", (event) => {
         event.stopPropagation(); // don't also trigger the row's exercise-detail modal
         quickLogExerciseNow(btn.dataset.quickAdd);
