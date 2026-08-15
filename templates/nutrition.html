@@ -4,7 +4,7 @@
 {% block heading %}Nutrition Log{% endblock %}
 
 {% block content %}
-<div class="nl-page" id="nl-page">
+<div class="nl-summary-card" id="nl-summary-card">
   <div class="nl-summary">
     <div class="nl-summary-head">
       <div class="nl-summary-title" data-i18n="nutrition.totals.title">Today's Totals</div>
@@ -103,7 +103,20 @@
       Analyze a food photo
     </button>
   </div>
+</div>
 
+<!--
+  Food log, its own card sibling to nl-summary-card above -- matches the
+  workout log's split between .wl-plan-card and .wl-page instead of
+  nesting everything (totals, date strip, log button, entry list) inside
+  one big card. A prominent primary button on top (opens the same search
+  popup and logs at the current wall-clock time — pendingHour stays null,
+  so addFoodToSelectedDay() uses `new Date()`; the modal's own "Log at"
+  selector still lets a user backdate an entry), then either a rounded-card
+  list of entries or a calm empty state. Same layout whether or not
+  anything is logged yet.
+-->
+<div class="nl-page" id="nl-page">
   <div class="nl-date-strip-wrap">
     <button type="button" class="nl-week-nav" id="nl-prev-week" aria-label="Previous week">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -114,23 +127,12 @@
     </button>
   </div>
 
-  <!--
-    Food log, styled to match the workout log's "Log an exercise" card: a
-    prominent primary button on top (opens the same search popup and logs
-    at the current wall-clock time — pendingHour stays null, so
-    addFoodToSelectedDay() uses `new Date()`; the modal's own "Log at"
-    selector still lets a user backdate an entry), then either a flat,
-    time-ordered list of entry cards or a calm empty state. Same layout
-    whether or not anything is logged yet.
-  -->
-  <div class="card nl-log-card">
-    <div class="nl-day-head" id="nl-day-head"></div>
-    <button type="button" class="nl-log-btn" id="nl-log-btn">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span data-i18n="nutrition.logFood">Log a food</span>
-    </button>
-    <div class="nl-timeline" id="nl-timeline"></div>
-  </div>
+  <div class="nl-day-head" id="nl-day-head"></div>
+  <button type="button" class="nl-log-btn" id="nl-log-btn">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <span data-i18n="nutrition.logFood">Log a food</span>
+  </button>
+  <div class="nl-timeline" id="nl-timeline"></div>
 </div>
 
 <!--
@@ -227,6 +229,17 @@
     border-radius: 24px;
     box-shadow: var(--shadow);
     padding: 24px;
+  }
+
+  /* Sibling card above .nl-page -- holds Today's Totals + the photo-scan
+     entry point, mirroring the workout log's standalone .wl-plan-card. */
+  .nl-summary-card {
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 16px;
   }
 
   /* ---------- Summary / goals ---------- */
@@ -435,7 +448,7 @@
      Kept as a flex row (rather than collapsing to the bare button) so
      .nl-scan-btn's flex:1 still stretches it full width, and so the spacing
      below the macro card stays owned by one rule. */
-  .nl-quick-actions-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 16px; }
+  .nl-quick-actions-row { display: flex; align-items: stretch; gap: 10px; }
 
   .nl-scan-btn {
     display: flex;
@@ -1680,6 +1693,7 @@
 
   @media (max-width: 480px) {
     .nl-page { padding: 14px; border-radius: var(--radius-md); }
+    .nl-summary-card { padding: 14px; border-radius: var(--radius-md); }
     .nl-summary-title { font-size: 14px; }
     .nl-goals-toggle { padding: 8px 14px; }
     .nl-checkin-btn { padding: 8px 12px; font-size: 11px; }
