@@ -1795,6 +1795,8 @@
     outline: none;
   }
   .wlc-input-pill input::placeholder { color: var(--text-secondary); }
+  .wlc-input-pill input:disabled { cursor: not-allowed; }
+  .wlc-input-pill:has(input:disabled) { opacity: 0.6; }
   .wlc-send-btn {
     width: 38px;
     height: 38px;
@@ -2384,6 +2386,11 @@
     document.getElementById("wl-log-btn").addEventListener("click", openExerciseModal);
     wireTimelineEvents();
     renderDateStrip(); // keep the "logged that day" dots in sync
+    // The AI chat widget lives outside #wl-day (see its own comment above)
+    // so it doesn't get re-rendered by the innerHTML replacement above --
+    // tell it explicitly that `selectedDate` may have changed, so it can
+    // reload the right day's thread and re-apply its today-only lock state.
+    document.dispatchEvent(new CustomEvent("repcheck:workout-date-changed"));
   }
 
   function renderEntry(entry) {
@@ -4305,10 +4312,14 @@
     openExerciseModal();
   })();
 
-  // ---------- AI chat scoped to the last 7 days of logged workouts ----------
+  // ---------- AI chat grounded in the user's logged workouts ----------
+  // Chat is scoped to whichever date is selected in the date strip above:
+  // writable only on today (selectedDate === todayIso), read-only for any
+  // other day. History is stored per calendar day and kept permanently --
+  // navigating to an old day shows that day's frozen thread rather than
+  // wiping it, unlike the old single-rolling-array design.
   (function () {
     const STORAGE_KEY = "repcheck_workout_chat_v1";
-    const RECENT_DAYS = 7;
     const SUGGESTION_KEYS = ["workoutChat.suggestion1", "workoutChat.suggestion2"];
 
     const chatEl = document.getElementById("wlc-chat");
@@ -4321,23 +4332,33 @@
     const statusEl = document.getElementById("wlc-status");
     if (!chatEl) return;
 
-    // A conversation only ever spans one calendar day -- same reasoning as
-    // coach.html's identical loadHistory/saveHistory.
-    function loadHistory() {
-      try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-        if (stored.length) {
-          const lastDate = stored[stored.length - 1].date;
-          if (lastDate !== toIsoDate(new Date())) return [];
-        }
-        return stored;
-      } catch (err) { return []; }
-    }
-    function saveHistory(hist) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(hist.slice(-60)));
+    function isSelectedDateToday() {
+      return selectedDate === toIsoDate(new Date());
     }
 
-    let chatHistory = loadHistory();
+    // Storage shape: { "<date-iso>": [...turns] } -- one thread per
+    // calendar day, all kept (never pruned by date rollover). Registered
+    // in database.py's LOG_MERGE_DATE_KEYED_KEYS / account_sync.js's
+    // MERGE_LOG_KEYS so a stale device can never wipe another device's
+    // days, same protection the workout log itself has.
+    function loadAllThreads() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        return (stored && typeof stored === "object" && !Array.isArray(stored)) ? stored : {};
+      } catch (err) { return {}; }
+    }
+    function loadHistory(dateIso) {
+      const threads = loadAllThreads();
+      const thread = threads[dateIso];
+      return Array.isArray(thread) ? thread : [];
+    }
+    function saveHistory(dateIso, hist) {
+      const threads = loadAllThreads();
+      threads[dateIso] = hist.slice(-60);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
+    }
+
+    let chatHistory = loadHistory(selectedDate);
     let isSending = false;
 
     function escapeHtml(text) {
@@ -4401,28 +4422,82 @@
       return `${weightPart}x ${s.reps} reps`;
     }
 
-    // Built fresh at send-time from the live `log` object (not cached) so
-    // it always reflects whatever's on screen, including edits made mid-chat.
-    function buildRecentWorkoutSummary() {
+    const RECENT_DAYS = 7;
+    // Per exercise, how many of its most recent sessions to recite --
+    // this is a COUNT of occurrences, not a calendar window, so an
+    // exercise trained only once every week or two still gets its real
+    // history instead of coming up empty inside a fixed 7-day cutoff.
+    const EXERCISE_HISTORY_SESSIONS = 4;
+    // Bounds the exercise-history section to whichever exercises were
+    // touched most recently, so a long-time user's full lifetime exercise
+    // catalog doesn't bloat every single request.
+    const MAX_EXERCISES_IN_HISTORY = 30;
+
+    // Lean day-by-day overview for the last 7 CALENDAR days -- entries
+    // only, no "no workout logged" filler (that wastes prompt space and
+    // isn't useful now that the exercise-history section below covers
+    // specific-exercise recall). Good for "am I training X enough this
+    // week"-style questions.
+    function buildRecentDaysOverview() {
       const lines = [];
       const base = new Date();
       for (let i = RECENT_DAYS - 1; i >= 0; i--) {
         const d = new Date(base);
         d.setDate(d.getDate() - i);
         const iso = toIsoDate(d);
-        const label = dayLabelFor(iso);
         const entries = (log[iso] || []).slice().sort((a, b) => a.addedAt - b.addedAt);
-        if (!entries.length) {
-          lines.push(`${label} (${iso}): no workout logged.`);
-          continue;
-        }
-        lines.push(`${label} (${iso}):`);
-        entries.forEach((entry) => {
-          const setDescs = entry.sets.map((s) => describeSet(entry, s)).filter(Boolean);
-          lines.push(`- ${entry.exercise}: ${setDescs.length ? setDescs.join("; ") : "no sets recorded"}`);
-        });
+        if (!entries.length) continue;
+        const names = entries.map((entry) => entry.exercise).join(", ");
+        lines.push(`${dayLabelFor(iso)} (${iso}): ${names}`);
       }
+      return lines.length ? lines.join("\n") : "(No workouts logged in the last 7 days.)";
+    }
+
+    // For EVERY exercise ever logged (across the whole `log`, not just the
+    // last 7 days), its most recent EXERCISE_HISTORY_SESSIONS occurrences
+    // with exact sets/weight/reps -- this is the data the AI recites
+    // verbatim before giving progressive-overload advice, so "recite my
+    // last 4 tricep extension sessions" is answered from real grounded
+    // numbers, never guessed. Built fresh at send-time from the live `log`
+    // object (not cached) so it always reflects on-screen edits.
+    function buildExerciseHistorySection() {
+      const byExercise = new Map();
+      Object.keys(log).forEach((dateIso) => {
+        (log[dateIso] || []).forEach((entry) => {
+          if (!byExercise.has(entry.exercise)) byExercise.set(entry.exercise, []);
+          byExercise.get(entry.exercise).push({ dateIso, entry });
+        });
+      });
+      if (!byExercise.size) return "(No exercises logged yet.)";
+
+      const exercises = Array.from(byExercise.entries()).map(([exercise, occurrences]) => {
+        // Most recent first: date descending, then addedAt descending for
+        // same-day duplicates (e.g. two separate logged sets of the same
+        // exercise on one day).
+        occurrences.sort((a, b) => {
+          if (a.dateIso !== b.dateIso) return a.dateIso < b.dateIso ? 1 : -1;
+          return b.entry.addedAt - a.entry.addedAt;
+        });
+        return { exercise, occurrences, mostRecentDate: occurrences[0].dateIso };
+      });
+      exercises.sort((a, b) => (a.mostRecentDate < b.mostRecentDate ? 1 : -1));
+
+      const lines = [];
+      exercises.slice(0, MAX_EXERCISES_IN_HISTORY).forEach(({ exercise, occurrences }) => {
+        lines.push(`${exercise}:`);
+        occurrences.slice(0, EXERCISE_HISTORY_SESSIONS).forEach(({ dateIso, entry }) => {
+          const setDescs = entry.sets.map((s) => describeSet(entry, s)).filter(Boolean);
+          lines.push(`- ${dayLabelFor(dateIso)} (${dateIso}): ${setDescs.length ? setDescs.join("; ") : "no sets recorded"}`);
+        });
+      });
       return lines.join("\n");
+    }
+
+    function buildRecentWorkoutSummary() {
+      return (
+        `Workouts logged in the last 7 days:\n${buildRecentDaysOverview()}\n\n` +
+        `Exercise history (last ${EXERCISE_HISTORY_SESSIONS} sessions each):\n${buildExerciseHistorySection()}`
+      );
     }
 
     function renderMessages() {
@@ -4505,17 +4580,26 @@
       }, retryAfterSeconds * 1000);
     }
 
+    function newTurnId() {
+      return (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    }
+
     async function sendMessage() {
       const message = inputEl.value.trim();
-      if (!message || isSending) return;
+      // Belt-and-suspenders: the input/send button are already disabled
+      // whenever the selected date isn't today (see applyDateLockState),
+      // but guard here too in case this is ever called programmatically
+      // (a suggestion chip click, a stray Enter-key event) while viewing
+      // a past/future day.
+      if (!message || isSending || !isSelectedDateToday()) return;
 
       isSending = true;
       sendBtn.disabled = true;
       inputEl.value = "";
 
       const todayIso = toIsoDate(new Date());
-      chatHistory.push({ role: "user", text: message, date: todayIso });
-      saveHistory(chatHistory);
+      chatHistory.push({ id: newTurnId(), role: "user", text: message, date: todayIso });
+      saveHistory(todayIso, chatHistory);
       renderMessages();
       showTyping();
 
@@ -4537,16 +4621,16 @@
         const data = await response.json();
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
-        chatHistory.push({ role: "assistant", text: reply, date: todayIso });
-        saveHistory(chatHistory);
+        chatHistory.push({ id: newTurnId(), role: "assistant", text: reply, date: todayIso });
+        saveHistory(todayIso, chatHistory);
         renderMessages();
         if (data.ok && data.limited) {
           applyLimitLockout(data.retry_after_seconds);
         }
       } catch (err) {
         hideTyping();
-        chatHistory.push({ role: "assistant", text: RepCheckI18n.t("workoutChat.errorReaching"), date: todayIso });
-        saveHistory(chatHistory);
+        chatHistory.push({ id: newTurnId(), role: "assistant", text: RepCheckI18n.t("workoutChat.errorReaching"), date: todayIso });
+        saveHistory(todayIso, chatHistory);
         renderMessages();
       } finally {
         isSending = false;
@@ -4563,12 +4647,51 @@
     });
 
     clearBtn.addEventListener("click", () => {
+      if (!isSelectedDateToday()) return; // hidden on non-today, but guard anyway
       chatHistory = [];
-      saveHistory(chatHistory);
+      saveHistory(toIsoDate(new Date()), chatHistory);
       renderMessages();
       inputEl.focus();
     });
 
+    // ---------- Today-only interactivity ----------
+    // Chat can only be WRITTEN on today's log; any other date shows that
+    // day's frozen thread (if any) read-only. Navigating dates never
+    // deletes history -- only sendMessage()/clearBtn (both gated to
+    // today) can change it.
+    function applyDateLockState() {
+      const isToday = isSelectedDateToday();
+      inputEl.disabled = !isToday;
+      sendBtn.disabled = !isToday;
+      clearBtn.hidden = !isToday;
+      inputEl.placeholder = isToday
+        ? RepCheckI18n.t("workoutChat.inputPlaceholder")
+        : RepCheckI18n.t("workoutChat.readOnlyDayPlaceholder");
+      if (isToday) {
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+      } else {
+        // A rate-limit countdown ticking from an earlier today-visit must
+        // not keep running and overwrite this message when its interval
+        // next fires -- if the user navigates back to today before it
+        // would have expired, their next send attempt simply hits the
+        // same server-side limit again and re-triggers a fresh countdown.
+        clearInterval(lockoutInterval);
+        clearTimeout(lockoutTimeout);
+        statusEl.hidden = false;
+        statusEl.textContent = RepCheckI18n.t("workoutChat.readOnlyDayStatus");
+      }
+    }
+
+    function refreshForSelectedDate() {
+      chatHistory = loadHistory(selectedDate);
+      applyDateLockState();
+      renderMessages();
+    }
+
+    document.addEventListener("repcheck:workout-date-changed", refreshForSelectedDate);
+
+    applyDateLockState();
     renderMessages();
     document.addEventListener("repcheck:language-changed", renderMessages);
   })();

@@ -14,7 +14,8 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.join(__dirname, "..", "..", "templates", "workouts.html");
 
-const START_MARKER = "// ---------- AI chat scoped to the last 7 days of logged workouts ----------\n  (function () {";
+const START_MARKER = "// ---------- AI chat grounded in the user's logged workouts ----------\n  // Chat is scoped to whichever date is selected in the date strip above:";
+const IIFE_OPEN = "(function () {";
 const END_MARKER = "  })();\n</script>";
 
 // Internals exposed to tests via an injected return statement -- the real
@@ -35,6 +36,10 @@ const RETURN_STMT = `
       renderSuggestions,
       loadHistory,
       saveHistory,
+      loadAllThreads,
+      isSelectedDateToday,
+      applyDateLockState,
+      refreshForSelectedDate,
       getChatHistory: () => chatHistory,
       setChatHistory: (h) => { chatHistory = h; },
     };
@@ -42,18 +47,24 @@ const RETURN_STMT = `
 
 export function extractSource() {
   const html = readFileSync(TEMPLATE_PATH, "utf-8").replace(/\r\n/g, "\n");
-  const start = html.indexOf(START_MARKER);
+  const commentStart = html.indexOf(START_MARKER);
   const end = html.indexOf(END_MARKER);
-  if (start === -1 || end === -1 || end <= start) {
+  if (commentStart === -1 || end === -1 || end <= commentStart) {
     throw new Error(
       "loadWorkoutChat: could not find the workout-chat IIFE in " +
         "templates/workouts.html -- the extraction markers moved or the " +
         "widget was renamed. Update START/END markers in loadWorkoutChat.js."
     );
   }
+  const iifeStart = html.indexOf(IIFE_OPEN, commentStart);
+  if (iifeStart === -1 || iifeStart > end) {
+    throw new Error(
+      "loadWorkoutChat: found the comment marker but not the IIFE opening " +
+        "right after it -- update IIFE_OPEN in loadWorkoutChat.js."
+    );
+  }
   // Slice from `(function () {` through the closing `})();` (inclusive),
   // then splice the return statement in just before that final `})();`.
-  const iifeStart = start + START_MARKER.indexOf("(function () {");
   const closeIdx = html.lastIndexOf("})();", end + END_MARKER.length);
   const body = html.slice(iifeStart, closeIdx);
   return `${body}${RETURN_STMT}})();`;
@@ -65,7 +76,21 @@ export function extractSource() {
  * nodes, its own `log` object, and its own fetch mock so tests don't bleed
  * state into each other.
  */
-export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null } = {}) {
+function defaultToIsoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * @param {string} [selectedDate] - the date-strip's currently-selected day
+ *   (ISO). Defaults to today. The real widget reads this via closure over
+ *   the outer script's `let selectedDate` (see templates/workouts.html) --
+ *   pass a past/future date here to test the read-only-when-not-today gate,
+ *   and use the returned `setSelectedDate` to simulate date navigation.
+ */
+export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null, selectedDate = null } = {}) {
   document.body.innerHTML = `
     <div class="wlc-chat" id="wlc-chat">
       <div class="wlc-header">
@@ -82,14 +107,16 @@ export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null } = 
   `;
   const I18N = {
     "workoutChat.title": "Workout AI Chat",
-    "workoutChat.subtitle": "Ask about your last 7 days of training",
+    "workoutChat.subtitle": "Ask about progressive overload on anything you've logged",
     "workoutChat.inputPlaceholder": "Ask about your recent workouts...",
-    "workoutChat.empty": "Ask about progressive overload, form, or rep maxes for anything you've logged in the last 7 days.",
+    "workoutChat.empty": "Ask about progressive overload, form, or rep maxes for anything you've logged.",
     "workoutChat.suggestion1": "How should I progressive overload my most recent exercise?",
     "workoutChat.suggestion2": "Am I training each muscle enough this week?",
     "workoutChat.limitReached": "Limit reached — resets in {time}",
     "workoutChat.limitReachedPlaceholder": "Message limit reached",
     "workoutChat.errorReaching": "Something went wrong reaching the workout chat. Please try again.",
+    "workoutChat.readOnlyDayStatus": "You can only chat on today's log — this conversation is read-only.",
+    "workoutChat.readOnlyDayPlaceholder": "Chat only works on today's log",
     "workouts.plan.today": "Today",
     "workouts.day.yesterday": "Yesterday",
   };
@@ -107,10 +134,7 @@ export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null } = 
   };
 
   function toIsoDate(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    return defaultToIsoDate(date);
   }
   function isBlank(v) { return v === "" || v === null || v === undefined; }
   const BODYWEIGHT_EXERCISES = new Set(["Pull-Up", "Push-Up", "Sit-Up", "Plank"]);
@@ -121,6 +145,12 @@ export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null } = 
   }
 
   const source = extractSource();
+  // The real template's chat IIFE reads `selectedDate` via closure over
+  // the outer script's `let selectedDate` -- since this extracted copy has
+  // no such outer scope, `selectedDate` is instead a parameter of this
+  // factory (a real local binding the inlined IIFE closes over the same
+  // way), and setSelectedDate lets tests reassign it exactly the way a
+  // real date-strip click would, before calling refreshForSelectedDate().
   const factory = new Function(
     "document",
     "localStorage",
@@ -130,7 +160,12 @@ export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null } = 
     "isBodyweight",
     "RepCheckUnits",
     "RepCheckI18n",
-    `return ${source}`
+    "selectedDate",
+    `
+    function setSelectedDate(d) { selectedDate = d; }
+    const api = ${source};
+    return { ...api, setSelectedDate };
+    `
   );
 
   const api = factory(
@@ -141,7 +176,8 @@ export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null } = 
     isBlank,
     isBodyweight,
     RepCheckUnits,
-    RepCheckI18n
+    RepCheckI18n,
+    selectedDate || defaultToIsoDate(new Date())
   );
 
   return {

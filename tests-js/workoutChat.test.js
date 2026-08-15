@@ -1,9 +1,11 @@
-// DOM-level coverage for the last-7-days workout chat widget added to
-// templates/workouts.html. The 15 existing pytest tests (tests/test_workout_chat.py)
+// DOM-level coverage for the workout chat widget added to
+// templates/workouts.html. The pytest tests (tests/test_workout_chat.py)
 // only cover the Python backend (prompt building + /api/workout-chat route);
-// this file covers the client-side JS that had zero test coverage: building
-// the 7-day summary sent to the model, formatting/escaping bot replies, day
-// labeling, and the send/lockout/error UI flows.
+// this file covers the client-side JS: building the two-section summary
+// sent to the model (a lean 7-day overview + a per-exercise history capped
+// at the last 4 sessions regardless of calendar window), formatting/
+// escaping bot replies, day labeling, today-only interactivity gating, and
+// the send/lockout/error UI flows.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadWorkoutChat } from "./support/loadWorkoutChat.js";
 
@@ -21,14 +23,11 @@ function isoDaysAgo(n) {
 }
 
 describe("buildRecentWorkoutSummary", () => {
-  it("reports every one of the last 7 days as unlogged when the log is empty", () => {
+  it("reports no workouts in either section when the log is empty", () => {
     const { buildRecentWorkoutSummary } = loadWorkoutChat({ log: {} });
     const summary = buildRecentWorkoutSummary();
-    const lines = summary.split("\n");
-    expect(lines).toHaveLength(7);
-    expect(lines.every((l) => l.includes("no workout logged."))).toBe(true);
-    // Today must be the last line (days are emitted oldest -> newest).
-    expect(lines[6]).toContain(isoDaysAgo(0));
+    expect(summary).toContain("(No workouts logged in the last 7 days.)");
+    expect(summary).toContain("(No exercises logged yet.)");
   });
 
   it("describes a normal weighted exercise's sets", () => {
@@ -45,7 +44,8 @@ describe("buildRecentWorkoutSummary", () => {
     };
     const { buildRecentWorkoutSummary } = loadWorkoutChat({ log });
     const summary = buildRecentWorkoutSummary();
-    expect(summary).toContain("Bench Press: 60kg x 8 reps; 60kg x 6 reps");
+    expect(summary).toContain("Bench Press:");
+    expect(summary).toContain("60kg x 8 reps; 60kg x 6 reps");
   });
 
   it("describes a bodyweight exercise without a weight figure", () => {
@@ -56,7 +56,7 @@ describe("buildRecentWorkoutSummary", () => {
       ],
     };
     const { buildRecentWorkoutSummary } = loadWorkoutChat({ log });
-    expect(buildRecentWorkoutSummary()).toContain("Pull-Up: 10 reps (bodyweight)");
+    expect(buildRecentWorkoutSummary()).toContain("10 reps (bodyweight)");
   });
 
   it("describes a unilateral exercise per-side", () => {
@@ -73,10 +73,71 @@ describe("buildRecentWorkoutSummary", () => {
     };
     const { buildRecentWorkoutSummary } = loadWorkoutChat({ log });
     expect(buildRecentWorkoutSummary()).toContain(
-      "Dumbbell Curl: L 12kg x 10 reps, R 14kg x 8 reps"
+      "L 12kg x 10 reps, R 14kg x 8 reps"
     );
   });
 
+});
+
+describe("buildRecentWorkoutSummary: exercise-history section", () => {
+  it("lists an exercise's occurrences most-recent-first, capped at the last 4", () => {
+    // 6 sessions of the same exercise, oldest to newest, each on a
+    // distinct day well outside any 7-day window -- must still all be
+    // findable, and only the 4 most recent kept.
+    const log = {};
+    for (let i = 0; i < 6; i++) {
+      const dateIso = isoDaysAgo(60 - i * 10); // 60, 50, 40, 30, 20, 10 days ago
+      log[dateIso] = [{
+        exercise: "Tricep Pushdown",
+        unilateral: false,
+        addedAt: i,
+        sets: [{ weightKg: 20 + i, reps: 8 }],
+      }];
+    }
+    const { buildRecentWorkoutSummary } = loadWorkoutChat({ log });
+    const summary = buildRecentWorkoutSummary();
+    const section = summary.split("Exercise history")[1];
+
+    // Most recent 4 (weights 25, 24, 23, 22 kg, for i=5,4,3,2) present...
+    expect(section).toContain("25kg x 8 reps");
+    expect(section).toContain("24kg x 8 reps");
+    expect(section).toContain("23kg x 8 reps");
+    expect(section).toContain("22kg x 8 reps");
+    // ...but the two oldest (i=0,1 -> 20kg, 21kg) are dropped.
+    expect(section).not.toContain("20kg x 8 reps");
+    expect(section).not.toContain("21kg x 8 reps");
+
+    // Most-recent-first ordering: the 25kg line must appear before 22kg.
+    expect(section.indexOf("25kg x 8 reps")).toBeLessThan(section.indexOf("22kg x 8 reps"));
+  });
+
+  it("finds an exercise's history even when its only sessions fall outside the last 7 days", () => {
+    // This is the headline behavior the feature exists for: an exercise
+    // trained only on a split day that recurs every 1-2 weeks must still
+    // surface its history, not just whatever's inside a flat 7-day window.
+    const log = {
+      [isoDaysAgo(14)]: [{
+        exercise: "Overhead Tricep Extension",
+        unilateral: false,
+        addedAt: 1,
+        sets: [{ weightKg: 15, reps: 10 }],
+      }],
+    };
+    const { buildRecentWorkoutSummary } = loadWorkoutChat({ log });
+    const summary = buildRecentWorkoutSummary();
+    expect(summary).toContain("Overhead Tricep Extension:");
+    expect(summary).toContain("15kg x 10 reps");
+  });
+
+  it("orders exercises by their own most-recent occurrence, not alphabetically", () => {
+    const log = {
+      [isoDaysAgo(5)]: [{ exercise: "Squat", unilateral: false, addedAt: 1, sets: [{ weightKg: 80, reps: 5 }] }],
+      [isoDaysAgo(1)]: [{ exercise: "Bicep Curl", unilateral: false, addedAt: 1, sets: [{ weightKg: 10, reps: 12 }] }],
+    };
+    const { buildRecentWorkoutSummary } = loadWorkoutChat({ log });
+    const section = buildRecentWorkoutSummary().split("Exercise history")[1];
+    expect(section.indexOf("Bicep Curl")).toBeLessThan(section.indexOf("Squat"));
+  });
 });
 
 describe("describeSet", () => {
@@ -141,16 +202,103 @@ describe("loadHistory / saveHistory", () => {
   it("returns an empty history when localStorage contains malformed JSON", () => {
     localStorage.setItem("repcheck_workout_chat_v1", "{not valid json");
     const { loadHistory } = loadWorkoutChat({});
-    expect(loadHistory()).toEqual([]);
+    expect(loadHistory(isoDaysAgo(0))).toEqual([]);
   });
 
-  it("discards a stored history from a previous day", () => {
+  it("returns an empty history when localStorage holds the old flat-array shape", () => {
+    // Pre-restructure shape (a single rolling array, not date-keyed) --
+    // must degrade to empty rather than throwing or misreading it as one
+    // day's thread.
     localStorage.setItem(
       "repcheck_workout_chat_v1",
       JSON.stringify([{ role: "user", text: "hi", date: "2000-01-01" }])
     );
     const { loadHistory } = loadWorkoutChat({});
-    expect(loadHistory()).toEqual([]);
+    expect(loadHistory("2000-01-01")).toEqual([]);
+  });
+
+  it("keeps a past day's thread readable after storing it, unaffected by other days", () => {
+    const { loadHistory, saveHistory } = loadWorkoutChat({});
+    const yesterday = isoDaysAgo(1);
+    const today = isoDaysAgo(0);
+    saveHistory(yesterday, [{ id: "a", role: "user", text: "yesterday's question", date: yesterday }]);
+    saveHistory(today, [{ id: "b", role: "user", text: "today's question", date: today }]);
+
+    expect(loadHistory(yesterday)).toEqual([
+      { id: "a", role: "user", text: "yesterday's question", date: yesterday },
+    ]);
+    expect(loadHistory(today)).toEqual([
+      { id: "b", role: "user", text: "today's question", date: today },
+    ]);
+  });
+});
+
+describe("today-only interactivity", () => {
+  it("leaves the input/send button enabled when the selected date is today", () => {
+    const { applyDateLockState, dom } = loadWorkoutChat({ selectedDate: isoDaysAgo(0) });
+    applyDateLockState();
+    expect(dom.inputEl.disabled).toBe(false);
+    expect(dom.sendBtn.disabled).toBe(false);
+    expect(dom.clearBtn.hidden).toBe(false);
+    expect(dom.statusEl.hidden).toBe(true);
+  });
+
+  it("disables the input/send button and shows a read-only status for a past day", () => {
+    const { applyDateLockState, dom } = loadWorkoutChat({ selectedDate: isoDaysAgo(3) });
+    applyDateLockState();
+    expect(dom.inputEl.disabled).toBe(true);
+    expect(dom.sendBtn.disabled).toBe(true);
+    expect(dom.clearBtn.hidden).toBe(true);
+    expect(dom.statusEl.hidden).toBe(false);
+    expect(dom.statusEl.textContent).toContain("read-only");
+  });
+
+  it("disables the input/send button for a future day too, not just past ones", () => {
+    const tomorrow = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().slice(0, 10);
+    })();
+    const { applyDateLockState, dom } = loadWorkoutChat({ selectedDate: tomorrow });
+    applyDateLockState();
+    expect(dom.inputEl.disabled).toBe(true);
+    expect(dom.sendBtn.disabled).toBe(true);
+  });
+
+  it("refreshForSelectedDate loads the newly-selected day's own thread and re-applies the lock state", () => {
+    const yesterday = isoDaysAgo(1);
+    const today = isoDaysAgo(0);
+    const { refreshForSelectedDate, setSelectedDate, saveHistory, getChatHistory, dom } =
+      loadWorkoutChat({ selectedDate: today });
+    saveHistory(yesterday, [{ id: "a", role: "assistant", text: "yesterday's reply", date: yesterday }]);
+
+    setSelectedDate(yesterday);
+    refreshForSelectedDate();
+
+    expect(getChatHistory()).toEqual([
+      { id: "a", role: "assistant", text: "yesterday's reply", date: yesterday },
+    ]);
+    expect(dom.inputEl.disabled).toBe(true);
+    expect(dom.messagesEl.textContent).toContain("yesterday's reply");
+
+    setSelectedDate(today);
+    refreshForSelectedDate();
+    expect(getChatHistory()).toEqual([]);
+    expect(dom.inputEl.disabled).toBe(false);
+  });
+
+  it("sendMessage is a no-op when the selected date isn't today, even if called directly", async () => {
+    // Belt-and-suspenders coverage: the button/input being disabled is the
+    // primary guard, but sendMessage() itself must also refuse, in case
+    // it's ever invoked programmatically while viewing a past/future day.
+    const fetchImpl = vi.fn();
+    const { sendMessage, dom, getChatHistory } = loadWorkoutChat({ selectedDate: isoDaysAgo(2), fetchImpl });
+    dom.inputEl.value = "should not send";
+
+    await sendMessage();
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(getChatHistory()).toEqual([]);
   });
 });
 
@@ -266,7 +414,15 @@ describe("clear chat button", () => {
     dom.clearBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(getChatHistory()).toEqual([]);
-    expect(JSON.parse(localStorage.getItem("repcheck_workout_chat_v1"))).toEqual([]);
+    expect(JSON.parse(localStorage.getItem("repcheck_workout_chat_v1"))).toEqual({
+      [isoDaysAgo(0)]: [],
+    });
+  });
+
+  it("is hidden (and a no-op) when the selected date isn't today", () => {
+    const { applyDateLockState, dom } = loadWorkoutChat({ selectedDate: isoDaysAgo(1) });
+    applyDateLockState();
+    expect(dom.clearBtn.hidden).toBe(true);
   });
 });
 
