@@ -2016,10 +2016,14 @@ def api_coaching_weekly_adjustment():
         return jsonify({"ok": False, "error": "Missing current_targets."}), 400
 
     # Optional self-reported context (see checkin_analyzer.py's
-    # _build_context_flags_line()) -- str-filtered since these get
-    # "".join()-ed straight into the Gemini prompt below.
-    high_carb_days = [d for d in (payload.get("high_carb_days") or []) if isinstance(d, str)]
-    bloating_days = [d for d in (payload.get("bloating_days") or []) if isinstance(d, str)]
+    # _build_context_flags_line()) -- list-and-str-filtered since these get
+    # "".join()-ed straight into the Gemini prompt below. A non-list value
+    # (e.g. a malformed client sending high_carb_days as a bare number) must
+    # not reach `for d in ...`, which would TypeError on a non-iterable.
+    raw_high_carb_days = payload.get("high_carb_days")
+    raw_bloating_days = payload.get("bloating_days")
+    high_carb_days = [d for d in raw_high_carb_days if isinstance(d, str)] if isinstance(raw_high_carb_days, list) else []
+    bloating_days = [d for d in raw_bloating_days if isinstance(d, str)] if isinstance(raw_bloating_days, list) else []
 
     # The deterministic trend calculation always runs first, both as the
     # anchor/fallback for the Gemini call below and as the answer on its

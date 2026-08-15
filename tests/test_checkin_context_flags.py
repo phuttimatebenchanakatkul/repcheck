@@ -68,6 +68,19 @@ def test_context_flags_line_covers_both_signals_together():
     assert "bloat" in line.lower()
 
 
+def test_context_flags_line_bloating_only():
+    """Isolated bloating-only branch -- the "both flagged" test above
+    exercises this path too, but only in combination with high_carb_days,
+    so it never proves the bloating-only sentence stands on its own. The
+    boilerplate closing sentence always mentions "high-carb" generically,
+    so the real assertion is that the flagged-dates clause itself never
+    claims a carb day that wasn't reported."""
+    line = _build_context_flags_line([], ["2026-08-14"])
+    assert "2026-08-14" in line
+    assert "bloat" in line.lower()
+    assert "ate notably more carbs" not in line
+
+
 def test_prompt_omits_context_section_when_nothing_flagged():
     prompt = _build_prompt(PROFILE, PAYLOAD_BASE["week_weight_entries"], [], None, False, False)
     assert "flagged this about their own week" not in prompt
@@ -195,3 +208,98 @@ def test_weekly_adjustment_route_filters_non_string_flags(monkeypatch):
     assert res.status_code == 200
     assert res.get_json()["ok"] is True
     assert captured["high_carb_days"] == ["2026-08-13"]
+
+
+def test_weekly_adjustment_route_filters_non_string_bloating_days(monkeypatch):
+    """Same guard as test_weekly_adjustment_route_filters_non_string_flags
+    above, but for bloating_days -- a separate list comprehension in
+    app.py, so it needs its own regression test rather than assuming the
+    high_carb_days coverage also proves this one."""
+    import app as app_module
+
+    captured = {}
+
+    def fake_analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days=None, bloating_days=None):
+        captured["bloating_days"] = bloating_days
+        raise CheckinAnalysisError("stop here")
+
+    monkeypatch.setattr(app_module, "analyze_checkin", fake_analyze_checkin)
+
+    payload = dict(PAYLOAD_BASE)
+    payload["high_carb_days"] = []
+    payload["bloating_days"] = ["2026-08-11", 999, None, ["nested"]]
+
+    client = app_module.app.test_client()
+    res = client.post(
+        "/api/coaching/weekly-adjustment",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+
+    assert res.status_code == 200
+    assert res.get_json()["ok"] is True
+    assert captured["bloating_days"] == ["2026-08-11"]
+
+
+def test_weekly_adjustment_route_handles_absent_flag_keys(monkeypatch):
+    """A check-in submitted before this feature existed (or any caller
+    that simply omits the fields) must not crash -- payload.get() returning
+    None must degrade to an empty list, not blow up the route."""
+    import app as app_module
+
+    captured = {}
+
+    def fake_analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days=None, bloating_days=None):
+        captured["high_carb_days"] = high_carb_days
+        captured["bloating_days"] = bloating_days
+        raise CheckinAnalysisError("stop here")
+
+    monkeypatch.setattr(app_module, "analyze_checkin", fake_analyze_checkin)
+
+    payload = dict(PAYLOAD_BASE)  # no high_carb_days/bloating_days keys at all
+
+    client = app_module.app.test_client()
+    res = client.post(
+        "/api/coaching/weekly-adjustment",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+
+    assert res.status_code == 200
+    assert res.get_json()["ok"] is True
+    assert captured["high_carb_days"] == []
+    assert captured["bloating_days"] == []
+
+
+def test_weekly_adjustment_route_handles_non_list_flag_values(monkeypatch):
+    """Regression test for a real crash: a non-list value (bare int, bare
+    dict) for high_carb_days/bloating_days used to reach `for d in <value>
+    or []`, which only short-circuits to [] for falsy values -- a truthy
+    non-list like 12345 or {"a": 1} would raise TypeError: not iterable
+    and 500 the whole check-in submission. Must now degrade to []."""
+    import app as app_module
+
+    captured = {}
+
+    def fake_analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days=None, bloating_days=None):
+        captured["high_carb_days"] = high_carb_days
+        captured["bloating_days"] = bloating_days
+        raise CheckinAnalysisError("stop here")
+
+    monkeypatch.setattr(app_module, "analyze_checkin", fake_analyze_checkin)
+
+    payload = dict(PAYLOAD_BASE)
+    payload["high_carb_days"] = 12345
+    payload["bloating_days"] = {"not": "a list"}
+
+    client = app_module.app.test_client()
+    res = client.post(
+        "/api/coaching/weekly-adjustment",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+
+    assert res.status_code == 200
+    assert res.get_json()["ok"] is True
+    assert captured["high_carb_days"] == []
+    assert captured["bloating_days"] == []
