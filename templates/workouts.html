@@ -386,6 +386,22 @@
   .wl-plan-more svg { transition: transform 0.15s ease; }
   .wl-plan-more.is-expanded svg { transform: rotate(180deg); }
 
+  /* max-height 0 -> a cap generous enough for the picker's own content
+     (the list inside caps itself at 50vh -- see .split-ex-picker-list) is
+     what makes the inline "Pick exercises" picker (see
+     renderInlineExercisePicker()) grow the weekly-split view in place,
+     instead of swapping the whole sheet to a new step. Deliberately not
+     the grid-template-rows 0fr->1fr trick: it needs the row's track to
+     size itself to the item's max-content contribution, and an overflow
+     circularity there stuck this content at ~padding height. */
+  .wl-plan-picker-expand {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .wl-plan-picker-expand.is-open { max-height: calc(50vh + 170px); }
+  .wl-plan-picker-expand-inner { padding-top: 12px; }
+
   /* Names the split the AI chose on the "Let AI build it" path, where the
      user never picked one themselves. */
   .split-suggested-banner {
@@ -3697,6 +3713,51 @@
   // Prenatal / Low-Impact) instead of only relying on the app's guess
   // from the day's typed name. Picking is optional -- skip it and the
   // backend still guesses a sensible pool for that day's name.
+  // Pure HTML for the categorized exercise checklist (custom exercises
+  // first, then EXERCISE_CATEGORIES, filtered by `query`) -- shared by the
+  // wizard's full-step picker (renderExercisePickerStep) below and the
+  // inline "Pick exercises" expansion in the weekly-split view
+  // (renderInlineExercisePicker) so both list exercises identically.
+  function buildExercisePickerListHtml(query, selected) {
+    const t = RepCheckI18n.t;
+    const q = query.trim().toLowerCase();
+    const customNames = customExercises.map((e) => e.name);
+    const filteredCustom = q ? customExercises.filter((e) => e.name.toLowerCase().includes(q)) : customExercises;
+    const customHtml = filteredCustom.length ? `
+      <div class="split-ex-picker-category">
+        <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
+        ${filteredCustom.map((ex) => `
+          <label class="split-ex-picker-item">
+            <input type="checkbox" data-exercise="${ex.name}" ${selected.has(ex.name) ? "checked" : ""}>
+            <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
+            <span>${ex.name}</span>
+            <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
+          </label>
+        `).join("")}
+      </div>
+    ` : "";
+
+    const builtInHtml = Object.entries(EXERCISE_CATEGORIES).map(([category, names]) => {
+      const filtered = (q ? names.filter((n) => n.toLowerCase().includes(q)) : names).filter((n) => !customNames.includes(n));
+      if (!filtered.length) return "";
+      return `
+        <div class="split-ex-picker-category">
+          <div class="split-ex-picker-category-title">${category}</div>
+          ${filtered.map((name) => `
+            <label class="split-ex-picker-item">
+              <input type="checkbox" data-exercise="${name}" ${selected.has(name) ? "checked" : ""}>
+              <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
+              <span>${name}</span>
+            </label>
+          `).join("")}
+        </div>
+      `;
+    }).join("");
+
+    const html = customHtml + builtInHtml;
+    return html || `<div class="ex-modal-empty">${t("workouts.search.noMatch", { query })}</div>`;
+  }
+
   async function renderExercisePickerStep(dayName, { getSelected, onDone }) {
     const myGeneration = ++splitModalGeneration;
     const t = RepCheckI18n.t;
@@ -3728,42 +3789,7 @@
     const createSlot = document.getElementById("split-ex-create-slot");
 
     function renderList(query) {
-      const q = query.trim().toLowerCase();
-      const customNames = customExercises.map((e) => e.name);
-      const filteredCustom = q ? customExercises.filter((e) => e.name.toLowerCase().includes(q)) : customExercises;
-      const customHtml = filteredCustom.length ? `
-        <div class="split-ex-picker-category">
-          <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
-          ${filteredCustom.map((ex) => `
-            <label class="split-ex-picker-item">
-              <input type="checkbox" data-exercise="${ex.name}" ${selected.has(ex.name) ? "checked" : ""}>
-              <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
-              <span>${ex.name}</span>
-              <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
-            </label>
-          `).join("")}
-        </div>
-      ` : "";
-
-      const builtInHtml = Object.entries(EXERCISE_CATEGORIES).map(([category, names]) => {
-        const filtered = (q ? names.filter((n) => n.toLowerCase().includes(q)) : names).filter((n) => !customNames.includes(n));
-        if (!filtered.length) return "";
-        return `
-          <div class="split-ex-picker-category">
-            <div class="split-ex-picker-category-title">${category}</div>
-            ${filtered.map((name) => `
-              <label class="split-ex-picker-item">
-                <input type="checkbox" data-exercise="${name}" ${selected.has(name) ? "checked" : ""}>
-                <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-                <span>${name}</span>
-              </label>
-            `).join("")}
-          </div>
-        `;
-      }).join("");
-
-      const html = customHtml + builtInHtml;
-      listEl.innerHTML = html || `<div class="ex-modal-empty">${t("workouts.search.noMatch", { query })}</div>`;
+      listEl.innerHTML = buildExercisePickerListHtml(query, selected);
       listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) selected.add(checkbox.dataset.exercise);
@@ -4163,6 +4189,139 @@
   const SPLIT_VIEW_MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   let wholeSplitActiveDay = null; // weekday key (WEEKDAY_KEYS form) currently selected in the tab strip
 
+  // Same categorized search+pick UI as renderExercisePickerStep(), but
+  // mounted into a small container inside the already-open weekly-split
+  // view (see #wl-plan-picker-expand in renderWholeSplitBody() below)
+  // instead of replacing #split-modal-body wholesale -- tapping "Pick
+  // exercises" here grows the view in place rather than navigating to a
+  // different screen. Kept separate from renderExercisePickerStep() rather
+  // than sharing its wiring because that function's DOM lookups are
+  // scoped to the fixed #split-ex-picker-* ids on #split-modal-body, not
+  // reusable against an arbitrary container.
+  async function renderInlineExercisePicker(container, { getSelected, onDone }, isStale) {
+    const t = RepCheckI18n.t;
+    const selected = new Set(getSelected());
+
+    await loadCustomExercises();
+    if (isStale()) return;
+
+    container.innerHTML = `
+      <input type="text" class="split-ex-picker-search" placeholder="${t("workouts.search.placeholder")}" autocomplete="off">
+      <button type="button" class="split-ex-create-btn">+ ${t("workouts.wizard.createExercise")}</button>
+      <div class="split-ex-create-slot"></div>
+      <div class="split-ex-picker-list"></div>
+      <button type="button" class="split-primary-btn" style="margin-top:12px;">${t("common.done")}</button>
+    `;
+
+    const searchInput = container.querySelector(".split-ex-picker-search");
+    const createBtn = container.querySelector(".split-ex-create-btn");
+    const createSlot = container.querySelector(".split-ex-create-slot");
+    const listEl = container.querySelector(".split-ex-picker-list");
+    const doneBtn = container.querySelector(".split-primary-btn");
+
+    function renderList(query) {
+      listEl.innerHTML = buildExercisePickerListHtml(query, selected);
+      listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) selected.add(checkbox.dataset.exercise);
+          else selected.delete(checkbox.dataset.exercise);
+          updateDoneLabel();
+        });
+      });
+      listEl.querySelectorAll("[data-remove-custom-exercise]").forEach((btn) => {
+        btn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          const id = parseInt(btn.dataset.removeCustomExercise, 10);
+          const removed = customExercises.find((e) => e.id === id);
+          customExercises = customExercises.filter((e) => e.id !== id);
+          if (removed) selected.delete(removed.name);
+          renderList(searchInput.value);
+          updateDoneLabel();
+          try {
+            await fetch(`/api/custom-exercises/${id}`, { method: "DELETE" });
+          } catch (err) {
+            // Already removed from the UI; a failed request just means it
+            // may reappear next time the picker loads fresh data.
+          }
+        });
+      });
+    }
+
+    function updateDoneLabel() {
+      doneBtn.textContent = selected.size ? t("workouts.wizard.doneWithCount", { n: selected.size }) : t("common.done");
+    }
+
+    function closeCreateForm() {
+      createSlot.innerHTML = "";
+    }
+
+    function openCreateForm() {
+      createSlot.innerHTML = `
+        <div class="split-ex-create-form">
+          <input type="text" class="split-ex-create-name" placeholder="${t("workouts.wizard.exerciseName")}" autocomplete="off" maxlength="60">
+          <div class="split-ex-create-form-actions">
+            <button type="button" class="split-secondary-btn split-ex-create-cancel-btn">${t("common.cancel")}</button>
+            <button type="button" class="split-primary-btn split-ex-create-save-btn">${t("common.save")}</button>
+          </div>
+        </div>
+      `;
+      const nameInput = createSlot.querySelector(".split-ex-create-name");
+      nameInput.focus();
+      createSlot.querySelector(".split-ex-create-cancel-btn").addEventListener("click", closeCreateForm);
+      createSlot.querySelector(".split-ex-create-save-btn").addEventListener("click", async () => {
+        const name = nameInput.value.trim();
+        if (!name) return;
+        try {
+          const response = await fetch("/api/custom-exercises", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          const data = await response.json();
+          if (!data.ok) return;
+          customExercises = [data.exercise, ...customExercises];
+          closeCreateForm();
+          openAddPrompt(data.exercise.name);
+        } catch (err) {
+          // Nothing to add to the picker if this fails -- the user can retry.
+        }
+      });
+    }
+
+    function openAddPrompt(name) {
+      createSlot.innerHTML = `
+        <div class="split-ex-add-prompt">
+          <p>${t("workouts.wizard.addExerciseNowQuestion", { name })}</p>
+          <div class="split-ex-add-prompt-actions">
+            <button type="button" class="split-secondary-btn split-ex-add-later-btn">${t("workouts.wizard.saveForLater")}</button>
+            <button type="button" class="split-primary-btn split-ex-add-now-btn">${t("workouts.wizard.addNow")}</button>
+          </div>
+        </div>
+      `;
+      createSlot.querySelector(".split-ex-add-later-btn").addEventListener("click", () => {
+        closeCreateForm();
+        renderList(searchInput.value);
+      });
+      createSlot.querySelector(".split-ex-add-now-btn").addEventListener("click", () => {
+        selected.add(name);
+        closeCreateForm();
+        renderList(searchInput.value);
+        updateDoneLabel();
+      });
+    }
+
+    createBtn.addEventListener("click", () => {
+      if (createSlot.innerHTML) closeCreateForm();
+      else openCreateForm();
+    });
+
+    searchInput.addEventListener("input", () => renderList(searchInput.value));
+    renderList("");
+    updateDoneLabel();
+
+    doneBtn.addEventListener("click", () => onDone(Array.from(selected)));
+  }
+
   function renderWholeSplitView() {
     const plan = loadSplitPlan();
     if (!plan) return;
@@ -4229,7 +4388,10 @@
             `).join("")}
             ${!activeDay.exercises.length ? `<div class="wl-plan-rest">${t("workouts.plan.noExercisesText")}</div>` : ""}
           </div>
-          <button type="button" class="split-secondary-btn" id="split-view-pick-exercises-btn" style="margin-top:12px;">${t("workouts.wizard.pickExercises")}</button>`
+          <button type="button" class="split-secondary-btn" id="split-view-pick-exercises-btn" style="margin-top:12px;">${t("workouts.wizard.pickExercises")}</button>
+          <div class="wl-plan-picker-expand" id="wl-plan-picker-expand">
+            <div class="wl-plan-picker-expand-inner" id="wl-plan-picker-expand-inner"></div>
+          </div>`
       }
       <button type="button" class="split-primary-btn" id="split-edit-from-view-btn" style="margin-top:18px;">${t("workouts.plan.editSplit")}</button>
     `;
@@ -4254,15 +4416,34 @@
           renderWholeSplitBody(plan);
         });
       });
-      document.getElementById("split-view-pick-exercises-btn").addEventListener("click", () => {
-        renderExercisePickerStep(activeLabel, {
+      const pickBtn = document.getElementById("split-view-pick-exercises-btn");
+      const pickerExpand = document.getElementById("wl-plan-picker-expand");
+      const pickerInner = document.getElementById("wl-plan-picker-expand-inner");
+      // Captured here (rather than once at the top of renderWholeSplitBody)
+      // is equivalent, since nothing async happens between the top of this
+      // synchronous function and here -- but keeping the increment's own
+      // line unaccompanied matches the shape every other render-generation
+      // entry point uses (see test_every_modal_body_render_function_bumps...).
+      const renderGeneration = splitModalGeneration;
+      let pickerToken = 0;
+      pickBtn.addEventListener("click", () => {
+        const opening = !pickerExpand.classList.contains("is-open");
+        pickerExpand.classList.toggle("is-open", opening);
+        pickBtn.textContent = opening ? t("common.cancel") : t("workouts.wizard.pickExercises");
+        pickerToken++;
+        if (!opening) {
+          pickerInner.innerHTML = "";
+          return;
+        }
+        const myToken = pickerToken;
+        renderInlineExercisePicker(pickerInner, {
           getSelected: () => activeDay.exercises,
           onDone: (selected) => {
             activeDay.exercises = selected;
             persistSplitPlan(plan);
             renderWholeSplitBody(plan);
           },
-        });
+        }, () => myToken !== pickerToken || splitModalGeneration !== renderGeneration);
       });
     }
     document.getElementById("split-edit-from-view-btn").addEventListener("click", openSplitModal);
