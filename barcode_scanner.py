@@ -42,6 +42,13 @@ class BarcodeScanError(Exception):
     Facts."""
 
 
+class ProductNotFoundError(BarcodeScanError):
+    """A barcode was read fine, but no source (Open Food Facts or
+    FatSecret) has a product for it -- as opposed to a decode failure or a
+    network/API error. app.py's scan/lookup routes catch this specifically
+    to offer "create this as a custom food" instead of a generic retry."""
+
+
 def _shorten_name(name, max_len=40):
     name = re.sub(r"\s+", " ", name).strip()
     if len(name) <= max_len:
@@ -149,7 +156,7 @@ def _lookup_product(barcode):
         raise BarcodeScanError("Got an unexpected response looking up that product.") from exc
 
     if data.get("status") != 1 or not data.get("product"):
-        raise BarcodeScanError(
+        raise ProductNotFoundError(
             f"No product found for barcode {barcode}. It may not be in the "
             "Open Food Facts database yet."
         )
@@ -223,13 +230,13 @@ def _validate(barcode, product, source="Open Food Facts"):
         "protein": _num(nutriments, "proteins_100g"),
         "fat": _num(nutriments, "fat_100g"),
         "carbs": _num(nutriments, "carbohydrates_100g"),
-        # Open Food Facts reports sodium in grams; the app shows it in mg
-        # (the standard unit on nutrition labels).
-        "sodium_mg": _num(nutriments, "sodium_100g") * 1000,
-        "sugar_g": _num(nutriments, "sugars_100g"),
     }
     if not any([per_100g["calories"], per_100g["protein"], per_100g["fat"], per_100g["carbs"]]):
-        raise BarcodeScanError(
+        # Treated the same as a total miss (ProductNotFoundError, not the
+        # base BarcodeScanError) -- the product exists on {source} but
+        # there's nothing usable to show, so the app's redirect into
+        # "create this food yourself" applies here too.
+        raise ProductNotFoundError(
             f"Found \"{food_name}\" but it has no nutrition data on {source}."
         )
     per_100g = _sanitize_per_100g(per_100g, food_name, source)
@@ -238,7 +245,6 @@ def _validate(barcode, product, source="Open Food Facts"):
     scale = grams / 100
     totals = {k: round(v * scale, 1) for k, v in per_100g.items()}
     totals["calories"] = round(totals["calories"])
-    totals["sodium_mg"] = round(totals["sodium_mg"])
 
     return {
         "food_name": food_name,
@@ -251,15 +257,11 @@ def _validate(barcode, product, source="Open Food Facts"):
             "protein": round(per_100g["protein"], 1),
             "fat": round(per_100g["fat"], 1),
             "carbs": round(per_100g["carbs"], 1),
-            "sodium_mg": round(per_100g["sodium_mg"]),
-            "sugar_g": round(per_100g["sugar_g"], 1),
         }],
         "calories": totals["calories"],
         "protein": totals["protein"],
         "fat": totals["fat"],
         "carbs": totals["carbs"],
-        "sodium_mg": totals["sodium_mg"],
-        "sugar_g": totals["sugar_g"],
     }
 
 

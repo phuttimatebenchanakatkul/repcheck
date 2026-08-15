@@ -41,8 +41,15 @@ from analyze_chat import get_analysis_chat_reply
 from analyze_food_gemini import FoodAnalysisError, analyze_food_photo
 from auth import auth_bp, current_user
 from hyrox_coach import get_hyrox_race_analysis
-from barcode_scanner import BarcodeScanError, lookup_by_barcode, scan_and_lookup, search_open_food_facts
+from barcode_scanner import (
+    BarcodeScanError,
+    ProductNotFoundError,
+    decode_barcode,
+    lookup_by_barcode,
+    search_open_food_facts,
+)
 from coach_chat import get_coach_reply
+from workout_chat import get_workout_chat_reply
 from checkin_analyzer import CheckinAnalysisError, analyze_checkin
 from coaching_engine import (
     FEMALE_BODY_FAT_RANGES,
@@ -75,6 +82,7 @@ from database import (
     get_all_user_data,
     get_challenge,
     get_custom_exercises,
+    get_custom_food_by_barcode,
     get_custom_foods,
     get_exercise_leaderboard,
     get_analyze_result,
@@ -310,10 +318,11 @@ ADMIN_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
 # Applied to EVERY account. (A first version grandfathered accounts that
 # existed before the limits shipped via database.py's `rate_limited` column,
 # but that just made the limits look broken when testing with an existing
-# account -- the column is now vestigial and ignored.) Both chatbots (Coach
-# page + analysis follow-ups) share the one "ai_chat" bucket. The AI routes
-# all require login (the app is fully login-gated anyway), so there's no
-# anonymous path that could dodge the per-user counter.
+# account -- the column is now vestigial and ignored.) All three chatbots
+# (Coach page, analysis follow-ups, and the workout-log chat) share the one
+# "ai_chat" bucket. The AI routes all require login (the app is fully
+# login-gated anyway), so there's no anonymous path that could dodge the
+# per-user counter.
 RATE_LIMITS = {
     "workout_analysis": (1, 24 * 60 * 60),  # 1 per day
     "food_analysis": (3, 24 * 60 * 60),     # 3 per day
@@ -433,6 +442,7 @@ SYNCED_DATA_KEYS = {
     "repcheck_nutrition_favorites_v1",
     "repcheck_analyze_log_v1",
     "repcheck_coach_chat_v1",
+    "repcheck_workout_chat_v1",
     "repcheck_coaching_profile_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
@@ -952,16 +962,84 @@ def api_analyze_food():
         return jsonify({"ok": False, "error": "Couldn't analyze that photo. Please try again."}), 502
 
 
+def _custom_food_to_scan_result(food):
+    """Reshapes a row from get_custom_food_by_barcode()/create_custom_food()
+    into the same {food_name, confidence, note, ingredients, calories/
+    protein/fat/carbs} shape barcode_scanner.py's _validate() produces, so
+    a barcode that matches a user's own saved food renders through the
+    exact same result screen as a fresh Open Food Facts/FatSecret lookup.
+    ingredients[0].grams is the food's own defined serving size (not a
+    hardcoded 100g), and "servings" carries every serving size option
+    (the base one plus any extra named ones) for the amount editor's
+    serving-size picker."""
+    servings = [{"label": food["serving_label"], "grams": food["serving_grams"]}]
+    servings.extend(food.get("servings") or [])
+    return {
+        "food_name": food["name"],
+        "confidence": "custom",
+        "note": "Your own saved food entry.",
+        "custom_food_id": food["id"],
+        "ingredients": [{
+            "name": food["name"], "grams": food["serving_grams"],
+            "calories": food["calories"], "protein": food["protein"],
+            "fat": food["fat"], "carbs": food["carbs"],
+        }],
+        "calories": food["calories"], "protein": food["protein"],
+        "fat": food["fat"], "carbs": food["carbs"],
+        "servings": servings,
+    }
+
+
+def _custom_food_to_json(food):
+    """Reshapes a database.py custom_foods row (snake_case, as stored) into
+    the camelCase shape nutrition.html's JS expects (matches what
+    api_create_custom_food() below returns) -- used by both the GET list
+    and the POST create response so a food looks identical whether it just
+    got created or was loaded from GET /api/custom-foods."""
+    return {
+        "id": food["id"], "name": food["name"], "emoji": food["emoji"],
+        "calories": food["calories"], "protein": food["protein"],
+        "fat": food["fat"], "carbs": food["carbs"],
+        "barcode": food.get("barcode"),
+        "servingLabel": food["serving_label"], "servingGrams": food["serving_grams"],
+        "servings": food.get("servings") or [],
+    }
+
+
+def _resolve_barcode(user, barcode):
+    """Shared by /api/scan-barcode and /api/lookup-barcode: a logged-in
+    user's own custom food for this exact barcode always wins over an
+    external lookup (it's their verified data for their product), checked
+    before ever calling out to Open Food Facts/FatSecret. Falls through to
+    lookup_by_barcode() otherwise, which raises ProductNotFoundError (a
+    BarcodeScanError subclass) when nothing matches anywhere -- callers
+    catch that specifically to offer the "create this food yourself" flow."""
+    if user:
+        custom_food = get_custom_food_by_barcode(user["id"], barcode)
+        if custom_food:
+            return _custom_food_to_scan_result(custom_food)
+    return lookup_by_barcode(barcode)
+
+
 @app.route("/api/scan-barcode", methods=["POST"])
 def api_scan_barcode():
     image_file = request.files.get("image")
     if not image_file or image_file.filename == "":
         return jsonify({"ok": False, "error": "Please provide a photo of the barcode."}), 400
 
+    user = current_user()
     try:
-        result = scan_and_lookup(image_file.read())
+        barcode = decode_barcode(image_file.read())
+    except BarcodeScanError as exc:
+        app.logger.warning("Barcode decode failed: %s", exc)
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+    try:
+        result = _resolve_barcode(user, barcode)
         _track_feature("barcode_scan")
         return jsonify({"ok": True, **result})
+    except ProductNotFoundError as exc:
+        return jsonify({"ok": False, "not_found": True, "barcode": barcode, "error": str(exc)})
     except BarcodeScanError as exc:
         app.logger.warning("Barcode scan failed: %s", exc)
         return jsonify({"ok": False, "error": str(exc)}), 502
@@ -978,9 +1056,16 @@ def api_lookup_barcode():
     if not barcode:
         return jsonify({"ok": False, "error": "No barcode value given."}), 400
 
+    user = current_user()
     try:
-        result = lookup_by_barcode(barcode)
+        result = _resolve_barcode(user, barcode)
         return jsonify({"ok": True, **result})
+    except ProductNotFoundError as exc:
+        # Not a hard error -- a normal, expected outcome the frontend
+        # handles by offering to create this barcode as a custom food (see
+        # renderAfCreateForm(false, barcode) in nutrition.html), so this
+        # stays a 200 rather than the 502 a genuine lookup failure gets.
+        return jsonify({"ok": False, "not_found": True, "barcode": barcode, "error": str(exc)})
     except BarcodeScanError as exc:
         app.logger.warning("Barcode lookup failed: %s", exc)
         return jsonify({"ok": False, "error": str(exc)}), 502
@@ -1006,7 +1091,8 @@ def api_get_custom_foods():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
-    return jsonify({"ok": True, "foods": get_custom_foods(user["id"])})
+    foods = [_custom_food_to_json(f) for f in get_custom_foods(user["id"])]
+    return jsonify({"ok": True, "foods": foods})
 
 
 @app.route("/api/custom-foods", methods=["POST"])
@@ -1043,17 +1129,65 @@ def api_create_custom_food():
     if protein == 0 and fat == 0 and carbs == 0:
         return jsonify({"ok": False, "error": "Enter at least one macro (protein, fat, or carbs)."}), 400
 
+    # Set only when this food is being created from the barcode-scan
+    # "not found" flow (see renderAfCreateForm(false, barcode) in
+    # nutrition.html) -- lets a future scan of the same code resolve
+    # straight to this food (see _resolve_barcode() above) instead of
+    # failing again. Optional otherwise: a food created via the plain
+    # "Create food" tile has no barcode.
+    barcode = str(payload.get("barcode") or "").strip() or None
+    if barcode and get_custom_food_by_barcode(user["id"], barcode):
+        return jsonify({
+            "ok": False,
+            "error": "You already have a custom food saved for this barcode.",
+        }), 409
+
+    # What the entered calories/protein/fat/carbs above are FOR -- e.g.
+    # "1 bar" = 45g. Defaults to the same "100g" assumption every other
+    # custom food used to hardcode, so old behavior is unchanged when a
+    # caller doesn't specify one.
+    serving_label = str(payload.get("servingLabel") or "").strip()[:40] or "1 serving"
+    try:
+        serving_grams = float(payload.get("servingGrams") or 100)
+    except (TypeError, ValueError):
+        serving_grams = 100
+    if serving_grams <= 0:
+        serving_grams = 100
+
+    # Extra named serving sizes beyond the base one above (e.g. base "1
+    # bar" = 45g, plus "1 box" = 270g) -- each just needs a label and a
+    # gram weight; the macros for it are derived client-side/at log time
+    # by scaling from the base serving, so nothing else is stored per size.
+    extra_servings = []
+    for raw in (payload.get("servings") or [])[:20]:
+        if not isinstance(raw, dict):
+            continue
+        label = str(raw.get("label") or "").strip()[:40]
+        try:
+            grams = float(raw.get("grams") or 0)
+        except (TypeError, ValueError):
+            grams = 0
+        if label and grams > 0:
+            extra_servings.append({"label": label, "grams": grams})
+
     # Always derived server-side from the macros, never trusted from the
     # client -- protein and carbs are 4 kcal/g, fat is 9 kcal/g, so the
     # calories shown always genuinely match the entered macros.
     calories = round(protein * 4 + carbs * 4 + fat * 9)
 
-    food_id = create_custom_food(user["id"], name[:60], emoji, calories, protein, fat, carbs)
+    name = name[:60]
+    food_id = create_custom_food(
+        user["id"], name, emoji, calories, protein, fat, carbs,
+        barcode=barcode, serving_label=serving_label, serving_grams=serving_grams,
+        extra_servings=extra_servings,
+    )
     return jsonify({
         "ok": True,
         "food": {
-            "id": food_id, "name": name[:60], "emoji": emoji,
+            "id": food_id, "name": name, "emoji": emoji,
             "calories": calories, "protein": protein, "fat": fat, "carbs": carbs,
+            "barcode": barcode, "servingLabel": serving_label, "servingGrams": serving_grams,
+            "servings": extra_servings,
         },
     })
 
@@ -1223,6 +1357,7 @@ ADMIN_PAGE_LABELS = {
 ADMIN_FEATURE_LABELS = {
     "workout_analysis": "Workout analyses (AI)", "food_scan": "Food photo scans (AI)",
     "coach_chat_message": "Coach chat messages", "analyze_chat_message": "Analysis chat messages",
+    "workout_chat_message": "Workout chat messages",
     "hyrox_ai_analysis": "HYROX race analyses (AI)", "challenge_submission": "Challenge submissions",
     "food_logged": "Foods logged", "weight_logged": "Weigh-ins logged", "barcode_scan": "Barcode scans",
 }
@@ -1770,6 +1905,40 @@ def api_analyze_chat():
     result = get_analysis_chat_reply(message, history, context)
     _rate_limit_record("ai_chat")
     _track_feature("analyze_chat_message")
+    return jsonify({
+        "ok": True,
+        "reply": result["reply"],
+        "limited": result["limited"],
+        "retry_after_seconds": result["retry_after_seconds"],
+    })
+
+
+@app.route("/api/workout-chat", methods=["POST"])
+def api_workout_chat():
+    # Same reasoning as /api/analyze-food: every message must count against
+    # an account, so no anonymous access.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message", "")).strip()
+    history = payload.get("history") or []
+    context = payload.get("context") or {}
+
+    if not message:
+        return jsonify({"ok": False, "error": "Message can't be empty."}), 400
+    if not isinstance(history, list):
+        return jsonify({"ok": False, "error": "Invalid history."}), 400
+    if not isinstance(context, dict):
+        return jsonify({"ok": False, "error": "Invalid context."}), 400
+
+    blocked, retry = _rate_limit_blocked("ai_chat")
+    if blocked:
+        return jsonify({"ok": True, **_chat_limit_response(retry)})
+
+    result = get_workout_chat_reply(message, history, context)
+    _rate_limit_record("ai_chat")
+    _track_feature("workout_chat_message")
     return jsonify({
         "ok": True,
         "reply": result["reply"],

@@ -2,6 +2,30 @@
 
 ## Workouts
 
+### Workout chat's `describeSet()` duplicates the weight/reps formatting logic already in `renderEntry()`/`renderEntryDetail()`
+
+**What:** The new "last 7 days" AI chat widget (`templates/workouts.html`, `describeSet()` in the workout-chat IIFE) re-implements weight/reps/unilateral formatting that already exists in `renderEntry()`/`renderEntryDetail()` -- the same logic that renders each exercise card. The two implementations aren't shared by a common helper.
+
+**Why:** Two copies of "how to read a set's weight/reps out of an entry" can drift silently -- a future fix to one (e.g. a new set shape, a bodyweight-detection tweak) might not get applied to the other, and the AI chat would then describe a workout differently than what's actually shown on the card above it.
+
+**Context:** Flagged by the maintainability specialist during `/ship`'s pre-landing review for the workout-chat feature. Not fixed inline because extracting a shared `formatSetForDisplay(entry, set)` helper means touching `renderEntry()`/`renderEntryDetail()`, pre-existing, well-tested rendering code that this PR doesn't otherwise touch -- a larger, separately-reviewable change rather than a mechanical one-file fix.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### No server-side message-length cap on any of the three AI chatbots
+
+**What:** `/api/workout-chat`, `/api/coach-chat`, and `/api/analyze-chat` (`app.py`) all accept `message` with only a client-side `maxlength="600"` on the `<input>` -- nothing bounds it server-side before it's forwarded into a Gemini `Content` part.
+
+**Why:** Low risk in practice (Gemini has its own token limits, and all three routes already require login + share the 3-messages/day `ai_chat` rate limit, so abuse is both authenticated and heavily throttled), but a malicious or buggy client could send an arbitrarily large `message` and this app never validates it.
+
+**Context:** Flagged by the testing specialist during `/ship`'s pre-landing review for the workout-chat feature. Not fixed inline because it's a pre-existing characteristic shared identically by all three chatbots, not something this PR introduced -- fixing it for just the new route would leave the other two inconsistent, so a real fix should add one shared cap (e.g. a `MAX_MESSAGE_CHARS` constant) across all three routes together.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
 ### Edited sets/reps in the review step's exercise editor are a write-only round-trip
 
 **What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `renderSplitStepReview()` also unconditionally resets `exercisePrescriptions` to `{}` on every entry, regardless of whether the plan already had customizations -- so any prior prescription is silently discarded the next time the AI-suggest path is used to rebuild the split.
