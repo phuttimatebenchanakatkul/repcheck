@@ -362,11 +362,63 @@
   width: 100%; padding: 11px 13px; border: 1px solid var(--border);
   background: var(--bg); color: var(--text); border-radius: 10px; font-size: 15px; font-family: inherit;
 }
-.pc-field input[type="range"] {
-  width: 100%; padding: 0; border: none; background: none;
-  accent-color: var(--blue); height: 20px; cursor: pointer;
-}
 .pc-field-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; min-height: 14px; }
+
+/* ---------- Rate-of-change slider (custom, replaces native
+   <input type="range">) -- see renderRateSlider() in coaching.js. Mirrors
+   onboarding.html's .ob-rate-* rules exactly (same .pc-*/.ob-* class-
+   duplication reasoning as the JS constants at the top of coaching.js).
+   "Standard" zone highlighting/badge only ever applies to the loss
+   direction; the gain slider renders the same track/thumb/readouts with
+   no zone and no badge. ---------- */
+.pc-rate-field label { margin-bottom: 4px; }
+.pc-rate-badge {
+  display: flex; justify-content: center; margin: 10px 0 18px;
+  font-size: 12px; font-weight: 800; color: var(--text-secondary);
+}
+.pc-rate-badge:not(:empty) {
+  padding: 7px 14px; border-radius: 999px; background: var(--border); width: fit-content; margin-left: auto; margin-right: auto;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.pc-rate-badge.is-standard { background: var(--green-bg); color: var(--green); }
+.pc-rate-slider {
+  position: relative; height: 32px; margin: 0 4px 20px; cursor: pointer;
+  touch-action: none; /* dragging is handled entirely via pointer events */
+}
+.pc-rate-slider-track {
+  position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px;
+  background: var(--border); border-radius: 999px;
+}
+.pc-rate-slider-zone {
+  position: absolute; top: 0; bottom: 0; background: var(--green); border-radius: 999px; opacity: 0.5;
+}
+.pc-rate-slider-thumb {
+  /* left is static (0) and never rewritten -- JS positions the thumb
+     entirely via the inline `transform` it sets on every redraw (see
+     renderRateSlider() in coaching.js), which is compositor-only and
+     doesn't trigger layout the way rewriting `left` on every drag pixel
+     would. The drag-scale effect is folded into that same inline
+     transform string rather than a separate class rule, since an inline
+     transform would otherwise silently win over (not combine with) a
+     stylesheet transform on the same property. */
+  position: absolute; top: 50%; left: 0; width: 26px; height: 26px; margin-top: -13px;
+  border-radius: 50%; background: var(--text-secondary); border: 3px solid var(--card-bg);
+  box-shadow: 0 2px 8px rgba(16, 17, 20, 0.25);
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+.pc-rate-slider-thumb.is-standard { background: #fff; border-color: var(--green); }
+.pc-rate-slider:focus-visible { outline: none; }
+.pc-rate-slider:focus-visible .pc-rate-slider-thumb { outline: 3px solid var(--blue); outline-offset: 2px; }
+.pc-rate-readout-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pc-rate-readout-sign { color: var(--text-secondary); font-size: 13px; font-weight: 700; width: 10px; flex-shrink: 0; }
+.pc-rate-readout-box {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between;
+  padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--bg);
+  font-size: 16px; font-weight: 700; color: var(--text);
+}
+.pc-rate-readout-box-pct { color: var(--text-secondary); font-weight: 600; font-size: 14px; }
+.pc-rate-readout-unit { color: var(--text-secondary); font-size: 12px; font-weight: 600; margin-left: 6px; }
+.pc-rate-readout-freq { flex-shrink: 0; width: 64px; text-align: right; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
 /* Row holding the goal-date estimate card and, for an existing user with a
    current budget, the current-budget card beside it (left). flex:1 on each
    card means a lone ETA card (no budget yet) still fills the row exactly

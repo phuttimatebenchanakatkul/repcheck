@@ -32,7 +32,7 @@
     </div>
 
     <div class="nl-hero-row">
-      <div class="nl-cal-ring-wrap">
+      <div class="nl-cal-ring-wrap" id="nl-cal-ring-wrap" role="button" tabindex="0" aria-label="Toggle between calories left and calories consumed">
         <svg class="nl-cal-ring" viewBox="0 0 120 120">
           <defs>
             <linearGradient id="nl-cal-ring-gradient" x1="0" y1="0" x2="1" y2="1">
@@ -49,7 +49,13 @@
         </svg>
         <div class="nl-cal-ring-center">
           <div class="nl-cal-ring-value" id="nl-cal-ring-value">0</div>
-          <div class="nl-cal-ring-label" id="nl-cal-ring-label" data-i18n="nutrition.totals.kcalLeft">kcal left</div>
+          <!-- No data-i18n here: this label is fully dynamic (left/over/
+               consumed, decided by renderSummary()), so a static data-i18n
+               attribute would let applyI18n()'s DOMContentLoaded pass stomp
+               it back to a hardcoded "kcal left" right after load -- which
+               is exactly what silently happened whenever the goal was over
+               (label flashed "kcal over" then reverted). -->
+          <div class="nl-cal-ring-label" id="nl-cal-ring-label">kcal left</div>
           <div class="nl-cal-ring-sub" id="nl-cal-ring-sub">0 / 2000</div>
         </div>
       </div>
@@ -291,7 +297,15 @@
     align-items: center;
     gap: 18px;
   }
-  .nl-cal-ring-wrap { position: relative; width: 152px; height: 152px; flex-shrink: 0; }
+  .nl-cal-ring-wrap {
+    position: relative; width: 152px; height: 152px; flex-shrink: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    border-radius: 50%;
+    transition: transform 0.1s ease;
+  }
+  .nl-cal-ring-wrap:active { transform: scale(0.96); }
+  .nl-cal-ring-wrap:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
   .nl-cal-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
   .nl-cal-ring-track { fill: none; stroke: var(--bg); stroke-width: 10; }
   .nl-cal-ring-fill {
@@ -1720,6 +1734,10 @@
 
   let log = loadLog();
   let goals = loadGoals();
+  // "remaining" (default) shows kcal left/over; "consumed" shows the raw
+  // total eaten so far. Toggled by tapping the ring itself (nl-cal-ring-wrap)
+  // -- not persisted, resets to "remaining" on reload.
+  let calRingMode = "remaining";
   let pendingHour = null; // set when a specific hour row's "+" is clicked
 
   function foodByName(name) {
@@ -1852,10 +1870,29 @@
     ringFillEl.style.strokeDasharray = `${circumference}`;
     ringFillEl.style.strokeDashoffset = `${circumference * (1 - ringPct)}`;
     ringFillEl.classList.toggle("is-over", isOver);
-    document.getElementById("nl-cal-ring-value").textContent = Math.abs(remaining);
-    document.getElementById("nl-cal-ring-label").textContent = RepCheckI18n.t(isOver ? "nutrition.totals.kcalOver" : "nutrition.totals.kcalLeft");
+    if (calRingMode === "consumed") {
+      document.getElementById("nl-cal-ring-value").textContent = consumed;
+      document.getElementById("nl-cal-ring-label").textContent = RepCheckI18n.t("nutrition.totals.kcalConsumed");
+    } else {
+      document.getElementById("nl-cal-ring-value").textContent = Math.abs(remaining);
+      document.getElementById("nl-cal-ring-label").textContent = RepCheckI18n.t(isOver ? "nutrition.totals.kcalOver" : "nutrition.totals.kcalLeft");
+    }
     document.getElementById("nl-cal-ring-sub").textContent = `${consumed} / ${goal}`;
   }
+
+  // Tap the ring to flip the headline number between "kcal left/over" and
+  // the raw "kcal consumed" total -- the sub-line (consumed / goal) already
+  // has both numbers, but the big center figure only shows one at a time.
+  document.getElementById("nl-cal-ring-wrap").addEventListener("click", () => {
+    calRingMode = calRingMode === "consumed" ? "remaining" : "consumed";
+    renderSummary();
+  });
+  document.getElementById("nl-cal-ring-wrap").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    calRingMode = calRingMode === "consumed" ? "remaining" : "consumed";
+    renderSummary();
+  });
 
   // ---------- Dates ----------
   function toIsoDate(date) {
