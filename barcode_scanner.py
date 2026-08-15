@@ -223,10 +223,6 @@ def _validate(barcode, product, source="Open Food Facts"):
         "protein": _num(nutriments, "proteins_100g"),
         "fat": _num(nutriments, "fat_100g"),
         "carbs": _num(nutriments, "carbohydrates_100g"),
-        # Open Food Facts reports sodium in grams; the app shows it in mg
-        # (the standard unit on nutrition labels).
-        "sodium_mg": _num(nutriments, "sodium_100g") * 1000,
-        "sugar_g": _num(nutriments, "sugars_100g"),
     }
     if not any([per_100g["calories"], per_100g["protein"], per_100g["fat"], per_100g["carbs"]]):
         raise BarcodeScanError(
@@ -238,7 +234,6 @@ def _validate(barcode, product, source="Open Food Facts"):
     scale = grams / 100
     totals = {k: round(v * scale, 1) for k, v in per_100g.items()}
     totals["calories"] = round(totals["calories"])
-    totals["sodium_mg"] = round(totals["sodium_mg"])
 
     return {
         "food_name": food_name,
@@ -251,15 +246,11 @@ def _validate(barcode, product, source="Open Food Facts"):
             "protein": round(per_100g["protein"], 1),
             "fat": round(per_100g["fat"], 1),
             "carbs": round(per_100g["carbs"], 1),
-            "sodium_mg": round(per_100g["sodium_mg"]),
-            "sugar_g": round(per_100g["sugar_g"], 1),
         }],
         "calories": totals["calories"],
         "protein": totals["protein"],
         "fat": totals["fat"],
         "carbs": totals["carbs"],
-        "sodium_mg": totals["sodium_mg"],
-        "sugar_g": totals["sugar_g"],
     }
 
 
