@@ -31,25 +31,37 @@ def test_prompt_embeds_the_clients_workout_summary():
 
 def test_prompt_falls_back_when_no_workouts_logged():
     prompt = _build_system_prompt({})
-    assert "No workouts logged in the last 7 days" in prompt
+    assert "No workouts logged yet" in prompt
     prompt_none = _build_system_prompt(None)
-    assert "No workouts logged in the last 7 days" in prompt_none
+    assert "No workouts logged yet" in prompt_none
 
 
 def test_prompt_carries_an_explicit_scope_and_refusal_instruction():
     """Unlike coach_chat.py's softer "politely say that's outside what you
     can help with", this chatbot needs a hard, explicit refusal for
-    anything beyond the last-7-days log -- it must not casually answer
+    anything beyond the logged workout data -- it must not casually answer
     general fitness/nutrition questions just because it's a fitness app."""
-    prompt = _build_system_prompt({"workout_summary": "(No workouts logged in the last 7 days.)"})
-    assert "only help with their last 7 days of workouts" in prompt
+    prompt = _build_system_prompt({"workout_summary": "(No workouts logged yet.)"})
+    assert "only help with their logged workouts" in prompt
     assert "nutrition" in prompt.lower()
-    assert "last 7 days" in prompt
 
 
 def test_prompt_tells_the_model_not_to_invent_ungrounded_exercise_data():
     prompt = _build_system_prompt({"workout_summary": "Today (2026-08-13): no workout logged."})
     assert "don't see it logged" in prompt or "guessing or inventing" in prompt
+
+
+def test_prompt_requires_reciting_exact_logged_sessions_before_advice():
+    """The headline feature: ask about a specific exercise's progressive
+    overload, and the model must recite the exact logged sessions from the
+    'Exercise history' section before giving a weight/increment
+    recommendation -- not just vaguely reference "your recent workouts"."""
+    prompt = _build_system_prompt({"workout_summary": "Exercise history (last 4 sessions each):\nTricep Pushdown:\n- Aug 12: 27kg x 8 reps"})
+    assert "recite its logged history" in prompt
+    assert "Exercise history" in prompt
+    assert "do not skip, round, or invent any" in prompt
+    assert "starting weight" in prompt
+    assert "increment" in prompt
 
 
 def test_prompt_caps_an_oversized_summary():
