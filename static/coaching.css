@@ -449,6 +449,7 @@
 .pc-ck-chip-green { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 5px 12px rgba(31, 169, 113, 0.35); }
 .pc-ck-chip-blue { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 5px 12px rgba(47, 102, 232, 0.35); }
 .pc-ck-chip-purple { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 5px 12px rgba(124, 79, 224, 0.35); }
+.pc-ck-chip-amber { background: linear-gradient(135deg, #d9a441, var(--amber)); box-shadow: 0 5px 12px rgba(185, 131, 42, 0.35); }
 .pc-ck-section-text { min-width: 0; }
 .pc-ck-section-title { display: block; font-size: 13.5px; font-weight: 700; padding-top: 1px; }
 .pc-ck-section-sub { display: block; font-size: 11.5px; color: var(--text-secondary); line-height: 1.45; margin-top: 2px; }
@@ -467,6 +468,14 @@
 .pc-ck-day[data-status="logged"] { background: var(--green); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.35); }
 .pc-ck-day[data-status="fasting"] { background: var(--amber); color: #fff; box-shadow: 0 4px 10px rgba(185, 131, 42, 0.35); }
 .pc-ck-day[data-status="incomplete"] { background: var(--text-secondary); color: var(--bg); }
+
+/* Flag pills (high-carb / bloated days): same pill, a plain on/off look
+   instead of the 4-way status color coding above. */
+.pc-ck-context-row { margin-bottom: 12px; }
+.pc-ck-context-row:last-child { margin-bottom: 0; }
+.pc-ck-context-label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.pc-ck-flag-day[data-active="true"] { background: var(--amber); color: #fff; box-shadow: 0 4px 10px rgba(185, 131, 42, 0.35); }
+
 .pc-checkin-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .pc-checkin-legend-item {
   display: flex; align-items: center; gap: 5px;

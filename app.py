@@ -2015,6 +2015,12 @@ def api_coaching_weekly_adjustment():
     if not isinstance(current_targets, dict) or "calories" not in current_targets:
         return jsonify({"ok": False, "error": "Missing current_targets."}), 400
 
+    # Optional self-reported context (see checkin_analyzer.py's
+    # _build_context_flags_line()) -- str-filtered since these get
+    # "".join()-ed straight into the Gemini prompt below.
+    high_carb_days = [d for d in (payload.get("high_carb_days") or []) if isinstance(d, str)]
+    bloating_days = [d for d in (payload.get("bloating_days") or []) if isinstance(d, str)]
+
     # The deterministic trend calculation always runs first, both as the
     # anchor/fallback for the Gemini call below and as the answer on its
     # own if that call fails (see checkin_analyzer.py's module docstring).
@@ -2038,7 +2044,7 @@ def api_coaching_weekly_adjustment():
             photo_files.append((path.read_bytes(), mime_type))
 
     try:
-        ai_result = analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files)
+        ai_result = analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days, bloating_days)
         adjustment = apply_calorie_delta(profile, current_targets, ai_result["delta"], ai_result["reason"])
     except CheckinAnalysisError:
         # Gemini call failed (no API key, hiccup, bad response) -- fall
