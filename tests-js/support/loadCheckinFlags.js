@@ -23,7 +23,7 @@ const COACHING_PATH = path.join(__dirname, "..", "..", "static", "coaching.js");
 
 const TOGGLE_START_MARKER = "toggleCheckinFlag(flagKey, dateIso) {";
 const TOGGLE_END_MARKER = "setCheckinPhoto(angle, file) {";
-const GRID_START_MARKER = "renderCheckinFlagGrid(flagKey, action) {";
+const GRID_START_MARKER = "renderCheckinFlagGrid(flagKey, action, flagLabel) {";
 const GRID_END_MARKER = "ckSectionHead(chipClass, iconSvg, title, sub) {";
 
 function sliceBetween(source, startMarker, endMarker, label) {

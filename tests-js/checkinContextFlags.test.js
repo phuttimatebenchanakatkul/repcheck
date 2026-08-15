@@ -76,7 +76,7 @@ describe("renderCheckinFlagGrid", () => {
     const { renderCheckinFlagGrid } = loadCheckinFlags();
     const app = makeFakeApp({ highCarbDays: { "2026-08-11": true } });
 
-    const html = renderCheckinFlagGrid.call(app, "highCarbDays", "toggle-checkin-high-carb-day");
+    const html = renderCheckinFlagGrid.call(app, "highCarbDays", "toggle-checkin-high-carb-day", "Ate a lot of carbs");
 
     expect(html).toContain('data-date="2026-08-11" data-active="true"');
   });
@@ -85,7 +85,7 @@ describe("renderCheckinFlagGrid", () => {
     const { renderCheckinFlagGrid } = loadCheckinFlags();
     const app = makeFakeApp(); // nothing flagged
 
-    const html = renderCheckinFlagGrid.call(app, "highCarbDays", "toggle-checkin-high-carb-day");
+    const html = renderCheckinFlagGrid.call(app, "highCarbDays", "toggle-checkin-high-carb-day", "Ate a lot of carbs");
 
     expect(html).toContain('data-date="2026-08-10" data-active="false"');
     expect(html).toContain('data-date="2026-08-11" data-active="false"');
@@ -96,7 +96,7 @@ describe("renderCheckinFlagGrid", () => {
     const { renderCheckinFlagGrid } = loadCheckinFlags();
     const app = makeFakeApp();
 
-    const html = renderCheckinFlagGrid.call(app, "bloatedDays", "toggle-checkin-bloated-day");
+    const html = renderCheckinFlagGrid.call(app, "bloatedDays", "toggle-checkin-bloated-day", "Felt more bloated than usual");
 
     const actionMatches = html.match(/data-action="toggle-checkin-bloated-day"/g) || [];
     expect(actionMatches).toHaveLength(3);
@@ -106,8 +106,21 @@ describe("renderCheckinFlagGrid", () => {
     const { renderCheckinFlagGrid } = loadCheckinFlags();
     const app = makeFakeApp({ highCarbDays: { "2026-08-11": true }, bloatedDays: {} });
 
-    const html = renderCheckinFlagGrid.call(app, "bloatedDays", "toggle-checkin-bloated-day");
+    const html = renderCheckinFlagGrid.call(app, "bloatedDays", "toggle-checkin-bloated-day", "Felt more bloated than usual");
 
     expect(html).toContain('data-date="2026-08-11" data-active="false"');
+  });
+
+  it("carries the toggle state and a descriptive label in aria attributes, not color alone", () => {
+    const { renderCheckinFlagGrid } = loadCheckinFlags();
+    const app = makeFakeApp({ highCarbDays: { "2026-08-11": true } });
+
+    const html = renderCheckinFlagGrid.call(app, "highCarbDays", "toggle-checkin-high-carb-day", "Ate a lot of carbs");
+
+    // Flagged day: aria-pressed reflects the "on" state.
+    expect(html).toMatch(/data-date="2026-08-11"[^>]*aria-pressed="true"/);
+    expect(html).toMatch(/data-date="2026-08-11"[^>]*aria-label="Ate a lot of carbs[^"]*"/);
+    // Unflagged day: aria-pressed reflects the "off" state.
+    expect(html).toMatch(/data-date="2026-08-10"[^>]*aria-pressed="false"/);
   });
 });

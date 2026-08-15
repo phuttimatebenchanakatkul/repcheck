@@ -2311,13 +2311,18 @@
     // _build_prompt()) rather than the deterministic baseline math --
     // that math stays untouched as the safety anchor/fallback it already
     // is; this is additional context for the layer whose job is judgment.
-    renderCheckinFlagGrid(flagKey, action) {
+    renderCheckinFlagGrid(flagKey, action, flagLabel) {
       const c = this.checkin;
       const days = c.weekDates.map((iso) => {
         const active = !!c[flagKey][iso];
-        const weekdayLetter = new Date(iso + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { weekday: "narrow" });
+        const dateObj = new Date(iso + "T00:00:00");
+        const weekdayLetter = dateObj.toLocaleDateString(RepCheckI18n.locale(), { weekday: "narrow" });
+        // Toggle state here is color-only in CSS (amber vs. default pill) --
+        // aria-pressed/aria-label carry the same on/off state for screen
+        // readers and don't rely on color perception.
+        const fullDateLabel = dateObj.toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", month: "short", day: "numeric" });
         return `
-          <button type="button" class="pc-ck-day pc-ck-flag-day" data-action="${action}" data-date="${iso}" data-active="${active}">
+          <button type="button" class="pc-ck-day pc-ck-flag-day" data-action="${action}" data-date="${iso}" data-active="${active}" aria-pressed="${active}" aria-label="${flagLabel} — ${fullDateLabel}">
             ${weekdayLetter}
           </button>
         `;
@@ -2367,11 +2372,11 @@
               ${this.ckSectionHead("pc-ck-chip-amber", DROPLET_SVG, t("coaching.checkin.contextLabel"), t("coaching.checkin.contextSub"))}
               <div class="pc-ck-context-row">
                 <span class="pc-ck-context-label">${t("coaching.checkin.highCarbLabel")}</span>
-                ${this.renderCheckinFlagGrid("highCarbDays", "toggle-checkin-high-carb-day")}
+                ${this.renderCheckinFlagGrid("highCarbDays", "toggle-checkin-high-carb-day", t("coaching.checkin.highCarbLabel"))}
               </div>
               <div class="pc-ck-context-row">
                 <span class="pc-ck-context-label">${t("coaching.checkin.bloatedLabel")}</span>
-                ${this.renderCheckinFlagGrid("bloatedDays", "toggle-checkin-bloated-day")}
+                ${this.renderCheckinFlagGrid("bloatedDays", "toggle-checkin-bloated-day", t("coaching.checkin.bloatedLabel"))}
               </div>
             </div>
 
