@@ -271,7 +271,17 @@
       // transform overrides a stylesheet transform.scale() rule on the
       // same property rather than combining with it, so that effect can't
       // live in a separate CSS class alongside this.
-      thumbEl.style.transform = `translateX(calc(${t01 * 100}% - 13px))${dragging ? " scale(1.15)" : ""}`;
+      //
+      // The offset must be in px, not %: a CSS transform percentage
+      // resolves against the THUMB's own border box (26px), not the
+      // track it's positioned in, so `translateX(t01 * 100%)` only ever
+      // moved the thumb a few px regardless of value. Reuse the cached
+      // drag-gesture rect while dragging (same perf reasoning as
+      // dragRect elsewhere in this function); otherwise take one
+      // fresh measurement, which redraw() only needs for keydown/init,
+      // not on every pointermove.
+      const trackWidth = dragging && dragRect ? dragRect.width : sliderEl.getBoundingClientRect().width;
+      thumbEl.style.transform = `translateX(calc(${t01 * trackWidth}px - 13px))${dragging ? " scale(1.15)" : ""}`;
       sliderEl.setAttribute("aria-valuenow", current.toFixed(3));
 
       const standard = inZone(current);
