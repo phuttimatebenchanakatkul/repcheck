@@ -825,6 +825,33 @@
   }
   .af-actions { display: flex; gap: 10px; margin-top: 16px; }
 
+  .af-field-hint { font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin: -6px 0 12px; }
+  .af-add-serving-btn { width: 100%; margin-bottom: 12px; }
+  .af-serving-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .af-serving-row-label { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .af-serving-row-grams { color: var(--text-secondary); flex-shrink: 0; }
+  .af-serving-remove-btn {
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+  .af-serving-remove-btn:hover { color: var(--red); }
+  .af-serving-select-row { margin-bottom: 12px; }
+
   /* ---------- Amount editor (single-ingredient scans: barcode / one-food photo) ---------- */
   .af-amount-card {
     background: var(--bg);
@@ -2555,6 +2582,13 @@
       formData.append("image", afImageBlob, "barcode.jpg");
       const response = await fetch("{{ url_for('api_scan_barcode') }}", { method: "POST", body: formData });
       const data = await response.json();
+      if (!data.ok && data.not_found && data.barcode) {
+        // No product anywhere (Open Food Facts, FatSecret, or this user's
+        // own custom foods) has this barcode -- let the user create it
+        // themselves instead of a dead-end error.
+        renderAfCreateForm(false, data.barcode);
+        return;
+      }
       if (!data.ok) throw new Error(data.error || "Couldn't scan that barcode.");
       afResult = data;
       renderAfResult(data);
@@ -2654,6 +2688,14 @@
         body: JSON.stringify({ barcode }),
       });
       const data = await response.json();
+      if (!data.ok && data.not_found && data.barcode) {
+        // No product anywhere (Open Food Facts, FatSecret, or this user's
+        // own custom foods) has this barcode -- instead of a dead end,
+        // let the user create it themselves, saved to their account so
+        // scanning it again always resolves straight to it.
+        renderAfCreateForm(false, data.barcode);
+        return;
+      }
       if (!data.ok) throw new Error(data.error || "Couldn't find that product.");
       afResult = data;
       renderAfResult(data);
@@ -2674,6 +2716,20 @@
   // portion size for an AI photo scan), set fresh per result in
   // renderAfResult().
   const OZ_TO_GRAMS = 28.3495;
+  // afBaseServingGrams is fixed per result: the gram amount result.calories/
+  // protein/fat/carbs actually correspond to (sum of all ingredients — 1
+  // item for a barcode/single-food scan, several for a multi-ingredient
+  // dish). Every scale calculation below divides by THIS, never by
+  // afServingGrams, so it stays correct no matter what afServingGrams is
+  // currently set to.
+  //
+  // afServingGrams is how many grams "1 serving" (the amount-editor unit)
+  // means right now -- normally equal to afBaseServingGrams, but a custom
+  // food with multiple named serving sizes (see the af-serving-select
+  // listener in renderAfResult below) can repoint it at a different size
+  // (e.g. "1 box" = 270g instead of "1 bar" = 45g) without changing what
+  // the underlying macros are per gram.
+  let afBaseServingGrams = 100;
   let afServingGrams = 100;
   let afUnit = "serving";
   let afAmountValue = 1;
@@ -2690,11 +2746,8 @@
 
   function renderAfResult(result) {
     const nowHour = new Date().getHours();
-    // Reference "1 serving" = however much this scan originally reported
-    // (sum of all ingredients — 1 item for a barcode/single-food scan,
-    // several for a multi-ingredient dish). The amount editor scales
-    // every ingredient proportionally, so this works the same either way.
-    afServingGrams = result.ingredients.reduce((sum, ing) => sum + ing.grams, 0) || 100;
+    afBaseServingGrams = result.ingredients.reduce((sum, ing) => sum + ing.grams, 0) || 100;
+    afServingGrams = afBaseServingGrams;
     afUnit = "serving";
     afAmountValue = 1;
 
@@ -2718,10 +2771,18 @@
       </div>
       ${result.note ? `<div class="af-note af-rise" style="--d:100ms;">${result.note}</div>` : ""}
       <div id="af-donut-area" class="af-rise" style="--d:140ms;"></div>
+      ${result.servings && result.servings.length > 1 ? `
+      <div class="af-field af-serving-select-row af-rise" style="--d:180ms;">
+        <label for="af-serving-select">Serving size</label>
+        <select id="af-serving-select">
+          ${result.servings.map((s, i) => `<option value="${i}">${escapeHtml(s.label)} (${s.grams}g)</option>`).join("")}
+        </select>
+      </div>
+      ` : ""}
       <div class="af-amount-card af-rise" style="--d:200ms;">
         <div class="af-amount-head">
           <span class="af-amount-title">Amount</span>
-          <span class="af-amount-serving-hint">1 serving = ${afServingGrams}g</span>
+          <span class="af-amount-serving-hint" id="af-amount-serving-hint-text">1 serving = ${afServingGrams}g</span>
         </div>
         <div class="af-amount-input-row">
           <input type="text" inputmode="decimal" id="af-amount-value" value="1">
@@ -2746,6 +2807,25 @@
     `;
     document.getElementById("af-retake-btn").addEventListener("click", renderAfChoice);
     document.getElementById("af-add-btn").addEventListener("click", () => addAfResultToLog());
+
+    const servingSelect = document.getElementById("af-serving-select");
+    if (servingSelect) {
+      servingSelect.addEventListener("change", () => {
+        // Switching serving sizes re-anchors "1 serving" to the newly
+        // picked size's grams and resets the amount editor back to a
+        // plain "1 serving" of it -- carrying over the old amount would
+        // silently change how much is logged (e.g. "3" of a 45g bar
+        // becoming "3" of a 270g box).
+        const chosen = result.servings[parseInt(servingSelect.value, 10)];
+        afServingGrams = chosen.grams;
+        afUnit = "serving";
+        afAmountValue = 1;
+        document.getElementById("af-amount-value").value = 1;
+        document.getElementById("af-amount-serving-hint-text").textContent = `1 serving = ${afServingGrams}g`;
+        document.querySelectorAll("#af-unit-seg button").forEach((b) => b.classList.toggle("is-active", b.dataset.unit === "serving"));
+        refreshAfDonut(result);
+      });
+    }
 
     const amountInput = document.getElementById("af-amount-value");
     amountInput.addEventListener("input", () => {
@@ -2773,7 +2853,7 @@
     // Every ingredient's grams scales by the same factor relative to the
     // scan's original total, so the dish's totals scale linearly too —
     // no need to re-sum per-ingredient here.
-    const scale = afServingGrams > 0 ? currentAfGrams() / afServingGrams : 0;
+    const scale = afBaseServingGrams > 0 ? currentAfGrams() / afBaseServingGrams : 0;
     const totals = {
       calories: result.calories * scale,
       protein: result.protein * scale,
@@ -2805,7 +2885,7 @@
     // Every ingredient scales by the same factor the amount editor
     // applied (relative to the scan's original total), so the dish's
     // macro ratios stay correct at whatever amount was actually chosen.
-    const scale = afServingGrams > 0 ? currentAfGrams() / afServingGrams : 1;
+    const scale = afBaseServingGrams > 0 ? currentAfGrams() / afBaseServingGrams : 1;
     // Logged as a composite entry (same shape as any recipe from
     // food_library.py) so every raw ingredient the AI detected is shown
     // and independently editable via the normal ingredients panel —
@@ -2866,6 +2946,11 @@
   let customFoods = []; // this user's own created foods, from GET /api/custom-foods
   let afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
   let afCreateQuickMode = false; // read by submitCustomFood() -- see renderAfCreateForm below
+  let afCreateBarcode = null; // set when this form was opened from a "barcode not found" redirect
+  // Extra named serving sizes (beyond the base "af-create-serving-*"
+  // fields) the user has added via "+ Add another serving size" --
+  // {label, grams} objects, read by submitCustomFood() below.
+  let afCreateExtraServings = [];
 
   async function loadCustomFoods() {
     try {
@@ -2884,6 +2969,26 @@
     return Math.round(p * 4 + f * 9 + c * 4);
   }
 
+  // Renders one row of the "extra serving sizes" list (label + grams +
+  // remove button) inside the create form -- pulled out of
+  // renderAfCreateForm so adding/removing a row can just re-render this
+  // one list instead of the whole form (which would lose focus/scroll).
+  function afExtraServingsListHtml() {
+    if (!afCreateExtraServings.length) return "";
+    return `
+      <div class="af-field" id="af-extra-servings-list">
+        <label>Other serving sizes</label>
+        ${afCreateExtraServings.map((s, i) => `
+          <div class="af-serving-row" data-serving-index="${i}">
+            <span class="af-serving-row-label">${escapeHtml(s.label)}</span>
+            <span class="af-serving-row-grams">${s.grams}g</span>
+            <button type="button" class="af-serving-remove-btn" data-remove-serving="${i}" aria-label="Remove">&times;</button>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   // quickMode=true is the "Log macros" entry point: just protein/fat/carbs,
   // no name/emoji picker, for when you just want to punch in numbers and
   // log instantly. It's the same underlying form and endpoint as the full
@@ -2891,10 +2996,23 @@
   // defaults ("Custom food" / 🍽️, see api_create_custom_food() in app.py)
   // and the entry still gets saved to this user's own food library, so it
   // stays findable later even from the quick path.
-  function renderAfCreateForm(quickMode) {
+  //
+  // notFoundBarcode is set when this form is reached via the "barcode not
+  // found" redirect (see scanBarcodeImage()/lookupScannedBarcode() below):
+  // a scanned barcode had no match anywhere, so instead of a dead-end
+  // error, the user can create the product themselves right here. The
+  // barcode is carried through to submitCustomFood() and saved with the
+  // food, so scanning the same code again resolves straight to it (see
+  // get_custom_food_by_barcode() in database.py).
+  function renderAfCreateForm(quickMode, notFoundBarcode) {
     afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
     afCreateQuickMode = quickMode;
+    afCreateBarcode = notFoundBarcode || null;
+    afCreateExtraServings = [];
     afModalBody.innerHTML = `
+      ${afCreateBarcode ? `
+      <div class="af-note">No product found for barcode ${escapeHtml(afCreateBarcode)} — add it yourself and it'll be saved to your account. Scanning this barcode again will always show what you enter here.</div>
+      ` : ""}
       ${quickMode ? "" : `
       <div class="af-field">
         <label for="af-create-name">Name (optional)</label>
@@ -2925,6 +3043,21 @@
         <span class="af-create-calories-label">Calories</span>
         <span class="af-create-calories-value" id="af-create-calories-value">0</span>
       </div>
+      ${quickMode ? "" : `
+      <div class="af-macro-grid">
+        <div class="af-field">
+          <label for="af-create-serving-label">Serving size name</label>
+          <input type="text" id="af-create-serving-label" maxlength="40" placeholder="e.g. 1 bar" value="1 serving">
+        </div>
+        <div class="af-field">
+          <label for="af-create-serving-grams">Serving size (g)</label>
+          <input type="text" inputmode="decimal" id="af-create-serving-grams" value="100">
+        </div>
+      </div>
+      <div class="af-field-hint">The macros above are for one "serving size name" — e.g. if one bar is 45g, enter 45 here and its full macros above.</div>
+      ${afExtraServingsListHtml()}
+      <button type="button" class="af-secondary-btn af-add-serving-btn" id="af-add-serving-btn">+ Add another serving size</button>
+      `}
       <div id="af-create-error" class="af-error" style="display:none;"></div>
       <div class="af-actions">
         <button type="button" class="af-secondary-btn" id="af-create-back-btn" style="flex:1;">Back</button>
@@ -2948,7 +3081,37 @@
         calValueEl.textContent = customFoodCalories();
       });
     });
+    const addServingBtn = document.getElementById("af-add-serving-btn");
+    if (addServingBtn) {
+      addServingBtn.addEventListener("click", () => {
+        const label = (prompt("Name this serving size (e.g. \"1 box\")") || "").trim().slice(0, 40);
+        if (!label) return;
+        const gramsRaw = prompt(`How many grams is one ${label}?`);
+        const grams = parseFloat(gramsRaw);
+        if (!isFinite(grams) || grams <= 0) return;
+        afCreateExtraServings.push({ label, grams });
+        const list = document.getElementById("af-extra-servings-list");
+        if (list) {
+          list.outerHTML = afExtraServingsListHtml();
+        } else {
+          addServingBtn.insertAdjacentHTML("beforebegin", afExtraServingsListHtml());
+        }
+        wireAfServingRemoveButtons();
+      });
+    }
+    wireAfServingRemoveButtons();
     document.getElementById("af-create-submit-btn").addEventListener("click", submitCustomFood);
+  }
+
+  function wireAfServingRemoveButtons() {
+    document.querySelectorAll("[data-remove-serving]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        afCreateExtraServings.splice(parseInt(btn.dataset.removeServing, 10), 1);
+        const list = document.getElementById("af-extra-servings-list");
+        if (list) list.outerHTML = afExtraServingsListHtml();
+        wireAfServingRemoveButtons();
+      });
+    });
   }
 
   async function submitCustomFood() {
@@ -2966,13 +3129,27 @@
       return;
     }
 
+    // Only sent for the full "Create food" form (quickMode=false) --
+    // "Log macros" never shows these fields, so falls back to the
+    // server's own "1 serving = 100g" default.
+    const servingLabelEl = document.getElementById("af-create-serving-label");
+    const servingGramsEl = document.getElementById("af-create-serving-grams");
+    const servingLabel = servingLabelEl ? servingLabelEl.value.trim() : "";
+    const servingGrams = servingGramsEl ? parseFloat(servingGramsEl.value) : NaN;
+
     const submitBtn = document.getElementById("af-create-submit-btn");
     submitBtn.disabled = true;
     try {
       const response = await fetch("/api/custom-foods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, emoji: afCreateEmoji, protein, fat, carbs }),
+        body: JSON.stringify({
+          name, emoji: afCreateEmoji, protein, fat, carbs,
+          barcode: afCreateBarcode || undefined,
+          servingLabel: servingLabel || undefined,
+          servingGrams: isFinite(servingGrams) && servingGrams > 0 ? servingGrams : undefined,
+          servings: afCreateExtraServings.length ? afCreateExtraServings : undefined,
+        }),
       });
       const data = await response.json();
       if (!data.ok) {
@@ -2984,20 +3161,12 @@
       customFoods.unshift(data.food);
 
       // Reshape into the same {food_name, ingredients: [...], calories/
-      // protein/fat/carbs} object renderAfResult() already knows how to
-      // show (donut chart + amount editor) and log.
+      // protein/fat/carbs, servings} object renderAfResult() already knows
+      // how to show (donut chart + amount editor, incl. the serving-size
+      // picker when servings has more than one option) and log.
       const food = data.food;
       afPreviewUrl = null;
-      afResult = {
-        food_name: food.name,
-        confidence: "custom",
-        note: "Your own food entry.",
-        ingredients: [{
-          name: food.name, grams: 100,
-          calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
-        }],
-        calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
-      };
+      afResult = customFoodToResult(food);
 
       // Quick mode's button says "Log now", not "Review and log" -- it has
       // to actually log immediately instead of dropping into the same
@@ -3233,15 +3402,25 @@
   // OFF search produces, so it can be opened through the exact same
   // renderAfResult() review screen.
   function customFoodToResult(food) {
+    // servingGrams is the food's own defined serving size (e.g. "1 bar" =
+    // 45g), not a hardcoded 100g -- entered when the food was created (see
+    // renderAfCreateForm's serving-size fields), defaulting to 100 for
+    // foods created before this existed. "servings" lists every named
+    // serving size option (the base one plus any extras) for the amount
+    // editor's serving-size picker in renderAfResult().
+    const servingGrams = food.servingGrams || 100;
+    const servings = [{ label: food.servingLabel || "1 serving", grams: servingGrams }]
+      .concat(food.servings || []);
     return {
       food_name: food.name,
       confidence: "custom",
       note: "Your own food entry.",
       ingredients: [{
-        name: food.name, grams: 100,
+        name: food.name, grams: servingGrams,
         calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
       }],
       calories: food.calories, protein: food.protein, fat: food.fat, carbs: food.carbs,
+      servings,
     };
   }
 

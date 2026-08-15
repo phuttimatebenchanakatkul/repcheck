@@ -174,6 +174,43 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        # barcode: links a custom food to a scanned product barcode, so a
+        # future scan of that same code (see get_custom_food_by_barcode in
+        # app.py's /api/scan-barcode and /api/lookup-barcode) resolves
+        # straight to this user's own saved nutrition instead of failing
+        # again. NULL for custom foods created without ever going through
+        # the barcode-not-found flow. serving_label/serving_grams describe
+        # what the entered calories/protein/fat/carbs are FOR (e.g. "1 bar"
+        # = 45g) -- previously implicitly "100g", now explicit and
+        # user-defined. Probe-then-ALTER, same reasoning as friend_code.
+        cf_cols = {row["name"] for row in conn.execute("PRAGMA table_info(custom_foods)")}
+        if "barcode" not in cf_cols:
+            conn.execute("ALTER TABLE custom_foods ADD COLUMN barcode TEXT")
+        if "serving_label" not in cf_cols:
+            conn.execute("ALTER TABLE custom_foods ADD COLUMN serving_label TEXT NOT NULL DEFAULT '1 serving'")
+        if "serving_grams" not in cf_cols:
+            conn.execute("ALTER TABLE custom_foods ADD COLUMN serving_grams REAL NOT NULL DEFAULT 100")
+        # One barcode maps to at most one custom food per user (SQLite
+        # allows multiple NULLs through a UNIQUE index, so foods without a
+        # barcode never collide with each other or with this constraint).
+        conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_foods_user_barcode
+            ON custom_foods (user_id, barcode) WHERE barcode IS NOT NULL
+        """)
+        # Additional named serving sizes beyond a custom food's base
+        # serving_label/serving_grams above (e.g. base "1 bar" = 45g, plus
+        # "1 box" = 270g) -- a separate table rather than a JSON column so
+        # each option stays a plain, queryable row, matching the rest of
+        # this file's style. Deleted alongside their parent food in
+        # delete_custom_food(); never queried on their own.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS custom_food_servings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                custom_food_id INTEGER NOT NULL REFERENCES custom_foods(id),
+                label TEXT NOT NULL,
+                grams REAL NOT NULL
+            )
+        """)
         # Exercises a user invented themselves (not in workout_library.py's
         # shared EXERCISE_CATEGORIES) -- scoped to user_id so these only ever
         # show up in that one user's own split-builder search, never anyone
@@ -1092,14 +1129,49 @@ def update_preferences(user_id, theme=None, language=None):
         conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
 
 
-def create_custom_food(user_id, name, emoji, calories, protein, fat, carbs):
+def create_custom_food(
+    user_id, name, emoji, calories, protein, fat, carbs,
+    barcode=None, serving_label="1 serving", serving_grams=100, extra_servings=None,
+):
+    """extra_servings, if given, is a list of {"label": str, "grams": float}
+    dicts for additional named serving sizes beyond serving_label/
+    serving_grams (see custom_food_servings above)."""
     with get_db() as conn:
         cursor = conn.execute(
-            """INSERT INTO custom_foods (user_id, name, emoji, calories, protein, fat, carbs)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, name, emoji, calories, protein, fat, carbs),
+            """INSERT INTO custom_foods
+               (user_id, name, emoji, calories, protein, fat, carbs, barcode, serving_label, serving_grams)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, name, emoji, calories, protein, fat, carbs, barcode, serving_label, serving_grams),
         )
-        return cursor.lastrowid
+        food_id = cursor.lastrowid
+        for serving in (extra_servings or []):
+            conn.execute(
+                "INSERT INTO custom_food_servings (custom_food_id, label, grams) VALUES (?, ?, ?)",
+                (food_id, serving["label"], serving["grams"]),
+            )
+        return food_id
+
+
+def _attach_custom_food_servings(conn, foods):
+    """Mutates each food dict in place, adding a "servings" list of this
+    food's extra named serving sizes (beyond its own serving_label/
+    serving_grams). One query for the whole batch rather than one per food."""
+    if not foods:
+        return foods
+    food_ids = [f["id"] for f in foods]
+    placeholders = ",".join("?" * len(food_ids))
+    rows = conn.execute(
+        f"SELECT * FROM custom_food_servings WHERE custom_food_id IN ({placeholders})",
+        food_ids,
+    ).fetchall()
+    servings_by_food = {}
+    for row in rows:
+        servings_by_food.setdefault(row["custom_food_id"], []).append(
+            {"label": row["label"], "grams": row["grams"]}
+        )
+    for food in foods:
+        food["servings"] = servings_by_food.get(food["id"], [])
+    return foods
 
 
 def get_custom_foods(user_id):
@@ -1107,11 +1179,32 @@ def get_custom_foods(user_id):
         rows = conn.execute(
             "SELECT * FROM custom_foods WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
         ).fetchall()
-    return [dict(r) for r in rows]
+        foods = [dict(r) for r in rows]
+        return _attach_custom_food_servings(conn, foods)
+
+
+def get_custom_food_by_barcode(user_id, barcode):
+    """This user's own saved custom food for a scanned barcode, or None --
+    checked by app.py's barcode-lookup routes before ever hitting Open Food
+    Facts/FatSecret, so a barcode a user has already created a food for
+    always resolves to that saved data instead of an external lookup."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM custom_foods WHERE user_id = ? AND barcode = ?", (user_id, barcode)
+        ).fetchone()
+        if not row:
+            return None
+        food = dict(row)
+        return _attach_custom_food_servings(conn, [food])[0]
 
 
 def delete_custom_food(user_id, food_id):
     with get_db() as conn:
+        conn.execute(
+            "DELETE FROM custom_food_servings WHERE custom_food_id IN "
+            "(SELECT id FROM custom_foods WHERE user_id = ? AND id = ?)",
+            (user_id, food_id),
+        )
         conn.execute("DELETE FROM custom_foods WHERE user_id = ? AND id = ?", (user_id, food_id))
 
 
