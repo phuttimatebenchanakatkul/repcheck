@@ -372,6 +372,18 @@
 **Priority:** P3
 **Depends on:** None
 
+### AI-generated `reason` text is rendered via unescaped innerHTML with no sanitization
+
+**What:** `renderCoachingCard()`'s adjustment banner (`static/coaching.js`, `${this.lastAdjustment.reason}`) and the check-in result screen (`${adj.reason}`) both splice the AI-generated `reason` string from `analyze_checkin()`/`weekly_adjustment()` directly into a template string that's assigned via `el()`'s `wrap.innerHTML = html.trim()` -- no `escapeHtml()`/sanitize helper exists anywhere in `coaching.js`. `reason` is capped at 400 chars server-side (`checkin_analyzer.py`) but never HTML-escaped.
+
+**Why:** `reason` is Gemini-generated text built from a prompt that includes multiple free-text-adjacent inputs (this branch's `high_carb_days`/`bloating_days` are locked to ASCII digits/dashes and can't reach this, but the prompt also includes the user's profile fields and other check-in context). If the model ever returns markup-like text in its `reason` response -- via a prompt-injection attempt through some other input, or simply an unlucky generation -- it would render unescaped in the user's own browser. Self-XSS in practice (own account, own data), but a real gap: no output encoding exists on this path at all.
+
+**Context:** Found by the Claude adversarial review during `/ship` on `checkin-context-prompts` (INVESTIGATE, not introduced by this diff -- pre-existing across all of `coaching.js`'s AI-reason rendering, not specific to the new check-in flags). Deferred because a real fix means adding an `escapeHtml()` helper (or switching these two call sites to `textContent`) across the whole file's AI-output rendering, not a change scoped to this branch's own diff.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
 ### Check-in flag pills reuse the day-status pill's shape with no toggle-vs-cycle distinction
 
 **What:** `renderCheckinFlagGrid()` (`static/coaching.js`) reuses the exact `.pc-ck-day` circular pill component (same size/shape) as `renderCheckinDayGrid()` directly above it in the same check-in sheet, differentiated only by an added `.pc-ck-flag-day` modifier class for color. The first grid cycles each day through statuses on tap; the two new grids are independent on/off toggles -- three visually-identical rows of round pills with no shape/icon distinction between the "cycle" and "toggle" affordances.
