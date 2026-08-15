@@ -134,4 +134,191 @@ describe("nutrition.html renderAfCreateForm -- in-app add-serving-size form", ()
     expect(mod.afCreateExtraServings).toEqual([]);
     expect(document.getElementById("af-extra-servings-list")).toBeNull();
   });
+
+  it("removing a serving row splices it out of afCreateExtraServings and re-renders the list down to nothing when it was the last one", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, null);
+
+    document.getElementById("af-add-serving-btn").click();
+    document.getElementById("af-new-serving-label").value = "1 box";
+    document.getElementById("af-new-serving-amount").value = "2";
+    document.getElementById("af-new-serving-unit").value = "g";
+    document.getElementById("af-new-serving-confirm-btn").click();
+
+    expect(mod.afCreateExtraServings).toHaveLength(1);
+    expect(document.getElementById("af-extra-servings-list")).not.toBeNull();
+
+    document.querySelector("[data-remove-serving]").click();
+
+    expect(mod.afCreateExtraServings).toEqual([]);
+    // The list container itself (afExtraServingsListHtml() returns "" for an
+    // empty array) must disappear from the DOM, not just render empty.
+    expect(document.getElementById("af-extra-servings-list")).toBeNull();
+  });
+
+  it("afExtraServingsListHtml() rounds a converted gram amount to one decimal for display, not the raw float", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, null);
+
+    document.getElementById("af-add-serving-btn").click();
+    document.getElementById("af-new-serving-label").value = "1 cup";
+    document.getElementById("af-new-serving-amount").value = "2";
+    document.getElementById("af-new-serving-unit").value = "oz";
+    document.getElementById("af-new-serving-confirm-btn").click();
+
+    // 2 oz * 28.3495 g/oz == 56.699g raw -- the stored value stays the raw
+    // float (submitCustomFood needs full precision), but the displayed
+    // text must be rounded via Math.round(s.grams * 10) / 10 -- "56.7g",
+    // not "56.699g" or "56.699999999999999g".
+    expect(mod.afCreateExtraServings[0].grams).toBeCloseTo(56.699, 3);
+    expect(document.querySelector(".af-serving-row-grams").textContent).toBe("56.7g");
+  });
+});
+
+describe("nutrition.html renderAfCreateForm -- emoji picker", () => {
+  it("tapping Change toggles the emoji grid open/closed, and picking an emoji sets state, updates the icon, marks it active, and collapses the grid", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, null);
+
+    const grid = document.getElementById("af-emoji-grid");
+    expect(grid.style.display).toBe("none");
+    document.getElementById("af-icon-edit-btn").click();
+    expect(grid.style.display).toBe("grid");
+    document.getElementById("af-icon-edit-btn").click(); // toggles back closed
+    expect(grid.style.display).toBe("none");
+
+    document.getElementById("af-icon-edit-btn").click(); // reopen to pick one
+    const emojiButtons = grid.querySelectorAll(".af-emoji-btn");
+    const target = emojiButtons[3];
+    expect(emojiButtons[0].classList.contains("is-active")).toBe(true); // default selection
+
+    target.click();
+
+    expect(mod.afCreateEmoji).toBe(target.dataset.emoji);
+    expect(document.getElementById("af-icon-emoji").textContent).toBe(target.dataset.emoji);
+    expect(target.classList.contains("is-active")).toBe(true);
+    expect(emojiButtons[0].classList.contains("is-active")).toBe(false);
+    // Picking an emoji collapses the grid back down, same as tapping Change again.
+    expect(grid.style.display).toBe("none");
+  });
+});
+
+describe("nutrition.html renderAfCreateForm -- serving editor", () => {
+  it("tapping Edit toggles the serving editor open/closed, and changing the amount or unit updates the live summary text", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, null);
+
+    const editor = document.getElementById("af-serving-editor");
+    expect(editor.style.display).toBe("none");
+    document.getElementById("af-serving-edit-btn").click();
+    expect(editor.style.display).toBe("block");
+    document.getElementById("af-serving-edit-btn").click(); // toggles back closed
+    expect(editor.style.display).toBe("none");
+    document.getElementById("af-serving-edit-btn").click(); // reopen
+
+    const amountInput = document.getElementById("af-create-serving-amount");
+    const unitSelect = document.getElementById("af-create-serving-unit");
+    const summarySub = document.getElementById("af-serving-summary-sub");
+    expect(summarySub.textContent).toBe("= 100 g");
+
+    amountInput.value = "4";
+    amountInput.dispatchEvent(new Event("input"));
+    expect(summarySub.textContent).toBe("= 4 g");
+
+    unitSelect.value = "oz";
+    unitSelect.dispatchEvent(new Event("change"));
+    expect(summarySub.textContent).toBe("= 4 oz");
+  });
+});
+
+describe("nutrition.html renderAfCreateForm -- barcode clear button", () => {
+  it("clears and focuses the barcode input when clicked, and is entirely absent when no barcode was passed in", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, "01234567");
+
+    const input = document.getElementById("af-create-barcode-input");
+    expect(input.value).toBe("01234567");
+    document.getElementById("af-barcode-del-btn").click();
+    expect(input.value).toBe("");
+    expect(document.activeElement).toBe(input);
+
+    // This form only shows the barcode field/button at all when a barcode
+    // was passed in (notFoundBarcode truthy) -- verify both are absent
+    // when it wasn't.
+    mod.renderAfCreateForm(false, null);
+    expect(document.getElementById("af-barcode-del-btn")).toBeNull();
+    expect(document.getElementById("af-create-barcode-input")).toBeNull();
+  });
+});
+
+describe("nutrition.html renderAfCreateForm -- quickMode", () => {
+  it("in quickMode, the name field, icon row, and serving section are all absent, nav title reads 'Log Macros', and the submit button reads 'Log now'", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(true, null);
+
+    expect(document.getElementById("af-create-name")).toBeNull();
+    expect(document.getElementById("af-icon-edit-btn")).toBeNull();
+    expect(document.getElementById("af-emoji-grid")).toBeNull();
+    expect(document.getElementById("af-serving-edit-btn")).toBeNull();
+    expect(document.getElementById("af-serving-editor")).toBeNull();
+    expect(document.getElementById("af-add-serving-btn")).toBeNull();
+    // Both the emoji row and the serving-summary row share the ".af-icon-row"
+    // class -- neither is rendered in quickMode.
+    expect(document.querySelectorAll(".af-icon-row")).toHaveLength(0);
+
+    expect(document.querySelector(".af-create-nav-title").textContent).toBe("Log Macros");
+    expect(document.getElementById("af-create-submit-btn").textContent).toBe("Log now");
+    // Sanity: quickMode still renders the macro fields it actually needs.
+    expect(document.getElementById("af-create-protein")).not.toBeNull();
+  });
+});
+
+describe("nutrition.html lookupScannedBarcode -- client-side live-scan digit stripping", () => {
+  it("strips non-digit characters from the scanned rawValue before POSTing to the lookup API", async () => {
+    const mod = loadNutritionCreateForm();
+    const calls = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, options) => {
+        calls.push({ url, body: JSON.parse(options.body) });
+        return { json: async () => ({ ok: false, error: "not tested past this point" }) };
+      })
+    );
+
+    await mod.lookupScannedBarcode("011-222 333");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body.barcode).toBe("011222333");
+  });
+});
+
+describe("nutrition.html wireNumericClearOnFocus -- isolated behavior", () => {
+  it("clears a non-empty value on focus (dispatching input), restores the wire-time original on blur-while-empty (dispatching input again), and no-ops focusing an already-empty input", () => {
+    const mod = loadNutritionCreateForm();
+    const input = document.createElement("input");
+    input.value = "0";
+    document.body.appendChild(input);
+
+    let inputEvents = 0;
+    input.addEventListener("input", () => { inputEvents++; });
+
+    mod.wireNumericClearOnFocus(input);
+
+    input.dispatchEvent(new Event("focus"));
+    expect(input.value).toBe("");
+    expect(inputEvents).toBe(1);
+
+    input.dispatchEvent(new Event("blur"));
+    expect(input.value).toBe("0"); // restored to the value captured at wire-time
+    expect(inputEvents).toBe(2);
+
+    // Focusing again while non-empty (freshly-restored "0") clears again...
+    input.dispatchEvent(new Event("focus"));
+    expect(input.value).toBe("");
+    expect(inputEvents).toBe(3);
+    // ...but focusing again while ALREADY empty is a no-op: no re-clear, no re-dispatch.
+    input.dispatchEvent(new Event("focus"));
+    expect(input.value).toBe("");
+    expect(inputEvents).toBe(3);
+  });
 });

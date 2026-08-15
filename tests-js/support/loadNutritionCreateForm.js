@@ -1,17 +1,27 @@
 // Loads the REAL renderAfCreateForm()/submitCustomFood()/afExtraServingsListHtml()
 // (the "Create Food" af-modal screen) out of templates/nutrition.html, plus
-// their real unitToGrams()/UNIT_FACTORS/UNIT_LABELS/unitOptionsHtml() and
-// escapeHtml()/wireNumericClearOnFocus() dependencies -- same extraction-by-
-// source-marker approach as loadNutritionSwipeDelete.js/loadWorkoutSync.js.
+// their real unitToGrams()/UNIT_FACTORS/UNIT_LABELS/unitOptionsHtml(),
+// escapeHtml()/wireNumericClearOnFocus(), and lookupScannedBarcode()
+// dependencies -- same extraction-by-source-marker approach as
+// loadNutritionSwipeDelete.js/loadWorkoutSync.js.
 //
-// Three non-contiguous regions of the file are stitched together (unit
-// helpers live near the top of the script; the create-form functions and
-// escapeHtml/wireNumericClearOnFocus live much further down) rather than one
-// contiguous slice, since renderAfCreateForm/submitCustomFood genuinely
-// depend on all three at render/submit time -- concatenation order among
-// them doesn't matter: the factory body runs once, top to bottom, before any
-// returned function is ever called, so every const/function is already
-// initialized by the time a test invokes renderAfCreateForm/submitCustomFood.
+// Five non-contiguous regions of the file are stitched together (unit
+// helpers live near the top of the script; the afPreviewUrl/afResult module
+// state and lookupScannedBarcode() live in the middle; the create-form
+// functions and escapeHtml/wireNumericClearOnFocus live much further down)
+// rather than one contiguous slice, since renderAfCreateForm/submitCustomFood/
+// lookupScannedBarcode genuinely depend on all of them at render/submit/scan
+// time -- concatenation order among them doesn't matter: the factory body
+// runs once, top to bottom, before any returned function is ever called, so
+// every const/function is already initialized by the time a test invokes
+// renderAfCreateForm/submitCustomFood/lookupScannedBarcode.
+//
+// The afPreviewUrl/afResult region is kept deliberately narrow (just the two
+// `let` declarations lookupScannedBarcode assigns into) rather than pulling
+// in everything between them and lookupScannedBarcode itself -- that ~480
+// line span in between declares its own `const afModalBody = ...` (among
+// other things), which would collide with the factory's afModalBody
+// parameter and throw a duplicate-declaration SyntaxError.
 //
 // If any marker below stops matching, extraction throws immediately and
 // loudly rather than silently testing stale code.
@@ -33,6 +43,16 @@ const REGIONS = [
     name: "escapeHtml/wireNumericClearOnFocus",
     start: "  function escapeHtml(text) {",
     end: "  function escapeAttr(text) {",
+  },
+  {
+    name: "afPreviewUrl/afResult module state (assigned into by lookupScannedBarcode)",
+    start: "  let afPreviewUrl = null;",
+    end: "  let afNote = ",
+  },
+  {
+    name: "lookupScannedBarcode (client-side live-scan digit-stripping)",
+    start: "  async function lookupScannedBarcode(barcode) {",
+    end: "  // Grams-per-unit for the amount editor below.",
   },
   {
     name: "CUSTOM_FOOD_EMOJIS..submitCustomFood (the create-food form itself)",
@@ -91,7 +111,7 @@ export function loadNutritionCreateForm() {
     `${source}
     return {
       renderAfCreateForm, submitCustomFood, afExtraServingsListHtml, wireAfServingRemoveButtons,
-      unitToGrams, UNIT_FACTORS, UNIT_LABELS,
+      unitToGrams, UNIT_FACTORS, UNIT_LABELS, wireNumericClearOnFocus, lookupScannedBarcode,
       get afCreateExtraServings() { return afCreateExtraServings; },
       get afCreateEmoji() { return afCreateEmoji; },
       get afCreateBarcode() { return afCreateBarcode; },
