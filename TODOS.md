@@ -4,14 +4,50 @@
 
 ### Edited sets/reps in the review step's exercise editor are a write-only round-trip
 
-**What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `openEditSplitModal()` (re-opening "Edit split" on an existing plan) rehydrates `splitWizard` from the saved plan's `days`/`goal`/etc. but never reads `exercisePrescriptions` back into the in-memory map, and `renderSplitStepReview()` unconditionally resets it to `{}` on every entry regardless of whether the plan already had customizations.
+**What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `renderSplitStepReview()` also unconditionally resets `exercisePrescriptions` to `{}` on every entry, regardless of whether the plan already had customizations -- so any prior prescription is silently discarded the next time the AI-suggest path is used to rebuild the split.
 
-**Why:** A user can tap an exercise, edit sets/reps, watch the box turn amber ("edited"), tap Save -- and that customization is never shown anywhere again. Re-opening "Edit split" silently discards it with no warning. The amber-highlight/reset-to-standard UI strongly implies the intent was for this to be the plan's real, persisted sets/reps, not a value that's saved but functionally inert.
+**Why:** A user can tap an exercise, edit sets/reps, watch the box turn amber ("edited"), tap Save -- and that customization is never shown anywhere in the app afterward, and is silently discarded the next time a split gets regenerated. The amber-highlight/reset-to-standard UI strongly implies the intent was for this to be the plan's real, persisted sets/reps, not a value that's saved but functionally inert.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Not fixed in that branch because closing the loop is a product decision, not a one-line fix: does `getSetsRepsText`'s "N sets • X-Y reps" range-display format even make sense to replace with a specific `sets×reps` once customized? Does `openEditSplitModal()` need to seed `exercisePrescriptions` from the saved plan, and does the exact-match `prescriptionKey(label, name)` lookup still make sense once a plan has been edited and re-saved (label reuse across regenerations)?
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Not fixed in that branch because closing the loop is a product decision, not a one-line fix: does `getSetsRepsText`'s "N sets • X-Y reps" range-display format even make sense to replace with a specific `sets×reps` once customized? Does the exact-match `prescriptionKey(label, name)` lookup still make sense once a plan has been rebuilt (label reuse across regenerations)? Note (2026-08-14, `edit-split-flow-redesign` branch): the "edit an existing split" entry point no longer rehydrates the wizard from the saved plan at all (see the removed `openEditSplitModal()` -- editing a split now always starts blank, same as building one from scratch), which removes one specific place this gap used to bite but doesn't touch the core problem described above.
 
 **Effort:** M
 **Priority:** P2
+**Depends on:** None
+
+### The week view's inline exercise add/remove has no real-execution test coverage
+
+**What:** `renderWholeSplitBody()`'s inline exercise remove button, the "Pick exercises" button, and `persistSplitPlan()` (all added in `edit-split-flow-redesign`) are only covered by Python source-level regex assertions against the rendered Jinja template (`tests/test_split_modal_bottom_sheet_and_edit.py`) -- nothing actually executes this code in a JS runtime. The sibling wizard step (`renderSplitStepReview()`) already has a real jsdom extraction harness (`tests-js/support/loadReviewStep.js`, used by `tests-js/reviewStep.test.js`) that runs the real function and asserts on actual DOM/state changes, but no equivalent harness exists for `renderWholeSplitBody`/`renderExercisePickerStep`.
+
+**Why:** A regex match against the template string can only catch structural regressions (a line got deleted, a call site changed), not runtime bugs in the actual logic -- index-based splice correctness, the closure-captured `getSelected`/`onDone` callbacks actually firing in the right order, or `persistSplitPlan`'s side effects actually running. This isn't theoretical: both real bugs found during this branch's development (the "Today's Plan" card going stale after an inline edit, and the modal title getting stuck on "Pick exercises — {day}") were runtime behavior issues caught only by manual browser testing -- neither would have been caught by a regex test, and neither was anticipated until observed. A real jsdom harness would have plausibly caught at least the stale-card bug directly (assert `calls.replanned` after a remove, same pattern the wizard's save test already uses successfully).
+
+**Context:** Flagged by the testing specialist during this branch's `/ship` pre-landing review (confidence 58/10, not certain but empirically supported by the finding above). Deferred rather than built inline because a proper extraction harness for `renderWholeSplitBody`/`renderExercisePickerStep` is comparable in size to `loadReviewStep.js` itself (~150-200 lines) -- real new infrastructure, not a quick addition to this PR.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Duplicate day labels now have write-path exposure, not just display-path
+
+**What:** `renderWholeSplitBody()`'s inline edit controls (added in `edit-split-flow-redesign`) resolve which `plan.days` entry to mutate via `plan.days.find((d) => d.label === activeLabel)` -- the same label-keyed lookup the existing "A custom day literally named 'Rest' hides its own workout" TODO already flags as a display-path collision risk. If `plan.days` ever contains two entries with the same label (nothing in the custom-split builder enforces uniqueness), `.find()` silently returns only the first match. Before this branch, that collision only affected which day's content got *displayed*; now the inline remove-exercise and pick-exercises buttons write through that same lookup, so an edit intended for the second same-labeled day would silently mutate the first one's exercise list instead.
+
+**Why:** Previously a confusing-but-harmless display quirk; now a genuine data-corruption path -- a user editing what they believe is one day's exercises could silently corrupt a different day's data, with no error or indication anything went wrong.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same root cause and same fix options as the existing "custom day literally named 'Rest'" TODO above (day-label uniqueness isn't enforced anywhere in the custom-split builder) -- properly fixing either finding likely fixes both, since both stem from `plan.days` entries being addressed by label instead of a stable id. Deferred as an architectural change (adding a real per-day id touches the saved-plan schema and every place that currently keys off `label`), not a one-line fix, and this branch's own scope is the edit-entry-flow redesign, not the underlying data model.
+
+**Effort:** M (touches the saved-plan schema if done properly)
+**Priority:** P3
+**Depends on:** None
+
+### Inline split-plan edits increase repcheck_split_plan_v1's sync write frequency with no ordering guarantee
+
+**What:** `repcheck_split_plan_v1` is synced by `static/account_sync.js` as a plain last-write-wins key (not in `MERGE_LOG_KEYS`), pushed via independent fire-and-forget `sendBeacon`/`fetch` PUTs with no version or ordering guarantee -- the same architecture already flagged for `repcheck_workout_log_v2` below ("account_sync.js's generic merge push can still resurrect a deleted workout entry if delivered late"). Before `edit-split-flow-redesign`, `persistSplitPlan()` (then inline in the wizard's save handler) only fired once per completed wizard flow. This branch calls it on every inline exercise add/remove tap in the week view too, so a single editing session can now fire many more of these unordered writes in quick succession.
+
+**Why:** More frequent unordered writes to the same key widens the window for a stale write (a backgrounded tab, a delayed beacon, a flaky connection retried later) to land after a newer one and silently revert exercise additions/removals a user already made and saw persist -- the exact failure mode already documented for the workout log, now applicable to split plans too because the write pattern changed from occasional to frequent.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same fix shape as the workout-log entry below: `account_sync.js` would need per-key version/ordering guarantees (or a dedicated CRUD endpoint instead of whole-blob last-write-wins), which is shared sync infrastructure touching every key in `SYNC_KEYS`, not something this branch's scope (the edit-entry-flow redesign) should take on.
+
+**Effort:** M
+**Priority:** P3
 **Depends on:** None
 
 ### Same exercise appearing twice in one generated day would share one prescription
@@ -250,4 +286,28 @@
 
 **Effort:** S
 **Priority:** P2
+**Depends on:** None
+
+### Onboarding rate-of-change slider's thumb is below the 44px touch guideline
+
+**What:** `.ob-rate-slider-thumb` (`templates/onboarding.html`, the custom rate-of-weight-change slider added on `weight-loss-rate-slider-redesign`) is 26x26px, and the slider's overall hit area (`.ob-rate-slider`, which captures pointerdown across its full width) is 32px tall -- both below Apple's 44px HIG touch-target guideline.
+
+**Why:** Same class of finding already resolved elsewhere in this app (see the now-resolved "Weekday grid tap targets" entry above) -- small miss-taps on a control users interact with directly. Low severity: the slider is draggable across its full width, not a discrete tap target, and the visible thumb is only the drag handle, not the sole interactive surface.
+
+**Context:** Flagged by the design specialist during `/ship` on `weight-loss-rate-slider-redesign` (LOW confidence -- code-level detection only, not verified visually). Deferred as a minor visual-density tradeoff: increasing the slider's height to 44px would need matching adjustments to the badge/readout spacing above and below it to avoid the step feeling oversized.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+### Widening the onboarding rate range changed the null-rate fallback for the separate coaching.js wizard too
+
+**What:** `coaching_engine.py`'s `LOSS_RATE_DEFAULT_PCT`/`GAIN_RATE_MAX_PCT` are shared server-side constants used by `_validate_coaching_profile()` (`app.py`) for TWO independent wizards: the new onboarding flow (`static/onboarding.js`, this branch's scope) and the separate "Personalized Coaching" wizard (`static/coaching.js`, deliberately left untouched -- its own slider still shows the old 1.0-2.0% / 0.25-0.5% ranges). `_validate_coaching_profile()` substitutes `LOSS_RATE_DEFAULT_PCT` whenever a caller sends an explicit `null` for `loss_rate_pct` (a real, previously-tested path -- see `tests/test_coaching_rate_null.py`), not just when the key is missing. Since that default changed from 1.5% to ~0.267% as part of recalibrating onboarding's range to a 0.2-0.8 kg/week target, a `coaching.js` user who happens to hit this null-fallback path now gets a rate value well below what `coaching.js`'s own slider UI would ever let them select (it never goes below 1.0%) -- their saved profile would disagree with what their own wizard shows as the valid range.
+
+**Why:** Narrow (requires a `coaching.js` user's client to send an explicit `null` rate rather than omitting the key or a real value, which per that test file's own docstring is a real, previously-fixed reachable path, not purely theoretical) but a genuine behavioral bleed-through across a boundary this branch intentionally tried to keep clean (onboarding-only scope, confirmed via explicit user decision before implementation).
+
+**Context:** Found while implementing the onboarding rate-slider redesign (`weight-loss-rate-slider-redesign` branch) -- widening `coaching_engine.py`'s shared MIN/MAX/DEFAULT constants was an explicit, confirmed decision for this branch (needed so the new 0.2-0.8 kg/week loss zone and 0.6 kg/week gain ceiling are even reachable), but the null-fallback DEFAULT bleeding into the other wizard's users is a side effect of that shared file, not something this branch's own scope covers fixing. A real fix means giving each wizard its own default (e.g. a `default_pct` argument threaded through `_validate_coaching_profile()` instead of a bare module constant), which touches the validation function's signature and every caller, not just the onboarding flow this branch actually changed.
+
+**Effort:** S
+**Priority:** P3
 **Depends on:** None
