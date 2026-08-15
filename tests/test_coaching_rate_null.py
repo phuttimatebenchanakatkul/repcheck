@@ -70,7 +70,7 @@ def test_maintain_needs_neither_rate():
 # non-numeric rate is a genuine validation failure, not a missing value.
 @pytest.mark.parametrize("aspiration,key,bad", [
     ("lose", "loss_rate_pct", 9),        # above LOSS_RATE_MAX_PCT
-    ("lose", "loss_rate_pct", 0.1),      # below LOSS_RATE_MIN_PCT
+    ("lose", "loss_rate_pct", 0.01),     # below LOSS_RATE_MIN_PCT
     ("lose", "loss_rate_pct", "abc"),    # non-numeric
     ("gain", "gain_rate_pct", 5),        # above GAIN_RATE_MAX_PCT
     ("gain", "gain_rate_pct", "abc"),
