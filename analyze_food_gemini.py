@@ -56,12 +56,7 @@ SYSTEM_PROMPT = (
     "few grams), larger for the main components. Never use 0.\n"
     "- calories, protein, fat, carbs: standard nutrition database values PER 100g "
     "of that ingredient (not for the portion shown) — the typical values anyone "
-    "would look up for that food.\n"
-    "- sodium_mg, sugar_g: standard nutrition database values PER 100g of that "
-    "ingredient for sodium (in milligrams) and sugar (in grams) — e.g. sauces, "
-    "cured meats, and added sugar are high-sodium/high-sugar; plain vegetables "
-    "and unseasoned proteins are low in both. Estimate honestly per ingredient "
-    "rather than defaulting to 0.\n\n"
+    "would look up for that food.\n\n"
     "Also give the overall dish a short name (2-5 words, like a restaurant menu "
     "item, e.g. \"Pad Kra Pao Moo Krob\" — never a full descriptive sentence).\n\n"
     "Respond with ONLY raw JSON (no markdown fences, no commentary) matching "
@@ -70,27 +65,24 @@ SYSTEM_PROMPT = (
     '"note": "Estimated from a standard rice-plate portion, including typical '
     'stir-fry oil, sauces, and seasoning for this dish.", '
     '"ingredients": [{"name": "Crispy Pork Belly", "grams": 120, "calories": 397, '
-    '"protein": 9, "fat": 39, "carbs": 0, "sodium_mg": 700, "sugar_g": 0}, '
+    '"protein": 9, "fat": 39, "carbs": 0}, '
     '{"name": "White Rice", "grams": 200, '
-    '"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28, "sodium_mg": 1, '
-    '"sugar_g": 0}, {"name": "Thai '
+    '"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28}, '
+    '{"name": "Thai '
     'Basil", "grams": 10, "calories": 22, "protein": 3.2, "fat": 0.6, "carbs": '
-    '2.6, "sodium_mg": 4, "sugar_g": 0}, {"name": "Garlic", "grams": 8, "calories": 149, "protein": 6.4, '
-    '"fat": 0.5, "carbs": 33, "sodium_mg": 17, "sugar_g": 1}, '
+    '2.6}, {"name": "Garlic", "grams": 8, "calories": 149, "protein": 6.4, '
+    '"fat": 0.5, "carbs": 33}, '
     '{"name": "Thai Chilies", "grams": 5, "calories": '
-    '40, "protein": 1.9, "fat": 0.4, "carbs": 9, "sodium_mg": 9, "sugar_g": 5}, '
+    '40, "protein": 1.9, "fat": 0.4, "carbs": 9}, '
     '{"name": "Fish Sauce", '
-    '"grams": 10, "calories": 35, "protein": 5, "fat": 0, "carbs": 3.6, '
-    '"sodium_mg": 7850, "sugar_g": 0}, '
+    '"grams": 10, "calories": 35, "protein": 5, "fat": 0, "carbs": 3.6}, '
     '{"name": "Oyster Sauce", "grams": 8, "calories": 51, "protein": 1.4, '
-    '"fat": 0.3, "carbs": 11, "sodium_mg": 2700, "sugar_g": 6}, '
+    '"fat": 0.3, "carbs": 11}, '
     '{"name": "Soy Sauce", "grams": 5, "calories": 8, '
-    '"protein": 1.3, "fat": 0, "carbs": 0.8, "sodium_mg": 5500, "sugar_g": 0.4}, '
+    '"protein": 1.3, "fat": 0, "carbs": 0.8}, '
     '{"name": "Sugar", "grams": 5, '
-    '"calories": 387, "protein": 0, "fat": 0, "carbs": 100, "sodium_mg": 1, '
-    '"sugar_g": 100}, {"name": "Cooking '
-    'Oil", "grams": 10, "calories": 884, "protein": 0, "fat": 100, "carbs": 0, '
-    '"sodium_mg": 0, "sugar_g": 0}]}\n\n'
+    '"calories": 387, "protein": 0, "fat": 0, "carbs": 100}, {"name": "Cooking '
+    'Oil", "grams": 10, "calories": 884, "protein": 0, "fat": 100, "carbs": 0}]}\n\n'
     "confidence is exactly \"low\", \"medium\", or \"high\", based on how clearly you "
     "could identify the food and judge portion sizes — identifying the dish "
     "correctly doesn't require lowering confidence just because some ingredients "
@@ -150,19 +142,15 @@ def _validate(parsed):
                 "protein": round(_num(item, "protein"), 1),
                 "fat": round(_num(item, "fat"), 1),
                 "carbs": round(_num(item, "carbs"), 1),
-                "sodium_mg": round(_num(item, "sodium_mg")),
-                "sugar_g": round(_num(item, "sugar_g"), 1),
             })
 
-    totals = {"calories": 0.0, "protein": 0.0, "fat": 0.0, "carbs": 0.0, "sodium_mg": 0.0, "sugar_g": 0.0}
+    totals = {"calories": 0.0, "protein": 0.0, "fat": 0.0, "carbs": 0.0}
     for ing in ingredients:
         scale = ing["grams"] / 100
         totals["calories"] += ing["calories"] * scale
         totals["protein"] += ing["protein"] * scale
         totals["fat"] += ing["fat"] * scale
         totals["carbs"] += ing["carbs"] * scale
-        totals["sodium_mg"] += ing["sodium_mg"] * scale
-        totals["sugar_g"] += ing["sugar_g"] * scale
 
     return {
         "food_name": food_name,
@@ -173,8 +161,6 @@ def _validate(parsed):
         "protein": round(totals["protein"], 1),
         "fat": round(totals["fat"], 1),
         "carbs": round(totals["carbs"], 1),
-        "sodium_mg": round(totals["sodium_mg"]),
-        "sugar_g": round(totals["sugar_g"], 1),
     }
 
 

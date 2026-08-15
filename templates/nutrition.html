@@ -797,14 +797,6 @@
   .mn-legend-label { color: var(--text-secondary); flex: 1; }
   .mn-legend-grams { font-weight: 600; color: var(--text-secondary); }
 
-  .mn-micro-section {
-    background: var(--bg); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;
-  }
-  .mn-micro-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.03em; }
-  .mn-micro-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 13px; }
-  .mn-micro-label { color: var(--text-secondary); }
-  .mn-micro-value { font-weight: 700; }
-
   .af-field { margin-bottom: 12px; }
   .af-field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600; }
   .af-field input, .af-field select {
@@ -2025,25 +2017,22 @@
     return Math.max(0, lqAmountValue * lqGramsPerUnit(lqUnit));
   }
   function lqMacrosFor(grams) {
-    // food.calories/protein/fat/carbs/sodium_mg/sugar_g are always
-    // per-100g here, whether it's a raw ingredient or a composite dish
-    // (food_library.py derives a dish's per-100g values, sodium/sugar
-    // included, from its recipe server-side), so the same scale-by-grams
-    // math works for both.
+    // food.calories/protein/fat/carbs are always per-100g here, whether
+    // it's a raw ingredient or a composite dish (food_library.py derives
+    // a dish's per-100g values from its recipe server-side), so the same
+    // scale-by-grams math works for both.
     const scale = grams / 100;
     return {
       calories: Math.round(lqFood.calories * scale),
       protein: Math.round(lqFood.protein * scale),
       fat: Math.round(lqFood.fat * scale),
       carbs: Math.round(lqFood.carbs * scale),
-      sodiumMg: (lqFood.sodium_mg || lqFood.sodium_mg === 0) ? Math.round(lqFood.sodium_mg * scale) : undefined,
-      sugarG: (lqFood.sugar_g || lqFood.sugar_g === 0) ? Math.round(lqFood.sugar_g * scale) : undefined,
     };
   }
   function refreshLqDonut() {
     const m = lqMacrosFor(lqCurrentGrams());
     document.getElementById("lq-donut-area").innerHTML =
-      donutChartHtml(m.protein, m.fat, m.carbs, m.calories) + micronutrientsHtml(m.sodiumMg, m.sugarG);
+      donutChartHtml(m.protein, m.fat, m.carbs, m.calories);
   }
 
   function openLogAmountModal(name, hour) {
@@ -2256,11 +2245,6 @@
   // scanned meal's name (e.g. Gemini's freeform "Pad Kra Pao Moo Krob")
   // was never a real foodByName() match -- reusing the food-search confirm
   // sheet here would have silently done nothing.
-  //
-  // Micronutrients (sodium/sugar) are deliberately omitted: they exist on
-  // a fresh scan's result object but are never persisted onto a logged
-  // entry, so there is nothing real to show here -- fabricating them would
-  // be worse than the "no guessing" bug this screen exists to fix.
   function renderRelogConfirm(original) {
     const m = scaledMacros(original);
     // The calorie number means nothing without the amount it came from --
@@ -2753,23 +2737,14 @@
     // scan's original total, so the dish's totals scale linearly too —
     // no need to re-sum per-ingredient here.
     const scale = afServingGrams > 0 ? currentAfGrams() / afServingGrams : 0;
-    // Keep "no data" (undefined) distinct from a genuine 0 -- custom foods
-    // don't collect sodium/sugar at all, so that section should stay
-    // hidden for them (micronutrientsHtml treats undefined that way),
-    // not show a misleading "0 mg / 0 g" as if it were verified.
-    const hasSodium = result.sodium_mg !== undefined && result.sodium_mg !== null;
-    const hasSugar = result.sugar_g !== undefined && result.sugar_g !== null;
     const totals = {
       calories: result.calories * scale,
       protein: result.protein * scale,
       fat: result.fat * scale,
       carbs: result.carbs * scale,
-      sodiumMg: hasSodium ? result.sodium_mg * scale : undefined,
-      sugarG: hasSugar ? result.sugar_g * scale : undefined,
     };
     document.getElementById("af-donut-area").innerHTML =
-      donutChartHtml(totals.protein, totals.fat, totals.carbs, totals.calories) +
-      micronutrientsHtml(totals.sodiumMg, totals.sugarG);
+      donutChartHtml(totals.protein, totals.fat, totals.carbs, totals.calories);
   }
 
   async function addAfResultToLog() {
@@ -2973,9 +2948,7 @@
 
       // Reshape into the same {food_name, ingredients: [...], calories/
       // protein/fat/carbs} object renderAfResult() already knows how to
-      // show (donut chart + amount editor) and log — no sodium/sugar
-      // keys, since this form never collects that data (refreshAfDonut
-      // treats missing sodium/sugar as "no data" and hides that section).
+      // show (donut chart + amount editor) and log.
       const food = data.food;
       afPreviewUrl = null;
       afResult = {
@@ -3172,8 +3145,8 @@
   // Shared by the search modal and the quick-add bar: fetches
   // /api/search-food-online (debounced, since it fires on every
   // keystroke) and hands back results in the exact same shape a barcode
-  // scan produces, so picking one opens the same donut/amount-card/
-  // sodium-sugar result screen as a scan does (see openScannedResultModal).
+  // scan produces, so picking one opens the same donut/amount-card
+  // result screen as a scan does (see openScannedResultModal).
   async function fetchOffResults(query) {
     try {
       const response = await fetch(`/api/search-food-online?q=${encodeURIComponent(query)}`);
@@ -3712,22 +3685,6 @@
         </div>
       </div>
     `;
-  }
-
-  // sodiumMg/sugarG are undefined (not 0) for foods with no known value
-  // (e.g. anything from the manual search library, which doesn't carry
-  // this data) — that's shown as an empty section rather than a
-  // fabricated "0 mg", which would be misleading.
-  function micronutrientsHtml(sodiumMg, sugarG) {
-    const rows = [];
-    if (sodiumMg !== undefined && sodiumMg !== null) {
-      rows.push(`<div class="mn-micro-row"><span class="mn-micro-label">Sodium</span><span class="mn-micro-value">${Math.round(sodiumMg)} mg</span></div>`);
-    }
-    if (sugarG !== undefined && sugarG !== null) {
-      rows.push(`<div class="mn-micro-row"><span class="mn-micro-label">Sugar</span><span class="mn-micro-value">${Math.round(sugarG)} g</span></div>`);
-    }
-    if (!rows.length) return "";
-    return `<div class="mn-micro-section"><div class="mn-micro-title">Other nutrients</div>${rows.join("")}</div>`;
   }
 
   function renderIngredientsPanel(entry) {
