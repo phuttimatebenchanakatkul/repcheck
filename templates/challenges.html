@@ -132,39 +132,27 @@
   .ch-back-btn:hover { opacity: 0.85; }
   .ch-back-btn:active { transform: scale(0.94); }
 
-  /* ---------- Hero: dark gradient card matching home.html's .hm-hero
-     treatment, with the day's rotating exercise + streak up top and one
-     clear "Record an attempt" call to action. ---------- */
+  /* ---------- Hero: same var(--card-bg)/var(--text) theme-following
+     surface as .ch-lb-card below, with the day's rotating exercise +
+     streak up top and one clear "Record an attempt" call to action. ---------- */
   .ch-hero {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(145deg, #263356 0%, #17181d 62%);
-    color: #fff;
+    background: var(--card-bg);
+    color: var(--text);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow);
     padding: 14px 16px;
     margin-bottom: 18px;
   }
-  .ch-hero::before {
-    content: "";
-    position: absolute;
-    top: -70px; right: -50px;
-    width: 220px; height: 220px;
-    border-radius: 50%;
-    background: radial-gradient(closest-side, rgba(77, 127, 245, 0.4), transparent);
-    pointer-events: none;
-  }
-  .ch-hero > * { position: relative; }
   .ch-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .ch-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+  .ch-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
   .ch-streak-chip {
     display: inline-flex; align-items: center; gap: 5px;
-    background: rgba(255, 255, 255, 0.1); color: #fff;
+    background: var(--bg); color: var(--text-secondary);
     border-radius: 999px; padding: 6px 13px; min-height: 32px; box-sizing: border-box;
     font-size: 13px; font-weight: 800;
   }
   .ch-streak-chip.is-active {
-    background: linear-gradient(135deg, #f5a94e, #e8832f);
+    background: linear-gradient(135deg, #f5a94e, #e8832f); color: #fff;
     box-shadow: 0 6px 14px rgba(232, 131, 47, 0.4);
   }
   .ch-hero-exercise-row {
@@ -406,35 +394,38 @@
     // One exercise is "live" per calendar day, rotating push-ups -> sit-ups
     // -> pull-ups -> repeat (see get_todays_challenge_exercise() in
     // app.py, the single source of truth this just mirrors for display).
+    // currentColor, not a hardcoded white -- these render inside .ch-hero-icon,
+    // which is now a var(--text) surface like the rest of the hero, not a fixed
+    // dark one, so a literal #ffffff stroke/fill would go invisible on it.
     const EXERCISE_HERO_ICONS = {
       pushups: `<svg width="66" height="66" viewBox="0 0 88 88" aria-hidden="true">
-        <line x1="14" y1="60" x2="74" y2="60" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
-        <g stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <line x1="14" y1="60" x2="74" y2="60" stroke="currentColor" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>
+        <g stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
           <line x1="31" y1="40" x2="59" y2="42"/>
           <path d="M31 40 L28 50 L31 60"/>
           <line x1="59" y1="42" x2="71" y2="60"/>
         </g>
-        <circle cx="24" cy="34" r="6" fill="#ffffff"/>
+        <circle cx="24" cy="34" r="6" fill="currentColor"/>
       </svg>`,
       situps: `<svg width="66" height="66" viewBox="0 0 88 88" aria-hidden="true">
-        <line x1="14" y1="62" x2="74" y2="62" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
-        <g stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <line x1="14" y1="62" x2="74" y2="62" stroke="currentColor" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>
+        <g stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
           <path d="M24 60 L40 46 L54 60"/>
           <path d="M24 60 Q26 44 30 36"/>
           <line x1="30" y1="36" x2="35" y2="41"/>
         </g>
-        <circle cx="27" cy="30" r="6" fill="#ffffff"/>
+        <circle cx="27" cy="30" r="6" fill="currentColor"/>
       </svg>`,
       pullups: `<svg width="66" height="66" viewBox="0 0 88 88" aria-hidden="true">
-        <line x1="24" y1="16" x2="64" y2="16" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
-        <g stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <line x1="24" y1="16" x2="64" y2="16" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+        <g stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
           <path d="M31 16 L36 30"/>
           <path d="M57 16 L52 30"/>
           <line x1="44" y1="34" x2="44" y2="54"/>
           <path d="M44 54 L36 68"/>
           <path d="M44 54 L52 68"/>
         </g>
-        <circle cx="44" cy="26" r="6" fill="#ffffff"/>
+        <circle cx="44" cy="26" r="6" fill="currentColor"/>
       </svg>`,
     };
 

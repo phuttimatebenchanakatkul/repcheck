@@ -106,6 +106,7 @@ from database import (
     set_user_data,
     track_usage,
     set_weight_log_entry,
+    set_workout_log_day,
     update_account,
 )
 from rep_form_analyzer import CHALLENGE_EXERCISES, RepCountError, analyze_reps
@@ -634,6 +635,43 @@ def api_weight_log_entry():
     return jsonify({"ok": True, "date": date_iso, "weight_log": weight_log})
 
 
+@app.route("/api/workout/log-day", methods=["POST"])
+def api_workout_log_day():
+    # Authoritative, synchronous write path for a single day's workout log
+    # -- see set_workout_log_day() in database.py for why this exists
+    # instead of relying solely on the generic /api/sync/<key> route.
+    # workouts.html calls this (debounced) on every add/delete/edit to a
+    # day's exercises, sending that ONE day's full, current entry list so
+    # the server can overwrite rather than merge.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    date_iso = str(payload.get("date") or "").strip()
+    entries = payload.get("entries")
+
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    # Caps entry count (a real workout day tops out at a few dozen
+    # exercises; 200 is generous headroom) and requires dict shape per
+    # entry -- both flagged in pre-landing review. Without the count cap,
+    # nothing stops an oversized payload from bloating this user's own
+    # user_data row (read/re-serialized on every debounced sync) or
+    # tripping Python's default JSON recursion limit on deeply nested
+    # input. Without the shape check, a malformed entry (e.g. a bare
+    # string) would be stored verbatim and crash EVERY device's rendering
+    # of this date the next time it reads the log back, not just the one
+    # that sent it -- workouts.html accesses entry.exercise/entry.sets
+    # unconditionally, with no defensive isinstance() guard the way the
+    # read-only admin/report consumers of this same data already have.
+    if not isinstance(entries, list) or len(entries) > 200 or not all(isinstance(e, dict) for e in entries):
+        return jsonify({"ok": False, "error": "Invalid entries."}), 400
+
+    workout_log = set_workout_log_day(user["id"], date_iso, entries)
+    return jsonify({"ok": True, "date": date_iso, "workout_log": workout_log})
+
+
 @app.route("/api/checkin/photo", methods=["POST"])
 def api_checkin_photo_upload():
     user = current_user()
@@ -811,9 +849,7 @@ def home():
     # new signups.
     if user and not user["onboarding_completed"]:
         return redirect(url_for("onboarding_page"))
-    return render_template(
-        "home.html", active_nav="home", i18n_page="home", exercise_icons=EXERCISE_ICONS
-    )
+    return render_template("home.html", active_nav="home", i18n_page="home")
 
 
 @app.route("/onboarding", methods=["GET"])
@@ -854,6 +890,7 @@ def workouts():
         active_nav="workouts",
         exercise_library=WORKOUT_EXERCISES,
         exercise_details=EXERCISE_DETAILS,
+        exercise_videos=EXERCISE_VIDEOS,
         exercise_categories=EXERCISE_CATEGORIES,
         exercise_icons=EXERCISE_ICONS,
         unilateral_exercises=sorted(UNILATERAL_EXERCISES),

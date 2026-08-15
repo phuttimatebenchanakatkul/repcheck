@@ -407,15 +407,14 @@
     border: none;
     border-radius: 16px;
     background: linear-gradient(135deg, #4d7ff5, var(--blue));
-    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
     color: #fff;
     font-size: 14px;
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    transition: opacity 0.15s ease, transform 0.1s ease;
   }
-  .nl-scan-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
+  .nl-scan-btn:hover { opacity: 0.92; transform: translateY(-1px); }
   .nl-scan-btn:active { transform: translateY(0) scale(0.99); }
 
   /* .nl-macro-btn removed with the "Quick add" button it styled -- manual
@@ -1214,10 +1213,8 @@
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.25);
-    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    transition: transform 0.1s ease;
   }
-  .nl-log-btn:hover { box-shadow: 0 10px 24px rgba(47, 102, 232, 0.32); }
   .nl-log-btn:active { transform: scale(0.98); }
   .nl-log-btn svg { flex-shrink: 0; }
 

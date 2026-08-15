@@ -33,6 +33,7 @@
   <script src="{{ asset_url('account_sync.js') }}"></script>
   <script src="{{ asset_url('units.js') }}"></script>
   <script src="{{ asset_url('i18n.js') }}"></script>
+  <script src="{{ asset_url('nutrition_macros.js') }}"></script>
   <!-- First-run guided tour: a multi-page walkthrough that navigates into
        each page. Loaded on every page but no-ops unless a tour is active
        (repcheck_pending_tour) -- see static/tour.js. -->
@@ -668,7 +669,6 @@
       const msgEl = document.getElementById("lw-modal-msg");
       const openTriggers = [
         document.getElementById("mt-fab-log-weight"),
-        document.getElementById("hm-quick-log-weight"),
       ].filter(Boolean);
       if (!overlay || !openTriggers.length) return;
 
@@ -684,13 +684,11 @@
         catch (err) { return {}; }
       }
 
-      // A handful of recent weigh-ins, newest first -- this sheet is now
-      // the only entry point off the home page for weight, so it needs to
-      // show a *little* more than "type today's number" (the full
-      // history/chart still lives one tap away via .lw-history-link).
-      // The trend sparkline mirrors home.html's buildSparkline() (same
-      // math, same look) so the two feel like one design, not two
-      // separately-invented weight widgets.
+      // A handful of recent weigh-ins, newest first -- this sheet is the
+      // shared entry point for logging weight off the home page (via the
+      // "+" FAB), so it needs to show a *little* more than "type today's
+      // number" (the full history/chart still lives one tap away via
+      // .lw-history-link).
       const recentEl = document.getElementById("lw-recent");
 
       function buildRecentSparkline(values) {

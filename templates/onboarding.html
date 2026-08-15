@@ -137,11 +137,69 @@
       transition: border-color 0.15s ease;
     }
     .ob-field input:focus { outline: none; border-color: var(--blue); }
-    .ob-field input[type="range"] {
-      width: 100%; padding: 0; border: none; background: none;
-      accent-color: var(--blue); height: 22px; cursor: pointer;
-    }
     .ob-field-hint { font-size: 12px; color: var(--text-secondary); margin-top: 8px; min-height: 14px; }
+
+    /* ---------- Rate-of-change slider (custom, replaces native
+       <input type="range">) -- see renderRateSlider() in onboarding.js.
+       "Standard" zone highlighting/badge only ever applies to the loss
+       direction; the gain slider renders the same track/thumb/readouts
+       with no zone and no badge. ---------- */
+    .ob-rate-field label { margin-bottom: 4px; }
+    .ob-rate-badge {
+      display: flex; justify-content: center; margin: 10px 0 18px;
+      font-size: 12px; font-weight: 800; color: var(--text-secondary);
+    }
+    .ob-rate-badge:not(:empty) {
+      padding: 7px 14px; border-radius: 999px; background: var(--border); width: fit-content; margin-left: auto; margin-right: auto;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .ob-rate-badge.is-standard { background: var(--green-bg); color: var(--green); }
+    .ob-rate-slider {
+      position: relative; height: 32px; margin: 0 4px 20px; cursor: pointer;
+      touch-action: none; /* dragging is handled entirely via pointer events */
+    }
+    .ob-rate-slider-track {
+      position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px;
+      background: var(--border); border-radius: 999px;
+    }
+    .ob-rate-slider-zone {
+      position: absolute; top: 0; bottom: 0; background: var(--green); border-radius: 999px; opacity: 0.5;
+    }
+    .ob-rate-slider-thumb {
+      /* left is static (0) and never rewritten -- JS positions the thumb
+         entirely via the inline `transform` it sets on every redraw (see
+         renderRateSlider() in onboarding.js), which is compositor-only and
+         doesn't trigger layout the way rewriting `left` on every drag
+         pixel would. The drag-scale effect below is folded into that same
+         inline transform string rather than a separate class rule, since
+         an inline transform would otherwise silently win over (not
+         combine with) a stylesheet transform on the same property. */
+      position: absolute; top: 50%; left: 0; width: 26px; height: 26px; margin-top: -13px;
+      border-radius: 50%; background: var(--text-secondary); border: 3px solid var(--card-bg);
+      box-shadow: 0 2px 8px rgba(16, 17, 20, 0.25);
+      transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+    }
+    .ob-rate-slider-thumb.is-standard { background: #fff; border-color: var(--green); }
+    .ob-rate-slider:focus-visible { outline: none; }
+    .ob-rate-slider:focus-visible .ob-rate-slider-thumb { outline: 3px solid var(--blue); outline-offset: 2px; }
+    .ob-rate-readout-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .ob-rate-readout-sign { color: var(--text-secondary); font-size: 13px; font-weight: 700; width: 10px; flex-shrink: 0; }
+    .ob-rate-readout-box {
+      flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between;
+      padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--bg);
+      font-size: 16px; font-weight: 700; color: var(--text);
+    }
+    .ob-rate-readout-box-pct { color: var(--text-secondary); font-weight: 600; font-size: 14px; }
+    .ob-rate-readout-unit { color: var(--text-secondary); font-size: 12px; font-weight: 600; margin-left: 6px; }
+    .ob-rate-readout-freq { flex-shrink: 0; width: 64px; text-align: right; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+    /* Card treatment for the goal-date estimate -- collapses to nothing via
+       :empty when there's no estimate yet, so the JS side only ever sets or
+       clears textContent, same as every other hint in this step. */
+    .ob-eta-card:not(:empty) {
+      margin-top: 8px; padding: 12px 14px; border-radius: 14px; background: var(--green-bg); text-align: center;
+      font-size: 16px; font-weight: 800; color: var(--green); letter-spacing: -0.01em;
+    }
+    .ob-eta-card:not(:empty)::after { content: attr(data-label); display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); margin-top: 3px; }
     .ob-goal-textarea {
       width: 100%; min-height: 120px; padding: 13px 15px; border: 1.5px solid var(--border);
       background: var(--bg); color: var(--text); border-radius: 14px; font-size: 14px; font-family: inherit;
@@ -382,9 +440,25 @@
       .ob-body-type-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
       .ob-field input, .ob-custom-input-row input, .ob-goal-textarea { font-size: 16px; } /* prevents iOS auto-zoom */
     }
+
+    /* Fixed, not inside .ob-wrap -- stays put in the corner across every
+       step instead of scrolling away with the card, since a wrong/unwanted
+       account is something you'd want to escape from at any point in the
+       wizard, not just the first screen. */
+    .ob-logout-form { position: fixed; top: 18px; right: 18px; z-index: 10; }
+    .ob-logout-btn {
+      padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 999px;
+      background: var(--card-bg); color: var(--text-secondary);
+      font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .ob-logout-btn:hover { border-color: var(--text-secondary); color: var(--text); }
   </style>
 </head>
 <body class="ob-body">
+  <form method="post" action="{{ url_for('auth.logout') }}" class="ob-logout-form">
+    <button type="submit" class="ob-logout-btn" data-i18n="sidebar.logout">Log out</button>
+  </form>
   <div class="ob-wrap">
     <img class="ob-logo" src="{{ url_for('static', filename='logo-full.png') }}" alt="RepCheck">
     <div class="ob-card">

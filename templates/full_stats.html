@@ -150,20 +150,10 @@
     const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
     const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
 
-    function sumMacrosForDay(entries) {
-      const totals = { protein: 0, fat: 0, carbs: 0 };
-      if (!Array.isArray(entries)) return totals;
-      entries.forEach((entry) => {
-        const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
-        items.forEach((item) => {
-          const scale = item.grams / 100;
-          totals.protein += item.baseProtein * scale;
-          totals.fat += item.baseFat * scale;
-          totals.carbs += item.baseCarbs * scale;
-        });
-      });
-      return totals;
-    }
+    // sumMacrosForDay() lives in static/nutrition_macros.js -- shared with
+    // home.html so the two can't silently drift from each other (or from
+    // templates/nutrition.html's own rounding) the way they did before.
+    const sumMacrosForDay = RepCheckNutritionMacros.sumMacrosForDay;
 
     // A day counts as "on target" within this fraction of the calorie goal.
     // Hitting a macro goal to the calorie is not a thing anyone does, so a
@@ -201,7 +191,9 @@
         const protein = Math.round(eaten.protein);
         const fat = Math.round(eaten.fat);
         const carbs = Math.round(eaten.carbs);
-        const calories = Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4);
+        // Use each entry's own baseCalories, not a macro-derived formula --
+        // see home.html's macroCardRows() for why this must match Nutrition.
+        const calories = Math.round(eaten.calories);
         return {
           dateIso, date: d, calories, protein, fat, carbs,
           isToday: dateIso === todayIso,

@@ -588,10 +588,29 @@
     return wrap.firstElementChild;
   }
 
+  // Both toast variants share the same fixed bottom-center slot, so only
+  // one can be legible at a time -- clear any toast of EITHER class, not
+  // just this one's own, before inserting (a delayed save-error toast
+  // landing on top of a freshly-tapped info toast would otherwise stack
+  // both, unreadable).
+  function clearExistingToasts() {
+    document.querySelectorAll(".hx-save-error-toast, .hx-info-toast").forEach((t) => t.remove());
+  }
+
   function showHistorySaveError(message) {
-    const existing = document.querySelector(".hx-save-error-toast");
-    if (existing) existing.remove();
+    clearExistingToasts();
     const toast = el(`<div class="hx-save-error-toast">${message}</div>`);
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+  }
+
+  // Same toast shell as showHistorySaveError(), but neutral-styled -- for
+  // states that are expected/benign (e.g. "no detail available"), not
+  // failures. Reusing the red error toast for those would tell the user
+  // something went wrong when nothing did.
+  function showInfoToast(message) {
+    clearExistingToasts();
+    const toast = el(`<div class="hx-info-toast">${message}</div>`);
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);
   }
@@ -711,9 +730,22 @@
       // detail, keyed "raceId:section" (section = "overall" or a rating
       // group name) -- collapsed (short only) by default for every race.
       this.analysisExpanded = new Set();
+      // Which formats' "Your personal bests" section (renderMyBestsCard())
+      // are expanded past their single hero time to show every tier
+      // raced -- keyed by format id ("singles"/"doubles"), collapsed by
+      // default same as analysisExpanded above.
+      this.pbExpandedFormats = new Set();
       this.resetSetup();
 
       this.root.addEventListener("click", (event) => this.handleClick(event));
+      // renderMyBestsCard()'s format-section trigger is a div[role=button],
+      // not a real <button>, because it wraps its own nested <button> (the
+      // hero time) -- real buttons can't nest inside each other (invalid
+      // HTML; the browser silently closes the outer one, corrupting
+      // everything rendered after it). Keyboard activation isn't free on a
+      // div the way it is on a button, so this replays Enter/Space as a
+      // synthetic click through the same delegated handler above.
+      this.root.addEventListener("keydown", (event) => this.handleKeydown(event));
       this.root.addEventListener("change", (event) => this.handleChange(event));
       this.root.addEventListener("focusin", (event) => this.handleFocusIn(event));
       this.root.addEventListener("focusout", (event) => this.handleFocusOut(event));
@@ -952,6 +984,21 @@
       if (action === "move-custom-station") return this.moveCustomStation(target.dataset.id, parseInt(target.dataset.direction, 10));
       if (action === "reset-custom-stations") return this.resetCustomStations();
       if (action === "open-station-picker") return this.openStationPickerSheet();
+      if (action === "toggle-pb-format") return this.togglePbFormat(target.dataset.format);
+      if (action === "pb-no-detail") return showInfoToast(t("hyrox.pb.noDetailAvailable"));
+    }
+
+    // Enter/Space activation for div[role=button] triggers (see the
+    // pb-section-trigger comment in the constructor for why those aren't
+    // real <button> elements). Ignored for any element that IS a real
+    // button/input/etc. -- those already get free keyboard activation from
+    // the browser, and replaying a synthetic click on top would double-fire.
+    handleKeydown(event) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const target = event.target.closest('[data-action][role="button"]');
+      if (!target || event.target !== target) return;
+      event.preventDefault();
+      target.click();
     }
 
     // ---------- AI analysis: short/detail toggle ----------
@@ -959,6 +1006,13 @@
       const key = `${raceId}:${section}`;
       if (this.analysisExpanded.has(key)) this.analysisExpanded.delete(key);
       else this.analysisExpanded.add(key);
+      this.render();
+    }
+
+    // ---------- Your personal bests: per-format expand ----------
+    togglePbFormat(formatId) {
+      if (this.pbExpandedFormats.has(formatId)) this.pbExpandedFormats.delete(formatId);
+      else this.pbExpandedFormats.add(formatId);
       this.render();
     }
 
@@ -3063,7 +3117,10 @@
 
       const card = el(`
         <div class="hx-card">
-          <div class="hx-step-label">${t("hyrox.pb.myBestsTitle")}</div>
+          <div class="pb-header">
+            <div class="pb-trophy">${TROPHY_ICON}</div>
+            <div class="hx-step-label">${t("hyrox.pb.myBestsTitle")}</div>
+          </div>
           <div data-my-pb-sections></div>
         </div>
       `);
@@ -3071,40 +3128,92 @@
       // FORMAT_IDS order (singles, doubles) fixes the section order; within
       // each section, entries are already fastest-to-slowest because
       // loadMyBests() sorts ascending by time and filtering by format
-      // preserves relative order.
+      // preserves relative order, so rows[0] is always the fastest tier --
+      // that's the one shown collapsed. A format with only one tier raced
+      // gets no chevron and no expand affordance: there's nothing to
+      // expand into, so pretending otherwise would be a dead tap target.
       FORMAT_IDS.forEach((formatId) => {
         const rows = bests.filter((r) => r.format === formatId);
         if (!rows.length) return; // no Doubles PB yet -- skip the section, don't show it empty
-        const section = el(`<div class="hx-pb-format-section"></div>`);
-        section.appendChild(el(`<div class="hx-pb-section-title">${formatTitle(formatId)}</div>`));
-        rows.forEach((r) => {
-          // The server's leaderboard `me` field is just {rank, best_seconds,
-          // name} -- no date. Best-effort only: if this exact time also
-          // happens to be in this browser's local history (the common case
-          // -- most races are still recorded and viewed on the same
-          // device), show when it was set; otherwise omit the date line
-          // rather than fabricate one.
-          const localMatch = this.history.find(
-            (h) => !h.flagged && h.gender === r.gender && h.category === r.category && h.format === r.format && Math.abs(h.totalSeconds - r.totalSeconds) < 0.5
-          );
-          const dateHtml = localMatch
-            ? `<div style="margin-top:4px;">${t("hyrox.pb.setPrefix", {
-                date: new Date(localMatch.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }),
-              })}</div>`
-            : "";
-          section.appendChild(el(`
-            <div class="hx-pb-row">
-              <div class="hx-pb-row-time">${formatClock(r.totalSeconds)}</div>
-              <div class="hx-history-meta">
-                <span class="hx-history-tag">${categoryTitle(r.category)}</span>
-                ${dateHtml}
+        const isOpen = this.pbExpandedFormats.has(formatId);
+        const hasMultiple = rows.length > 1;
+        const hero = this.pbTimeButtonHtml(rows[0], "pb-time-btn pb-hero-time");
+
+        // pb-section-trigger is a div[role=button], not a real <button>,
+        // because it wraps its own nested <button> (the hero time) -- see
+        // the constructor comment for why real buttons can't nest.
+        const triggerAttrs = hasMultiple
+          ? `data-action="toggle-pb-format" data-format="${formatId}" role="button" tabindex="0" aria-expanded="${isOpen}"`
+          : "";
+        const section = el(`
+          <div class="pb-section ${isOpen ? "is-open" : ""}">
+            <div class="pb-section-trigger" ${triggerAttrs}>
+              <div class="pb-trigger-main">
+                <div class="pb-format-title">${formatTitle(formatId)}</div>
+                <div class="pb-hero-row">
+                  ${hero.html}
+                  <span class="pb-hero-tag">${categoryTitle(rows[0].category)}</span>
+                </div>
               </div>
+              ${hasMultiple ? `<span class="pb-chevron">${CHEVRON_DOWN_ICON}</span>` : ""}
             </div>
-          `));
-        });
+          </div>
+        `);
+
+        if (hasMultiple) {
+          const detail = el(`<div class="pb-detail"><div class="pb-detail-inner" data-pb-detail-rows></div></div>`);
+          const detailRows = detail.querySelector("[data-pb-detail-rows]");
+          rows.forEach((r) => {
+            const btn = this.pbTimeButtonHtml(r, "pb-time-btn pb-detail-time");
+            const localMatch = btn.localMatch;
+            // The server's leaderboard `me` field is just {rank,
+            // best_seconds, name} -- no date. Best-effort only: shown when
+            // this exact time also matches something in local history
+            // (see pbTimeButtonHtml), an em dash otherwise rather than
+            // fabricating one.
+            const dateHtml = localMatch
+              ? t("hyrox.pb.setPrefix", {
+                  date: new Date(localMatch.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }),
+                })
+              : "&mdash;";
+            detailRows.appendChild(el(`
+              <div class="pb-detail-row">
+                ${btn.html}
+                <div class="pb-detail-meta">
+                  <div class="pb-detail-tag">${categoryTitle(r.category)}</div>
+                  <div class="pb-detail-date">${dateHtml}</div>
+                </div>
+              </div>
+            `));
+          });
+          section.appendChild(detail);
+        }
         sectionsEl.appendChild(section);
       });
       return card;
+    }
+
+    // One PB time as a clickable button: opens the full race report
+    // (renderRaceDetailModal -- the same breakdown + AI analysis History
+    // already shows) when this result matches something in local history,
+    // since that's the only place a race id/splits exist to open. The
+    // leaderboard endpoint this card sources from only ever returns
+    // {rank, best_seconds, name} -- never an id -- so a result set on
+    // another device (or before local history existed) has nothing to
+    // open; the button still exists, but taps it show a toast instead of
+    // silently doing nothing or opening a fake report.
+    pbTimeButtonHtml(r, cls) {
+      // Closest match wins, not first match: two attempts at the same
+      // combo within 0.5s of each other would otherwise let array order
+      // pick the wrong race's report to open behind the PB's own time.
+      const candidates = this.history.filter(
+        (h) => !h.flagged && h.gender === r.gender && h.category === r.category && h.format === r.format && Math.abs(h.totalSeconds - r.totalSeconds) < 0.5
+      );
+      const localMatch = candidates.length
+        ? candidates.reduce((closest, h) => (Math.abs(h.totalSeconds - r.totalSeconds) < Math.abs(closest.totalSeconds - r.totalSeconds) ? h : closest))
+        : undefined;
+      const attrs = localMatch ? `data-action="show-race-detail" data-id="${localMatch.id}"` : `data-action="pb-no-detail"`;
+      return { html: `<button type="button" class="${cls}" ${attrs}>${formatClock(r.totalSeconds)}</button>`, localMatch };
     }
 
     // Four separate global leaderboards -- open/pro x singles/doubles --

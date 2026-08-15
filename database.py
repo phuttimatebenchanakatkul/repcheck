@@ -428,9 +428,24 @@ def _merge_date_keyed(incoming, existing):
 def set_user_data(user_id, key, value):
     """Sets a synced key's value. For MERGE_LOG_KEYS, merges with whatever
     is already stored instead of overwriting it outright -- see that
-    constant's comment above for why."""
+    constant's comment above for why.
+
+    BEGIN IMMEDIATE for the merge branch, same reasoning as
+    set_workout_log_day()'s: this key's dedicated authoritative endpoint
+    (e.g. POST /api/workout/log-day) and this generic merge route can both
+    be triggered by the same client action (static/account_sync.js's
+    wrapped localStorage.setItem fires this route synchronously on every
+    write, in parallel with the dedicated endpoint's own debounced call),
+    so their SELECTs can race the same way two calls to
+    set_workout_log_day() could. This doesn't fully close the gap -- a
+    sufficiently STALE merge push (delivered well after the authoritative
+    write already committed, not just concurrently with it) can still
+    reintroduce a deleted entry, since a union merge has no way to
+    represent "this was intentionally removed" -- but it does close the
+    same-instant race, which is the more common case in practice."""
     with get_db() as conn:
         if key in MERGE_LOG_KEYS:
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT value FROM user_data WHERE user_id = ? AND key = ?", (user_id, key)
             ).fetchone()
@@ -526,6 +541,66 @@ def remove_nutrition_log_entry(user_id, date_iso, entry_id):
             (user_id, NUTRITION_LOG_KEY, payload),
         )
         return day_entries
+
+
+WORKOUT_LOG_KEY = "repcheck_workout_log_v2"
+
+
+def set_workout_log_day(user_id, date_iso, entries):
+    """Atomically replaces one date's entries in the workout log with
+    exactly what's given -- the authoritative write path for every
+    workout-log mutation (add an exercise, delete one, edit its sets/reps/
+    weight), entirely server-side (see POST /api/workout/log-day in
+    app.py). repcheck_workout_log_v2 is in database.py's MERGE_LOG_KEYS, so
+    the generic /api/sync/<key> route merges rather than overwrites it --
+    that route can therefore only ever GAIN entries back from an older
+    stored copy, never remove or change one, so a deleted or edited
+    exercise pushed through that route alone would resurrect or revert on
+    the next sync (this was the actual bug: a workout logged on one device
+    and deleted there would still show on another, because the merge
+    doesn't know the difference between "never existed" and "we removed
+    this"). This instead replaces the entry list for the ONE date given, so
+    additions, edits, and deletions are all represented correctly by a
+    single write, the same way set_weight_log_entry() above already does
+    for weigh-ins. Scoped to one date (not the whole log) so a write here
+    can't clobber a different date's entries even if this request lands
+    out of order relative to another device's edit on a different day.
+    Returns the full updated log so the caller can resync localStorage
+    without a second round trip.
+
+    BEGIN IMMEDIATE, not the connection's default deferred transaction:
+    this function is a read-modify-write against the user's WHOLE log
+    blob (every date lives in one row), and unlike the other log-entry
+    writers in this file, it's called on a 400ms debounce from every
+    single keystroke while editing a set's reps/weight -- so two
+    concurrent calls for two DIFFERENT dates (e.g. one tab actively
+    editing today while another backfills yesterday) are a realistic,
+    not just theoretical, scenario. Python's sqlite3 only auto-begins a
+    transaction before a DML statement, not before SELECT, so without an
+    explicit BEGIN IMMEDIATE here, two overlapping calls could each SELECT
+    the same pre-write blob before either commits, and the second commit
+    would silently discard whatever date the first one had just written --
+    the exact resurrection/lost-update bug class this function exists to
+    prevent, just moved from client-side merge to server-side race.
+    BEGIN IMMEDIATE acquires SQLite's write lock up front, so the second
+    call blocks until the first's SELECT+INSERT+COMMIT is fully done and
+    then reads the up-to-date blob."""
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT value FROM user_data WHERE user_id = ? AND key = ?",
+            (user_id, WORKOUT_LOG_KEY),
+        ).fetchone()
+        log = json.loads(row["value"]) if row else {}
+        log[date_iso] = entries
+        payload = json.dumps(log)
+        conn.execute(
+            """INSERT INTO user_data (user_id, key, value, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (user_id, WORKOUT_LOG_KEY, payload),
+        )
+        return log
 
 
 WEIGHT_LOG_KEY = "repcheck_weight_log_v1"
