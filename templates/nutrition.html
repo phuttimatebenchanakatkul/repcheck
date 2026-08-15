@@ -137,6 +137,23 @@
 <div id="coaching-root"></div>
 <link rel="stylesheet" href="{{ asset_url('coaching.css') }}">
 
+<!-- Confirm-before-delete dialog for the swipe-to-delete gesture on a
+     logged food (see wireSwipeToDelete). Deliberately a real confirm
+     step, not an instant delete, so a stray swipe + tap can't wipe an entry. -->
+<div class="nl-confirm-overlay" id="nl-confirm-overlay">
+  <div class="nl-confirm">
+    <div class="nl-confirm-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+    </div>
+    <div class="nl-confirm-title" id="nl-confirm-title">Delete this food?</div>
+    <div class="nl-confirm-sub" id="nl-confirm-sub"></div>
+    <div class="nl-confirm-actions">
+      <button type="button" class="nl-confirm-cancel" id="nl-confirm-cancel" data-i18n="common.cancel">Cancel</button>
+      <button type="button" class="nl-confirm-delete" id="nl-confirm-delete" data-i18n="nutrition.swipeDelete">Delete</button>
+    </div>
+  </div>
+</div>
+
 <div class="af-modal-overlay" id="af-modal-overlay">
   <div class="af-modal">
     <div class="af-modal-handle"></div>
@@ -1240,18 +1257,109 @@
 
   /* Flat, divider-separated rows rather than a card nested inside the
      outer .nl-log-card -- matches the same flattened-list pattern used
-     for weight/logging history (.wh-row). */
+     for weight/logging history (.wh-row). The divider lives on .nl-swipe
+     (the row's outer wrapper) rather than the card itself, since the card
+     is what slides during swipe-to-delete. */
   .nl-entry-card {
     display: flex; align-items: center; gap: 12px;
     padding: 10px 2px; margin-top: 0; cursor: pointer;
-    border-bottom: 1px solid var(--border);
+    background: var(--card-bg);
     border-radius: 8px;
     animation: nl-pop-in 0.18s ease;
     transition: background-color 0.15s ease, transform 0.1s ease;
   }
-  .nl-timeline .nl-entry-card:last-child { border-bottom: none; }
   .nl-entry-card:hover { background: var(--bg); }
   .nl-entry-card:active { transform: scale(0.985); }
+
+  /* ---------- Swipe-to-delete on a logged food ---------- */
+  /* The card lives in .nl-swipe-content, which slides left to uncover the
+     red .nl-swipe-delete panel pinned behind it on the right. Mirrors the
+     workout log's swipe-to-delete (see workouts.html's wireSwipeToDelete). */
+  .nl-swipe {
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transform: translateZ(0);
+    isolation: isolate;
+  }
+  .nl-timeline .nl-swipe:last-child { border-bottom: none; }
+  .nl-swipe-delete {
+    position: absolute;
+    top: -2px; right: -2px; bottom: -2px;
+    width: 98px;
+    border: none;
+    border-radius: 8px 0 0 8px;
+    background: var(--red);
+    color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    font-size: 12px; font-weight: 700; font-family: inherit;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nl-swipe.is-dragging .nl-swipe-delete,
+  .nl-swipe.is-open .nl-swipe-delete { opacity: 1; }
+  .nl-swipe-delete svg { flex-shrink: 0; }
+  .nl-swipe-delete:active { filter: brightness(0.9); }
+  .nl-swipe-content {
+    position: relative;
+    z-index: 1;
+    transform: translateX(0);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+    touch-action: pan-y;
+  }
+  .nl-swipe.is-dragging .nl-swipe-content,
+  .nl-swipe.is-dragging .nl-swipe-delete { transition: none; }
+
+  /* ---------- Confirm-before-delete dialog ---------- */
+  .nl-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    background: rgba(15, 15, 20, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .nl-confirm-overlay.is-open { opacity: 1; pointer-events: auto; }
+  .nl-confirm {
+    width: 100%; max-width: 340px;
+    background: var(--card-bg);
+    border-radius: 22px;
+    padding: 24px 22px 18px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    transform: scale(0.94);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nl-confirm-overlay.is-open .nl-confirm { transform: scale(1); }
+  .nl-confirm-icon {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--red-bg); color: var(--red);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px;
+  }
+  .nl-confirm-title { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+  .nl-confirm-sub { font-size: 14px; color: var(--text-secondary); margin-top: 5px; }
+  .nl-confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .nl-confirm-cancel, .nl-confirm-delete {
+    flex: 1; padding: 13px; border-radius: 14px;
+    font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer;
+    transition: transform 0.1s ease, filter 0.12s ease;
+  }
+  .nl-confirm-cancel { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .nl-confirm-cancel:active { transform: scale(0.97); }
+  .nl-confirm-delete { background: var(--red); color: #fff; border: none; }
+  .nl-confirm-delete:active { transform: scale(0.97); filter: brightness(0.9); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nl-swipe-content { transition: none; }
+    .nl-confirm { transition: none; }
+  }
   .nl-entry-icon {
     width: 40px; height: 40px; border-radius: 14px; background: var(--bg);
     box-shadow: 0 1px 3px rgba(20, 20, 20, 0.08);
@@ -1588,6 +1696,7 @@
   const INGREDIENTS_EXPANDED = new Set(); // which composite dishes have their ingredients panel open (default minimized)
 
   const CHEVRON_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  const TRASH_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
 
   // All macros are always stored/computed in grams internally (matching
   // the library's per-100g/100mL convention). Unit selectors only affect
@@ -3473,23 +3582,34 @@
   }
 
   function renderEntry(entry) {
+    const t = RepCheckI18n.t;
     const expanded = EXPANDED.has(entry.id);
     const m = scaledMacros(entry);
     const totals = entryTotals(entry);
     const isFav = favorites.has(entry.food);
+    // The card sits in a swipe wrapper: dragging it right-to-left reveals a
+    // red "Delete" panel behind it (see wireSwipeToDelete). Tapping Delete
+    // asks to confirm first. The expanded detail stays below, unswiped.
     return `
-      <div class="nl-entry-card" data-toggle-entry="${entry.id}">
-        <div class="nl-entry-icon">${foodIconHtml(entry.food, "nl-food-photo-entry")}</div>
-        <div class="nl-entry-info">
-          <div class="nl-entry-name">${escapeHtml(entry.food)}</div>
-          <div class="nl-entry-sub">${formatTime(entry.addedAt)} • ${Math.round(totals.grams)}g • ${m.calories} kcal</div>
+      <div class="nl-swipe" data-swipe="${entry.id}">
+        <button type="button" class="nl-swipe-delete" data-swipe-delete="${entry.id}" tabindex="-1" aria-label="${t("nutrition.swipeDelete")}">
+          ${TRASH_ICON}<span>${t("nutrition.swipeDelete")}</span>
+        </button>
+        <div class="nl-swipe-content">
+          <div class="nl-entry-card" data-toggle-entry="${entry.id}">
+            <div class="nl-entry-icon">${foodIconHtml(entry.food, "nl-food-photo-entry")}</div>
+            <div class="nl-entry-info">
+              <div class="nl-entry-name">${escapeHtml(entry.food)}</div>
+              <div class="nl-entry-sub">${formatTime(entry.addedAt)} • ${Math.round(totals.grams)}g • ${m.calories} kcal</div>
+            </div>
+            <button type="button" class="nl-entry-fav-btn ${isFav ? "is-fav" : ""}" data-entry-fav-toggle="${escapeAttr(entry.food)}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">
+              ${isFav ? HEART_FILLED : HEART_OUTLINE}
+            </button>
+            <button type="button" class="nl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? "Minimize" : "Expand"}">
+              ${CHEVRON_ICON}
+            </button>
+          </div>
         </div>
-        <button type="button" class="nl-entry-fav-btn ${isFav ? "is-fav" : ""}" data-entry-fav-toggle="${escapeAttr(entry.food)}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">
-          ${isFav ? HEART_FILLED : HEART_OUTLINE}
-        </button>
-        <button type="button" class="nl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? "Minimize" : "Expand"}">
-          ${CHEVRON_ICON}
-        </button>
       </div>
       ${expanded ? renderEntryDetail(entry) : ""}
     `;
@@ -3771,6 +3891,133 @@
     return (log[selectedDate] || []).find((e) => e.id === id);
   }
 
+  // Shared by the in-detail "Remove food" button and the swipe-to-delete
+  // gesture: drop the entry from the selected day, re-render, and confirm
+  // the removal server-side.
+  function deleteEntry(id) {
+    const dateForEntry = selectedDate;
+    log[dateForEntry] = (log[dateForEntry] || []).filter((e) => e.id !== id);
+    EXPANDED.delete(id);
+    saveLog();
+    renderTimeline();
+    renderSummary();
+    persistRemoveLogEntry(dateForEntry, id);
+  }
+
+  // ---------- Delete confirmation dialog ----------
+  const nlConfirmOverlay = document.getElementById("nl-confirm-overlay");
+  const nlConfirmSub = document.getElementById("nl-confirm-sub");
+  let nlPendingDeleteId = null;
+  function openDeleteConfirm(entry) {
+    nlPendingDeleteId = entry.id;
+    document.getElementById("nl-confirm-title").textContent = RepCheckI18n.t("nutrition.deleteConfirm.title");
+    nlConfirmSub.textContent = entry.food;
+    nlConfirmOverlay.classList.add("is-open");
+  }
+  function closeDeleteConfirm() {
+    nlConfirmOverlay.classList.remove("is-open");
+    nlPendingDeleteId = null;
+  }
+  if (nlConfirmOverlay) {
+    document.getElementById("nl-confirm-cancel").addEventListener("click", closeDeleteConfirm);
+    nlConfirmOverlay.addEventListener("click", (e) => { if (e.target === nlConfirmOverlay) closeDeleteConfirm(); });
+    document.getElementById("nl-confirm-delete").addEventListener("click", () => {
+      if (nlPendingDeleteId) deleteEntry(nlPendingDeleteId);
+      closeDeleteConfirm();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && nlConfirmOverlay.classList.contains("is-open")) closeDeleteConfirm();
+    });
+  }
+
+  // ---------- Swipe-to-delete on logged foods ----------
+  // Drag a card right-to-left to reveal a red "Delete" panel behind it;
+  // tapping Delete asks to confirm. Uses Pointer Events so it works for both
+  // touch and mouse, and distinguishes a horizontal swipe from a vertical
+  // scroll (bails to native scroll when the drag is mostly vertical) and
+  // from a plain tap (which still expands/collapses the card).
+  function wireSwipeToDelete() {
+    const OPEN_W = 96; // must match .nl-swipe-delete width in CSS
+    let openSwipe = null;
+
+    function closeSwipe(swipe) {
+      if (!swipe) return;
+      swipe.classList.remove("is-open");
+      const c = swipe.querySelector(".nl-swipe-content");
+      if (c) c.style.transform = "";
+      if (openSwipe === swipe) openSwipe = null;
+    }
+
+    timelineEl.querySelectorAll(".nl-swipe").forEach((swipe) => {
+      const content = swipe.querySelector(".nl-swipe-content");
+      if (!content) return;
+      let startX = 0, startY = 0, base = 0, offset = 0;
+      let dragging = false, decided = false, moved = false;
+
+      function apply(x) {
+        offset = Math.max(-OPEN_W, Math.min(0, x));
+        content.style.transform = `translateX(${offset}px)`;
+      }
+
+      content.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        startX = e.clientX; startY = e.clientY;
+        base = swipe.classList.contains("is-open") ? -OPEN_W : 0;
+        dragging = true; decided = false; moved = false;
+      });
+
+      content.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (!decided) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          if (Math.abs(dy) >= Math.abs(dx)) { dragging = false; return; } // vertical -> let the page scroll
+          decided = true;
+          swipe.classList.add("is-dragging");
+          try { content.setPointerCapture(e.pointerId); } catch (err) {}
+          if (openSwipe && openSwipe !== swipe) closeSwipe(openSwipe);
+        }
+        moved = true;
+        e.preventDefault();
+        apply(base + dx);
+      });
+
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        swipe.classList.remove("is-dragging");
+        if (!decided) return;
+        if (offset <= -OPEN_W / 2) {
+          swipe.classList.add("is-open");
+          content.style.transform = `translateX(${-OPEN_W}px)`;
+          openSwipe = swipe;
+        } else {
+          closeSwipe(swipe);
+        }
+      }
+      content.addEventListener("pointerup", endDrag);
+      content.addEventListener("pointercancel", endDrag);
+
+      // Capture-phase so this runs before the card's own expand-toggle click:
+      // swallow the click right after a swipe, and turn a tap on an already-
+      // open row into "just close it" instead of expanding.
+      content.addEventListener("click", (e) => {
+        if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; return; }
+        if (swipe.classList.contains("is-open")) { e.stopPropagation(); e.preventDefault(); closeSwipe(swipe); }
+      }, true);
+
+      const delBtn = swipe.querySelector("[data-swipe-delete]");
+      if (delBtn) {
+        delBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const entry = findEntry(delBtn.dataset.swipeDelete);
+          if (entry) openDeleteConfirm(entry);
+        });
+      }
+    });
+  }
+
   function wireTimelineEvents() {
     timelineEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
       el.addEventListener("click", (event) => {
@@ -3792,16 +4039,11 @@
     timelineEl.querySelectorAll("[data-remove-entry]").forEach((btn) => {
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
-        const id = btn.dataset.removeEntry;
-        const dateForEntry = selectedDate;
-        log[dateForEntry] = (log[dateForEntry] || []).filter((e) => e.id !== id);
-        EXPANDED.delete(id);
-        saveLog();
-        renderTimeline();
-        renderSummary();
-        persistRemoveLogEntry(dateForEntry, id);
+        deleteEntry(btn.dataset.removeEntry);
       });
     });
+
+    wireSwipeToDelete();
 
     timelineEl.querySelectorAll("[data-grams-entry]").forEach((input) => {
       input.addEventListener("click", (event) => event.stopPropagation());
