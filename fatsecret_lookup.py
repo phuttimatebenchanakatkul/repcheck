@@ -147,10 +147,6 @@ def _to_open_food_facts_shape(food):
             "proteins_100g": _num(serving, "protein") * scale,
             "fat_100g": _num(serving, "fat") * scale,
             "carbohydrates_100g": _num(serving, "carbohydrate") * scale,
-            # FatSecret reports sodium in mg; OFF (and _validate()) expect
-            # grams, converting back to mg themselves for display.
-            "sodium_100g": (_num(serving, "sodium") / 1000) * scale,
-            "sugars_100g": _num(serving, "sugar") * scale,
         },
     }
 

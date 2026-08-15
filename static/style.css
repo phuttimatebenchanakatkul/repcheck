@@ -451,13 +451,12 @@ input[type="file"], select {
   border: none;
   border-radius: 999px;
   background: linear-gradient(135deg, #4d7ff5, var(--blue));
-  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.1s ease;
   /* Also used on an <a> (result.html's fallback CTA), not just <button> */
   display: block;
   text-decoration: none;
@@ -465,7 +464,7 @@ input[type="file"], select {
   box-sizing: border-box;
 }
 
-.btn-primary:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
+.btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
 
 .btn-primary:active { transform: translateY(0); }
 
@@ -699,9 +698,7 @@ input[type="file"], select {
 /* The pill: collapsed it's a small, quiet centered circle. On .is-open it
    widens into the full centered bar; overflow-hidden clips the input row
    until it's grown. A slow, subtle breathing glow on the collapsed circle
-   (same idea as the "+" FAB's mt-fab-breathe -- a proven "quietly invites
-   a tap without being distracting" pattern already used elsewhere in this
-   app) so the dock doesn't read as just an inert icon -- recognizable as
+   so the dock doesn't read as just an inert icon -- recognizable as
    something to tap, without any loud color or permanent motion once open. */
 .ag-bar {
   align-self: center;
@@ -1019,12 +1016,8 @@ input[type="file"], select {
     border: none;
     background: linear-gradient(135deg, #4d7ff5, var(--blue));
     color: #fff;
-    box-shadow: 0 8px 22px rgba(47, 102, 232, 0.5);
     cursor: pointer;
     flex-shrink: 0;
-    /* A slow, subtle "breathing" glow so the "+" quietly invites a tap
-       without ever being distracting. */
-    animation: mt-fab-breathe 3.2s ease-in-out infinite;
     /* Named so it stays put across navigations, like the pill. */
     view-transition-name: mt-fab;
   }
@@ -1032,11 +1025,7 @@ input[type="file"], select {
   /* wireSheet() flips aria-expanded on the FAB when the sheet opens/closes,
      so the "+" spins into an "×" purely from CSS -- no extra JS. */
   .mt-fab[aria-expanded="true"] svg { transform: rotate(135deg); }
-  .mt-fab:active { transform: scale(0.92); animation: none; }
-  @keyframes mt-fab-breathe {
-    0%, 100% { box-shadow: 0 8px 22px rgba(47, 102, 232, 0.5); }
-    50% { box-shadow: 0 10px 30px rgba(47, 102, 232, 0.72); }
-  }
+  .mt-fab:active { transform: scale(0.92); }
 
   .mt-sheet-overlay {
     display: block;
@@ -1181,11 +1170,9 @@ input[type="file"], select {
   .mt-fab { width: 54px; height: 54px; }
 }
 
-/* Respect users who ask for less motion: drop the FAB's idle breathing and
-   the quick-actions stagger (the sheet still opens, just without the
-   flourish). */
+/* Respect users who ask for less motion: drop the quick-actions stagger
+   (the sheet still opens, just without the flourish). */
 @media (prefers-reduced-motion: reduce) {
-  .mt-fab { animation: none; }
   .mt-sheet-overlay.is-open .qa-tile,
   .mt-sheet-overlay.is-open .qa-cancel { animation: none; }
 }
