@@ -143,6 +143,7 @@ ANALYZE_HISTORY_KEEP = 20
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
 ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_CONTENT_LENGTH = 300 * 1024 * 1024  # 300 MB
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # Any exercise name from this library can be picked and analyzed — see
 # analyze_form_gemini.resolve_exercise for how curated vs. generic
@@ -2016,14 +2017,16 @@ def api_coaching_weekly_adjustment():
         return jsonify({"ok": False, "error": "Missing current_targets."}), 400
 
     # Optional self-reported context (see checkin_analyzer.py's
-    # _build_context_flags_line()) -- list-and-str-filtered since these get
-    # "".join()-ed straight into the Gemini prompt below. A non-list value
-    # (e.g. a malformed client sending high_carb_days as a bare number) must
-    # not reach `for d in ...`, which would TypeError on a non-iterable.
+    # _build_context_flags_line()) -- list-and-date-format-filtered since
+    # these get "".join()-ed straight into the Gemini prompt below. Unlike
+    # every other value reaching that prompt (all numeric), these are
+    # client-supplied strings -- an ISO-date regex (not just isinstance(str))
+    # keeps a malformed/malicious client from injecting arbitrary free text
+    # into the prompt, or padding it with an unbounded number of entries.
     raw_high_carb_days = payload.get("high_carb_days")
     raw_bloating_days = payload.get("bloating_days")
-    high_carb_days = [d for d in raw_high_carb_days if isinstance(d, str)] if isinstance(raw_high_carb_days, list) else []
-    bloating_days = [d for d in raw_bloating_days if isinstance(d, str)] if isinstance(raw_bloating_days, list) else []
+    high_carb_days = [d for d in raw_high_carb_days if isinstance(d, str) and ISO_DATE_RE.match(d)][:31] if isinstance(raw_high_carb_days, list) else []
+    bloating_days = [d for d in raw_bloating_days if isinstance(d, str) and ISO_DATE_RE.match(d)][:31] if isinstance(raw_bloating_days, list) else []
 
     # The deterministic trend calculation always runs first, both as the
     # anchor/fallback for the Gemini call below and as the answer on its
