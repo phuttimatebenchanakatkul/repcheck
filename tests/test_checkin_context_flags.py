@@ -371,3 +371,39 @@ def test_weekly_adjustment_route_caps_flag_list_length(monkeypatch):
     assert res.get_json()["ok"] is True
     assert len(captured["high_carb_days"]) == 31
     assert captured["high_carb_days"][0] == "2026-01-01"
+
+
+def test_weekly_adjustment_route_rejects_non_ascii_digit_dates(monkeypatch):
+    """Python's \\d in re matches any Unicode decimal-digit character, not
+    just ASCII 0-9 -- without re.ASCII, full-width digits (e.g. U+FF10-FF19)
+    or Arabic-Indic digits satisfy \\d{4}-\\d{2}-\\d{2} and would pass as a
+    "validated" date despite not being one, undermining the guarantee that
+    only genuine YYYY-MM-DD strings reach the Gemini prompt."""
+    import app as app_module
+
+    captured = {}
+
+    def fake_analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days=None, bloating_days=None):
+        captured["high_carb_days"] = high_carb_days
+        raise CheckinAnalysisError("stop here")
+
+    monkeypatch.setattr(app_module, "analyze_checkin", fake_analyze_checkin)
+
+    payload = dict(PAYLOAD_BASE)
+    payload["high_carb_days"] = [
+        "2026-08-13",  # valid ASCII date
+        "２０２６-０８-１３",  # full-width digits, same shape
+        "٢٠٢٦-٠٨-١٣",  # Arabic-Indic digits, same shape
+    ]
+    payload["bloating_days"] = []
+
+    client = app_module.app.test_client()
+    res = client.post(
+        "/api/coaching/weekly-adjustment",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+
+    assert res.status_code == 200
+    assert res.get_json()["ok"] is True
+    assert captured["high_carb_days"] == ["2026-08-13"]

@@ -311,3 +311,51 @@
 **Effort:** S
 **Priority:** P3
 **Depends on:** None
+
+### Check-in context flags aren't cross-checked against the actual check-in week
+
+**What:** `api_coaching_weekly_adjustment()` (`app.py`) validates `high_carb_days`/`bloating_days` for shape (ISO date string, ASCII digits, capped at 31 entries) but never checks that a flagged date actually falls within `week_weight_entries`/the check-in week being scored. The client UI (`renderCheckinFlagGrid()`, `static/coaching.js`) only ever lets a user toggle dates from `checkin.weekDates`, so this is unreachable through the app itself -- only a client calling the API directly could submit an out-of-range or nonsensical date (month/day aren't range-checked beyond `\d{2}`, so `"2026-13-45"` passes format validation).
+
+**Why:** A flagged date with no relationship to the week actually being reviewed still reaches `checkin_analyzer.py`'s Gemini prompt as "the user flagged this about their own week: they ate notably more carbs...", letting a user (or direct API caller) retroactively attach a water-retention excuse to any weigh-in. Low severity: this is self-directed (same account, same trust boundary as every other self-reported check-in field -- weight entries and calorie logs are equally unvalidated against reality), and the numeric outcome stays clamped to the existing +/-150 kcal/day `WEEKLY_ADJUSTMENT_LIMIT` regardless of what the AI reads in the prompt.
+
+**Context:** Found by the red-team specialist during `/ship` on `checkin-context-prompts` (confidence 6/10). Deferred because it doesn't cross the app's existing trust model (all check-in inputs are self-reported and already unvalidated against ground truth) and a real fix means determining "the check-in week" server-side (timezone-aware, likely needs to intersect against `week_weight_entries`' own date set) -- more scope than this branch's stated intent.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Silent AI-fallback on check-in loses the user's flagged days with no signal
+
+**What:** When `analyze_checkin()` (`checkin_analyzer.py`) raises `CheckinAnalysisError` for any reason (Gemini timeout, malformed response, transient API error), `app.py`'s except-block falls back to `coaching_engine.weekly_adjustment()` -- which never receives `high_carb_days`/`bloating_days` at all -- and still returns `{"ok": true}` with no indication the flags were ignored. This isn't specific to the context-flags feature: the same silent fallback already existed for progress photos before this branch (a text-only check-in and a check-in with photos that hits an AI hiccup both silently degrade to the deterministic-only reasoning), and is the intentional, documented design (see `checkin_analyzer.py`'s module docstring: deterministic math is the safety floor/fallback, AI is the judgment layer).
+
+**Why:** A user who took the extra step of flagging high-carb/bloated days gets a normal-looking successful check-in with zero indication those flags never factored into the number they received -- the exact outlier-weigh-in-triggers-too-big-a-cut scenario this feature exists to prevent can still happen silently on any AI-call hiccup.
+
+**Context:** Found by the red-team specialist during `/ship` on `checkin-context-prompts` (confidence 5/10). Deferred: this is a pre-existing property of the whole check-in AI-fallback architecture (already true for photos), not a regression introduced by this diff, and surfacing "AI reviewed this vs. deterministic fallback used" to the user is a result-screen/API-contract change bigger than this branch's scope.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+### submitCheckin()'s payload construction has no direct JS test
+
+**What:** `submitCheckin()` (`static/coaching.js`) builds the `/api/coaching/weekly-adjustment` POST body including `high_carb_days: Object.keys(c.highCarbDays)` and `bloating_days: Object.keys(c.bloatedDays)`, but `submitCheckin()` itself has zero test coverage in `tests-js/` (confirmed: no test file references it). `tests-js/checkinContextFlags.test.js` covers `toggleCheckinFlag()`/`renderCheckinFlagGrid()` (the state mutation and rendering), and `tests/test_checkin_context_flags.py` proves the server correctly forwards a `high_carb_days`/`bloating_days` payload shaped exactly like what `submitCheckin()` sends -- but nothing exercises the actual `Object.keys(...)` transformation that turns the UI's flag-map state into that payload.
+
+**Why:** A bug in that one line (e.g. sending the flag map itself instead of its keys, or swapping which map feeds which field) would not be caught by any existing test. Low risk in practice: `Object.keys()` is a builtin with no room for the kind of logic bug the rest of this feature's tests already guard against.
+
+**Context:** Flagged by the testing specialist during `/ship` on `checkin-context-prompts` (confidence 5.5/10). Deferred rather than fixed inline because `submitCheckin()` is a large async method (fetch, photo-file handling, localStorage) -- isolating just its payload-construction logic for a test is a bigger extraction than the two simple methods already covered, comparable in scope to building a new harness rather than reusing the existing `loadCheckinFlags.js` pattern.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Check-in flag pills reuse the day-status pill's shape with no toggle-vs-cycle distinction
+
+**What:** `renderCheckinFlagGrid()` (`static/coaching.js`) reuses the exact `.pc-ck-day` circular pill component (same size/shape) as `renderCheckinDayGrid()` directly above it in the same check-in sheet, differentiated only by an added `.pc-ck-flag-day` modifier class for color. The first grid cycles each day through statuses on tap; the two new grids are independent on/off toggles -- three visually-identical rows of round pills with no shape/icon distinction between the "cycle" and "toggle" affordances.
+
+**Why:** A user could reasonably assume all three pill rows behave the same way (cycling through states) rather than two of them being simple flags. Purely a visual/interaction-design polish item, not a functional bug -- the pills are labeled with section headers (`coaching.checkin.highCarbLabel`/`bloatedLabel`) directly above each row.
+
+**Context:** Flagged by the design specialist during `/ship` on `checkin-context-prompts` (confidence 5/10). Deferred as a subjective design-polish call -- picking a distinct shape/icon treatment (e.g. rounded-square/checkbox look) is a visual decision better made deliberately than folded into a review-fix pass.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None

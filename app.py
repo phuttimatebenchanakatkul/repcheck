@@ -143,7 +143,7 @@ ANALYZE_HISTORY_KEEP = 20
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
 ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_CONTENT_LENGTH = 300 * 1024 * 1024  # 300 MB
-ISO_DATE_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z")
+ISO_DATE_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z", re.ASCII)
 
 # Any exercise name from this library can be picked and analyzed — see
 # analyze_form_gemini.resolve_exercise for how curated vs. generic
