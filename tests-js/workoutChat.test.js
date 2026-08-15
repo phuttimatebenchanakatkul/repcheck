@@ -169,12 +169,39 @@ describe("sendMessage", () => {
     const body = JSON.parse(options.body);
     expect(body.message).toBe("How's my bench?");
     expect(body.context).toHaveProperty("workout_summary");
+    // Regression: chatHistory has the new turn pushed onto it (for optimistic
+    // rendering) BEFORE the fetch -- the wire payload's `history` must exclude
+    // that just-added turn, or the server ends up sending Gemini the same
+    // user message twice (once as `message`, once as the last history item).
+    expect(body.history).toEqual([]);
 
     const hist = getChatHistory();
     expect(hist).toHaveLength(2);
     expect(hist[0]).toMatchObject({ role: "user", text: "How's my bench?" });
     expect(hist[1]).toMatchObject({ role: "assistant", text: "Try **32 kg**." });
     expect(dom.messagesEl.innerHTML).toContain("<strong>32 kg</strong>");
+  });
+
+  it("sends only PRIOR turns as history, excluding the message just being sent", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      json: async () => ({ ok: true, reply: "ok", limited: false, retry_after_seconds: 0 }),
+    });
+    const { sendMessage, dom, setChatHistory } = loadWorkoutChat({ fetchImpl });
+    setChatHistory([
+      { role: "user", text: "earlier question", date: "2026-08-13" },
+      { role: "assistant", text: "earlier answer", date: "2026-08-13" },
+    ]);
+    dom.inputEl.value = "follow up";
+
+    await sendMessage();
+
+    const [, options] = fetchImpl.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body.message).toBe("follow up");
+    expect(body.history).toEqual([
+      { role: "user", text: "earlier question", date: "2026-08-13" },
+      { role: "assistant", text: "earlier answer", date: "2026-08-13" },
+    ]);
   });
 
   it("shows a friendly error bubble when the request throws (network failure)", async () => {

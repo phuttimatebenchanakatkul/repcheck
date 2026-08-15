@@ -4299,7 +4299,12 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message,
-            history: chatHistory,
+            // chatHistory already has this turn appended (pushed above, so
+            // it renders optimistically) -- history is "prior turns", so
+            // the just-added one is excluded here or the server would send
+            // Gemini the same user turn twice (once via history, once via
+            // message).
+            history: chatHistory.slice(0, -1),
             context: { workout_summary: buildRecentWorkoutSummary() },
           }),
         });
