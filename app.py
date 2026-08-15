@@ -49,6 +49,7 @@ from barcode_scanner import (
     search_open_food_facts,
 )
 from coach_chat import get_coach_reply
+from workout_chat import get_workout_chat_reply
 from checkin_analyzer import CheckinAnalysisError, analyze_checkin
 from coaching_engine import (
     FEMALE_BODY_FAT_RANGES,
@@ -316,10 +317,11 @@ ADMIN_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
 # Applied to EVERY account. (A first version grandfathered accounts that
 # existed before the limits shipped via database.py's `rate_limited` column,
 # but that just made the limits look broken when testing with an existing
-# account -- the column is now vestigial and ignored.) Both chatbots (Coach
-# page + analysis follow-ups) share the one "ai_chat" bucket. The AI routes
-# all require login (the app is fully login-gated anyway), so there's no
-# anonymous path that could dodge the per-user counter.
+# account -- the column is now vestigial and ignored.) All three chatbots
+# (Coach page, analysis follow-ups, and the workout-log chat) share the one
+# "ai_chat" bucket. The AI routes all require login (the app is fully
+# login-gated anyway), so there's no anonymous path that could dodge the
+# per-user counter.
 RATE_LIMITS = {
     "workout_analysis": (1, 24 * 60 * 60),  # 1 per day
     "food_analysis": (3, 24 * 60 * 60),     # 3 per day
@@ -439,6 +441,7 @@ SYNCED_DATA_KEYS = {
     "repcheck_nutrition_favorites_v1",
     "repcheck_analyze_log_v1",
     "repcheck_coach_chat_v1",
+    "repcheck_workout_chat_v1",
     "repcheck_coaching_profile_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
@@ -1353,6 +1356,7 @@ ADMIN_PAGE_LABELS = {
 ADMIN_FEATURE_LABELS = {
     "workout_analysis": "Workout analyses (AI)", "food_scan": "Food photo scans (AI)",
     "coach_chat_message": "Coach chat messages", "analyze_chat_message": "Analysis chat messages",
+    "workout_chat_message": "Workout chat messages",
     "hyrox_ai_analysis": "HYROX race analyses (AI)", "challenge_submission": "Challenge submissions",
     "food_logged": "Foods logged", "weight_logged": "Weigh-ins logged", "barcode_scan": "Barcode scans",
 }
@@ -1900,6 +1904,40 @@ def api_analyze_chat():
     result = get_analysis_chat_reply(message, history, context)
     _rate_limit_record("ai_chat")
     _track_feature("analyze_chat_message")
+    return jsonify({
+        "ok": True,
+        "reply": result["reply"],
+        "limited": result["limited"],
+        "retry_after_seconds": result["retry_after_seconds"],
+    })
+
+
+@app.route("/api/workout-chat", methods=["POST"])
+def api_workout_chat():
+    # Same reasoning as /api/analyze-food: every message must count against
+    # an account, so no anonymous access.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message", "")).strip()
+    history = payload.get("history") or []
+    context = payload.get("context") or {}
+
+    if not message:
+        return jsonify({"ok": False, "error": "Message can't be empty."}), 400
+    if not isinstance(history, list):
+        return jsonify({"ok": False, "error": "Invalid history."}), 400
+    if not isinstance(context, dict):
+        return jsonify({"ok": False, "error": "Invalid context."}), 400
+
+    blocked, retry = _rate_limit_blocked("ai_chat")
+    if blocked:
+        return jsonify({"ok": True, **_chat_limit_response(retry)})
+
+    result = get_workout_chat_reply(message, history, context)
+    _rate_limit_record("ai_chat")
+    _track_feature("workout_chat_message")
     return jsonify({
         "ok": True,
         "reply": result["reply"],

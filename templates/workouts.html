@@ -29,6 +29,32 @@
   <div class="wl-day" id="wl-day"></div>
 </div>
 
+<!-- AI chat scoped to the last 7 days of logged workouts -- lives as its
+     own sibling section (not inside #wl-day, which renderTimeline()
+     fully overwrites on every render) so it survives date navigation and
+     set edits untouched. See the wlc- styles/script below. -->
+<div class="wlc-chat" id="wlc-chat">
+  <div class="wlc-header">
+    <div class="wlc-header-icon">🤖</div>
+    <div class="wlc-header-text">
+      <div class="wlc-title" data-i18n="workoutChat.title">Workout AI Chat</div>
+      <div class="wlc-subtitle" data-i18n="workoutChat.subtitle">Ask about your last 7 days of training</div>
+    </div>
+    <button type="button" class="wlc-clear-btn" id="wlc-clear-btn" data-i18n-aria-label="coach.newChat" aria-label="New chat" data-i18n-title="coach.newChat" title="New chat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+  </div>
+  <div class="wlc-messages" id="wlc-messages"></div>
+  <div class="wlc-suggestions" id="wlc-suggestions"></div>
+  <div class="wlc-status" id="wlc-status" hidden></div>
+  <form class="wlc-input-pill" id="wlc-form">
+    <input type="text" id="wlc-input" data-i18n-placeholder="workoutChat.inputPlaceholder" placeholder="Ask about your recent workouts..." autocomplete="off" maxlength="600">
+    <button type="submit" class="wlc-send-btn" id="wlc-send-btn" aria-label="Send message">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+    </button>
+  </form>
+</div>
+
 <!-- Exercise picker -- the shared Apple-style logging bottom sheet (see
      .log-sheet-* in style.css). Search settles in first, then today's
      suggested exercises + recent. IDs are unchanged so the picker JS
@@ -1586,6 +1612,225 @@
     from { opacity: 0; transform: translateY(-6px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* ---------- AI chat beneath the workout list (scoped to last 7 days) ---------- */
+  .wlc-chat {
+    margin-top: 16px;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .wlc-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .wlc-header-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .wlc-header-text { flex: 1; min-width: 0; }
+  .wlc-title { font-size: 14.5px; font-weight: 800; color: var(--text); }
+  .wlc-subtitle { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+  .wlc-clear-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .wlc-clear-btn:hover { color: var(--blue); border-color: var(--blue); }
+  .wlc-clear-btn:active { transform: scale(0.92); }
+
+  .wlc-messages {
+    max-height: 360px;
+    min-height: 120px;
+    overflow-y: auto;
+    padding: 16px 16px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .wlc-messages::-webkit-scrollbar { width: 8px; }
+  .wlc-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+  .wlc-bubble {
+    max-width: 88%;
+    padding: 11px 15px;
+    border-radius: 18px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    word-break: break-word;
+    animation: wlc-pop-in 0.18s ease;
+  }
+  .wlc-bubble-bot {
+    align-self: flex-start;
+    background: var(--bg);
+    color: var(--text);
+    border-bottom-left-radius: 6px;
+  }
+  .wlc-bubble-user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+  .wlc-bubble strong { font-weight: 700; }
+  .wlc-bubble p { margin: 0 0 6px; }
+  .wlc-bubble p:last-child { margin-bottom: 0; }
+  .wlc-bullet-list { margin: 4px 0 6px; padding-left: 18px; }
+  .wlc-bullet-list:last-child { margin-bottom: 0; }
+  .wlc-bullet-list li { margin-bottom: 3px; }
+  .wlc-bullet-list li:last-child { margin-bottom: 0; }
+
+  .wlc-empty {
+    text-align: center;
+    padding: 18px 12px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: auto 0;
+  }
+
+  .wlc-typing-dots {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 13px 16px;
+    background: var(--bg);
+    border-radius: 18px;
+    border-bottom-left-radius: 6px;
+  }
+  .wlc-typing-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    animation: wlc-bounce 1.2s ease-in-out infinite;
+  }
+  .wlc-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .wlc-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  .wlc-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 0 16px 10px;
+    flex-shrink: 0;
+  }
+  .wlc-suggestion-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  }
+  .wlc-suggestion-row:hover { border-color: var(--blue); color: var(--blue); }
+  .wlc-suggestion-row:active { transform: scale(0.98); }
+  .wlc-suggestion-row span { flex: 1; }
+
+  .wlc-status {
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--amber);
+    padding: 0 16px 8px;
+    flex-shrink: 0;
+  }
+
+  .wlc-input-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 14px 14px;
+    padding: 5px 5px 5px 16px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    flex-shrink: 0;
+    transition: border-color 0.15s ease;
+  }
+  .wlc-input-pill:focus-within { border-color: var(--blue); }
+  .wlc-input-pill input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 12px 0;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .wlc-input-pill input::placeholder { color: var(--text-secondary); }
+  .wlc-input-pill input:disabled { cursor: not-allowed; }
+  .wlc-input-pill:has(input:disabled) { opacity: 0.6; }
+  .wlc-send-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.1s ease, opacity 0.15s ease;
+  }
+  .wlc-send-btn:hover { opacity: 0.92; }
+  .wlc-send-btn:active { transform: scale(0.92); }
+  .wlc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  @keyframes wlc-pop-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes wlc-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  @media (max-width: 480px) {
+    .wlc-messages { max-height: 300px; padding: 12px 12px 4px; }
+    .wlc-bubble { max-width: 92%; font-size: 14px; }
+    .wlc-suggestions { padding: 0 12px 8px; }
+    .wlc-input-pill { margin: 0 10px 12px; }
+    .wlc-input-pill input { font-size: 16px; } /* prevents iOS auto-zoom on focus */
+  }
 </style>
 
 <script>
@@ -2141,6 +2386,11 @@
     document.getElementById("wl-log-btn").addEventListener("click", openExerciseModal);
     wireTimelineEvents();
     renderDateStrip(); // keep the "logged that day" dots in sync
+    // The AI chat widget lives outside #wl-day (see its own comment above)
+    // so it doesn't get re-rendered by the innerHTML replacement above --
+    // tell it explicitly that `selectedDate` may have changed, so it can
+    // reload the right day's thread and re-apply its today-only lock state.
+    document.dispatchEvent(new CustomEvent("repcheck:workout-date-changed"));
   }
 
   function renderEntry(entry) {
@@ -4060,6 +4310,390 @@
     if (quick !== "log") return;
     history.replaceState(null, "", location.pathname);
     openExerciseModal();
+  })();
+
+  // ---------- AI chat grounded in the user's logged workouts ----------
+  // Chat is scoped to whichever date is selected in the date strip above:
+  // writable only on today (selectedDate === todayIso), read-only for any
+  // other day. History is stored per calendar day and kept permanently --
+  // navigating to an old day shows that day's frozen thread rather than
+  // wiping it, unlike the old single-rolling-array design.
+  (function () {
+    const STORAGE_KEY = "repcheck_workout_chat_v1";
+    const SUGGESTION_KEYS = ["workoutChat.suggestion1", "workoutChat.suggestion2"];
+
+    const chatEl = document.getElementById("wlc-chat");
+    const messagesEl = document.getElementById("wlc-messages");
+    const suggestionsEl = document.getElementById("wlc-suggestions");
+    const formEl = document.getElementById("wlc-form");
+    const inputEl = document.getElementById("wlc-input");
+    const sendBtn = document.getElementById("wlc-send-btn");
+    const clearBtn = document.getElementById("wlc-clear-btn");
+    const statusEl = document.getElementById("wlc-status");
+    if (!chatEl) return;
+
+    function isSelectedDateToday() {
+      return selectedDate === toIsoDate(new Date());
+    }
+
+    // Storage shape: { "<date-iso>": [...turns] } -- one thread per
+    // calendar day, all kept (never pruned by date rollover). Registered
+    // in database.py's LOG_MERGE_DATE_KEYED_KEYS / account_sync.js's
+    // MERGE_LOG_KEYS so a stale device can never wipe another device's
+    // days, same protection the workout log itself has.
+    function loadAllThreads() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        return (stored && typeof stored === "object" && !Array.isArray(stored)) ? stored : {};
+      } catch (err) { return {}; }
+    }
+    function loadHistory(dateIso) {
+      const threads = loadAllThreads();
+      const thread = threads[dateIso];
+      return Array.isArray(thread) ? thread : [];
+    }
+    function saveHistory(dateIso, hist) {
+      const threads = loadAllThreads();
+      threads[dateIso] = hist.slice(-60);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
+    }
+
+    let chatHistory = loadHistory(selectedDate);
+    let isSending = false;
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Same minimal, safe formatting as coach.html's formatBubble: escape
+    // everything first, then re-enable just "- " bullets and **bold**.
+    function formatBubble(text) {
+      const lines = escapeHtml(text).split("\n");
+      let html = "";
+      let inList = false;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        const isBullet = /^[-*]\s+/.test(line);
+        if (isBullet) {
+          if (!inList) { html += "<ul class=\"wlc-bullet-list\">"; inList = true; }
+          html += `<li>${line.replace(/^[-*]\s+/, "")}</li>`;
+        } else {
+          if (inList) { html += "</ul>"; inList = false; }
+          if (line) html += `<p>${line}</p>`;
+        }
+      }
+      if (inList) html += "</ul>";
+      return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    }
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // "Today" / "Yesterday" / a friendly localized date for any other day
+    // in the last 7 -- same rule dayTitle() (above) uses for the selected day.
+    function dayLabelFor(iso) {
+      const t = RepCheckI18n.t;
+      const todayIso = toIsoDate(new Date());
+      if (iso === todayIso) return t("workouts.plan.today");
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (iso === toIsoDate(yesterday)) return t("workouts.day.yesterday");
+      return new Date(iso + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", day: "numeric", month: "short" });
+    }
+
+    // Mirrors renderEntry()/renderEntryDetail()'s weight/reps extraction so
+    // what the AI reads matches what's actually shown on the card.
+    function describeSet(entry, s) {
+      const unit = RepCheckUnits.weightUnitLabel();
+      if (entry.unilateral) {
+        if (isBlank(s.leftReps) && isBlank(s.rightReps)) return null;
+        const leftWeight = !isBlank(s.leftKg) ? `${RepCheckUnits.kgToDisplay(s.leftKg)}${unit} ` : "";
+        const rightWeight = !isBlank(s.rightKg) ? `${RepCheckUnits.kgToDisplay(s.rightKg)}${unit} ` : "";
+        const leftReps = isBlank(s.leftReps) ? "-" : s.leftReps;
+        const rightReps = isBlank(s.rightReps) ? "-" : s.rightReps;
+        return `L ${leftWeight}x ${leftReps} reps, R ${rightWeight}x ${rightReps} reps`;
+      }
+      if (isBlank(s.reps)) return null;
+      if (isBodyweight(entry.exercise)) return `${s.reps} reps (bodyweight)`;
+      const weightPart = !isBlank(s.weightKg) ? `${RepCheckUnits.kgToDisplay(s.weightKg)}${unit} ` : "";
+      return `${weightPart}x ${s.reps} reps`;
+    }
+
+    const RECENT_DAYS = 7;
+    // Per exercise, how many of its most recent sessions to recite --
+    // this is a COUNT of occurrences, not a calendar window, so an
+    // exercise trained only once every week or two still gets its real
+    // history instead of coming up empty inside a fixed 7-day cutoff.
+    const EXERCISE_HISTORY_SESSIONS = 4;
+    // Bounds the exercise-history section to whichever exercises were
+    // touched most recently, so a long-time user's full lifetime exercise
+    // catalog doesn't bloat every single request.
+    const MAX_EXERCISES_IN_HISTORY = 30;
+
+    // Lean day-by-day overview for the last 7 CALENDAR days -- entries
+    // only, no "no workout logged" filler (that wastes prompt space and
+    // isn't useful now that the exercise-history section below covers
+    // specific-exercise recall). Good for "am I training X enough this
+    // week"-style questions.
+    function buildRecentDaysOverview() {
+      const lines = [];
+      const base = new Date();
+      for (let i = RECENT_DAYS - 1; i >= 0; i--) {
+        const d = new Date(base);
+        d.setDate(d.getDate() - i);
+        const iso = toIsoDate(d);
+        const entries = (log[iso] || []).slice().sort((a, b) => a.addedAt - b.addedAt);
+        if (!entries.length) continue;
+        const names = entries.map((entry) => entry.exercise).join(", ");
+        lines.push(`${dayLabelFor(iso)} (${iso}): ${names}`);
+      }
+      return lines.length ? lines.join("\n") : "(No workouts logged in the last 7 days.)";
+    }
+
+    // For EVERY exercise ever logged (across the whole `log`, not just the
+    // last 7 days), its most recent EXERCISE_HISTORY_SESSIONS occurrences
+    // with exact sets/weight/reps -- this is the data the AI recites
+    // verbatim before giving progressive-overload advice, so "recite my
+    // last 4 tricep extension sessions" is answered from real grounded
+    // numbers, never guessed. Built fresh at send-time from the live `log`
+    // object (not cached) so it always reflects on-screen edits.
+    function buildExerciseHistorySection() {
+      const byExercise = new Map();
+      Object.keys(log).forEach((dateIso) => {
+        (log[dateIso] || []).forEach((entry) => {
+          if (!byExercise.has(entry.exercise)) byExercise.set(entry.exercise, []);
+          byExercise.get(entry.exercise).push({ dateIso, entry });
+        });
+      });
+      if (!byExercise.size) return "(No exercises logged yet.)";
+
+      const exercises = Array.from(byExercise.entries()).map(([exercise, occurrences]) => {
+        // Most recent first: date descending, then addedAt descending for
+        // same-day duplicates (e.g. two separate logged sets of the same
+        // exercise on one day).
+        occurrences.sort((a, b) => {
+          if (a.dateIso !== b.dateIso) return a.dateIso < b.dateIso ? 1 : -1;
+          return b.entry.addedAt - a.entry.addedAt;
+        });
+        return { exercise, occurrences, mostRecentDate: occurrences[0].dateIso };
+      });
+      exercises.sort((a, b) => (a.mostRecentDate < b.mostRecentDate ? 1 : -1));
+
+      const lines = [];
+      exercises.slice(0, MAX_EXERCISES_IN_HISTORY).forEach(({ exercise, occurrences }) => {
+        lines.push(`${exercise}:`);
+        occurrences.slice(0, EXERCISE_HISTORY_SESSIONS).forEach(({ dateIso, entry }) => {
+          const setDescs = entry.sets.map((s) => describeSet(entry, s)).filter(Boolean);
+          lines.push(`- ${dayLabelFor(dateIso)} (${dateIso}): ${setDescs.length ? setDescs.join("; ") : "no sets recorded"}`);
+        });
+      });
+      return lines.join("\n");
+    }
+
+    function buildRecentWorkoutSummary() {
+      return (
+        `Workouts logged in the last 7 days:\n${buildRecentDaysOverview()}\n\n` +
+        `Exercise history (last ${EXERCISE_HISTORY_SESSIONS} sessions each):\n${buildExerciseHistorySection()}`
+      );
+    }
+
+    function renderMessages() {
+      const t = RepCheckI18n.t;
+      if (!chatHistory.length) {
+        messagesEl.innerHTML = `<div class="wlc-empty">${t("workoutChat.empty")}</div>`;
+        renderSuggestions();
+        return;
+      }
+      suggestionsEl.innerHTML = "";
+      messagesEl.innerHTML = chatHistory.map((turn) => `
+        <div class="wlc-bubble ${turn.role === "user" ? "wlc-bubble-user" : "wlc-bubble-bot"}">${formatBubble(turn.text)}</div>
+      `).join("");
+      scrollToBottom();
+    }
+
+    function renderSuggestions() {
+      const suggestions = SUGGESTION_KEYS.map((key) => RepCheckI18n.t(key));
+      suggestionsEl.innerHTML = suggestions.map((q) => `
+        <button type="button" class="wlc-suggestion-row" data-suggestion="${escapeHtml(q)}"><span>${q}</span></button>
+      `).join("");
+      suggestionsEl.querySelectorAll("[data-suggestion]").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          inputEl.value = chip.dataset.suggestion;
+          sendMessage();
+        });
+      });
+    }
+
+    function showTyping() {
+      const dots = document.createElement("div");
+      dots.className = "wlc-typing-dots";
+      dots.id = "wlc-typing-row";
+      dots.innerHTML = "<span></span><span></span><span></span>";
+      messagesEl.appendChild(dots);
+      scrollToBottom();
+    }
+    function hideTyping() {
+      const row = document.getElementById("wlc-typing-row");
+      if (row) row.remove();
+    }
+
+    // ---------- Session message limit lockout ----------
+    let lockoutInterval = null;
+    let lockoutTimeout = null;
+
+    function formatCountdown(seconds) {
+      seconds = Math.max(seconds, 0);
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return hours ? `${hours}h ${minutes}m` : `${Math.max(minutes, 1)}m`;
+    }
+
+    function applyLimitLockout(retryAfterSeconds) {
+      let remaining = retryAfterSeconds;
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+      inputEl.placeholder = RepCheckI18n.t("workoutChat.limitReachedPlaceholder");
+
+      const updateStatus = () => {
+        statusEl.hidden = false;
+        statusEl.textContent = RepCheckI18n.t("workoutChat.limitReached", { time: formatCountdown(remaining) });
+      };
+      updateStatus();
+
+      clearInterval(lockoutInterval);
+      clearTimeout(lockoutTimeout);
+      lockoutInterval = setInterval(() => {
+        remaining = Math.max(remaining - 30, 0);
+        updateStatus();
+      }, 30000);
+      lockoutTimeout = setTimeout(() => {
+        clearInterval(lockoutInterval);
+        inputEl.disabled = false;
+        sendBtn.disabled = false;
+        inputEl.placeholder = RepCheckI18n.t("workoutChat.inputPlaceholder");
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+        inputEl.focus();
+      }, retryAfterSeconds * 1000);
+    }
+
+    function newTurnId() {
+      return (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    }
+
+    async function sendMessage() {
+      const message = inputEl.value.trim();
+      // Belt-and-suspenders: the input/send button are already disabled
+      // whenever the selected date isn't today (see applyDateLockState),
+      // but guard here too in case this is ever called programmatically
+      // (a suggestion chip click, a stray Enter-key event) while viewing
+      // a past/future day.
+      if (!message || isSending || !isSelectedDateToday()) return;
+
+      isSending = true;
+      sendBtn.disabled = true;
+      inputEl.value = "";
+
+      const todayIso = toIsoDate(new Date());
+      chatHistory.push({ id: newTurnId(), role: "user", text: message, date: todayIso });
+      saveHistory(todayIso, chatHistory);
+      renderMessages();
+      showTyping();
+
+      try {
+        const response = await fetch("{{ url_for('api_workout_chat') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            // chatHistory already has this turn appended (pushed above, so
+            // it renders optimistically) -- history is "prior turns", so
+            // the just-added one is excluded here or the server would send
+            // Gemini the same user turn twice (once via history, once via
+            // message).
+            history: chatHistory.slice(0, -1),
+            context: { workout_summary: buildRecentWorkoutSummary() },
+          }),
+        });
+        const data = await response.json();
+        hideTyping();
+        const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
+        chatHistory.push({ id: newTurnId(), role: "assistant", text: reply, date: todayIso });
+        saveHistory(todayIso, chatHistory);
+        renderMessages();
+        if (data.ok && data.limited) {
+          applyLimitLockout(data.retry_after_seconds);
+        }
+      } catch (err) {
+        hideTyping();
+        chatHistory.push({ id: newTurnId(), role: "assistant", text: RepCheckI18n.t("workoutChat.errorReaching"), date: todayIso });
+        saveHistory(todayIso, chatHistory);
+        renderMessages();
+      } finally {
+        isSending = false;
+        if (!inputEl.disabled) {
+          sendBtn.disabled = false;
+          inputEl.focus();
+        }
+      }
+    }
+
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sendMessage();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      if (!isSelectedDateToday()) return; // hidden on non-today, but guard anyway
+      chatHistory = [];
+      saveHistory(toIsoDate(new Date()), chatHistory);
+      renderMessages();
+      inputEl.focus();
+    });
+
+    // ---------- Today-only interactivity ----------
+    // Chat can only be WRITTEN on today's log; any other date shows that
+    // day's frozen thread (if any) read-only. Navigating dates never
+    // deletes history -- only sendMessage()/clearBtn (both gated to
+    // today) can change it.
+    function applyDateLockState() {
+      const isToday = isSelectedDateToday();
+      inputEl.disabled = !isToday;
+      sendBtn.disabled = !isToday;
+      clearBtn.hidden = !isToday;
+      inputEl.placeholder = isToday
+        ? RepCheckI18n.t("workoutChat.inputPlaceholder")
+        : RepCheckI18n.t("workoutChat.readOnlyDayPlaceholder");
+      if (isToday) {
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+      } else {
+        // A rate-limit countdown ticking from an earlier today-visit must
+        // not keep running and overwrite this message when its interval
+        // next fires -- if the user navigates back to today before it
+        // would have expired, their next send attempt simply hits the
+        // same server-side limit again and re-triggers a fresh countdown.
+        clearInterval(lockoutInterval);
+        clearTimeout(lockoutTimeout);
+        statusEl.hidden = false;
+        statusEl.textContent = RepCheckI18n.t("workoutChat.readOnlyDayStatus");
+      }
+    }
+
+    function refreshForSelectedDate() {
+      chatHistory = loadHistory(selectedDate);
+      applyDateLockState();
+      renderMessages();
+    }
+
+    document.addEventListener("repcheck:workout-date-changed", refreshForSelectedDate);
+
+    applyDateLockState();
+    renderMessages();
+    document.addEventListener("repcheck:language-changed", renderMessages);
   })();
 </script>
 {% endblock %}
