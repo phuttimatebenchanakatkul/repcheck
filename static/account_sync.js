@@ -225,6 +225,7 @@
     "repcheck_analyze_log_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
+    "repcheck_workout_chat_v1",
   ]);
 
   // Of those, these two are a flat ARRAY of entries; the rest are
