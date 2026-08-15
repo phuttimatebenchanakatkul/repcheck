@@ -42,6 +42,13 @@ class BarcodeScanError(Exception):
     Facts."""
 
 
+class ProductNotFoundError(BarcodeScanError):
+    """A barcode was read fine, but no source (Open Food Facts or
+    FatSecret) has a product for it -- as opposed to a decode failure or a
+    network/API error. app.py's scan/lookup routes catch this specifically
+    to offer "create this as a custom food" instead of a generic retry."""
+
+
 def _shorten_name(name, max_len=40):
     name = re.sub(r"\s+", " ", name).strip()
     if len(name) <= max_len:
@@ -149,7 +156,7 @@ def _lookup_product(barcode):
         raise BarcodeScanError("Got an unexpected response looking up that product.") from exc
 
     if data.get("status") != 1 or not data.get("product"):
-        raise BarcodeScanError(
+        raise ProductNotFoundError(
             f"No product found for barcode {barcode}. It may not be in the "
             "Open Food Facts database yet."
         )
@@ -229,7 +236,11 @@ def _validate(barcode, product, source="Open Food Facts"):
         "sugar_g": _num(nutriments, "sugars_100g"),
     }
     if not any([per_100g["calories"], per_100g["protein"], per_100g["fat"], per_100g["carbs"]]):
-        raise BarcodeScanError(
+        # Treated the same as a total miss (ProductNotFoundError, not the
+        # base BarcodeScanError) -- the product exists on {source} but
+        # there's nothing usable to show, so the app's redirect into
+        # "create this food yourself" applies here too.
+        raise ProductNotFoundError(
             f"Found \"{food_name}\" but it has no nutrition data on {source}."
         )
     per_100g = _sanitize_per_100g(per_100g, food_name, source)
