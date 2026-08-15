@@ -124,6 +124,7 @@
     whether or not anything is logged yet.
   -->
   <div class="card nl-log-card">
+    <div class="nl-day-head" id="nl-day-head"></div>
     <button type="button" class="nl-log-btn" id="nl-log-btn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       <span data-i18n="nutrition.logFood">Log a food</span>
@@ -418,6 +419,15 @@
     color: #fff;
     box-shadow: 0 4px 12px rgba(47, 102, 232, 0.35);
   }
+  /* A soft green dot marks days that already have food logged -- mirrors
+     the workout log's .wl-date-dot streak cue. */
+  .nl-date-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .nl-date-dot.is-empty { background: transparent; }
 
   /* ---------- Analyze-a-photo + manual-macro entry points + modal ---------- */
 
@@ -1248,6 +1258,16 @@
 
   /* Primary "Log a food" button + entry list, mirroring the workout log's
      .wl-log-btn / .wl-day-list / .wl-empty so both pages read the same. */
+  .nl-day-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .nl-day-title { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
+  .nl-day-sub { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+
   .nl-log-btn {
     width: 100%;
     display: flex;
@@ -1268,7 +1288,7 @@
   .nl-log-btn:active { transform: scale(0.98); }
   .nl-log-btn svg { flex-shrink: 0; }
 
-  .nl-timeline { display: flex; flex-direction: column; margin-top: 14px; }
+  .nl-timeline { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 
   .nl-empty { text-align: center; padding: 34px 16px 26px; }
   .nl-empty-icon {
@@ -1285,20 +1305,17 @@
   .nl-empty-title { font-size: 15px; font-weight: 700; color: var(--text); }
   .nl-empty-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; }
 
-  /* Flat, divider-separated rows rather than a card nested inside the
-     outer .nl-log-card -- matches the same flattened-list pattern used
-     for weight/logging history (.wh-row). The divider lives on .nl-swipe
-     (the row's outer wrapper) rather than the card itself, since the card
-     is what slides during swipe-to-delete. */
+  /* A rounded card per entry, gap-separated in .nl-timeline -- matches the
+     workout log's .wl-entry-card list instead of the old flattened,
+     divider-separated rows. */
   .nl-entry-card {
     display: flex; align-items: center; gap: 12px;
-    padding: 10px 2px; margin-top: 0; cursor: pointer;
-    background: var(--card-bg);
-    border-radius: 8px;
+    background: var(--bg);
+    border-radius: 18px;
+    padding: 13px 14px;
+    cursor: pointer;
     animation: nl-pop-in 0.18s ease;
-    transition: background-color 0.15s ease, transform 0.1s ease;
   }
-  .nl-entry-card:hover { background: var(--bg); }
   .nl-entry-card:active { transform: scale(0.985); }
 
   /* ---------- Swipe-to-delete on a logged food ---------- */
@@ -1307,19 +1324,17 @@
      workout log's swipe-to-delete (see workouts.html's wireSwipeToDelete). */
   .nl-swipe {
     position: relative;
-    border-bottom: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 18px;
     overflow: hidden;
     transform: translateZ(0);
     isolation: isolate;
   }
-  .nl-timeline .nl-swipe:last-child { border-bottom: none; }
   .nl-swipe-delete {
     position: absolute;
     top: -2px; right: -2px; bottom: -2px;
     width: 98px;
     border: none;
-    border-radius: 8px 0 0 8px;
+    border-radius: 18px 0 0 18px;
     background: var(--red);
     color: #fff;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -1391,9 +1406,8 @@
     .nl-confirm { transition: none; }
   }
   .nl-entry-icon {
-    width: 40px; height: 40px; border-radius: 14px; background: var(--bg);
-    box-shadow: 0 1px 3px rgba(20, 20, 20, 0.08);
-    display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+    width: 44px; height: 44px; border-radius: 14px; background: var(--card-bg);
+    display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; overflow: hidden;
   }
   .nl-entry-info { flex: 1; min-width: 0; }
   .nl-entry-name {
@@ -1676,8 +1690,11 @@
     .nl-macro-pill-value { font-size: 13px; }
     .nl-date-number { width: 32px; height: 32px; font-size: 13px; }
     .nl-date-weekday { font-size: 10px; }
-    .nl-entry-card { padding: 10px; gap: 8px; }
-    .nl-entry-icon { width: 34px; height: 34px; font-size: 16px; }
+    .nl-day-title { font-size: 17px; }
+    .nl-entry-card { padding: 11px 12px; gap: 10px; }
+    .nl-entry-icon { width: 40px; height: 40px; font-size: 17px; }
+    .nl-entry-name { font-size: 15px; }
+    .nl-entry-sub { font-size: 11px; }
     .nl-hero { gap: 14px; }
     .nl-hero-ring { width: 96px; height: 96px; }
     .nl-hero-kcal { font-size: 22px; }
@@ -2043,6 +2060,7 @@
   let weekStart = startOfWeek(today);
 
   const dateStripEl = document.getElementById("nl-date-strip");
+  const dayHeadEl = document.getElementById("nl-day-head");
   const timelineEl = document.getElementById("nl-timeline");
 
   // ---------- Favorites ----------
@@ -3720,10 +3738,12 @@
       const classes = ["nl-date-cell"];
       if (iso === todayIso) classes.push("is-today");
       if (iso === selectedDate) classes.push("is-selected");
+      const hasEntries = (log[iso] || []).length > 0;
       cells.push(`
         <button type="button" class="${classes.join(" ")}" data-date="${iso}">
           <span class="nl-date-weekday">${WEEKDAY_LETTERS[i]}</span>
           <span class="nl-date-number">${d.getDate()}</span>
+          <span class="nl-date-dot ${hasEntries ? "" : "is-empty"}"></span>
         </button>
       `);
     }
@@ -3731,7 +3751,6 @@
     dateStripEl.querySelectorAll("[data-date]").forEach((btn) => {
       btn.addEventListener("click", () => {
         selectedDate = btn.dataset.date;
-        renderDateStrip();
         renderTimeline();
         renderSummary();
       });
@@ -3746,13 +3765,35 @@
     return RepCheckUnits.formatHourLabel(hour);
   }
 
+  // "Today" / "Yesterday" / a friendly localized date for anything else --
+  // mirrors the workout log's dayTitle().
+  function dayTitle() {
+    const t = RepCheckI18n.t;
+    const todayIso = toIsoDate(new Date());
+    if (selectedDate === todayIso) return t("nutrition.day.today");
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (selectedDate === toIsoDate(yesterday)) return t("nutrition.day.yesterday");
+    return new Date(selectedDate + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", day: "numeric", month: "short" });
+  }
+
   function renderTimeline() {
     const t = RepCheckI18n.t;
-    // Flat, time-ordered list of the day's foods (each card already shows
-    // its own logged time), matching the workout log's entry list instead
-    // of the old 24-row hour grid. Same card whether or not the day has
-    // anything logged.
+    // Time-ordered list of the day's foods, each in its own rounded card
+    // (each card already shows its own logged time) -- matches the
+    // workout log's entry list and day header instead of the old
+    // 24-row hour grid / flat divider rows.
     const dayEntries = (log[selectedDate] || []).slice().sort((a, b) => a.addedAt - b.addedAt);
+
+    const totalKcal = dayEntries.reduce((sum, entry) => sum + scaledMacros(entry).calories, 0);
+    const summary = dayEntries.length
+      ? `${t("nutrition.day.items", { n: dayEntries.length, s: dayEntries.length === 1 ? "" : "s" })} · ${Math.round(totalKcal)} kcal`
+      : "";
+
+    dayHeadEl.innerHTML = `
+      <div class="nl-day-title">${dayTitle()}</div>
+      ${summary ? `<div class="nl-day-sub">${summary}</div>` : ""}
+    `;
 
     timelineEl.innerHTML = dayEntries.length
       ? dayEntries.map((entry) => renderEntry(entry)).join("")
@@ -3765,6 +3806,7 @@
       `;
 
     wireTimelineEvents();
+    renderDateStrip(); // keep the "logged that day" dots in sync
   }
 
   function renderEntry(entry) {
