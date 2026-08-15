@@ -82,6 +82,20 @@ def exercise_picker_fn(workouts_html):
     return workouts_html[start:end]
 
 
+@pytest.fixture(scope="module")
+def inline_exercise_picker_fn(workouts_html):
+    start = workouts_html.index("async function renderInlineExercisePicker(container")
+    end = workouts_html.index("function renderWholeSplitView()", start)
+    return workouts_html[start:end]
+
+
+@pytest.fixture(scope="module")
+def picker_expand_css(workouts_html):
+    start = workouts_html.index(".wl-plan-picker-expand {")
+    end = workouts_html.index('/* Names the split the AI chose')
+    return workouts_html[start:end]
+
+
 # ---------- bottom sheet ----------
 
 
@@ -284,14 +298,37 @@ def test_wizard_save_handler_uses_persistSplitPlan_too(workouts_html):
 
 
 def test_week_view_has_a_pick_exercises_button_that_persists_immediately(whole_split_body_fn):
+    """"Pick exercises" expands renderInlineExercisePicker() in place
+    (#wl-plan-picker-expand) instead of swapping the whole sheet over to
+    renderExercisePickerStep()'s full-step picker -- see
+    renderInlineExercisePicker()'s own docstring-comment for why it isn't
+    just a call to that function against a different container."""
     assert 'id="split-view-pick-exercises-btn"' in whole_split_body_fn
+    assert 'id="wl-plan-picker-expand"' in whole_split_body_fn
     assert re.search(
-        r"renderExercisePickerStep\(activeLabel, \{\s*"
+        r"renderInlineExercisePicker\(pickerInner, \{\s*"
         r"getSelected: \(\) => activeDay\.exercises,\s*"
         r"onDone: \(selected\) => \{\s*"
         r"activeDay\.exercises = selected;\s*"
         r"persistSplitPlan\(plan\);\s*"
         r"renderWholeSplitBody\(plan\);",
+        whole_split_body_fn,
+    )
+
+
+def test_week_view_pick_exercises_button_toggles_the_expand_panel(whole_split_body_fn):
+    """Tapping the button while the panel is already open must collapse it
+    again without saving -- it's a toggle, not a one-way navigation into a
+    picker screen."""
+    assert re.search(
+        r'const opening = !pickerExpand\.classList\.contains\("is-open"\);\s*'
+        r'pickerExpand\.classList\.toggle\("is-open", opening\);',
+        whole_split_body_fn,
+    )
+    assert re.search(
+        r"if \(!opening\) \{\s*"
+        r"pickerInner\.innerHTML = \"\";\s*"
+        r"return;\s*\}",
         whole_split_body_fn,
     )
 
@@ -417,3 +454,74 @@ def test_exercise_picker_bails_if_stale_after_the_await(exercise_picker_fn):
         r"splitModalBody\.innerHTML = `",
         exercise_picker_fn,
     )
+
+
+# ---------- inline "Pick exercises" expansion (weekly-split view) ----------
+#
+# renderInlineExercisePicker() mounts the same categorized search+pick UI
+# into a container inside the already-open weekly-split view instead of
+# swapping #split-modal-body over to a new step, so the sheet visibly grows
+# in place (see the .wl-plan-picker-expand grid animation) rather than
+# looking like a second screen/sheet popping over the first.
+
+
+def test_inline_picker_shares_the_list_builder_with_the_wizard_step(workouts_html):
+    """Both pickers must render exercises identically -- sharing
+    buildExercisePickerListHtml() instead of each maintaining its own copy
+    of the category/search filtering logic."""
+    assert "function buildExercisePickerListHtml(query, selected) {" in workouts_html
+    assert workouts_html.count("listEl.innerHTML = buildExercisePickerListHtml(query, selected);") == 2
+
+
+def test_inline_picker_mounts_into_the_given_container_not_the_modal_body(inline_exercise_picker_fn):
+    """Unlike renderExercisePickerStep() (which always targets the fixed
+    #split-modal-body/#split-ex-picker-* ids), this picker must be
+    reusable against an arbitrary container -- it's mounted into
+    #wl-plan-picker-expand-inner, a small element nested inside the
+    weekly-split view's own #split-modal-body render."""
+    assert "container.innerHTML = `" in inline_exercise_picker_fn
+    assert "splitModalBody" not in inline_exercise_picker_fn
+    assert 'container.querySelector(".split-ex-picker-search")' in inline_exercise_picker_fn
+
+
+def test_inline_picker_takes_an_isStale_callback_instead_of_its_own_generation_counter(inline_exercise_picker_fn):
+    """It has no render step of its own to bump splitModalGeneration --
+    staleness is the caller's (renderWholeSplitBody's) responsibility,
+    since only the caller knows whether the panel got closed/reopened or
+    the whole view got re-rendered while loadCustomExercises() was
+    in flight."""
+    assert re.search(
+        r"async function renderInlineExercisePicker\(container, \{ getSelected, onDone \}, isStale\) \{\s*"
+        r"const t = RepCheckI18n\.t;\s*"
+        r"const selected = new Set\(getSelected\(\)\);\s*"
+        r"\s*"
+        r"await loadCustomExercises\(\);\s*"
+        r"if \(isStale\(\)\) return;",
+        inline_exercise_picker_fn,
+    )
+
+
+def test_inline_picker_wiring_passes_a_combined_staleness_check(whole_split_body_fn):
+    """Staleness here has two independent causes: the panel itself got
+    toggled closed/reopened (pickerToken), or the whole week view got
+    re-rendered out from under it -- another weekday tab, a remove-button
+    edit, "Edit split" (splitModalGeneration). Either one alone would miss
+    the other case."""
+    assert re.search(
+        r"\}, \(\) => myToken !== pickerToken \|\| splitModalGeneration !== renderGeneration\);",
+        whole_split_body_fn,
+    )
+
+
+def test_picker_expand_animates_via_max_height_not_display_none(picker_expand_css):
+    """A display:none/block toggle would cut straight to the final state --
+    the max-height 0 -> a generous cap transition is what makes the panel
+    visibly grow instead of snapping open, matching the "carefully expand
+    vertically" requirement this exists to satisfy. (An earlier version of
+    this used the grid-template-rows 0fr->1fr trick instead, but hit an
+    overflow circularity that stuck the track at ~padding height instead
+    of the content's intrinsic size.)"""
+    assert "max-height: 0;" in picker_expand_css
+    assert re.search(r"\.wl-plan-picker-expand\.is-open\s*\{\s*max-height:", picker_expand_css)
+    assert "transition: max-height" in picker_expand_css
+    assert "display: none" not in picker_expand_css
