@@ -3117,6 +3117,42 @@
     return wasmBarcodeLoad;
   }
 
+  // Two ways to sample the same camera frame, alternated tick by tick.
+  //
+  // "crop" takes the middle of the frame at the sensor's own resolution --
+  // the region under the on-screen scan window, where the barcode is when
+  // someone is aiming at all. "wide" takes the whole frame scaled down, for
+  // a barcode sitting outside that window.
+  //
+  // The crop is what makes a readable frame possible at arm's length. An
+  // iPhone's rear camera cannot focus closer than roughly 10cm, so a barcode
+  // held right up to it is blurred beyond recovery no matter what the decoder
+  // does -- the user has to back off, and backing off shrinks the barcode.
+  // Sampling the middle at full sensor resolution instead of downscaling the
+  // entire frame keeps the bars sharp at the distance the lens can actually
+  // focus at.
+  function captureBarcodeFrame(video, canvas, ctx, mode) {
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (mode === "crop") {
+      // Matches .af-scanner-frame (78% x 34%), padded a little so a barcode
+      // straddling the guide still lands inside the sample.
+      const cw = Math.round(vw * 0.86);
+      const ch = Math.round(vh * 0.46);
+      const sx = Math.round((vw - cw) / 2);
+      const sy = Math.round((vh - ch) / 2);
+      canvas.width = cw;
+      canvas.height = ch;
+      ctx.drawImage(video, sx, sy, cw, ch, 0, 0, cw, ch); // 1:1, no rescale
+    } else {
+      const scale = Math.min(1, BARCODE_FRAME_WIDTH / vw);
+      canvas.width = Math.round(vw * scale);
+      canvas.height = Math.round(vh * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+  }
+
   // On-device decoding: no upload, no round-trip, so this runs at camera
   // speed rather than at network speed. That difference is the whole point --
   // a barcode read is mostly a numbers game (many frames, one of them sharp),
@@ -3134,11 +3170,9 @@
       if (!busy && video.videoWidth) {
         busy = true;
         try {
-          const scale = Math.min(1, BARCODE_FRAME_WIDTH / video.videoWidth);
-          canvas.width = Math.round(video.videoWidth * scale);
-          canvas.height = Math.round(video.videoHeight * scale);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const frame = captureBarcodeFrame(
+            video, canvas, ctx, attempts % 2 === 0 ? "crop" : "wide"
+          );
           const symbols = await wasm.scanImageData(frame);
           if (!barcodeLiveStream) return;
           const retail = (symbols || []).filter((s) => RETAIL_SYMBOLOGIES.test(s.typeName || ""));
@@ -3152,8 +3186,15 @@
             }
           }
           attempts += 1;
-          if (hintEl && attempts === 60) {
-            hintEl.textContent = "Still looking — try moving closer or adding light";
+          // Advise backing off, not leaning in. A phone camera can't focus
+          // closer than about a hand's width, and the instinct when a scan
+          // isn't working is to move nearer -- which blurs the bars past the
+          // point any decoder can read them.
+          if (hintEl && attempts === 40) {
+            hintEl.textContent = "Hold about 20cm away and let it focus";
+          }
+          if (hintEl && attempts === 120) {
+            hintEl.textContent = "Try more light, or flatten the label if it's curved";
           }
         } catch (err) { // one bad frame shouldn't end the scan
         } finally {
