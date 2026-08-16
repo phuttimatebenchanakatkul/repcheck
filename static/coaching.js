@@ -1894,7 +1894,7 @@
           <div class="pc-wizard-step-label">${t("coaching.wizard.stepWeightGender")}</div>
           <div class="pc-field">
             <label for="pc-weight-kg">${t("coaching.wizard.currentWeight", { unit: weightUnit })}</label>
-            <input type="number" id="pc-weight-kg" min="1" step="0.1" value="${displayWeight}">
+            <input type="number" id="pc-weight-kg" min="1" step="0.1" value="${displayWeight}" data-clear-on-focus>
           </div>
         </div>
       `);
@@ -1934,7 +1934,7 @@
           <div class="pc-wizard-step-label">${t("coaching.wizard.stepGoalWeight")}</div>
           <div class="pc-field">
             <label for="pc-goal-weight-kg">${t("coaching.wizard.goalWeight", { unit: weightUnit })}</label>
-            <input type="number" id="pc-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}">
+            <input type="number" id="pc-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}" data-clear-on-focus>
             <div class="pc-field-hint" id="pc-goal-weight-hint"></div>
           </div>
         </div>
@@ -2396,7 +2396,7 @@
                 ? `<div class="pc-checkin-logged-note">✓ ${t("coaching.checkin.weightAlreadyLogged")}</div>`
                 : `
                   <div class="pc-ck-weight-field">
-                    <input type="number" id="pc-checkin-weight" min="1" step="0.1" value="${c.weightInput}" placeholder="0.0">
+                    <input type="number" id="pc-checkin-weight" min="1" step="0.1" value="${c.weightInput}" placeholder="0.0" data-clear-on-focus>
                     <span class="pc-ck-weight-unit">${weightUnit}</span>
                   </div>
                 `}

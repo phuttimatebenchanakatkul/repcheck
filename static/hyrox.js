@@ -747,8 +747,11 @@
       // synthetic click through the same delegated handler above.
       this.root.addEventListener("keydown", (event) => this.handleKeydown(event));
       this.root.addEventListener("change", (event) => this.handleChange(event));
-      this.root.addEventListener("focusin", (event) => this.handleFocusIn(event));
-      this.root.addEventListener("focusout", (event) => this.handleFocusOut(event));
+      // The blank-on-focus behavior for this page's [data-clear-on-focus]
+      // number fields (station weights, doubles round splits, custom
+      // station amounts, facility lane width) is delegated off `document`
+      // by static/numeric_fields.js, shared with every other numeric field
+      // in the app -- nothing to bind here.
       // Press-and-hold drag reorder for the custom builder's station list
       // -- see handleCustomRowPointerDown(). Now lives directly on the
       // race-setup page (part of #hyrox-root), not a bottom sheet, so it's
@@ -1025,30 +1028,6 @@
     closeStationInfo() {
       this.stationInfo = null;
       this.render();
-    }
-
-    // Tapping a number field should let you just type the new value, not
-    // make you clear 3 digits first -- so it blanks on focus. The old
-    // value is stashed on the element and put back on blur if nothing was
-    // typed, so tapping in and back out never silently changes anything.
-    // Bound via focusin/focusout (which bubble, unlike focus/blur) so this
-    // survives the sheet's innerHTML being rebuilt on every render.
-    handleFocusIn(event) {
-      const input = event.target.closest("[data-clear-on-focus]");
-      if (!input) return;
-      input.dataset.prevValue = input.value;
-      input.value = "";
-    }
-
-    handleFocusOut(event) {
-      const input = event.target.closest("[data-clear-on-focus]");
-      if (!input) return;
-      if (input.value.trim() === "" && input.dataset.prevValue != null) {
-        input.value = input.dataset.prevValue;
-        // Nothing changed, so no setter runs and no re-render is needed --
-        // restoring the text is the whole job.
-      }
-      delete input.dataset.prevValue;
     }
 
     handleChange(event) {
@@ -1891,7 +1870,8 @@
       `);
       overlay.addEventListener("click", (e) => { if (e.target === overlay) this.closeRaceDetail(); });
       overlay.querySelector("#hx-detail-breakdown").appendChild(this.renderRaceBreakdown(race));
-      overlay.querySelector("#hx-detail-analysis").appendChild(this.renderRaceAnalysis(race));
+      const detailAnalysis = this.renderRaceAnalysis(race);
+      if (detailAnalysis) overlay.querySelector("#hx-detail-analysis").appendChild(detailAnalysis);
       return overlay;
     }
 
@@ -2467,7 +2447,7 @@
             <label class="hx-space-field">
               <span class="hx-space-field-label">${t("hyrox.space.laneLabel")}</span>
               <span class="hx-space-input-wrap">
-                <input type="number" inputmode="decimal" step="0.5" min="1" max="500" value="${lane}" data-facility-lane-input class="hx-space-input">
+                <input type="number" inputmode="decimal" step="0.5" min="1" max="500" value="${lane}" data-facility-lane-input data-clear-on-focus class="hx-space-input">
                 <span class="hx-space-input-unit">m</span>
               </span>
             </label>
@@ -2894,7 +2874,9 @@
     // The AI coaching block: a CTA until analyzed, a spinner while loading,
     // then the overall read + tips grouped by rating (biggest time-gains
     // first, then strengths, then the already-solid rest) so the list
-    // reads as a priority order, not 8 identical boxes. Returns an element.
+    // reads as a priority order, not 8 identical boxes. Returns an element,
+    // or null when there's nothing to show at all (custom races) -- callers
+    // must skip appending in that case.
     renderRaceAnalysis(result) {
       // A flagged race's splits aren't a real performance, so there's
       // nothing honest to coach -- the whole feature is disabled for it.
@@ -2908,17 +2890,13 @@
       }
       // The coaching prompt is built around the fixed standard stations --
       // a custom race's station mix (and count) is open-ended, so there's
-      // no standard to coach against. This is the actual gate (finishRace()
+      // no standard to coach against. We render nothing at all rather than a
+      // placeholder note. This is still the actual gate (finishRace()
       // also skips the auto-analysis call for custom races, but this is
       // what stops the lazy "!cache" fallback below from firing one anyway
       // the first time this ever renders for a custom result).
       if (result.category === "custom") {
-        return el(`
-          <div class="hx-analyze-disabled">
-            <span class="hx-analyze-disabled-icon">${SPARKLE_ICON}</span>
-            <span>${t("hyrox.analysis.unavailableCustom")}</span>
-          </div>
-        `);
+        return null;
       }
 
       this.hydrateAnalysisFromRecord(result);
@@ -3059,7 +3037,8 @@
       }
 
       card.querySelector("#hx-breakdown-slot").appendChild(this.renderRaceBreakdown(result));
-      card.querySelector("#hx-analysis-slot").appendChild(this.renderRaceAnalysis(result));
+      const analysisNode = this.renderRaceAnalysis(result);
+      if (analysisNode) card.querySelector("#hx-analysis-slot").appendChild(analysisNode);
 
       return card;
     }

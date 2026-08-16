@@ -45,6 +45,7 @@ from barcode_scanner import (
     BarcodeScanError,
     ProductNotFoundError,
     decode_barcode,
+    digits_only,
     lookup_by_barcode,
     search_open_food_facts,
 )
@@ -1073,7 +1074,10 @@ def api_lookup_barcode():
     # camera feed (see nutrition.html) -- no photo upload needed, just the
     # decoded value to look up.
     payload = request.get_json(silent=True) or {}
-    barcode = str(payload.get("barcode") or "").strip()
+    # Normalize before _resolve_barcode(), not just inside lookup_by_barcode():
+    # the user's-own-custom-food fast path does an exact string match, so a
+    # dirty value would skip past their saved food and hit the external API.
+    barcode = digits_only(str(payload.get("barcode") or ""))
     if not barcode:
         return jsonify({"ok": False, "error": "No barcode value given."}), 400
 
@@ -1156,7 +1160,11 @@ def api_create_custom_food():
     # straight to this food (see _resolve_barcode() above) instead of
     # failing again. Optional otherwise: a food created via the plain
     # "Create food" tile has no barcode.
-    barcode = str(payload.get("barcode") or "").strip() or None
+    # Digits only, same as every other barcode path -- the client already
+    # does this, but a direct API call doesn't, and a dirty value stored
+    # here would never match the clean value a real scan produces (and
+    # would slip past the duplicate check just below).
+    barcode = digits_only(str(payload.get("barcode") or ""))[:20] or None
     if barcode and get_custom_food_by_barcode(user["id"], barcode):
         return jsonify({
             "ok": False,

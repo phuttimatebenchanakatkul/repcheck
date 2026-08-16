@@ -64,6 +64,19 @@ def _num(source, key):
         return 0.0
 
 
+def digits_only(value):
+    """Retail barcodes (EAN/UPC) are always numeric -- strip anything else
+    (whitespace, stray symbology noise) so every lookup keys on digits
+    only, regardless of which path produced the raw value: photo decode,
+    live BarcodeDetector, or a hand-edited value POSTed to the API.
+
+    Every barcode that gets stored or compared goes through here. Skipping
+    it anywhere means a dirty value ("123-456") never string-matches the
+    clean one a real scan produces, so the product silently stops
+    resolving -- see api_create_custom_food()/api_lookup_barcode()."""
+    return re.sub(r"\D", "", value)
+
+
 def decode_barcode(image_bytes):
     """Return the first barcode string found in the photo, or raise
     BarcodeScanError if none is detected."""
@@ -84,7 +97,7 @@ def decode_barcode(image_bytes):
     preferred_types = {"EAN13", "EAN8", "UPCA", "UPCE"}
     preferred = [r for r in results if r.type in preferred_types]
     chosen = preferred[0] if preferred else results[0]
-    return chosen.data.decode("utf-8").strip()
+    return digits_only(chosen.data.decode("utf-8"))
 
 
 def _parse_serving_grams(product):
@@ -291,7 +304,11 @@ def lookup_by_barcode(barcode):
     has no match, falls back to FatSecret (see fatsecret_lookup.py) --
     silently a no-op if FATSECRET_CLIENT_ID/SECRET aren't configured, so
     this behaves exactly as before until those are set up."""
-    barcode = str(barcode).strip()
+    # Covers both the pyzbar photo path (already stripped in decode_barcode)
+    # and the client-side BarcodeDetector path (raw camera read, not yet
+    # sanitized), so this is always the single place a non-numeric barcode
+    # value gets cleaned up before searching.
+    barcode = digits_only(str(barcode).strip())
     if not barcode:
         raise BarcodeScanError("No barcode value given.")
     try:
