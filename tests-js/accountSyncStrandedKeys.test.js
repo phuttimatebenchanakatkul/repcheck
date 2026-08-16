@@ -153,4 +153,70 @@ describe("hydration", () => {
 
     expect(storage.getItem(CHAT_KEY)).toBeNull();
   });
+
+  it("trusts a just-written local chat thread over the server copy instead of merging", async () => {
+    // Mirrors the MERGE_UNION_KEYS / MERGE_LOG_KEYS "recently written
+    // locally" trust window (RECENT_WRITE_MS): a chat turn written moments
+    // ago on this device must win outright and be re-pushed, not merged
+    // against whatever the hydration GET raced back with -- even when the
+    // server copy looks longer (e.g. it's a stale draft from another tab
+    // that the local write has since superseded).
+    const local = thread("just typed this");
+    const server = thread("stale from another device", "and another");
+    const fetchMock = mockSync({ [CHAT_KEY]: server });
+    const { storage } = await start({
+      initialLocal: {
+        [CHAT_KEY]: JSON.stringify(local),
+        __repcheck_sync_write_times: JSON.stringify({ [CHAT_KEY]: Date.now() }),
+      },
+    });
+
+    // Untouched by the merge: still exactly the local (shorter) thread.
+    expect(JSON.parse(storage.getItem(CHAT_KEY))).toEqual(local);
+
+    const pushes = pushesFor(fetchMock, CHAT_KEY);
+    expect(pushes).toHaveLength(1);
+    expect(JSON.parse(pushes[0][1].body).value).toEqual(local);
+  });
+});
+
+describe("logout clears account-owned keys (clearAccountOwnedKeys)", () => {
+  // clearAccountOwnedKeys() used to be duplicated inline at both the logout
+  // submit handler and the owner-mismatch hydration check; this diff
+  // extracted it into one shared function and added the chat-key sweep to
+  // it. Neither call site had any test before this file existed, so a
+  // mistake in the extraction (e.g. dropping the PER_DEVICE_KEYS exclusion,
+  // or only wiring the chat sweep into one of the two call sites) would
+  // have shipped silently. This exercises the actual logout <form> submit
+  // path, not just the owner-mismatch path covered above.
+  function submitLogoutForm() {
+    const form = document.createElement("form");
+    form.action = "/logout";
+    document.body.appendChild(form);
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    document.body.removeChild(form);
+  }
+
+  it("removes regular synced keys and this device's chat threads, but keeps per-device keys", async () => {
+    mockSync();
+    const { storage } = await start({
+      initialLocal: {
+        repcheck_workout_log_v2: JSON.stringify({ "2026-01-01": [] }),
+        [FAVORITES_KEY]: JSON.stringify(["Bench Press"]),
+        repcheck_theme: "dark",
+        repcheck_language: "en",
+        [CHAT_KEY]: JSON.stringify(thread("the logged-out user's question")),
+      },
+    });
+
+    submitLogoutForm();
+
+    expect(storage.getItem("repcheck_workout_log_v2")).toBeNull();
+    expect(storage.getItem(FAVORITES_KEY)).toBeNull();
+    expect(storage.getItem(CHAT_KEY)).toBeNull();
+    // PER_DEVICE_KEYS (theme/language) are not account data -- logging out
+    // must not reset the device's own display preferences.
+    expect(storage.getItem("repcheck_theme")).toBe("dark");
+    expect(storage.getItem("repcheck_language")).toBe("en");
+  });
 });
