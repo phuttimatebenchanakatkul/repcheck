@@ -789,8 +789,13 @@
 }
 .hx-space-weight-value { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
 .hx-space-weight-label { font-size: 9px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 3px; }
+/* A bare <input type=number> with no width falls back to the browser's
+   default intrinsic width (historically ~20 characters) -- `ch` sizes it
+   to the digit count these station weights actually use (up to 3 digits,
+   e.g. "202"), same fix already applied to this input's other use in
+   .hx-custom-row (see the comment there). */
 .hx-space-weight-input {
-  width: 100%; min-width: 0; padding: 0; margin: 0;
+  width: 3.5ch; min-width: 0; padding: 0; margin: 0;
   background: none; border: none;
   border-bottom: 1px dashed var(--text-secondary);
   border-radius: 0;
