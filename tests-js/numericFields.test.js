@@ -30,16 +30,30 @@ describe("numeric_fields.js -- clear-on-focus for number inputs", () => {
     expect(bound.map((b) => b.type).sort()).toEqual(["focusin", "focusout"]);
   });
 
-  it("blanks a pre-filled field on focus and fires a bubbling input event so live previews follow", () => {
+  it("blanks a pre-filled field on focus", () => {
     const { focusIn } = loadNumericFields();
     const input = numberField("100");
+
+    focusIn(input);
+
+    expect(input.value).toBe("");
+  });
+
+  // The blank is visual only. The restore runs off focusout, and a focused
+  // field can be destroyed before focusout fires (a sheet rebuilt by a
+  // language switch or an incoming sync rather than by a tap) -- if the
+  // clear had already pushed "" through to the listeners, that blank would
+  // be all that was ever recorded of the user's real number.
+  it("does not notify listeners of the blank, so a teardown before focusout cannot record it", () => {
+    const { focusIn } = loadNumericFields();
+    const input = numberField("12");
     const seen = countInputEvents(input);
 
     focusIn(input);
 
     expect(input.value).toBe("");
-    expect(seen.count).toBe(1);
-    expect(seen.bubbled).toBe(1);
+    expect(seen.count).toBe(0);
+    expect(seen.bubbled).toBe(0);
   });
 
   it("restores the previous value on blur-while-empty, so tapping in and out changes nothing", () => {
@@ -51,8 +65,12 @@ describe("numeric_fields.js -- clear-on-focus for number inputs", () => {
     focusOut(input);
 
     expect(input.value).toBe("100");
-    expect(seen.count).toBe(2);
     expect(input.dataset.prevValue).toBeUndefined();
+    // One event, from the restore: the user may have emptied the field
+    // themselves, in which case listeners hold "" and have to be told the
+    // old number is back or the field and the state disagree.
+    expect(seen.count).toBe(1);
+    expect(seen.bubbled).toBe(1);
   });
 
   it("keeps what was typed on blur and does not fire a restore event", () => {
@@ -65,7 +83,7 @@ describe("numeric_fields.js -- clear-on-focus for number inputs", () => {
     focusOut(input);
 
     expect(input.value).toBe("250");
-    expect(seen.count).toBe(1); // the clear only -- no restore
+    expect(seen.count).toBe(0); // nothing synthetic -- the real typing already notified
     expect(input.dataset.prevValue).toBeUndefined();
   });
 

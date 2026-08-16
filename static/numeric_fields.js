@@ -17,14 +17,26 @@
  * timeline, workout set rows, the Hyrox race-setup sheet -- without every
  * one of them having to re-wire its inputs after each render.
  *
- * Clearing and restoring both dispatch a bubbling `input` event, because
- * several of these fields drive live previews off their own input listener
- * (the create-food calorie total, the log-amount donut, the coaching
- * wizard's goal-date estimate) and those would otherwise keep showing
- * numbers computed from a value the field no longer displays. Every such
- * listener already handles an empty value -- see the callers of
- * displayToKg()/parseFloat() on these fields, which all fall back to the
- * stored value rather than writing a NaN.
+ * Clearing deliberately does NOT fire an `input` event, so the blank stays
+ * purely visual and never reaches app state. That matters because the
+ * restore is driven by focusout, and a focused field can be torn down
+ * before focusout ever fires -- a sheet rebuilt by a language switch or an
+ * incoming sync rather than by a tap. The blank would then be all that was
+ * ever recorded: the set-reps listener stores "" verbatim and saves, and
+ * the coaching wizard's stores String(displayToKg("") || 0), i.e. 0. Both
+ * survived the teardown as the user's real logged number. Keeping state
+ * untouched until something is actually typed removes that failure mode by
+ * construction rather than trying to catch every teardown path.
+ *
+ * The restore DOES fire one: if the user emptied the field themselves,
+ * those listeners have already stored the empty value, and putting the old
+ * text back without telling them would leave the field showing one number
+ * and the state holding another.
+ *
+ * The trade is that a live preview (the create-food calorie total, the
+ * log-amount donut, the coaching wizard's goal-date estimate) keeps showing
+ * the previous number while its field sits blank, instead of flashing to
+ * zero and back on the way through.
  */
 (function (global) {
   "use strict";
@@ -41,7 +53,6 @@
     if (!input || input.value === "") return;
     input.dataset.prevValue = input.value;
     input.value = "";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   function handleFocusOut(event) {
