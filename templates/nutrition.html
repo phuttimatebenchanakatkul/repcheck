@@ -1967,16 +1967,18 @@
     if (n.includes("fish cake") || n.includes("rice cake")) return "\u{1F365}";
     if (n.includes("graham cracker")) return "\u{1F36A}";
     if (n.includes("duck sauce")) return "\u{1F96B}";
-    if (n.includes("butter chicken")) return "\u{1F35B}";
-    if (n.includes("curry leaves")) return "\u{1F33F}";
-    if (n.includes("curry") || n.includes("tikka") || n.includes("korma") || n.includes("vindaloo") || n.includes("rogan josh") || n.includes("keema") || n.includes("chana") || n.includes("masala")) return "\u{1F35B}";
+    if (n.includes("butter chicken")) return "\u{1F35A}";
+    // "Curry Leaves" itself contains "curry", so it already resolves via the
+    // curry check below -- no separate guard needed once curry and rice
+    // share one icon.
+    if (n.includes("curry") || n.includes("tikka") || n.includes("korma") || n.includes("vindaloo") || n.includes("rogan josh") || n.includes("keema") || n.includes("chana") || n.includes("masala")) return "\u{1F35A}";
     // "stew" but not "stew meat" -- that phrase names a raw cut of beef
     // (RAW_INGREDIENTS), not a cooked stew dish.
     if (n.includes("soup") || (n.includes("stew") && !n.includes("stew meat")) || n.includes("chowder") || n.includes("jjigae") || n.includes("bouillabaisse") || n.includes("gumbo") || n.includes("tom kha") || n.includes("tom yum") || n.includes("pho") || n.includes("ratatouille") || n.includes("cassoulet") || n.includes("vichyssoise") || n.includes("congee")) return "\u{1F372}";
     if (n.includes("falafel") || n.includes("shawarma") || n.includes("gyro") || n.includes("kebab") || n.includes("kofta") || n.includes("souvlaki")) return "\u{1F959}";
     if (n.includes("caesar") || n.includes("salad")) return "\u{1F957}";
     if (n.includes("spaghetti") || n.includes("alfredo") || n.includes("carbonara") || n.includes("bolognese") || n.includes("primavera") || n.includes("puttanesca") || n.includes("fettuccine")) return "\u{1F35D}";
-    if (n.includes("stir fry")) return "\u{1F958}";
+    if (n.includes("stir fry")) return "\u{1F372}";
     if (n.includes("pancake") || n.includes("waffle")) return "\u{1F95E}";
     if (n.includes("donut")) return "\u{1F369}";
     if (n.includes("cookie")) return "\u{1F36A}";
@@ -2009,7 +2011,7 @@
     // Fresh herbs/aromatics run after the meat/rice checks above, so a dish
     // like "Thai Basil Beef" or "Thai Basil Fried Rice" resolves via its
     // protein/grain first -- only the bare herb ingredient reaches here.
-    if (n.includes("cilantro") || n.includes("basil") || n.includes("mint") || n.includes("dill") || n.includes("oregano") || n.includes("thyme") || n.includes("bay leaf") || n.includes("perilla") || n.includes("ginger") || n.includes("galangal") || n.includes("lemongrass") || n.includes("grape leaves")) return "\u{1F33F}";
+    if (n.includes("cilantro") || n.includes("basil") || n.includes("mint") || n.includes("dill") || n.includes("oregano") || n.includes("thyme") || n.includes("bay leaf") || n.includes("perilla") || n.includes("ginger") || n.includes("galangal") || n.includes("lemongrass") || n.includes("grape leaves")) return "\u{1F331}";
     if (n.includes("banana") || n.includes("apple") || n.includes("orange") || n.includes("berr") || n.includes("grape") || n.includes("melon") || n.includes("pineapple") || n.includes("mango") || n.includes("peach") || n.includes("pear") || n.includes("kiwi") || n.includes("cherr") || n.includes("date") || n.includes("raisin")) return "\u{1F34E}";
     if (n.includes("almond") || n.includes("walnut") || n.includes("cashew") || n.includes("peanut") || n.includes("pistachio") || n.includes("pecan") || n.includes("sunflower") || n.includes("chia") || n.includes("flax") || n.includes("pine nut")) return "\u{1F95C}";
     if (n.includes("broccoli") || n.includes("spinach") || n.includes("potato") || n.includes("avocado") || n.includes("carrot") || n.includes("cucumber") || n.includes("tomato") || n.includes("pepper") || n.includes("onion") || n.includes("shallot") || n.includes("leek") || n.includes("garlic") || n.includes("zucchini") || n.includes("cauliflower") || n.includes("asparagus") || n.includes("cabbage") || n.includes("kale") || n.includes("mushroom") || n.includes("corn") || n.includes("beet") || n.includes("okra")) return "\u{1F966}";
@@ -3193,11 +3195,11 @@
   const CUSTOM_FOOD_EMOJIS = [
     "\u{1F37D}️", "\u{1F355}", "\u{1F354}", "\u{1F32D}", "\u{1F35F}", "\u{1F32E}", "\u{1F32F}",
     "\u{1F363}", "\u{1F357}", "\u{1F9C0}", "\u{1F95F}", "\u{1F346}", "\u{1F365}", "\u{1F36A}",
-    "\u{1F96B}", "\u{1F35B}", "\u{1F33F}", "\u{1F372}", "\u{1F959}", "\u{1F957}", "\u{1F35D}",
-    "\u{1F958}", "\u{1F95E}", "\u{1F369}", "\u{1F9C1}", "\u{1F967}", "\u{1F368}", "\u{1F37F}",
-    "\u{1F9C8}", "\u{1FAD2}", "\u{1F95B}", "\u{1F95A}", "\u{1F969}", "\u{1F41F}", "\u{1FAD3}",
-    "\u{1F950}", "\u{1F35A}", "\u{1F34E}", "\u{1F95C}", "\u{1F966}", "\u{1F331}", "\u{1F36B}",
-    "\u{1F9C2}", "\u{1F377}", "\u{2615}", "\u{1F964}",
+    "\u{1F96B}", "\u{1F35A}", "\u{1F372}", "\u{1F959}", "\u{1F957}", "\u{1F35D}", "\u{1F95E}",
+    "\u{1F369}", "\u{1F9C1}", "\u{1F967}", "\u{1F368}", "\u{1F37F}", "\u{1F9C8}", "\u{1FAD2}",
+    "\u{1F95B}", "\u{1F95A}", "\u{1F969}", "\u{1F41F}", "\u{1FAD3}", "\u{1F950}", "\u{1F331}",
+    "\u{1F34E}", "\u{1F95C}", "\u{1F966}", "\u{1F36B}", "\u{1F9C2}", "\u{1F377}", "\u{2615}",
+    "\u{1F964}",
   ];
   let customFoods = []; // this user's own created foods, from GET /api/custom-foods
   let afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];

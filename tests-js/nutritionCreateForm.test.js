@@ -279,7 +279,7 @@ describe("nutrition.html iconForFood -- category assignment regression", () => {
     // Bug: "Graham Cracker" was caught by the meat "ham" check (graHAM).
     expect(iconForFood("Graham Cracker")).toBe("\u{1F36A}"); // cookie, not steak
     // Bug: "Butter Chicken" was caught by the "butter" check before "chicken".
-    expect(iconForFood("Butter Chicken")).toBe("\u{1F35B}"); // curry, not cheese
+    expect(iconForFood("Butter Chicken")).toBe("\u{1F35A}"); // rice, not cheese
     // Bug: "Beef Tartare" was caught by a "tart" check meant for Tarte Tatin.
     expect(iconForFood("Beef Tartare")).toBe("\u{1F969}"); // meat, not pie
     // Bug: "Beef, stew meat, cooked" (a raw cut) was caught by the "stew" check.
@@ -309,6 +309,31 @@ describe("nutrition.html iconForFood -- category assignment regression", () => {
     expect(iconForFood("Gyoza, Pork Dumplings")).not.toBe(DEFAULT);
     expect(iconForFood("Pita Bread")).not.toBe(DEFAULT);
     expect(iconForFood("Croissant")).not.toBe(DEFAULT);
+  });
+
+  // Three pairs were visually near-duplicates at picker-thumbnail size --
+  // for each, the icon covering fewer real FOOD_LIBRARY foods (measured,
+  // not eyeballed) was retired in favor of the one covering more, so the
+  // picker doesn't force a choice between two icons that read the same:
+  //   pot of food (24 foods) vs. shallow pan of food (1 food)      -> pot wins
+  //   cooked rice (46 foods) vs. curry rice (28 foods)             -> rice wins
+  //   seedling (16 foods)    vs. herb (14 foods)                   -> seedling wins
+  it("merges each near-duplicate icon pair onto whichever one already covers more foods", () => {
+    const iconForFood = loadIconForFood();
+
+    expect(iconForFood("Beef Stir Fry")).toBe("\u{1F372}"); // pot of food, not shallow pan
+    expect(iconForFood("Chicken Tikka Masala")).toBe("\u{1F35A}"); // cooked rice, not curry rice
+    expect(iconForFood("Thai Basil")).toBe("\u{1F331}"); // seedling, not herb
+
+    // Both retired codepoints must be unreachable now -- iconForFood() has
+    // no line left that can return them.
+    const html = readFileSync(TEMPLATE_PATH, "utf-8");
+    const s = html.indexOf("  function iconForFood(name) {");
+    const e = html.indexOf("  function foodIconHtml(name, photoClass) {");
+    const src = html.slice(s, e);
+    expect(src).not.toContain("\\u{1F958}"); // shallow pan of food
+    expect(src).not.toContain("\\u{1F35B}"); // curry rice
+    expect(src).not.toContain("\\u{1F33F}"); // herb
   });
 });
 
