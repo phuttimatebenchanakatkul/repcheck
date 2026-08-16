@@ -272,6 +272,26 @@ describe("nutrition.html renderAfCreateForm -- icon picker", () => {
     // back to the plate rather than rendering a blank icon.
     expect(mod.customFoodIconMarkup("")).toBe(mod.CUSTOM_FOOD_ICON_DEFAULT);
   });
+
+  // api_create_custom_food() (app.py) stores `emoji` as a plain unvalidated
+  // string -- str(payload.get("emoji") or "").strip(), no length cap, no
+  // escaping. The OLD render (`${food.emoji}` spliced straight into
+  // innerHTML) had no escaping of its own either, so a custom food a user
+  // created with emoji="<img src=x onerror=alert(1)>" executed as stored
+  // self-XSS every time their own food list rendered. customFoodIconMarkup's
+  // non-slug branch now routes through escapeHtml() -- pin that so it can't
+  // silently regress back to raw interpolation.
+  it("escapes an unrecognized icon value instead of interpolating it raw (closes a stored-XSS path)", () => {
+    const mod = loadNutritionCreateForm();
+    const payload = '<img src=x onerror=alert(1)>';
+
+    const markup = mod.customFoodIconMarkup(payload);
+
+    // The whole payload is inert text now -- no live "<img ...>" tag, no
+    // "onerror" attribute a browser would ever parse and execute.
+    expect(markup).not.toContain("<img src=x");
+    expect(markup).toBe("&lt;img src=x onerror=alert(1)&gt;");
+  });
 });
 
 describe("nutrition.html iconForFood -- category assignment regression", () => {
