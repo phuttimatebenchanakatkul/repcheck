@@ -194,12 +194,10 @@
   (function () {
     const t = RepCheckI18n.t;
 
-    function toIsoDate(date) {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    }
+    // Same formatter static/streak.js uses internally, so this page's day
+    // boundaries (today, the week strip) can't drift from what the streak
+    // itself counts.
+    const toIsoDate = RepCheckStreak.toIsoDate;
     function loadJson(key, fallback) {
       try {
         const parsed = JSON.parse(localStorage.getItem(key));
@@ -207,34 +205,22 @@
       } catch (err) { return fallback; }
     }
 
-    const workoutLog = loadJson("repcheck_workout_log_v2", {});
+    // The workout log used to be read here too, purely to decide which
+    // days count toward the streak -- that now lives behind
+    // RepCheckStreak (which reads it, and every other feature's log,
+    // itself). This copy is only for the macro card below.
     const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
     // No "calories" field on purpose -- it's never stored directly (see
     // nutrition.html/coaching.js), always derived from protein/fat/carbs
     // below so it can't drift out of sync with the macro targets.
     const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
 
-    function hasActivityOn(iso) {
-      const w = workoutLog[iso];
-      const n = nutritionLog[iso];
-      return (Array.isArray(w) && w.length > 0) || (Array.isArray(n) && n.length > 0);
-    }
-
-    function computeStreak() {
-      const today = new Date();
-      let cursor = new Date(today);
-      // If today has nothing logged yet, check from yesterday instead so
-      // an ongoing streak isn't zeroed out before the day is even over.
-      if (!hasActivityOn(toIsoDate(cursor))) {
-        cursor.setDate(cursor.getDate() - 1);
-      }
-      let streak = 0;
-      while (hasActivityOn(toIsoDate(cursor))) {
-        streak++;
-        cursor.setDate(cursor.getDate() - 1);
-      }
-      return streak;
-    }
+    // "Did the user use RepCheck that day" -- any feature, not just the
+    // workout/nutrition logs this page used to check on its own. The rule
+    // and the streak maths both live in static/streak.js now so the home
+    // hero, the challenges hero and the streaks page can't disagree.
+    const hasActivityOn = RepCheckStreak.hasActivityOn;
+    const computeStreak = RepCheckStreak.current;
 
     // ---------- Today's planned split (mirrors workouts.html's own logic) ----------
     const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -530,6 +516,10 @@
     // Fired by base.html's shared "Log weight" sheet right after a
     // successful save.
     document.addEventListener("repcheck:weight-logged", renderCheckinBanner);
+    // The streak's back-fill of server-side activity (challenge attempts
+    // and friends) resolves after this first render -- redraw the hero so
+    // the flame and the week dots pick those days up.
+    document.addEventListener(RepCheckStreak.UPDATED_EVENT, renderHero);
 
     // ---------- Personalized greeting ----------
     // "Hey {first name} 👋" instead of the static page heading. The h1

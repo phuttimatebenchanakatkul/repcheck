@@ -2822,6 +2822,11 @@
     try {
       localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
     } catch (err) {}
+    // Building or editing a split is using the app, so the day counts
+    // toward the streak. Marked here rather than at each call site because
+    // this is the single funnel every plan write goes through -- and the
+    // plan itself stores no date, so it can't be read back after the fact.
+    if (window.RepCheckStreak) RepCheckStreak.mark("split_plan");
     renderTodaysPlanCard();
   }
 

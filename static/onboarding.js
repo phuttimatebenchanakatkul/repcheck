@@ -1271,6 +1271,11 @@
 
     document.dispatchEvent(new CustomEvent("repcheck:goals-updated"));
 
+    // Finishing setup is the new user's first real use of the app, so day
+    // one of their streak starts here. Nothing this wizard writes carries
+    // a date of its own, hence the explicit mark.
+    if (window.RepCheckStreak) RepCheckStreak.mark("onboarding");
+
     // Wait for the server to actually have these before marking the
     // account onboarded -- see putSynced's comment above.
     await Promise.all(syncPromises);

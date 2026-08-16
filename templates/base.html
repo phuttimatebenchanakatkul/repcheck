@@ -35,6 +35,11 @@
   <script src="{{ asset_url('i18n.js') }}"></script>
   <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
+  <!-- Shared streak rule + activity log (RepCheckStreak). Loaded on every
+       page, not just the ones showing a flame: any page can record that a
+       feature was used, and account_sync.js must already be in place so
+       those writes get pushed to the account. -->
+  <script src="{{ asset_url('streak.js') }}"></script>
   <!-- First-run guided tour: a multi-page walkthrough that navigates into
        each page. Loaded on every page but no-ops unless a tour is active
        (repcheck_pending_tour) -- see static/tour.js. -->

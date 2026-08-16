@@ -26,6 +26,10 @@
   <script src="{{ asset_url('units.js') }}"></script>
   <script src="{{ asset_url('i18n.js') }}"></script>
   <script src="{{ asset_url('numeric_fields.js') }}"></script>
+  <!-- This page doesn't extend base.html, so RepCheckStreak has to be
+       pulled in by hand -- onboarding.js marks finishing setup as the
+       first day of the new account's streak. -->
+  <script src="{{ asset_url('streak.js') }}"></script>
   <style>
     body.ob-body {
       margin: 0;
