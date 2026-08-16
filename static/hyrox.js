@@ -1891,7 +1891,8 @@
       `);
       overlay.addEventListener("click", (e) => { if (e.target === overlay) this.closeRaceDetail(); });
       overlay.querySelector("#hx-detail-breakdown").appendChild(this.renderRaceBreakdown(race));
-      overlay.querySelector("#hx-detail-analysis").appendChild(this.renderRaceAnalysis(race));
+      const detailAnalysis = this.renderRaceAnalysis(race);
+      if (detailAnalysis) overlay.querySelector("#hx-detail-analysis").appendChild(detailAnalysis);
       return overlay;
     }
 
@@ -2894,7 +2895,9 @@
     // The AI coaching block: a CTA until analyzed, a spinner while loading,
     // then the overall read + tips grouped by rating (biggest time-gains
     // first, then strengths, then the already-solid rest) so the list
-    // reads as a priority order, not 8 identical boxes. Returns an element.
+    // reads as a priority order, not 8 identical boxes. Returns an element,
+    // or null when there's nothing to show at all (custom races) -- callers
+    // must skip appending in that case.
     renderRaceAnalysis(result) {
       // A flagged race's splits aren't a real performance, so there's
       // nothing honest to coach -- the whole feature is disabled for it.
@@ -2908,17 +2911,13 @@
       }
       // The coaching prompt is built around the fixed standard stations --
       // a custom race's station mix (and count) is open-ended, so there's
-      // no standard to coach against. This is the actual gate (finishRace()
+      // no standard to coach against. We render nothing at all rather than a
+      // placeholder note. This is still the actual gate (finishRace()
       // also skips the auto-analysis call for custom races, but this is
       // what stops the lazy "!cache" fallback below from firing one anyway
       // the first time this ever renders for a custom result).
       if (result.category === "custom") {
-        return el(`
-          <div class="hx-analyze-disabled">
-            <span class="hx-analyze-disabled-icon">${SPARKLE_ICON}</span>
-            <span>${t("hyrox.analysis.unavailableCustom")}</span>
-          </div>
-        `);
+        return null;
       }
 
       this.hydrateAnalysisFromRecord(result);
@@ -3059,7 +3058,8 @@
       }
 
       card.querySelector("#hx-breakdown-slot").appendChild(this.renderRaceBreakdown(result));
-      card.querySelector("#hx-analysis-slot").appendChild(this.renderRaceAnalysis(result));
+      const analysisNode = this.renderRaceAnalysis(result);
+      if (analysisNode) card.querySelector("#hx-analysis-slot").appendChild(analysisNode);
 
       return card;
     }
