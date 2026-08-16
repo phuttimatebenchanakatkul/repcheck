@@ -1085,10 +1085,16 @@ def api_scan_barcode():
         return jsonify({"ok": False, "error": "Please provide a photo of the barcode."}), 400
 
     user = current_user()
+    # Live-camera frames (see runServerBarcodeLoop in nutrition.html) post
+    # several times a second and expect most of them to miss, so a failed
+    # decode there is routine rather than notable -- logging every one would
+    # bury the real failures from deliberate single-photo scans.
+    live_frame = request.form.get("live") == "1"
     try:
         barcode = decode_barcode(image_file.read())
     except BarcodeScanError as exc:
-        app.logger.warning("Barcode decode failed: %s", exc)
+        if not live_frame:
+            app.logger.warning("Barcode decode failed: %s", exc)
         return jsonify({"ok": False, "error": str(exc)}), 502
 
     try:
@@ -1099,7 +1105,12 @@ def api_scan_barcode():
         return jsonify({"ok": False, "not_found": True, "barcode": barcode, "error": str(exc)})
     except BarcodeScanError as exc:
         app.logger.warning("Barcode scan failed: %s", exc)
-        return jsonify({"ok": False, "error": str(exc)}), 502
+        # Carry the barcode even though this failed: the read itself worked
+        # and only the lookup behind it didn't, which the live scanner needs
+        # to tell apart from "this frame had no barcode in it". Without it a
+        # transient outage looks identical to a miss and the camera loop
+        # would keep scanning forever over a code it had already read.
+        return jsonify({"ok": False, "barcode": barcode, "error": str(exc)}), 502
 
 
 @app.route("/api/lookup-barcode", methods=["POST"])
