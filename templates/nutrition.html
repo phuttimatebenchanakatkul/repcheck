@@ -2948,40 +2948,111 @@
   // glare with no automatic retry.
   let barcodeLiveStream = null;
   let barcodeLiveRafId = null;
+  let barcodeLoopTimer = null;
 
-  async function startLiveBarcodeScan() {
-    setAfModalTitle(AF_MODAL_BARCODE_TITLE);
-    if (!("BarcodeDetector" in window)) {
-      document.getElementById("af-barcode-input").click();
-      return;
-    }
-    try {
-      barcodeLiveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    } catch (err) {
-      // Camera denied, unavailable, or (most commonly here) blocked
-      // because the page isn't a secure context -- the photo-capture
-      // flow still works everywhere, so just fall back to it silently.
-      document.getElementById("af-barcode-input").click();
-      return;
-    }
+  // Widest frame we upload per live tick. Big enough that the bars survive
+  // JPEG, small enough (~60-120KB) to keep the round-trip under a camera
+  // frame or two on mobile data.
+  const BARCODE_FRAME_WIDTH = 1280;
+  // Gap between server attempts. The request is already the slow part, so
+  // this only stops a fast connection from queuing work faster than a hand
+  // can steady the camera.
+  const BARCODE_FRAME_INTERVAL_MS = 220;
 
+  function openBarcodePhotoInput() {
+    document.getElementById("af-barcode-input").click();
+  }
+
+  function renderBarcodeScannerUI(hint) {
     afModalBody.innerHTML = `
       <div class="af-scanner-wrap">
         <video id="af-scanner-video" class="af-scanner-video" autoplay playsinline muted></video>
         <div class="af-scanner-frame"></div>
-        <div class="af-scanner-hint">Point the camera at a barcode</div>
+        <div class="af-scanner-hint" id="af-scanner-hint">${hint}</div>
       </div>
       <div class="af-actions">
         <button type="button" class="af-secondary-btn" id="af-scanner-cancel-btn" style="flex:1;">Cancel</button>
+        <button type="button" class="af-secondary-btn" id="af-scanner-photo-btn" style="flex:1;">Take photo</button>
       </div>
     `;
-    const video = document.getElementById("af-scanner-video");
-    video.srcObject = barcodeLiveStream;
     document.getElementById("af-scanner-cancel-btn").addEventListener("click", () => {
       stopLiveBarcodeScan();
       renderAfChoice();
     });
+    // Escape hatch: a still photo gets the server's full (slower, more
+    // thorough) decode cascade, which can catch a code the quick per-frame
+    // pass keeps missing.
+    document.getElementById("af-scanner-photo-btn").addEventListener("click", () => {
+      stopLiveBarcodeScan();
+      openBarcodePhotoInput();
+    });
+    return document.getElementById("af-scanner-video");
+  }
 
+  // Shown when the camera itself is unavailable (permission denied, or a
+  // non-secure context). Deliberately a button rather than an automatic
+  // afBarcodeInput.click(): by this point we've awaited getUserMedia, so the
+  // user-activation that lets a file picker open programmatically is gone,
+  // and a silent no-op would look like the button is broken.
+  function renderBarcodeCameraUnavailable() {
+    afModalBody.innerHTML = `
+      <div class="af-choice-intro">Camera unavailable — take a photo of the barcode instead.</div>
+      <div class="af-tile-grid">
+        <button type="button" class="af-tile af-tile-wide af-tile-purple" id="af-barcode-photo-fallback-btn">
+          <span class="af-tile-title">Take photo</span>
+        </button>
+      </div>
+    `;
+    document.getElementById("af-barcode-photo-fallback-btn")
+      .addEventListener("click", openBarcodePhotoInput);
+  }
+
+  async function startLiveBarcodeScan() {
+    setAfModalTitle(AF_MODAL_BARCODE_TITLE);
+    // Checked before any await, so this still counts as the user's own tap
+    // and the file picker is allowed to open.
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      openBarcodePhotoInput();
+      return;
+    }
+    try {
+      barcodeLiveStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
+      });
+    } catch (err) {
+      renderBarcodeCameraUnavailable();
+      return;
+    }
+
+    const nativeDetect = "BarcodeDetector" in window;
+    const video = renderBarcodeScannerUI("Point the camera at a barcode");
+    video.srcObject = barcodeLiveStream;
+    try { await video.play(); } catch (err) { /* autoplay attr covers this */ }
+    // A stream can be live while the video element still reports 0x0 -- the
+    // frame size only lands with the metadata event. Drawing before then
+    // silently yields nothing, so wait for it (with a ceiling, so a stream
+    // that never produces a frame ends up somewhere other than a dead spin).
+    if (!video.videoWidth) {
+      await new Promise((done) => {
+        let settled = false;
+        const finish = () => { if (!settled) { settled = true; done(); } };
+        video.addEventListener("loadedmetadata", finish, { once: true });
+        setTimeout(finish, 4000);
+      });
+    }
+    if (!barcodeLiveStream) return; // cancelled while the camera was starting
+    if (!video.videoWidth) {
+      stopLiveBarcodeScan();
+      renderBarcodeCameraUnavailable();
+      return;
+    }
+
+    if (nativeDetect) runNativeBarcodeLoop(video);
+    else runServerBarcodeLoop(video);
+  }
+
+  // Chrome/Android: decode in-page, every animation frame, no network.
+  function runNativeBarcodeLoop(video) {
     const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
     const tick = async () => {
       if (!barcodeLiveStream) return;
@@ -2995,14 +3066,107 @@
         }
       } catch (err) { // transient decode failure — keep scanning
       }
-      barcodeLiveRafId = requestAnimationFrame(tick);
+      if (barcodeLiveStream) barcodeLiveRafId = requestAnimationFrame(tick);
     };
     barcodeLiveRafId = requestAnimationFrame(tick);
+  }
+
+  // Safari (iOS included) has no BarcodeDetector at any version, so the old
+  // fallback was a single still photo: one shot, and if its focus, angle or
+  // glare was off there was no retry -- which is why scanning felt like it
+  // never worked on an iPhone. Safari does support getUserMedia on HTTPS
+  // though, so stream the camera and post frames to the same decode endpoint
+  // until one reads. That restores the thing a live scanner actually relies
+  // on -- many attempts a second instead of one -- without needing an
+  // in-browser decoder Safari doesn't ship.
+  function runServerBarcodeLoop(video) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const hintEl = document.getElementById("af-scanner-hint");
+    let attempts = 0;
+    let blankFrames = 0;
+
+    const grabFrame = () => new Promise((resolve) => {
+      if (!video.videoWidth || !video.videoHeight) { resolve(null); return; }
+      const scale = Math.min(1, BARCODE_FRAME_WIDTH / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.72);
+    });
+
+    const tick = async () => {
+      if (!barcodeLiveStream) return;
+      let handled = false;
+      try {
+        const blob = await grabFrame();
+        if (!barcodeLiveStream) return;
+        if (!blob) {
+          // The camera stopped handing us frames mid-scan (backgrounded tab,
+          // a device that revoked the stream). Bail out to the photo route
+          // rather than looping on an empty canvas with a live-looking UI.
+          if (++blankFrames >= 25) {
+            stopLiveBarcodeScan();
+            renderBarcodeCameraUnavailable();
+            return;
+          }
+        }
+        if (blob) {
+          blankFrames = 0;
+          const formData = new FormData();
+          formData.append("image", blob, "frame.jpg");
+          // Marks this as one of many camera frames rather than a deliberate
+          // single-photo scan, so a miss isn't logged as a real failure.
+          formData.append("live", "1");
+          const response = await fetch("{{ url_for('api_scan_barcode') }}", { method: "POST", body: formData });
+          if (!barcodeLiveStream) return;
+          const data = await response.json().catch(() => null);
+          if (data && data.ok) {
+            stopLiveBarcodeScan();
+            afPreviewUrl = null;
+            afResult = data;
+            renderAfResult(data);
+            handled = true;
+          } else if (data && data.not_found && data.barcode) {
+            // Read the code fine, but nothing has it -- same "create it
+            // yourself" offer the still-photo path makes.
+            stopLiveBarcodeScan();
+            renderAfCreateForm(false, data.barcode);
+            handled = true;
+          } else if (data && data.barcode) {
+            // The frame decoded; the lookup behind it is what failed (the
+            // product database being unreachable, say). Retrying the camera
+            // would just re-read the same code, so surface it instead of
+            // scanning forever.
+            stopLiveBarcodeScan();
+            afModalBody.innerHTML = `
+              <div class="af-error">${(data.error || "Couldn't look that barcode up.").replace(/</g, "&lt;")}</div>
+              <div class="af-actions">
+                <button type="button" class="nl-save-goals-btn" id="af-retry-btn" style="flex:1;">Try again</button>
+              </div>
+            `;
+            document.getElementById("af-retry-btn").addEventListener("click", renderAfChoice);
+            handled = true;
+          }
+        }
+        attempts += 1;
+        if (hintEl && attempts === 12) {
+          hintEl.textContent = "Still looking — try moving closer or adding light";
+        }
+      } catch (err) { // network blip or a frame that didn't decode — keep going
+      }
+      if (!handled && barcodeLiveStream) {
+        barcodeLoopTimer = setTimeout(tick, BARCODE_FRAME_INTERVAL_MS);
+      }
+    };
+    tick();
   }
 
   function stopLiveBarcodeScan() {
     if (barcodeLiveRafId) cancelAnimationFrame(barcodeLiveRafId);
     barcodeLiveRafId = null;
+    if (barcodeLoopTimer) clearTimeout(barcodeLoopTimer);
+    barcodeLoopTimer = null;
     if (barcodeLiveStream) barcodeLiveStream.getTracks().forEach((track) => track.stop());
     barcodeLiveStream = null;
   }
