@@ -395,3 +395,15 @@
 **Effort:** S
 **Priority:** P4
 **Depends on:** None
+
+### No server-side length cap on a custom food's emoji
+
+**What:** `api_create_custom_food()` (`app.py`) takes `emoji` as `str(payload.get("emoji") or "").strip()` and only defaults it when empty -- nothing bounds its length before it goes into the `custom_foods.emoji` column. The custom-*exercise* route directly below it does cap its own emoji field (`emoji = emoji[:8]`), so the two sibling routes disagree.
+
+**Why:** Low risk (the route requires login, and the picker UI only ever sends one glyph), but a hand-rolled request could store an arbitrarily large string in that column and it would then be rendered as the food's icon in the log list on every page load. The inconsistency with the exercise route is the real smell -- one of the two is wrong.
+
+**Context:** Noticed during `/ship`'s pre-landing review on `feat/food-emoji-picker` while tracing every consumer of `CUSTOM_FOOD_EMOJIS`. Not fixed inline: pre-existing, on a line that branch doesn't touch, and the right fix is to make both routes agree on one shared cap rather than patch the food route alone.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
