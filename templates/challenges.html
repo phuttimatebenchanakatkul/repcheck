@@ -341,53 +341,22 @@
       return t(`challenges.${id}`) || id;
     }
 
-    function toIsoDate(date) {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    }
-    function loadJson(key, fallback) {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(key));
-        return parsed === null || parsed === undefined ? fallback : parsed;
-      } catch (err) { return fallback; }
-    }
-
     // ---------- Hero: date + streak ----------
-    // Mirrors home.html's own hero exactly (same localStorage-derived
-    // streak, since that's the single source of truth the app uses today
-    // -- there's no server-side streak endpoint to call instead).
-    const workoutLog = loadJson("repcheck_workout_log_v2", {});
-    const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
-    function hasActivityOn(iso) {
-      const w = workoutLog[iso];
-      const n = nutritionLog[iso];
-      return (Array.isArray(w) && w.length > 0) || (Array.isArray(n) && n.length > 0);
-    }
-    function computeStreak() {
-      const today = new Date();
-      let cursor = new Date(today);
-      if (!hasActivityOn(toIsoDate(cursor))) {
-        cursor.setDate(cursor.getDate() - 1);
-      }
-      let streak = 0;
-      while (hasActivityOn(toIsoDate(cursor))) {
-        streak++;
-        cursor.setDate(cursor.getDate() - 1);
-      }
-      return streak;
-    }
+    // Same RepCheckStreak module the home hero reads (static/streak.js),
+    // so the flame here shows the identical number -- and, since recording
+    // an attempt now counts as a day's activity, it can go up while the
+    // user is on this very page.
     function renderHeroTop() {
       const dateEl = document.getElementById("ch-hero-date");
       const locale = RepCheckI18n.locale();
       dateEl.textContent = new Date().toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" });
 
-      const streak = computeStreak();
+      const streak = RepCheckStreak.current();
       document.getElementById("ch-streak-count").textContent = t("home.streakCount", { n: streak });
       document.getElementById("ch-streak-chip").classList.toggle("is-active", streak > 0);
     }
     document.addEventListener("repcheck:language-changed", renderHeroTop);
+    document.addEventListener(RepCheckStreak.UPDATED_EVENT, renderHeroTop);
     renderHeroTop();
 
     // ---------- Today's rotating exercise + hero icon ----------
@@ -864,6 +833,12 @@
         const res = await fetch(`/api/challenges/${activeChallengeId}/submit`, { method: "POST", body: formData });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || t("challenges.couldntProcess"));
+        // A challenge attempt is stored server-side only, so this is the
+        // one thing that tells the streak the day was used. Recorded on a
+        // confirmed submission, not on pressing record -- an abandoned or
+        // failed attempt shouldn't earn a day. (RepCheckStreak.mark fires
+        // the update event, which redraws the hero flame above.)
+        RepCheckStreak.mark("challenge");
         await loadFullLeaderboard();
         await refreshTodaysChallenge();
         openResultPopup(data, blob);

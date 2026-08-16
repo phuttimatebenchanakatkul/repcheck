@@ -256,13 +256,19 @@ def test_persistSplitPlan_refreshes_the_todays_plan_card_even_if_the_write_fails
     must be wrapped in its own try/catch, OUTSIDE of which
     renderTodaysPlanCard() sits unconditionally: a quota-exceeded or
     private-browsing write failure shouldn't stop the UI from reflecting
-    the in-memory plan every caller already mutated before calling this."""
+    the in-memory plan every caller already mutated before calling this.
+
+    The RepCheckStreak.mark() in between is subject to the same rule --
+    building or editing a split counts toward the streak whether or not
+    the plan itself made it to localStorage."""
     assert re.search(
         r"function persistSplitPlan\(plan\) \{\s*"
         r"(?://[^\n]*\n\s*)*"
         r"try \{\s*"
         r"localStorage\.setItem\(SPLIT_PLAN_KEY, JSON\.stringify\(plan\)\);\s*"
         r"\} catch \(err\) \{\}\s*"
+        r"(?://[^\n]*\n\s*)*"
+        r"if \(window\.RepCheckStreak\) RepCheckStreak\.mark\(\"split_plan\"\);\s*"
         r"renderTodaysPlanCard\(\);\s*\}",
         workouts_html,
     )
