@@ -300,18 +300,6 @@
 
 ## Nutrition
 
-### Barcode value renders into an HTML attribute with text-node escaping (XSS)
-
-**What:** `templates/nutrition.html`'s create-food form renders the scanned barcode into the input's attribute as `value="${escapeHtml(afCreateBarcode)}"`. `escapeHtml()` round-trips through `textContent`, which escapes `<`, `>`, and `&` but deliberately leaves quotes alone -- correct for a text node, wrong inside a quoted attribute, where one `"` closes the attribute and everything after it parses as markup. The file already has `escapeAttr()` for exactly this case (used for `data-entry-fav-toggle`), and `tests/test_nutrition_name_escaping.py` already pins that distinction for other sinks.
-
-**Why:** Reachable, not theoretical. `/api/lookup-barcode` echoes the submitted `barcode` field back verbatim in its `not_found` response (`app.py`), and that echoed value is what lands in this attribute -- so a crafted request can inject an event handler that runs in the browser of whoever opened the sheet.
-
-**Context:** Found by the security specialist during `/ship`'s pre-landing review on `feat/custom-food-barcode`, introduced by that branch's create-food redesign (before it, the barcode only ever appeared as text content inside `.af-note`, which was safe). User explicitly chose to defer the fix rather than block the ship. Fix is a one-line swap to `escapeAttr()`; the digits-only normalization added in the same branch narrows but does not close the hole, since the not-found echo path is not itself normalized.
-
-**Effort:** XS
-**Priority:** P1
-**Depends on:** None
-
 ### Nutrition log entries aren't validated for numeric shape server-side
 
 **What:** `POST /api/nutrition/log-entry` (`app.py`'s `api_nutrition_log_entry()`) only checks that `entry` is a dict with a truthy `id` before persisting it via `append_nutrition_log_entry()` (`database.py`). It never validates that `grams`/`baseCalories`/`baseProtein`/`baseFat`/`baseCarbs` exist or are numeric.

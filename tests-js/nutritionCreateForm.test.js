@@ -251,6 +251,43 @@ describe("nutrition.html renderAfCreateForm -- barcode clear button", () => {
   });
 });
 
+describe("nutrition.html renderAfCreateForm -- barcode attribute escaping", () => {
+  // The barcode is NOT trusted input. /api/lookup-barcode echoes the
+  // submitted `barcode` field back verbatim in its not_found response
+  // (app.py), and that echoed value is what renderAfCreateForm receives as
+  // notFoundBarcode -- so whatever a caller POSTs lands in this attribute.
+  //
+  // It must be escaped with escapeAttr(), not escapeHtml(). escapeHtml
+  // round-trips through textContent, which escapes < > and & but leaves
+  // quotes intact -- fine for a text node, exploitable in a quoted
+  // attribute, where one " closes value="..." and everything after it
+  // parses as markup (an event handler that runs on render).
+  it("a barcode containing a quote cannot break out of the value attribute", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, '" onfocus="alert(1)" autofocus x="');
+
+    const input = document.getElementById("af-create-barcode-input");
+    // The whole payload survives as the field's literal value...
+    expect(input.value).toBe('" onfocus="alert(1)" autofocus x="');
+    // ...and none of it became real markup: no injected attributes, and
+    // no extra elements smuggled in alongside the input.
+    expect(input.getAttribute("onfocus")).toBeNull();
+    expect(input.hasAttribute("autofocus")).toBe(false);
+    expect(input.getAttribute("x")).toBeNull();
+  });
+
+  it("escapes a quote-bearing barcode rather than dropping it -- the digits survive a round-trip through the field", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, '885"0999320007');
+
+    const input = document.getElementById("af-create-barcode-input");
+    expect(input.value).toBe('885"0999320007');
+    // submitCustomFood strips to digits, so the quote never reaches the
+    // server even though the field faithfully shows what was scanned.
+    expect(input.value.replace(/\D/g, "")).toBe("8850999320007");
+  });
+});
+
 describe("nutrition.html renderAfCreateForm -- quickMode", () => {
   it("in quickMode, the name field, icon row, and serving section are all absent, nav title reads 'Log Macros', and the submit button reads 'Log now'", () => {
     const mod = loadNutritionCreateForm();

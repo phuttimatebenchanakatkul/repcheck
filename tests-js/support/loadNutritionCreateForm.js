@@ -40,9 +40,13 @@ const REGIONS = [
     end: "  // Sane per-day bounds so goals can't be set to something physically",
   },
   {
-    name: "escapeHtml/wireNumericClearOnFocus",
+    // Includes escapeAttr: the barcode field interpolates into an HTML
+    // attribute, so renderAfCreateForm calls escapeAttr (not escapeHtml,
+    // which leaves quotes intact and would let a quote break out of the
+    // attribute) -- extraction has to reach past it or the render throws.
+    name: "escapeHtml/wireNumericClearOnFocus/sanitizeBarcodeDigits/escapeAttr",
     start: "  function escapeHtml(text) {",
-    end: "  function escapeAttr(text) {",
+    end: "  function offResultRowHtml(result, index) {",
   },
   {
     name: "afPreviewUrl/afResult module state (assigned into by lookupScannedBarcode)",
