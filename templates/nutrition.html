@@ -2740,7 +2740,7 @@
   // button on this page instead, so this stays a fast, two-choice popup.
   function renderAfMealQuickChoice() {
     setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
-    const recentScans = getRecentScans(6);
+    const recentScans = getRecentScans(3);
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Snap or upload a photo of your meal.</div>
       <div class="af-tile-grid">
