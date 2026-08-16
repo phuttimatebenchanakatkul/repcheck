@@ -295,7 +295,14 @@
   padding: 4px;
   margin-bottom: 16px;
   overflow-x: auto;
+  /* Overflow-x is a safety net for narrow screens where the 4 tab labels
+     don't quite fit -- not meant to be a visible scroll affordance (the
+     tabs are meant to read as a fixed segmented control, not a carousel),
+     so the scrollbar itself is hidden the same way .app/.auth-wrap already
+     do elsewhere in style.css. */
+  scrollbar-width: none;
 }
+.hx-station-picker-tabbar::-webkit-scrollbar { display: none; }
 .hx-station-picker-tab {
   flex: 1 0 auto;
   border: none;
@@ -319,6 +326,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  margin-bottom: 16px;
 }
 .hx-station-picker-tile {
   display: flex;
