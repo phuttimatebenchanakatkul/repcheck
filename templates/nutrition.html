@@ -591,6 +591,7 @@
     font-family: inherit;
   }
   .af-emoji-btn.is-active { border-color: var(--blue); background: var(--blue); }
+  .af-emoji-btn img { width: 24px; height: 24px; display: block; margin: 0 auto; }
   .af-macro-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .af-create-calories {
     display: flex;
@@ -882,6 +883,7 @@
     padding: 11px 12px; margin-bottom: 16px;
   }
   .af-icon-emoji { width: 38px; height: 38px; border-radius: 10px; background: var(--blue-bg); display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0; }
+  .af-icon-emoji .af-icon-img { width: 26px; height: 26px; }
   .af-icon-info { flex: 1; min-width: 0; }
   .af-icon-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
   .af-icon-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
@@ -3181,28 +3183,76 @@
 
   // ---------- Create a custom food (name/emoji/macros typed in by hand) ----------
   // Also doubles as the "just log my macros" quick-entry path: name and
-  // emoji are optional here (default to a generic food + plate emoji), so
+  // icon are optional here (default to a generic food + plate icon), so
   // someone who only cares about protein/fat/carbs can skip straight to
   // those fields and hit Create & log. Calories are always computed from
   // the macros server-side (protein/carbs = 4 kcal/g, fat = 9 kcal/g) —
   // see api_create_custom_food() in app.py — never entered directly.
-  // Exactly the icons iconForFood() above can return -- every emoji the
-  // app already uses to stand in for a food, deduped and kept in that
-  // function's own order, so a created food can only ever wear an icon
-  // the rest of the app also assigns. Its fallback plate stays first:
-  // afCreateEmoji defaults to CUSTOM_FOOD_EMOJIS[0], which has to match
-  // api_create_custom_food()'s server-side default in app.py.
-  const CUSTOM_FOOD_EMOJIS = [
-    "\u{1F37D}️", "\u{1F355}", "\u{1F354}", "\u{1F32D}", "\u{1F35F}", "\u{1F32E}", "\u{1F32F}",
-    "\u{1F363}", "\u{1F357}", "\u{1F9C0}", "\u{1F95F}", "\u{1F346}", "\u{1F365}", "\u{1F36A}",
-    "\u{1F96B}", "\u{1F35A}", "\u{1F372}", "\u{1F959}", "\u{1F957}", "\u{1F35D}", "\u{1F95E}",
-    "\u{1F369}", "\u{1F9C1}", "\u{1F967}", "\u{1F368}", "\u{1F37F}", "\u{1F9C8}", "\u{1FAD2}",
-    "\u{1F95B}", "\u{1F95A}", "\u{1F969}", "\u{1F41F}", "\u{1FAD3}", "\u{1F950}", "\u{1F331}",
-    "\u{1F34E}", "\u{1F95C}", "\u{1F966}", "\u{1F36B}", "\u{1F9C2}", "\u{1F377}", "\u{2615}",
-    "\u{1F964}",
+  //
+  // The picker used to offer Unicode emoji -- but no matter which glyph got
+  // picked, it still rendered as "the same regular iOS/Android emoji" the
+  // platform's font already draws everywhere else. What was actually wanted
+  // is RepCheck's own illustrated icon set (static/food_images/, the same
+  // art used for FOOD_LIBRARY photos elsewhere on this page).
+  //
+  // That folder looks like 466 one-per-food icons but isn't: an MD5 pass
+  // over every file found only 67 pixel-distinct images spread across 466
+  // filenames (confirmed the mismatch lives in the source pack itself, not
+  // in sort_food_images.py's matching -- the raw RepCheck_Food_icons/ folder
+  // has the exact same 67-unique/466-file shape). Picking icons by filename
+  // would have silently offered duplicate-looking buttons for a "curated"
+  // picker, exactly the complaint this replaces. CUSTOM_FOOD_ICONS below is
+  // instead the 16 of those 67 images that were individually opened and
+  // confirmed both correct for their label AND pixel-distinct from every
+  // other entry here (verified with hashlib.md5, not eyeballed) -- ranked by
+  // how many real food_library.py entries iconForFood() maps to that
+  // category AND actually have an icon file (many large keyword-groups,
+  // e.g. the 15-food kebab/wrap group, turned out to have zero real icon
+  // backing and were excluded). A from-scratch "dry spice" pick was dropped
+  // outright: every spice filename in the pack (turmeric/cumin/cardamom/
+  // cinnamon/coriander/chili powder/garam masala) aliases into either the
+  // vegetable cluster or the nuts cluster -- there is no pixel-distinct
+  // spice icon anywhere in the source pack to offer.
+  const CUSTOM_FOOD_ICON_DEFAULT = "\u{1F37D}️"; // plate -- "no specific icon", matches
+  // api_create_custom_food()'s server-side default in app.py. Kept as a
+  // literal glyph (not an image) since there's no generic/blank icon in the
+  // source pack either -- see the CUSTOM_FOOD_ICONS comment above.
+  const CUSTOM_FOOD_ICONS = [
+    { slug: "white_rice_cooked", label: "Rice / grain" },
+    { slug: "ribeye_steak_cooked", label: "Meat" },
+    { slug: "chicken_drumstick_cooked", label: "Poultry" },
+    { slug: "broccoli", label: "Vegetable" },
+    { slug: "cheddar_cheese", label: "Cheese" },
+    { slug: "salmon_cooked", label: "Fish / seafood" },
+    { slug: "apple", label: "Fruit" },
+    { slug: "soy_sauce", label: "Sauce / condiment" },
+    { slug: "whole_milk", label: "Dairy / milk" },
+    { slug: "agedashi_tofu", label: "Soup / stew" },
+    { slug: "almonds", label: "Nuts" },
+    { slug: "caesar_salad", label: "Salad" },
+    { slug: "dark_chocolate", label: "Sweets" },
+    { slug: "naan_plain", label: "Flatbread" },
+    { slug: "olive_oil", label: "Oil" },
+    { slug: "beef_taco", label: "Taco / Mexican" },
   ];
+  const CUSTOM_FOOD_ICON_SLUGS = new Set(CUSTOM_FOOD_ICONS.map((i) => i.slug));
+
+  // A stored custom-food icon value is either a literal glyph (the plate
+  // default, or a leftover Unicode pick from before this change -- old
+  // custom_foods rows keep whatever they already had, unvalidated on the
+  // server per api_create_custom_food()) or one of CUSTOM_FOOD_ICON_SLUGS.
+  // This is the single place that tells the two apart for rendering.
+  // imgClass mirrors foodIconHtml(name, photoClass)'s own pattern -- the
+  // same value renders at a small fixed size in the picker's preview box
+  // and full-bleed inside a food-list row, so the caller sizes it.
+  function customFoodIconMarkup(value, imgClass) {
+    if (CUSTOM_FOOD_ICON_SLUGS.has(value)) {
+      return `<img src="/static/food_images/${value}.png" class="${imgClass || "af-icon-img"}" alt="">`;
+    }
+    return escapeHtml(value || CUSTOM_FOOD_ICON_DEFAULT);
+  }
   let customFoods = []; // this user's own created foods, from GET /api/custom-foods
-  let afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
+  let afCreateEmoji = CUSTOM_FOOD_ICON_DEFAULT;
   let afCreateQuickMode = false; // read by submitCustomFood() -- see renderAfCreateForm below
   let afCreateBarcode = null; // set when this form was opened from a "barcode not found" redirect
   // Extra named serving sizes (beyond the base "af-create-serving-*"
@@ -3267,7 +3317,7 @@
     // so the nav row below is just the back chevron -- no second copy of
     // the same words directly under it.
     setAfModalTitle(quickMode ? "Log macros" : "Create food");
-    afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
+    afCreateEmoji = CUSTOM_FOOD_ICON_DEFAULT;
     afCreateQuickMode = quickMode;
     afCreateBarcode = notFoundBarcode || null;
     afCreateExtraServings = [];
@@ -3277,15 +3327,16 @@
       </div>
       ${quickMode ? "" : `
       <div class="af-icon-row">
-        <div class="af-icon-emoji" id="af-icon-emoji">${afCreateEmoji}</div>
+        <div class="af-icon-emoji" id="af-icon-emoji">${customFoodIconMarkup(afCreateEmoji)}</div>
         <div class="af-icon-info">
-          <div class="af-icon-title">Emoji</div>
+          <div class="af-icon-title">Icon</div>
           <div class="af-icon-sub">Tap to change</div>
         </div>
         <button type="button" class="af-icon-edit-btn" id="af-icon-edit-btn">Change</button>
       </div>
       <div class="af-emoji-grid" id="af-emoji-grid" style="display:none;">
-        ${CUSTOM_FOOD_EMOJIS.map((e, i) => `<button type="button" class="af-emoji-btn ${i === 0 ? "is-active" : ""}" data-emoji="${e}">${e}</button>`).join("")}
+        <button type="button" class="af-emoji-btn is-active" data-emoji="${CUSTOM_FOOD_ICON_DEFAULT}" title="No specific icon">${CUSTOM_FOOD_ICON_DEFAULT}</button>
+        ${CUSTOM_FOOD_ICONS.map(({ slug, label }) => `<button type="button" class="af-emoji-btn" data-emoji="${slug}" title="${escapeAttr(label)}"><img src="/static/food_images/${slug}.png" alt="${escapeAttr(label)}"></button>`).join("")}
       </div>
       `}
       ${afCreateBarcode ? `
@@ -3380,7 +3431,7 @@
         const btn = event.target.closest("[data-emoji]");
         if (!btn) return;
         afCreateEmoji = btn.dataset.emoji;
-        if (iconEmojiEl) iconEmojiEl.textContent = afCreateEmoji;
+        if (iconEmojiEl) iconEmojiEl.innerHTML = customFoodIconMarkup(afCreateEmoji);
         document.querySelectorAll("#af-emoji-grid .af-emoji-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
         emojiGrid.style.display = "none"; // picked -- collapse back behind the icon row
       });
@@ -3804,7 +3855,7 @@
   function customFoodRowHtml(food, index) {
     return `
       <button type="button" class="nl-food-row" data-custom-index="${index}">
-        <span class="nl-food-row-icon">${food.emoji}</span>
+        <span class="nl-food-row-icon">${customFoodIconMarkup(food.emoji, "nl-food-photo-row")}</span>
         <span class="nl-food-row-body">
           <span class="nl-food-row-name">${escapeHtml(food.name)}</span>
           ${macroLineFrom(food)}

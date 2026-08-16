@@ -59,8 +59,8 @@ const REGIONS = [
     end: "  // Grams-per-unit for the amount editor below.",
   },
   {
-    name: "CUSTOM_FOOD_EMOJIS..submitCustomFood (the create-food form itself)",
-    start: "  const CUSTOM_FOOD_EMOJIS = [",
+    name: "CUSTOM_FOOD_ICON_DEFAULT..submitCustomFood (the create-food form itself)",
+    start: "  const CUSTOM_FOOD_ICON_DEFAULT = ",
     end: "  // A mirror-symmetric heart path",
   },
 ];
@@ -120,6 +120,7 @@ export function loadNutritionCreateForm() {
     return {
       renderAfCreateForm, submitCustomFood, afExtraServingsListHtml, wireAfServingRemoveButtons,
       unitToGrams, UNIT_FACTORS, UNIT_LABELS, lookupScannedBarcode,
+      customFoodIconMarkup, CUSTOM_FOOD_ICONS, CUSTOM_FOOD_ICON_DEFAULT,
       get afCreateExtraServings() { return afCreateExtraServings; },
       get afCreateEmoji() { return afCreateEmoji; },
       get afCreateBarcode() { return afCreateBarcode; },

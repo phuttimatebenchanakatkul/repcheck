@@ -12,7 +12,8 @@
 //      native prompt() dialogs) -- its validation must reject empty/
 //      non-numeric/zero/negative input as a no-op, not push garbage into
 //      afCreateExtraServings, which flows into the same POST body.
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -182,8 +183,8 @@ describe("nutrition.html renderAfCreateForm -- in-app add-serving-size form", ()
   });
 });
 
-describe("nutrition.html renderAfCreateForm -- emoji picker", () => {
-  it("tapping Change toggles the emoji grid open/closed, and picking an emoji sets state, updates the icon, marks it active, and collapses the grid", () => {
+describe("nutrition.html renderAfCreateForm -- icon picker", () => {
+  it("tapping Change toggles the icon grid open/closed, and picking an icon sets state, swaps the preview to that image, marks it active, and collapses the grid", () => {
     const mod = loadNutritionCreateForm();
     mod.renderAfCreateForm(false, null);
 
@@ -195,58 +196,81 @@ describe("nutrition.html renderAfCreateForm -- emoji picker", () => {
     expect(grid.style.display).toBe("none");
 
     document.getElementById("af-icon-edit-btn").click(); // reopen to pick one
-    const emojiButtons = grid.querySelectorAll(".af-emoji-btn");
-    const target = emojiButtons[3];
-    expect(emojiButtons[0].classList.contains("is-active")).toBe(true); // default selection
+    const buttons = grid.querySelectorAll(".af-emoji-btn");
+    // Index 0 is always the plate ("no specific icon") default; every other
+    // button is one of the illustrated CUSTOM_FOOD_ICONS.
+    const target = buttons[3];
+    expect(buttons[0].classList.contains("is-active")).toBe(true); // default selection
+    expect(target.dataset.emoji).toBe(mod.CUSTOM_FOOD_ICONS[2].slug); // buttons[1] is icons[0]
 
     target.click();
 
     expect(mod.afCreateEmoji).toBe(target.dataset.emoji);
-    expect(document.getElementById("af-icon-emoji").textContent).toBe(target.dataset.emoji);
+    const previewImg = document.getElementById("af-icon-emoji").querySelector("img");
+    expect(previewImg).not.toBeNull();
+    expect(previewImg.src).toContain(`/static/food_images/${target.dataset.emoji}.png`);
     expect(target.classList.contains("is-active")).toBe(true);
-    expect(emojiButtons[0].classList.contains("is-active")).toBe(false);
-    // Picking an emoji collapses the grid back down, same as tapping Change again.
+    expect(buttons[0].classList.contains("is-active")).toBe(false);
+    // Picking an icon collapses the grid back down, same as tapping Change again.
     expect(grid.style.display).toBe("none");
   });
 
-  // The picker is meant to be exactly the app's own food-icon vocabulary --
-  // whatever iconForFood() can hand back for a library food. Adding a case
-  // to iconForFood (a new cuisine, a new staple) without adding its emoji
-  // here would leave a food the app draws but nobody can pick, so the two
-  // lists are pinned to each other by parsing both out of the template.
-  it("offers exactly the emojis iconForFood() can return, with the plate fallback first", () => {
-    const html = readFileSync(TEMPLATE_PATH, "utf-8");
+  it("re-picking the plate button clears the preview back to a plain glyph, not an <img>", () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, null);
+    document.getElementById("af-icon-edit-btn").click();
+    const grid = document.getElementById("af-emoji-grid");
+    grid.querySelectorAll(".af-emoji-btn")[2].click(); // pick an illustrated icon first
+    expect(document.getElementById("af-icon-emoji").querySelector("img")).not.toBeNull();
 
-    // Fail loudly on marker drift: a missing marker makes indexOf return -1,
-    // and slice(start, -1) would quietly hand back most of the file instead
-    // of the region we meant to read.
-    const region = (startMarker, endMarker) => {
-      const s = html.indexOf(startMarker);
-      const e = html.indexOf(endMarker);
-      expect(s).toBeGreaterThanOrEqual(0);
-      expect(e).toBeGreaterThan(s);
-      return html.slice(s, e);
-    };
+    document.getElementById("af-icon-edit-btn").click();
+    grid.querySelectorAll(".af-emoji-btn")[0].click(); // back to the plate default
 
-    const iconFn = region(
-      "  function iconForFood(name) {",
-      "  function foodIconHtml(name, photoClass) {"
+    expect(mod.afCreateEmoji).toBe(mod.CUSTOM_FOOD_ICON_DEFAULT);
+    expect(document.getElementById("af-icon-emoji").querySelector("img")).toBeNull();
+    expect(document.getElementById("af-icon-emoji").textContent).toBe(mod.CUSTOM_FOOD_ICON_DEFAULT);
+  });
+
+  // The picker used to derive from iconForFood()'s own Unicode returns --
+  // it doesn't anymore (see the CUSTOM_FOOD_ICONS comment in nutrition.html
+  // for why: plain emoji were the exact complaint, and most of the
+  // real illustrated-icon source pack turned out to be non-distinct anyway).
+  // These tests instead protect the two things that actually matter for a
+  // *curated image* picker: every listed icon really exists on disk, and no
+  // two listed icons are secretly the same picture -- the same duplicate-
+  // detection method (MD5 over file bytes) used to build this list by hand.
+  it("every CUSTOM_FOOD_ICONS slug has a real, distinct PNG in static/food_images/", () => {
+    const imagesDir = path.join(path.dirname(TEMPLATE_PATH), "..", "static", "food_images");
+    const mod = loadNutritionCreateForm();
+
+    expect(mod.CUSTOM_FOOD_ICONS.length).toBeGreaterThanOrEqual(15);
+    expect(mod.CUSTOM_FOOD_ICONS.length).toBeLessThanOrEqual(20);
+
+    const hashes = new Set();
+    for (const { slug, label } of mod.CUSTOM_FOOD_ICONS) {
+      const filePath = path.join(imagesDir, `${slug}.png`);
+      expect(existsSync(filePath), `${slug}.png (label "${label}") does not exist`).toBe(true);
+      const hash = createHash("md5").update(readFileSync(filePath)).digest("hex");
+      expect(hashes.has(hash), `${slug}.png (label "${label}") is pixel-identical to an earlier entry`).toBe(false);
+      hashes.add(hash);
+    }
+  });
+
+  it("customFoodIconMarkup renders a known slug as an <img> and anything else as escaped text, sized by the caller's class", () => {
+    const mod = loadNutritionCreateForm();
+    const slug = mod.CUSTOM_FOOD_ICONS[0].slug;
+
+    expect(mod.customFoodIconMarkup(slug)).toBe(`<img src="/static/food_images/${slug}.png" class="af-icon-img" alt="">`);
+    expect(mod.customFoodIconMarkup(slug, "nl-food-photo-row")).toBe(
+      `<img src="/static/food_images/${slug}.png" class="nl-food-photo-row" alt="">`
     );
-    const listSrc = region(
-      "  const CUSTOM_FOOD_EMOJIS = [",
-      "  let customFoods = [];"
-    );
-
-    const codepoints = (src) => (src.match(/\\u\{[0-9A-F]+\}/g) || []);
-    const iconEmojis = codepoints(iconFn);
-    const pickerEmojis = codepoints(listSrc);
-
-    expect(new Set(pickerEmojis)).toEqual(new Set(iconEmojis));
-    expect(pickerEmojis).toHaveLength(new Set(iconEmojis).size); // no duplicate buttons
-    // iconForFood()'s own fallback, and app.py's default for a food created
-    // without one -- renderAfCreateForm preselects CUSTOM_FOOD_EMOJIS[0], so
-    // the two defaults only agree while the plate stays first.
-    expect(pickerEmojis[0]).toBe("\\u{1F37D}");
+    // A legacy row that still has a literal Unicode glyph from before this
+    // change (or the plate default) renders as plain text, unchanged.
+    expect(mod.customFoodIconMarkup("\u{1F355}")).toBe("\u{1F355}");
+    expect(mod.customFoodIconMarkup(mod.CUSTOM_FOOD_ICON_DEFAULT)).toBe(mod.CUSTOM_FOOD_ICON_DEFAULT);
+    // An empty/missing value (very old rows predating any default) falls
+    // back to the plate rather than rendering a blank icon.
+    expect(mod.customFoodIconMarkup("")).toBe(mod.CUSTOM_FOOD_ICON_DEFAULT);
   });
 });
 
