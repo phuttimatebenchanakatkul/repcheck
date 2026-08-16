@@ -870,7 +870,6 @@
      own clear control -- in place of the old flat field list. */
   .af-create-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
   .af-create-back-btn { background: none; border: none; padding: 2px 4px 2px 0; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; }
-  .af-create-nav-title { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.005em; }
 
   .af-icon-row {
     display: flex; align-items: center; gap: 12px;
@@ -2361,6 +2360,17 @@
   const afModalOverlay = document.getElementById("af-modal-overlay");
   const afModalBody = document.getElementById("af-modal-body");
   const afModalCloseBtn = document.getElementById("af-modal-close");
+  // One sticky header sits above a stack of screens, so it names whichever
+  // screen is showing rather than the button that happened to open the
+  // modal -- the create-food form is not "Analyze a food photo". Only the
+  // create form renames it, and every way out of that form goes through
+  // renderAfChoice() (back) or closes the modal (submit), so restoring the
+  // default on the two choice screens covers the whole flow.
+  const afModalTitleEl = document.getElementById("af-modal-title");
+  const AF_MODAL_DEFAULT_TITLE = "Analyze a food photo";
+  function setAfModalTitle(text) {
+    afModalTitleEl.textContent = text;
+  }
   const afScanBtn = document.getElementById("nl-scan-btn");
   const afCameraInput = document.getElementById("af-camera-input");
   const afUploadInput = document.getElementById("af-upload-input");
@@ -2540,6 +2550,7 @@
   }
 
   function renderAfChoice() {
+    setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
     const recentScans = getRecentScans(6);
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Log your food any way you like.</div>
@@ -2586,6 +2597,7 @@
   // food/log-macros stay reachable from the full "Analyze a food photo"
   // button on this page instead, so this stays a fast, two-choice popup.
   function renderAfMealQuickChoice() {
+    setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
     const recentScans = getRecentScans(6);
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Snap or upload a photo of your meal.</div>
@@ -3117,12 +3129,18 @@
   // those fields and hit Create & log. Calories are always computed from
   // the macros server-side (protein/carbs = 4 kcal/g, fat = 9 kcal/g) —
   // see api_create_custom_food() in app.py — never entered directly.
+  // Exactly the icons iconForFood() above can return -- every emoji the
+  // app already uses to stand in for a food, deduped and kept in that
+  // function's own order, so a created food can only ever wear an icon
+  // the rest of the app also assigns. Its fallback plate stays first:
+  // afCreateEmoji defaults to CUSTOM_FOOD_EMOJIS[0], which has to match
+  // api_create_custom_food()'s server-side default in app.py.
   const CUSTOM_FOOD_EMOJIS = [
-    "\u{1F37D}️", "\u{1F357}", "\u{1F969}", "\u{1F41F}", "\u{1F95A}", "\u{1F9C0}", "\u{1F95B}",
-    "\u{1F35A}", "\u{1F35D}", "\u{1F355}", "\u{1F354}", "\u{1F32E}", "\u{1F363}", "\u{1F957}",
-    "\u{1F966}", "\u{1F34E}", "\u{1F34C}", "\u{1F347}", "\u{1F951}", "\u{1F95C}", "\u{1F331}",
-    "\u{1F35E}", "\u{1F9C1}", "\u{1F369}", "\u{1F36A}", "\u{1F368}", "\u{1F36B}", "\u{1F37F}",
-    "\u{1F964}", "\u{1F9C8}", "☕",
+    "\u{1F37D}️", "\u{1F355}", "\u{1F354}", "\u{1F35F}", "\u{1F32E}", "\u{1F32F}", "\u{1F363}",
+    "\u{1F357}", "\u{1F9C0}", "\u{1F957}", "\u{1F35D}", "\u{1F958}", "\u{1F95E}", "\u{1F369}",
+    "\u{1F36A}", "\u{1F9C1}", "\u{1F368}", "\u{1F37F}", "\u{1F95B}", "\u{1F95A}", "\u{1F969}",
+    "\u{1F41F}", "\u{1F35A}", "\u{1F34E}", "\u{1F95C}", "\u{1F966}", "\u{1F331}", "\u{1F36B}",
+    "\u{1F9C8}", "\u{1F964}",
   ];
   let customFoods = []; // this user's own created foods, from GET /api/custom-foods
   let afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
@@ -3186,6 +3204,10 @@
   // food, so scanning the same code again resolves straight to it (see
   // get_custom_food_by_barcode() in database.py).
   function renderAfCreateForm(quickMode, notFoundBarcode) {
+    // The modal header carries this screen's name (see setAfModalTitle),
+    // so the nav row below is just the back chevron -- no second copy of
+    // the same words directly under it.
+    setAfModalTitle(quickMode ? "Log macros" : "Create food");
     afCreateEmoji = CUSTOM_FOOD_EMOJIS[0];
     afCreateQuickMode = quickMode;
     afCreateBarcode = notFoundBarcode || null;
@@ -3193,7 +3215,6 @@
     afModalBody.innerHTML = `
       <div class="af-create-nav">
         <button type="button" class="af-create-back-btn" id="af-create-back-btn" aria-label="Back">&#8249;</button>
-        <span class="af-create-nav-title">${quickMode ? "Log Macros" : "Create Food"}</span>
       </div>
       ${quickMode ? "" : `
       <div class="af-icon-row">

@@ -12,8 +12,15 @@
 //      native prompt() dialogs) -- its validation must reject empty/
 //      non-numeric/zero/negative input as a no-op, not push garbage into
 //      afCreateExtraServings, which flows into the same POST body.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadNutritionCreateForm } from "./support/loadNutritionCreateForm.js";
+
+const TEMPLATE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)), "..", "templates", "nutrition.html"
+);
 
 beforeEach(() => {
   document.body.innerHTML = "";
@@ -201,6 +208,37 @@ describe("nutrition.html renderAfCreateForm -- emoji picker", () => {
     // Picking an emoji collapses the grid back down, same as tapping Change again.
     expect(grid.style.display).toBe("none");
   });
+
+  // The picker is meant to be exactly the app's own food-icon vocabulary --
+  // whatever iconForFood() can hand back for a library food. Adding a case
+  // to iconForFood (a new cuisine, a new staple) without adding its emoji
+  // here would leave a food the app draws but nobody can pick, so the two
+  // lists are pinned to each other by parsing both out of the template.
+  it("offers exactly the emojis iconForFood() can return, with the plate fallback first", () => {
+    const html = readFileSync(TEMPLATE_PATH, "utf-8");
+
+    const iconFn = html.slice(
+      html.indexOf("  function iconForFood(name) {"),
+      html.indexOf("  function foodIconHtml(name, photoClass) {")
+    );
+    const listSrc = html.slice(
+      html.indexOf("  const CUSTOM_FOOD_EMOJIS = ["),
+      html.indexOf("  let customFoods = [];")
+    );
+    expect(iconFn.length).toBeGreaterThan(0);
+    expect(listSrc.length).toBeGreaterThan(0);
+
+    const codepoints = (src) => (src.match(/\\u\{[0-9A-F]+\}/g) || []);
+    const iconEmojis = codepoints(iconFn);
+    const pickerEmojis = codepoints(listSrc);
+
+    expect(new Set(pickerEmojis)).toEqual(new Set(iconEmojis));
+    expect(pickerEmojis).toHaveLength(new Set(iconEmojis).size); // no duplicate buttons
+    // iconForFood()'s own fallback, and app.py's default for a food created
+    // without one -- renderAfCreateForm preselects CUSTOM_FOOD_EMOJIS[0], so
+    // the two defaults only agree while the plate stays first.
+    expect(pickerEmojis[0]).toBe("\\u{1F37D}");
+  });
 });
 
 describe("nutrition.html renderAfCreateForm -- serving editor", () => {
@@ -289,7 +327,7 @@ describe("nutrition.html renderAfCreateForm -- barcode attribute escaping", () =
 });
 
 describe("nutrition.html renderAfCreateForm -- quickMode", () => {
-  it("in quickMode, the name field, icon row, and serving section are all absent, nav title reads 'Log Macros', and the submit button reads 'Log now'", () => {
+  it("in quickMode, the name field, icon row, and serving section are all absent, the modal header reads 'Log macros', and the submit button reads 'Log now'", () => {
     const mod = loadNutritionCreateForm();
     mod.renderAfCreateForm(true, null);
 
@@ -303,7 +341,10 @@ describe("nutrition.html renderAfCreateForm -- quickMode", () => {
     // class -- neither is rendered in quickMode.
     expect(document.querySelectorAll(".af-icon-row")).toHaveLength(0);
 
-    expect(document.querySelector(".af-create-nav-title").textContent).toBe("Log Macros");
+    // The screen's name lives in the af-modal's sticky header now, not in
+    // a second title under the back chevron.
+    expect(mod.calls.afModalTitle).toBe("Log macros");
+    expect(document.querySelector(".af-create-nav-title")).toBeNull();
     expect(document.getElementById("af-create-submit-btn").textContent).toBe("Log now");
     // Sanity: quickMode still renders the macro fields it actually needs.
     expect(document.getElementById("af-create-protein")).not.toBeNull();
