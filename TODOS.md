@@ -338,6 +338,30 @@
 **Priority:** P4
 **Depends on:** A product decision on the intended wording
 
+### Add-a-station category tabs don't implement the full ARIA APG tabs keyboard pattern
+
+**What:** The new category tab bar (`buildStationPickerSheetContent()`, `static/hyrox.js`) has `role="tablist"` / `role="tab"` / `aria-selected` (added during this branch's pre-landing review), but not the rest of the ARIA Authoring Practices tabs pattern: no arrow-key navigation between tabs, and the tiles grid below isn't wired up as a `role="tabpanel"` linked via `aria-controls`/`aria-labelledby`.
+
+**Why:** Screen reader and keyboard users get correct "this is a tab, this one's selected" semantics (the part that matters most), but not the expected arrow-key-to-switch-tabs interaction a screen reader user familiar with the ARIA pattern would expect -- they're still limited to Tab-and-Enter through each button.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-station-picker-grid-tabs`. Deferred because full APG conformance (arrow-key roving tabindex + tabpanel linkage) is a small but real behavioral addition, not part of the redesign itself, and the current partial semantics are still a net improvement over the plain buttons this branch replaced.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Add-a-station tile grid looks visually unbalanced for 2-station categories
+
+**What:** `.hx-station-picker-grid` (`static/hyrox.css`) is a fixed `repeat(3, 1fr)` grid. Cardio has 3 stations and fills the row; Sled Work, Carry & Lunge, and Explosive each have only 2, so their row renders as 2 tiles left-aligned with an empty gap where a 3rd tile would be.
+
+**Why:** Purely cosmetic -- no broken functionality, just an asymmetric look on 3 of the 4 tabs. Noticeable but low-severity.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-station-picker-grid-tabs`. A real fix is a design decision (e.g. center 2-tile rows, or switch to a flex-wrap layout that doesn't reserve a 3rd column when unused), not a mechanical one-line fix.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
 ## Nutrition
 
 ### Nutrition log entries aren't validated for numeric shape server-side
