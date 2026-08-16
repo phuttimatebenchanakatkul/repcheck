@@ -98,7 +98,10 @@ export function loadNutritionCreateForm() {
   afModalBody.id = "af-modal-body";
   document.body.appendChild(afModalBody);
 
-  const calls = { renderAfChoice: 0, renderAfResult: 0, customFoodToResult: 0 };
+  // afModalTitle records the last title renderAfCreateForm asked the
+  // af-modal's sticky header to show -- the real setAfModalTitle lives
+  // next to that header's element, well outside the extracted regions.
+  const calls = { renderAfChoice: 0, renderAfResult: 0, customFoodToResult: 0, afModalTitle: null };
 
   const factory = new Function(
     "afModalBody",
@@ -112,6 +115,7 @@ export function loadNutritionCreateForm() {
     "closeAnalyzeFoodModal",
     "customFoodToResult",
     "renderAfResult",
+    "setAfModalTitle",
     `${source}
     return {
       renderAfCreateForm, submitCustomFood, afExtraServingsListHtml, wireAfServingRemoveButtons,
@@ -134,7 +138,8 @@ export function loadNutritionCreateForm() {
     async () => {},
     () => {},
     (food) => { calls.customFoodToResult++; return { food_name: food.name, ingredients: [] }; },
-    () => { calls.renderAfResult++; }
+    () => { calls.renderAfResult++; },
+    (text) => { calls.afModalTitle = text; }
   );
 
   result.afModalBody = afModalBody;
