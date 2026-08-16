@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Barcode scanner check</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 12px;
+    background: #111; color: #f2f2f2;
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  h1 { font-size: 17px; margin: 0 0 10px; }
+  #wrap { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 12px; overflow: hidden; }
+  video { width: 100%; height: 100%; object-fit: cover; }
+  #guide {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 86%; height: 46%; border: 2px solid #4da3ff; border-radius: 8px;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  td { padding: 6px 4px; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  td:first-child { color: #9a9a9a; width: 42%; }
+  .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .good { color: #46d17f; } .bad { color: #ff6b6b; } .warn { color: #ffc65c; }
+  button {
+    width: 100%; margin-top: 12px; padding: 13px; font-size: 16px; font-weight: 700;
+    border: 0; border-radius: 11px; background: #2f66e8; color: #fff;
+  }
+  #verdict { margin-top: 12px; padding: 11px; border-radius: 10px; background: #1c1c1c; font-weight: 600; }
+  small { color: #8b8b8b; }
+</style>
+</head>
+<body>
+<h1>Barcode scanner check</h1>
+<div id="wrap">
+  <video id="v" autoplay playsinline muted></video>
+  <div id="guide"></div>
+</div>
+
+<div id="verdict">Starting camera…</div>
+
+<table>
+  <tr><td>Camera resolution</td><td class="v" id="res">—</td></tr>
+  <tr><td>WebAssembly</td><td class="v" id="wasm">—</td></tr>
+  <tr><td>Decoder loaded</td><td class="v" id="dec">—</td></tr>
+  <tr><td>Frames tried</td><td class="v" id="tries">0</td></tr>
+  <tr><td>Brightness (0–255)</td><td class="v" id="luma">—</td></tr>
+  <tr><td>Sharpness / focus</td><td class="v" id="focus">—</td></tr>
+  <tr><td>Barcode read</td><td class="v" id="hit">not yet</td></tr>
+  <tr><td>Last error</td><td class="v" id="err">none</td></tr>
+</table>
+
+<button id="copy">Copy results</button>
+<p><small>Point at the barcode from about 20cm and hold steady for ~10 seconds, then screenshot this page (or tap Copy results).</small></p>
+
+<script src="/static/vendor/zbar-wasm.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const state = { tries: 0, luma: 0, focus: 0, bestFocus: 0, hit: null, err: "none", res: "—" };
+
+  $("wasm").textContent = (typeof WebAssembly !== "undefined") ? "supported" : "MISSING";
+  $("wasm").className = "v " + (typeof WebAssembly !== "undefined" ? "good" : "bad");
+  const haveDecoder = !!window.zbarWasm;
+  $("dec").textContent = haveDecoder ? "yes" : "FAILED TO LOAD";
+  $("dec").className = "v " + (haveDecoder ? "good" : "bad");
+
+  const video = $("v");
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  // Variance of a cheap Laplacian over the sampled crop. This is the number
+  // that separates "the decoder is broken" from "the picture is too blurry to
+  // contain a barcode" -- a sharp barcode has strong local contrast, an
+  // out-of-focus one is smooth no matter how bright or well-framed it is.
+  function measure(img) {
+    const d = img.data, w = img.width, h = img.height;
+    let sum = 0, n = 0, lapSum = 0, lapSqSum = 0;
+    const gray = (i) => (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+    for (let y = 1; y < h - 1; y += 2) {
+      for (let x = 1; x < w - 1; x += 2) {
+        const i = (y * w + x) * 4;
+        const g = gray(i);
+        sum += g; n++;
+        const lap = 4 * g - gray(i - 4) - gray(i + 4) - gray(i - w * 4) - gray(i + w * 4);
+        lapSum += lap; lapSqSum += lap * lap;
+      }
+    }
+    const mean = sum / Math.max(1, n);
+    const lapMean = lapSum / Math.max(1, n);
+    return { luma: mean, focus: Math.sqrt(Math.max(0, lapSqSum / Math.max(1, n) - lapMean * lapMean)) };
+  }
+
+  function verdict() {
+    if (state.hit) return ["Barcode read successfully — scanning works on this device.", "good"];
+    if (!haveDecoder) return ["The decoder did not load. That's the problem.", "bad"];
+    if (state.tries < 8) return ["Measuring…", "warn"];
+    if (state.luma < 45) return ["Too dark — the camera can barely see. Add light.", "bad"];
+    if (state.luma > 235) return ["Blown out by glare/light. Tilt away from the reflection.", "bad"];
+    // Thresholds measured against this decoder rather than guessed: on a
+    // rendered EAN-13, zbar still read the bars at a sharpness of 3.9 and
+    // only failed at 2.4. Calling 8 "too blurry" (the first guess here) would
+    // have sent people chasing focus while the real fault lay elsewhere.
+    if (state.bestFocus < 3) return ["Image is too blurry to contain a readable barcode. Move BACK to ~20cm and let it focus.", "bad"];
+    if (state.bestFocus < 6) return ["Borderline sharpness — back off slightly and hold still.", "warn"];
+    return ["Sharp and well lit, but nothing decoded — send me this screenshot.", "warn"];
+  }
+
+  let busy = false;
+  async function tick() {
+    if (!busy && video.videoWidth) {
+      busy = true;
+      try {
+        state.res = video.videoWidth + " x " + video.videoHeight;
+        const vw = video.videoWidth, vh = video.videoHeight;
+        const cw = Math.round(vw * 0.86), ch = Math.round(vh * 0.46);
+        canvas.width = cw; canvas.height = ch;
+        ctx.drawImage(video, Math.round((vw - cw) / 2), Math.round((vh - ch) / 2), cw, ch, 0, 0, cw, ch);
+        const img = ctx.getImageData(0, 0, cw, ch);
+        const m = measure(img);
+        state.luma = m.luma; state.focus = m.focus;
+        if (m.focus > state.bestFocus) state.bestFocus = m.focus;
+        if (haveDecoder) {
+          const syms = await window.zbarWasm.scanImageData(img);
+          if (syms && syms.length) state.hit = syms[0].typeName + " " + syms[0].decode();
+        }
+        state.tries++;
+      } catch (e) {
+        state.err = (e && e.message) ? e.message : String(e);
+      } finally { busy = false; }
+    }
+    render();
+    setTimeout(tick, 250);
+  }
+
+  function render() {
+    $("res").textContent = state.res;
+    $("tries").textContent = state.tries;
+    $("luma").textContent = state.luma ? state.luma.toFixed(0) : "—";
+    $("focus").textContent = state.focus ? (state.focus.toFixed(1) + "  (best " + state.bestFocus.toFixed(1) + ")") : "—";
+    $("focus").className = "v " + (state.bestFocus >= 6 ? "good" : state.bestFocus >= 3 ? "warn" : "bad");
+    $("hit").textContent = state.hit || "not yet";
+    $("hit").className = "v " + (state.hit ? "good" : "warn");
+    $("err").textContent = state.err;
+    const [text, cls] = verdict();
+    $("verdict").textContent = text;
+    $("verdict").className = cls;
+  }
+
+  $("copy").addEventListener("click", () => {
+    const lines = [
+      "resolution: " + state.res,
+      "webassembly: " + (typeof WebAssembly !== "undefined"),
+      "decoder loaded: " + haveDecoder,
+      "frames tried: " + state.tries,
+      "brightness: " + state.luma.toFixed(0),
+      "sharpness: " + state.focus.toFixed(1) + " (best " + state.bestFocus.toFixed(1) + ")",
+      "barcode read: " + (state.hit || "none"),
+      "last error: " + state.err,
+      "verdict: " + verdict()[0],
+    ].join("\n");
+    if (navigator.clipboard) navigator.clipboard.writeText(lines);
+    $("copy").textContent = "Copied — paste it to me";
+  });
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 2560 } } })
+    .then((stream) => { video.srcObject = stream; return video.play().catch(() => {}); })
+    .then(tick)
+    .catch((e) => {
+      state.err = (e && e.name ? e.name + ": " : "") + (e && e.message ? e.message : String(e));
+      $("verdict").textContent = "Camera could not start — " + state.err;
+      $("verdict").className = "bad";
+      render();
+    });
+})();
+</script>
+</body>
+</html>
