@@ -328,8 +328,13 @@
     align-items: center;
     gap: 18px;
   }
+  /* 168px is sized off the ring's INNER circle, not the wrap: with a 120-unit
+     viewBox, r=52 and stroke-width 10, the usable inner diameter is only
+     47/60 of the wrap. At the old 152px the widest label ("kcal consumed",
+     and its Thai equivalent, both ~115px) had 0.4px of clearance and visually
+     collided with the stroke. 168px leaves ~7px each side. */
   .nl-cal-ring-wrap {
-    position: relative; width: 152px; height: 152px; flex-shrink: 0;
+    position: relative; width: 168px; height: 168px; flex-shrink: 0;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     border-radius: 50%;
@@ -1734,7 +1739,8 @@
     .nl-summary-title { font-size: 14px; }
     .nl-goals-toggle { padding: 8px 14px; }
     .nl-checkin-btn { padding: 8px 12px; font-size: 11px; }
-    .nl-cal-ring-wrap { width: 128px; height: 128px; }
+    /* No width override here: the label is 11px at every breakpoint, so the
+       ring needs the same 168px to clear it on phones as on desktop. */
     .nl-cal-ring-value { font-size: 25px; }
     .nl-macro-pills { gap: 8px; }
     .nl-macro-pill { padding: 9px 8px; }
