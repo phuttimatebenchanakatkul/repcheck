@@ -680,7 +680,7 @@
         <div class="ob-wizard-step-label">${t("coaching.wizard.stepGoalWeight")}</div>
         <div class="ob-field">
           <label for="ob-goal-weight-kg">${t("coaching.wizard.goalWeight", { unit: weightUnit })}</label>
-          <input type="number" id="ob-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}">
+          <input type="number" id="ob-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}" data-clear-on-focus>
           <div class="ob-field-hint" id="ob-goal-weight-hint"></div>
         </div>
       </div>

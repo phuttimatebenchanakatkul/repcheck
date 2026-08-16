@@ -1,14 +1,14 @@
 // Loads the REAL renderAfCreateForm()/submitCustomFood()/afExtraServingsListHtml()
 // (the "Create Food" af-modal screen) out of templates/nutrition.html, plus
 // their real unitToGrams()/UNIT_FACTORS/UNIT_LABELS/unitOptionsHtml(),
-// escapeHtml()/wireNumericClearOnFocus(), and lookupScannedBarcode()
+// escapeHtml(), and lookupScannedBarcode()
 // dependencies -- same extraction-by-source-marker approach as
 // loadNutritionSwipeDelete.js/loadWorkoutSync.js.
 //
 // Five non-contiguous regions of the file are stitched together (unit
 // helpers live near the top of the script; the afPreviewUrl/afResult module
 // state and lookupScannedBarcode() live in the middle; the create-form
-// functions and escapeHtml/wireNumericClearOnFocus live much further down)
+// functions and escapeHtml/escapeAttr live much further down)
 // rather than one contiguous slice, since renderAfCreateForm/submitCustomFood/
 // lookupScannedBarcode genuinely depend on all of them at render/submit/scan
 // time -- concatenation order among them doesn't matter: the factory body
@@ -44,7 +44,7 @@ const REGIONS = [
     // attribute, so renderAfCreateForm calls escapeAttr (not escapeHtml,
     // which leaves quotes intact and would let a quote break out of the
     // attribute) -- extraction has to reach past it or the render throws.
-    name: "escapeHtml/wireNumericClearOnFocus/sanitizeBarcodeDigits/escapeAttr",
+    name: "escapeHtml/sanitizeBarcodeDigits/escapeAttr",
     start: "  function escapeHtml(text) {",
     end: "  function offResultRowHtml(result, index) {",
   },
@@ -115,7 +115,7 @@ export function loadNutritionCreateForm() {
     `${source}
     return {
       renderAfCreateForm, submitCustomFood, afExtraServingsListHtml, wireAfServingRemoveButtons,
-      unitToGrams, UNIT_FACTORS, UNIT_LABELS, wireNumericClearOnFocus, lookupScannedBarcode,
+      unitToGrams, UNIT_FACTORS, UNIT_LABELS, lookupScannedBarcode,
       get afCreateExtraServings() { return afCreateExtraServings; },
       get afCreateEmoji() { return afCreateEmoji; },
       get afCreateBarcode() { return afCreateBarcode; },

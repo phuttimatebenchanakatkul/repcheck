@@ -136,12 +136,12 @@
     <div class="split-ex-editor-body">
       <div class="split-ex-editor-stats">
         <div class="split-ex-editor-stat" id="split-ex-editor-sets-box">
-          <input type="number" class="split-ex-editor-input" id="split-ex-editor-sets-input" min="1" max="20">
+          <input type="number" class="split-ex-editor-input" id="split-ex-editor-sets-input" min="1" max="20" data-clear-on-focus>
           <div class="split-ex-editor-label" id="split-ex-editor-sets-label"></div>
           <div class="split-ex-editor-base" id="split-ex-editor-sets-base"></div>
         </div>
         <div class="split-ex-editor-stat" id="split-ex-editor-reps-box">
-          <input type="number" class="split-ex-editor-input" id="split-ex-editor-reps-input" min="1" max="50">
+          <input type="number" class="split-ex-editor-input" id="split-ex-editor-reps-input" min="1" max="50" data-clear-on-focus>
           <div class="split-ex-editor-label" id="split-ex-editor-reps-label"></div>
           <div class="split-ex-editor-base" id="split-ex-editor-reps-base"></div>
         </div>
@@ -2450,14 +2450,14 @@
       <span class="wl-set-field">
         <input type="number" min="0" step="0.5" inputmode="decimal" class="wl-set-input"
                value="${weightInputValue(kg)}" placeholder="0"
-               data-weight-entry="${entry.id}" data-weight-index="${i}" data-side="${side}">
+               data-weight-entry="${entry.id}" data-weight-index="${i}" data-side="${side}" data-clear-on-focus>
         <span class="wl-set-unit">${unit}</span>
       </span>`;
     const repsField = (reps, side, i) => `
       <span class="wl-set-field wl-set-field-reps">
         <input type="number" min="0" inputmode="numeric" class="wl-set-input"
                value="${isBlank(reps) ? "" : reps}" placeholder="0"
-               data-reps-entry="${entry.id}" data-reps-index="${i}" data-reps-side="${side}">
+               data-reps-entry="${entry.id}" data-reps-index="${i}" data-reps-side="${side}" data-clear-on-focus>
         <span class="wl-set-unit">${t("workouts.exercise.repsLabel")}</span>
       </span>`;
     const weightTimes = (kg, side, i) =>

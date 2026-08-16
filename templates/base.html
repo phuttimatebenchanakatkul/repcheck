@@ -33,6 +33,7 @@
   <script src="{{ asset_url('account_sync.js') }}"></script>
   <script src="{{ asset_url('units.js') }}"></script>
   <script src="{{ asset_url('i18n.js') }}"></script>
+  <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
   <!-- First-run guided tour: a multi-page walkthrough that navigates into
        each page. Loaded on every page but no-ops unless a tour is active
@@ -540,7 +541,7 @@
         <button type="button" class="lw-modal-close" id="lw-modal-close" aria-label="Close">&times;</button>
       </div>
       <div class="lw-modal-body">
-        <input type="number" id="lw-weight-input" class="lw-weight-input" min="1" step="0.1" inputmode="decimal">
+        <input type="number" id="lw-weight-input" class="lw-weight-input" min="1" step="0.1" inputmode="decimal" data-clear-on-focus>
         <button type="button" class="lw-save-btn" id="lw-save-btn" data-i18n="common.save">Save</button>
         <div class="lw-modal-msg" id="lw-modal-msg"></div>
         <!-- Populated by open()'s renderRecent() -- last few weigh-ins,

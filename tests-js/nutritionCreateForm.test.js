@@ -329,33 +329,20 @@ describe("nutrition.html lookupScannedBarcode -- client-side live-scan digit str
   });
 });
 
-describe("nutrition.html wireNumericClearOnFocus -- isolated behavior", () => {
-  it("clears a non-empty value on focus (dispatching input), restores the wire-time original on blur-while-empty (dispatching input again), and no-ops focusing an already-empty input", () => {
+// The blank-on-focus behavior these fields rely on now lives in the shared
+// static/numeric_fields.js (opted into with data-clear-on-focus, delegated
+// off document) instead of a per-element helper local to this template --
+// see numericFields.test.js. What stays this suite's job is that the
+// create-food form actually opts its number fields in.
+describe("nutrition.html create-food form -- number fields opt into clear-on-focus", () => {
+  it("marks every macro, serving-size and amount field with data-clear-on-focus", () => {
     const mod = loadNutritionCreateForm();
-    const input = document.createElement("input");
-    input.value = "0";
-    document.body.appendChild(input);
+    mod.renderAfCreateForm();
 
-    let inputEvents = 0;
-    input.addEventListener("input", () => { inputEvents++; });
-
-    mod.wireNumericClearOnFocus(input);
-
-    input.dispatchEvent(new Event("focus"));
-    expect(input.value).toBe("");
-    expect(inputEvents).toBe(1);
-
-    input.dispatchEvent(new Event("blur"));
-    expect(input.value).toBe("0"); // restored to the value captured at wire-time
-    expect(inputEvents).toBe(2);
-
-    // Focusing again while non-empty (freshly-restored "0") clears again...
-    input.dispatchEvent(new Event("focus"));
-    expect(input.value).toBe("");
-    expect(inputEvents).toBe(3);
-    // ...but focusing again while ALREADY empty is a no-op: no re-clear, no re-dispatch.
-    input.dispatchEvent(new Event("focus"));
-    expect(input.value).toBe("");
-    expect(inputEvents).toBe(3);
+    ["af-create-protein", "af-create-fat", "af-create-carbs", "af-create-serving-amount"].forEach((id) => {
+      const input = mod.afModalBody.querySelector(`#${id}`);
+      expect(input, id).not.toBeNull();
+      expect(input.hasAttribute("data-clear-on-focus"), id).toBe(true);
+    });
   });
 });
