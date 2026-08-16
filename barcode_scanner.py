@@ -16,17 +16,26 @@ Usage:
     python barcode_scanner.py <image_path>
 
 Requires:
-    pip install pyzbar pillow requests
+    pip install pyzbar pillow pillow-heif requests
 """
 
 import io
 import re
 
+import pillow_heif
 import requests
 from PIL import Image
 from pyzbar.pyzbar import decode as zbar_decode
 
 import fatsecret_lookup
+
+# Pillow has no built-in HEIC/HEIF decoder, but that's the default photo
+# format iPhones save camera captures in (Settings > Camera > Formats >
+# High Efficiency) -- without this, every photo scanned straight from an
+# iPhone camera roll raises "Couldn't read that image." in decode_barcode()
+# before pyzbar ever sees a pixel, which reads to the user as "the barcode
+# scanner doesn't work" even though the barcode itself is perfectly clear.
+pillow_heif.register_heif_opener()
 
 OPEN_FOOD_FACTS_URL = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 # The legacy cgi/search.pl and /api/v2/search endpoints were returning 503s
@@ -83,6 +92,16 @@ def decode_barcode(image_bytes):
     try:
         image = Image.open(io.BytesIO(image_bytes))
         image.load()
+        # pyzbar picks its decode path with `'PIL.' in str(type(image))`,
+        # a literal check on the class's module name -- true for a plain
+        # PIL Image, but false for the pillow_heif HeifImageFile subclass
+        # (module "pillow_heif.as_plugin"), so an unconverted HEIC image
+        # falls through to pyzbar's "must be a (pixels, width, height)
+        # tuple" branch and crashes. .convert("L") always returns a base
+        # PIL.Image.Image regardless of the source plugin, which sidesteps
+        # that check -- and pyzbar converts to grayscale internally anyway,
+        # so this is a no-op for formats that already worked.
+        image = image.convert("L")
     except Exception as exc:
         raise BarcodeScanError("Couldn't read that image.") from exc
 

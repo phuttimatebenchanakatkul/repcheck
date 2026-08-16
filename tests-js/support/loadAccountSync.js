@@ -1,77 +1,108 @@
-// Loads the REAL static/account_sync.js into the jsdom global -- same
-// "evaluate the actual shipped file" tradeoff as support/loadStreak.js,
-// since account_sync.js is also a standalone static file with no module
-// boundary to import normally.
+// Runs the REAL static/account_sync.js in jsdom rather than a hand-copied
+// duplicate, same reasoning as loadWorkoutSync.js. That file is a plain
+// IIFE with no exports, so there is nothing to import: loading it IS the
+// test subject -- it wraps localStorage.setItem/removeItem and fires its
+// hydration GET as a side effect of evaluating.
 //
-// Unlike loadStreak.js this module has real side effects the moment it's
-// evaluated: it registers a document-level "submit" listener AND fires an
-// unawaited fetch("/api/sync") whose .then() chain can itself call
-// clearStreakSeedFlag() (on an account-owner mismatch) or push data back
-// out over fetch/sendBeacon. Callers MUST stub `fetch` (vi.stubGlobal)
-// before calling loadAccountSync() -- there's no default here, same
-// convention as loadWorkoutSync.js.
+// Everything ambient it touches is injected as a parameter of the generated
+// function (so those names become the top-level scope the source closes
+// over) rather than stubbed globally:
+//
+//   localStorage / Storage / sessionStorage
+//       account_sync works by assigning over localStorage.setItem. Browsers
+//       allow that -- it's the standard way to hook storage writes -- but
+//       jsdom's Storage routes property assignment through its named-property
+//       setter, so the assignment silently becomes an ITEM called "setItem"
+//       and the wrapper is never installed. Tests against jsdom's own
+//       localStorage therefore exercise nothing. makeStorage() below is a
+//       plain object with the same surface (items are own ENUMERABLE
+//       properties, so Object.keys() lists exactly the stored keys, which is
+//       what the analyze-chat key sweep relies on) and normal assignment
+//       semantics. Storage.prototype is that same object, so the source's
+//       Storage.prototype.setItem.bind(localStorage) captures the real
+//       setter before it's wrapped, exactly as it does in a browser.
+//   location    jsdom's location.reload() is unimplemented; this spies instead.
+//   navigator   omitting sendBeacon forces every push down the fetch path,
+//               which tests can assert on.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STATIC_PATH = path.join(__dirname, "..", "..", "static", "account_sync.js");
+const SOURCE_PATH = path.join(__dirname, "..", "..", "static", "account_sync.js");
 
-const source = readFileSync(STATIC_PATH, "utf-8");
-
-/**
- * Evaluates the real account_sync.js. Does NOT touch localStorage or
- * sessionStorage -- seed those yourself beforehand (the module reads
- * window.REPCHECK_LOGGED_IN, __repcheck_sync_owner_id, and the sync keys on
- * load, so pre-seeding matters for what its hydration pass does).
- *
- * Resolves once the module's own fetch("/api/sync").then().then() chain has
- * had a real macrotask turn to run (a couple of `await Promise.resolve()`
- * hops isn't reliably enough turns for a two-deep .then() chain plus
- * whatever the caller's fetch mock itself awaits) -- so it's safe to make
- * assertions about hydration side effects (like clearStreakSeedFlag())
- * right after awaiting this.
- *
- * Captures and returns a cleanup() that removes the "submit" listener this
- * eval registers, so tests don't leak listeners onto the shared jsdom
- * `document` across cases in the same file.
- */
-export async function loadAccountSync({ loggedIn = true } = {}) {
-  window.REPCHECK_LOGGED_IN = loggedIn;
-
-  const nativeAddEventListener = document.addEventListener.bind(document);
-  let capturedListener = null;
-  document.addEventListener = (type, listener, options) => {
-    if (type === "submit" && capturedListener === null) capturedListener = listener;
-    return nativeAddEventListener(type, listener, options);
-  };
-  try {
-    // eslint-disable-next-line no-eval
-    (0, eval)(source);
-  } finally {
-    document.addEventListener = nativeAddEventListener;
+export function extractSource() {
+  const source = readFileSync(SOURCE_PATH, "utf-8");
+  if (!source.includes("var SYNC_KEYS = new Set([")) {
+    throw new Error(
+      "loadAccountSync: static/account_sync.js no longer defines SYNC_KEYS -- " +
+        "the file was restructured and this harness needs updating."
+    );
   }
+  return source;
+}
 
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  return {
-    cleanup() {
-      if (capturedListener) document.removeEventListener("submit", capturedListener);
-    },
-  };
+function makeStorage(initial = {}) {
+  const storage = {};
+  const method = (value) => ({ value, writable: true, configurable: true, enumerable: false });
+  Object.defineProperties(storage, {
+    getItem: method(function (key) {
+      return Object.prototype.hasOwnProperty.call(this, key) ? this[key] : null;
+    }),
+    setItem: method(function (key, value) {
+      Object.defineProperty(this, key, {
+        value: String(value),
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    }),
+    removeItem: method(function (key) {
+      delete this[key];
+    }),
+  });
+  Object.entries(initial).forEach(([key, value]) => storage.setItem(key, value));
+  return storage;
 }
 
 /**
- * Dispatches a submit event as if a <form action="/logout"> was submitted.
- * Appends the form under document.body and dispatches ON it (rather than
- * faking event.target) so it bubbles up to the document-level listener
- * exactly like a real form submission does.
+ * Evaluates account_sync.js against fresh storage.
+ *
+ * `initialLocal` seeds localStorage before load (what this browser already
+ * had). Returns that storage so tests can read and write through the same
+ * object the source wrapped, plus a reload spy.
  */
-export function submitLogoutForm(action = "https://example.test/logout") {
-  const form = document.createElement("form");
-  form.action = action;
-  document.body.appendChild(form);
-  form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  document.body.removeChild(form);
+export function loadAccountSync({ initialLocal = {}, sendBeacon = null } = {}) {
+  const storage = makeStorage(initialLocal);
+  const session = makeStorage();
+  window.REPCHECK_LOGGED_IN = true;
+
+  const reload = () => { reload.called = true; };
+  reload.called = false;
+
+  const factory = new Function(
+    "localStorage",
+    "sessionStorage",
+    "Storage",
+    "location",
+    "navigator",
+    extractSource()
+  );
+  factory(
+    storage,
+    session,
+    { prototype: storage },
+    { reload, pathname: "/", href: "http://localhost/" },
+    sendBeacon ? { sendBeacon } : {}
+  );
+
+  return {
+    storage,
+    session,
+    reload,
+    restore() {
+      delete window.REPCHECK_LOGGED_IN;
+    },
+  };
 }

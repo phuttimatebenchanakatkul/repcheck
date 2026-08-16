@@ -250,6 +250,95 @@ describe("nutrition.html renderAfCreateForm -- emoji picker", () => {
   });
 });
 
+describe("nutrition.html iconForFood -- category assignment regression", () => {
+  // Running the real iconForFood() against actual FOOD_LIBRARY dish/ingredient
+  // names (via a Node script, not eyeballing) turned up several substring
+  // collisions where a short generic keyword swallowed an unrelated food:
+  // "eggplant" contains "egg", "graham cracker" contains "ham", "rice cake"/
+  // "fish cake" contain "cake", "beef tartare" contains "tart", "beef, stew
+  // meat" contains "stew". Each of these pins one such fix so it can't
+  // silently regress the next time a keyword list grows.
+  function loadIconForFood() {
+    const html = readFileSync(TEMPLATE_PATH, "utf-8");
+    const s = html.indexOf("  function iconForFood(name) {");
+    const e = html.indexOf("  function foodIconHtml(name, photoClass) {");
+    expect(s).toBeGreaterThanOrEqual(0);
+    expect(e).toBeGreaterThan(s);
+    const src = html.slice(s, e);
+    return new Function(`${src}; return iconForFood;`)();
+  }
+
+  it("routes real foods to their own category instead of an unrelated keyword's icon", () => {
+    const iconForFood = loadIconForFood();
+
+    // Bug: "eggplant" was caught by the generic "egg" check.
+    expect(iconForFood("Eggplant")).toBe("\u{1F346}"); // eggplant, not egg
+    // Bug: "Rice Cake"/"Fish Cake" were caught by the dessert "cake" check.
+    expect(iconForFood("Rice Cake (Tteok)")).toBe("\u{1F365}"); // fish cake w/ swirl, not cupcake
+    expect(iconForFood("Korean Fish Cake")).toBe("\u{1F365}");
+    // Bug: "Graham Cracker" was caught by the meat "ham" check (graHAM).
+    expect(iconForFood("Graham Cracker")).toBe("\u{1F36A}"); // cookie, not steak
+    // Bug: "Duck Sauce" was caught by the "duck" check before it's a sauce.
+    expect(iconForFood("Duck Sauce")).toBe("\u{1F96B}"); // canned/sauce, not poultry
+    // Bug: "Butter Chicken" was caught by the "butter" check before "chicken".
+    expect(iconForFood("Butter Chicken")).toBe("\u{1F35A}"); // rice, not cheese
+    // Bug: "Beef Tartare" was caught by a "tart" check meant for Tarte Tatin.
+    expect(iconForFood("Beef Tartare")).toBe("\u{1F969}"); // meat, not pie
+    // Bug: "Beef, stew meat, cooked" (a raw cut) was caught by the "stew" check.
+    expect(iconForFood("Beef, stew meat, cooked")).toBe("\u{1F969}"); // meat, not soup
+    // Sanity: an actual stew dish still gets the soup/stew icon.
+    expect(iconForFood("Sundubu Jjigae, Soft Tofu Stew")).toBe("\u{1F372}");
+  });
+
+  it("covers categories food_library.py defines that the old keyword list never checked", () => {
+    const iconForFood = loadIconForFood();
+    const DEFAULT = "\u{1F37D}️";
+
+    // Whole raw-ingredient categories that had zero keyword coverage before:
+    // lamb, chickpeas, herbs/aromatics, dry spices, sauces/pastes, olives,
+    // wine, coffee, curry dishes, soups/stews, dumplings, and flatbread/
+    // French-pastry split out of the old one-size grain bucket.
+    expect(iconForFood("Lamb, cooked")).not.toBe(DEFAULT);
+    expect(iconForFood("Chickpeas, cooked")).not.toBe(DEFAULT);
+    expect(iconForFood("Curry Leaves")).not.toBe(DEFAULT);
+    expect(iconForFood("Turmeric")).not.toBe(DEFAULT);
+    expect(iconForFood("Soy Sauce")).not.toBe(DEFAULT);
+    expect(iconForFood("Kalamata Olives")).not.toBe(DEFAULT);
+    expect(iconForFood("Red Wine")).not.toBe(DEFAULT);
+    expect(iconForFood("Espresso")).not.toBe(DEFAULT);
+    expect(iconForFood("Chicken Tikka Masala")).not.toBe(DEFAULT);
+    expect(iconForFood("Clam Chowder")).not.toBe(DEFAULT);
+    expect(iconForFood("Gyoza, Pork Dumplings")).not.toBe(DEFAULT);
+    expect(iconForFood("Pita Bread")).not.toBe(DEFAULT);
+    expect(iconForFood("Croissant")).not.toBe(DEFAULT);
+  });
+
+  // Three pairs were visually near-duplicates at picker-thumbnail size --
+  // for each, the icon covering fewer real FOOD_LIBRARY foods (measured,
+  // not eyeballed) was retired in favor of the one covering more, so the
+  // picker doesn't force a choice between two icons that read the same:
+  //   pot of food (24 foods) vs. shallow pan of food (1 food)      -> pot wins
+  //   cooked rice (46 foods) vs. curry rice (28 foods)             -> rice wins
+  //   seedling (16 foods)    vs. herb (14 foods)                   -> seedling wins
+  it("merges each near-duplicate icon pair onto whichever one already covers more foods", () => {
+    const iconForFood = loadIconForFood();
+
+    expect(iconForFood("Beef Stir Fry")).toBe("\u{1F372}"); // pot of food, not shallow pan
+    expect(iconForFood("Chicken Tikka Masala")).toBe("\u{1F35A}"); // cooked rice, not curry rice
+    expect(iconForFood("Thai Basil")).toBe("\u{1F331}"); // seedling, not herb
+
+    // Both retired codepoints must be unreachable now -- iconForFood() has
+    // no line left that can return them.
+    const html = readFileSync(TEMPLATE_PATH, "utf-8");
+    const s = html.indexOf("  function iconForFood(name) {");
+    const e = html.indexOf("  function foodIconHtml(name, photoClass) {");
+    const src = html.slice(s, e);
+    expect(src).not.toContain("\\u{1F958}"); // shallow pan of food
+    expect(src).not.toContain("\\u{1F35B}"); // curry rice
+    expect(src).not.toContain("\\u{1F33F}"); // herb
+  });
+});
+
 describe("nutrition.html renderAfCreateForm -- af-modal header title", () => {
   // The af-modal's sticky header is shared by every screen in the flow, so
   // renderAfCreateForm has to rename it -- otherwise the create-food form

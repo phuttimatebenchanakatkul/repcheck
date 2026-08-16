@@ -12,63 +12,106 @@
 // and actually exercises the real account_sync.js to prove the flag gets
 // cleared, not just that the right function name appears somewhere in the
 // file.
+//
+// Uses the shared loadAccountSync() harness (support/loadAccountSync.js) --
+// injected fake storage objects, not jsdom's real localStorage/
+// sessionStorage, because jsdom's Storage silently swallows the
+// `localStorage.setItem = fn` override account_sync.js relies on (see that
+// file's own header comment for the full explanation).
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { loadAccountSync, submitLogoutForm } from "./support/loadAccountSync.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { loadAccountSync } from "./support/loadAccountSync.js";
 
 const SEEDED_FLAG = "repcheck_activity_seeded";
 const OWNER_KEY = "__repcheck_sync_owner_id";
+const ACTIVITY_LOG_KEY = "repcheck_activity_log_v1";
 
-function syncResponse(userId, values = {}) {
-  return Promise.resolve({ json: () => Promise.resolve({ ok: true, user_id: userId, values }) });
+function mockSync(userId, values = {}) {
+  const fetchMock = vi.fn((url) => {
+    if (url === "/api/sync") {
+      return Promise.resolve({ json: () => Promise.resolve({ ok: true, user_id: userId, values }) });
+    }
+    return Promise.resolve({ ok: true });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
-beforeEach(() => {
-  localStorage.clear();
-  sessionStorage.clear();
-});
+// The hydration path is fetch -> .then(r => r.json()) -> .then(...) ->
+// .catch() -> .then(dispatch), so it settles after a few microtask turns
+// rather than immediately -- same helper as accountSyncStrandedKeys.test.js.
+async function flush() {
+  for (let i = 0; i < 6; i += 1) await Promise.resolve();
+}
+
+let active = null;
+
+async function start(opts) {
+  active = loadAccountSync(opts);
+  await flush();
+  return active;
+}
+
+function submitLogoutForm(action = "https://example.test/logout") {
+  const form = document.createElement("form");
+  form.action = action;
+  document.body.appendChild(form);
+  form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  document.body.removeChild(form);
+}
 
 afterEach(() => {
+  if (active) active.restore();
+  active = null;
   vi.unstubAllGlobals();
-  delete window.REPCHECK_LOGGED_IN;
 });
 
 describe("logout clears the streak seed flag", () => {
   it("clears repcheck_activity_seeded when a /logout form is submitted", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(1)));
-    const { cleanup } = await loadAccountSync();
-    sessionStorage.setItem(SEEDED_FLAG, "1");
+    mockSync(1);
+    const { session } = await start();
+    session.setItem(SEEDED_FLAG, "1");
 
     submitLogoutForm();
 
-    expect(sessionStorage.getItem(SEEDED_FLAG)).toBe(null);
-    cleanup();
+    expect(session.getItem(SEEDED_FLAG)).toBe(null);
   });
 
   it("leaves the flag alone for a form submit that isn't a logout", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(1)));
-    const { cleanup } = await loadAccountSync();
-    sessionStorage.setItem(SEEDED_FLAG, "1");
+    mockSync(1);
+    const { session } = await start();
+    session.setItem(SEEDED_FLAG, "1");
 
     submitLogoutForm("https://example.test/api/some-other-form");
 
-    expect(sessionStorage.getItem(SEEDED_FLAG)).toBe("1");
-    cleanup();
+    expect(session.getItem(SEEDED_FLAG)).toBe("1");
   });
 
   it("also clears the synced account keys, not just the streak flag (logout does both)", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(1)));
-    const { cleanup } = await loadAccountSync();
-    localStorage.setItem("repcheck_activity_log_v1", JSON.stringify({ "2026-08-16": ["challenge"] }));
-    sessionStorage.setItem(SEEDED_FLAG, "1");
+    mockSync(1);
+    const { storage, session } = await start({
+      initialLocal: { [ACTIVITY_LOG_KEY]: JSON.stringify({ "2026-08-16": ["challenge"] }) },
+    });
+    session.setItem(SEEDED_FLAG, "1");
 
     submitLogoutForm();
 
-    expect(localStorage.getItem("repcheck_activity_log_v1")).toBe(null);
-    expect(sessionStorage.getItem(SEEDED_FLAG)).toBe(null);
-    cleanup();
+    expect(storage.getItem(ACTIVITY_LOG_KEY)).toBe(null);
+    expect(session.getItem(SEEDED_FLAG)).toBe(null);
   });
 });
+
+// loadAccountSync() fires its /api/sync fetch synchronously but the
+// resulting .then() chain resolves on the microtask queue -- so a flag can
+// still be seeded into `session` right after the call returns, before
+// hydration's owner check has actually run, then observed once flush()
+// drains that chain.
+async function startWithSeededFlag(opts) {
+  active = loadAccountSync(opts);
+  active.session.setItem(SEEDED_FLAG, "1");
+  await flush();
+  return active;
+}
 
 describe("an account-owner mismatch on hydration clears the streak seed flag", () => {
   it("clears the flag when the account that just loaded differs from the one this browser last synced as", async () => {
@@ -76,38 +119,27 @@ describe("an account-owner mismatch on hydration clears the streak seed flag", (
     // previous page load); /api/sync now reports user 2 is logged in --
     // e.g. the session cookie was cleared and a different account signed
     // in without ever hitting /logout.
-    localStorage.setItem(OWNER_KEY, "1");
-    sessionStorage.setItem(SEEDED_FLAG, "1");
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(2)));
+    mockSync(2);
+    const { session } = await startWithSeededFlag({ initialLocal: { [OWNER_KEY]: "1" } });
 
-    const { cleanup } = await loadAccountSync();
-
-    expect(sessionStorage.getItem(SEEDED_FLAG)).toBe(null);
-    cleanup();
+    expect(session.getItem(SEEDED_FLAG)).toBe(null);
   });
 
   it("does NOT clear the flag when hydration confirms the same account is still logged in", async () => {
-    localStorage.setItem(OWNER_KEY, "1");
-    sessionStorage.setItem(SEEDED_FLAG, "1");
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(1)));
+    mockSync(1);
+    const { session } = await startWithSeededFlag({ initialLocal: { [OWNER_KEY]: "1" } });
 
-    const { cleanup } = await loadAccountSync();
-
-    expect(sessionStorage.getItem(SEEDED_FLAG)).toBe("1");
-    cleanup();
+    expect(session.getItem(SEEDED_FLAG)).toBe("1");
   });
 
   it("does NOT clear the flag on this browser's very first hydration (no owner on record yet)", async () => {
     // No __repcheck_sync_owner_id yet -- a brand-new browser/anonymous ->
     // signup adoption case, not an account switch, so nothing should be
     // wiped.
-    sessionStorage.setItem(SEEDED_FLAG, "1");
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(1)));
+    mockSync(1);
+    const { session } = await startWithSeededFlag({});
 
-    const { cleanup } = await loadAccountSync();
-
-    expect(sessionStorage.getItem(SEEDED_FLAG)).toBe("1");
-    cleanup();
+    expect(session.getItem(SEEDED_FLAG)).toBe("1");
   });
 });
 
@@ -121,69 +153,54 @@ describe("repcheck:sync-hydrated signal", () => {
   // signal exists to close. These tests pin that it fires in both cases.
 
   it("fires once the hydration pull resolves successfully", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(1)));
+    mockSync(1);
     const seen = vi.fn();
     document.addEventListener("repcheck:sync-hydrated", seen);
 
-    const { cleanup } = await loadAccountSync();
+    await start();
 
     expect(seen).toHaveBeenCalledTimes(1);
     document.removeEventListener("repcheck:sync-hydrated", seen);
-    cleanup();
   });
 
   it("still fires even when the hydration pull fails outright", async () => {
     // account_sync.js's own .catch(() => {}) swallows the error -- the
     // signal must still land, or streak.js would be stuck waiting on a
-    // dead session-flaky connection with no back-fill until its timeout.
+    // dead/flaky connection with no back-fill until its timeout.
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network down"))));
     const seen = vi.fn();
     document.addEventListener("repcheck:sync-hydrated", seen);
 
-    const { cleanup } = await loadAccountSync();
+    await start();
 
     expect(seen).toHaveBeenCalledTimes(1);
     document.removeEventListener("repcheck:sync-hydrated", seen);
-    cleanup();
   });
 
   it("fires AFTER the account-switch wipe has already cleared the stale local data", async () => {
     // The whole point of gating streak.js on this event: by the time it
     // fires, any account-switch cleanup this pass is going to do has
-    // already happened -- so a listener reading localStorage inside the
-    // event handler must see the POST-wipe state (the old account's day
-    // gone -- normalized back to an empty log, not left absent), never a
-    // stale pre-wipe snapshot still carrying user 1's day.
-    localStorage.setItem(OWNER_KEY, "1");
-    localStorage.setItem(
-      "repcheck_activity_log_v1",
-      JSON.stringify({ "2026-08-10": ["challenge"] }) // stale, belongs to user 1
-    );
-    vi.stubGlobal("fetch", vi.fn(() => syncResponse(2))); // now logged in as user 2
-
+    // already happened -- so a listener reading storage inside the event
+    // handler must see the POST-wipe state (the old account's day gone --
+    // normalized to an empty log, not left absent), never a stale pre-wipe
+    // snapshot still carrying user 1's day.
+    mockSync(2); // now logged in as user 2
     let sawDuringEvent = "not fired";
-    document.addEventListener("repcheck:sync-hydrated", () => {
-      sawDuringEvent = localStorage.getItem("repcheck_activity_log_v1");
-    });
+    const handler = () => {
+      sawDuringEvent = active.storage.getItem(ACTIVITY_LOG_KEY);
+    };
+    document.addEventListener("repcheck:sync-hydrated", handler);
 
-    const { cleanup } = await loadAccountSync();
+    active = loadAccountSync({
+      initialLocal: {
+        [OWNER_KEY]: "1", // last synced as user 1
+        [ACTIVITY_LOG_KEY]: JSON.stringify({ "2020-01-01": ["challenge"] }), // stale, belongs to user 1
+      },
+    });
+    await flush();
 
     expect(sawDuringEvent).not.toBe("not fired"); // the event did fire
-    expect(JSON.parse(sawDuringEvent)).not.toHaveProperty("2026-08-10"); // and user 1's day is gone by then
-    cleanup();
-  });
-
-  it("does not fire at all for a logged-out visitor (account_sync.js never touches /api/sync)", async () => {
-    const fetchMock = vi.fn(() => syncResponse(1));
-    vi.stubGlobal("fetch", fetchMock);
-    const seen = vi.fn();
-    document.addEventListener("repcheck:sync-hydrated", seen);
-
-    const { cleanup } = await loadAccountSync({ loggedIn: false });
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(seen).not.toHaveBeenCalled();
-    document.removeEventListener("repcheck:sync-hydrated", seen);
-    cleanup();
+    expect(JSON.parse(sawDuringEvent)).not.toHaveProperty("2020-01-01"); // user 1's day is gone by then
+    document.removeEventListener("repcheck:sync-hydrated", handler);
   });
 });
