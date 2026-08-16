@@ -747,8 +747,11 @@
       // synthetic click through the same delegated handler above.
       this.root.addEventListener("keydown", (event) => this.handleKeydown(event));
       this.root.addEventListener("change", (event) => this.handleChange(event));
-      this.root.addEventListener("focusin", (event) => this.handleFocusIn(event));
-      this.root.addEventListener("focusout", (event) => this.handleFocusOut(event));
+      // The blank-on-focus behavior for this page's [data-clear-on-focus]
+      // number fields (station weights, doubles round splits, custom
+      // station amounts, facility lane width) is delegated off `document`
+      // by static/numeric_fields.js, shared with every other numeric field
+      // in the app -- nothing to bind here.
       // Press-and-hold drag reorder for the custom builder's station list
       // -- see handleCustomRowPointerDown(). Now lives directly on the
       // race-setup page (part of #hyrox-root), not a bottom sheet, so it's
@@ -1025,30 +1028,6 @@
     closeStationInfo() {
       this.stationInfo = null;
       this.render();
-    }
-
-    // Tapping a number field should let you just type the new value, not
-    // make you clear 3 digits first -- so it blanks on focus. The old
-    // value is stashed on the element and put back on blur if nothing was
-    // typed, so tapping in and back out never silently changes anything.
-    // Bound via focusin/focusout (which bubble, unlike focus/blur) so this
-    // survives the sheet's innerHTML being rebuilt on every render.
-    handleFocusIn(event) {
-      const input = event.target.closest("[data-clear-on-focus]");
-      if (!input) return;
-      input.dataset.prevValue = input.value;
-      input.value = "";
-    }
-
-    handleFocusOut(event) {
-      const input = event.target.closest("[data-clear-on-focus]");
-      if (!input) return;
-      if (input.value.trim() === "" && input.dataset.prevValue != null) {
-        input.value = input.dataset.prevValue;
-        // Nothing changed, so no setter runs and no re-render is needed --
-        // restoring the text is the whole job.
-      }
-      delete input.dataset.prevValue;
     }
 
     handleChange(event) {
@@ -2468,7 +2447,7 @@
             <label class="hx-space-field">
               <span class="hx-space-field-label">${t("hyrox.space.laneLabel")}</span>
               <span class="hx-space-input-wrap">
-                <input type="number" inputmode="decimal" step="0.5" min="1" max="500" value="${lane}" data-facility-lane-input class="hx-space-input">
+                <input type="number" inputmode="decimal" step="0.5" min="1" max="500" value="${lane}" data-facility-lane-input data-clear-on-focus class="hx-space-input">
                 <span class="hx-space-input-unit">m</span>
               </span>
             </label>

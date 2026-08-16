@@ -2299,7 +2299,7 @@
           <span class="lq-amount-hint">1 serving = ${lqServingGrams}g</span>
         </div>
         <div class="lq-amount-row">
-          <input type="text" inputmode="decimal" id="lq-amount-value" class="lq-amount-input" value="1">
+          <input type="text" inputmode="decimal" id="lq-amount-value" class="lq-amount-input" value="1" data-clear-on-focus>
           <div class="lq-unit-seg" id="lq-unit-seg">
             <button type="button" data-unit="serving" class="is-active">serving</button>
             <button type="button" data-unit="g">g</button>
@@ -2324,7 +2324,6 @@
       lqAmountValue = isFinite(parsed) && parsed >= 0 ? parsed : 0;
       refreshLqDonut();
     });
-    wireNumericClearOnFocus(amountInput);
     document.getElementById("lq-unit-seg").addEventListener("click", (event) => {
       const btn = event.target.closest("[data-unit]");
       if (!btn) return;
@@ -2983,7 +2982,7 @@
           <span class="af-amount-serving-hint" id="af-amount-serving-hint-text">1 serving = ${afServingGrams}g</span>
         </div>
         <div class="af-amount-input-row">
-          <input type="text" inputmode="decimal" id="af-amount-value" value="1">
+          <input type="text" inputmode="decimal" id="af-amount-value" value="1" data-clear-on-focus>
           <div class="af-unit-seg" id="af-unit-seg">
             <button type="button" data-unit="serving" class="is-active">serving</button>
             <button type="button" data-unit="g">g</button>
@@ -3031,7 +3030,6 @@
       afAmountValue = isFinite(parsed) && parsed >= 0 ? parsed : 0;
       refreshAfDonut(result);
     });
-    wireNumericClearOnFocus(amountInput);
     document.getElementById("af-unit-seg").addEventListener("click", (event) => {
       const btn = event.target.closest("[data-unit]");
       if (!btn) return;
@@ -3254,15 +3252,15 @@
       <div class="af-macro-grid">
         <div class="af-field">
           <label for="af-create-protein">Protein (g)</label>
-          <input type="text" inputmode="decimal" id="af-create-protein" value="0">
+          <input type="text" inputmode="decimal" id="af-create-protein" value="0" data-clear-on-focus>
         </div>
         <div class="af-field">
           <label for="af-create-fat">Fat (g)</label>
-          <input type="text" inputmode="decimal" id="af-create-fat" value="0">
+          <input type="text" inputmode="decimal" id="af-create-fat" value="0" data-clear-on-focus>
         </div>
         <div class="af-field">
           <label for="af-create-carbs">Carbs (g)</label>
-          <input type="text" inputmode="decimal" id="af-create-carbs" value="0">
+          <input type="text" inputmode="decimal" id="af-create-carbs" value="0" data-clear-on-focus>
         </div>
       </div>
       <div class="af-create-calories">
@@ -3284,7 +3282,7 @@
           <div class="af-serving-weight-row">
             <span class="af-serving-weight-label">1 serving</span>
             <div class="nl-amount-field">
-              <input type="number" min="0" id="af-create-serving-amount" value="100">
+              <input type="number" min="0" id="af-create-serving-amount" value="100" data-clear-on-focus>
               <select class="nl-unit-select" id="af-create-serving-unit">${unitOptionsHtml("g")}</select>
             </div>
           </div>
@@ -3297,7 +3295,7 @@
           <div class="af-serving-weight-row">
             <input type="text" id="af-new-serving-label" maxlength="40" placeholder="e.g. 1 box" style="flex:1;min-width:0;width:auto;margin:0;">
             <div class="nl-amount-field">
-              <input type="number" min="0" id="af-new-serving-amount" value="1">
+              <input type="number" min="0" id="af-new-serving-amount" value="1" data-clear-on-focus>
               <select class="nl-unit-select" id="af-new-serving-unit">${unitOptionsHtml("g")}</select>
             </div>
           </div>
@@ -3346,7 +3344,6 @@
       macroInput.addEventListener("input", () => {
         calValueEl.textContent = customFoodCalories();
       });
-      wireNumericClearOnFocus(macroInput);
     });
     // Primary serving size: collapsed behind an "Edit" tap (same pattern as
     // the emoji picker above). The name is fixed at "1 serving" -- not
@@ -3366,7 +3363,6 @@
       });
       servingAmountInput.addEventListener("input", refreshServingSummary);
       servingUnitSelect.addEventListener("change", refreshServingSummary);
-      wireNumericClearOnFocus(servingAmountInput);
     }
 
     // Extra serving sizes: an in-app amount+unit form (same nl-amount-field/
@@ -3379,7 +3375,6 @@
       const newServingLabelInput = document.getElementById("af-new-serving-label");
       const newServingAmountInput = document.getElementById("af-new-serving-amount");
       const newServingUnitSelect = document.getElementById("af-new-serving-unit");
-      wireNumericClearOnFocus(newServingAmountInput);
       addServingBtn.addEventListener("click", () => {
         addServingForm.style.display = addServingForm.style.display === "none" ? "block" : "none";
         if (addServingForm.style.display === "block") newServingLabelInput.focus();
@@ -3693,29 +3688,6 @@
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
-  }
-
-  // Quantity/macro number fields (protein, fat, carbs, serving grams, log
-  // amount) start pre-filled with a default (0, 1, 100) that the user
-  // almost always has to backspace before typing their real value --
-  // clear it for them on focus so they can just type, and restore the
-  // default on blur if they leave it empty rather than leaving a blank
-  // field behind.
-  function wireNumericClearOnFocus(input) {
-    if (!input || input.dataset.clearOnFocusWired) return;
-    input.dataset.clearOnFocusWired = "1";
-    const original = input.value;
-    input.addEventListener("focus", () => {
-      if (input.value === "") return;
-      input.value = "";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    input.addEventListener("blur", () => {
-      if (input.value.trim() === "") {
-        input.value = original;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    });
   }
 
   // Retail barcodes (EAN/UPC) are always numeric -- strip anything else so
@@ -4078,7 +4050,7 @@
           <label class="nl-amount-title" for="total-grams-${entry.id}">${t("nutrition.amount.label")}</label>
         </div>
         <div class="nl-amount-field">
-          <input type="number" min="0" id="total-grams-${entry.id}" value="${Math.round(totals.grams)}" data-total-grams-entry="${entry.id}">
+          <input type="number" min="0" id="total-grams-${entry.id}" value="${Math.round(totals.grams)}" data-total-grams-entry="${entry.id}" data-clear-on-focus>
           <span class="nl-amount-unit-label">g</span>
         </div>
       </div>
@@ -4088,7 +4060,7 @@
           <label class="nl-amount-title" for="grams-${entry.id}">${t("nutrition.amount.label")}</label>
         </div>
         <div class="nl-amount-field">
-          <input type="number" min="0" id="grams-${entry.id}" value="${gramsToUnit(entry.grams, entry.unit || "g")}" data-grams-entry="${entry.id}">
+          <input type="number" min="0" id="grams-${entry.id}" value="${gramsToUnit(entry.grams, entry.unit || "g")}" data-grams-entry="${entry.id}" data-clear-on-focus>
           <select class="nl-unit-select" data-amount-unit-entry="${entry.id}">${unitOptionsHtml(entry.unit || "g")}</select>
         </div>
       </div>
@@ -4309,7 +4281,7 @@
                 <div class="nl-ingredient-bottom">
                   <div class="nl-ingredient-amount-group">
                     <input type="number" min="0" class="nl-ingredient-grams" value="${gramsToUnit(ing.grams, ing.unit || "g")}"
-                           data-ingredient-entry="${entry.id}" data-ingredient-index="${i}">
+                           data-ingredient-entry="${entry.id}" data-ingredient-index="${i}" data-clear-on-focus>
                     <select class="nl-unit-select" data-ingredient-unit-entry="${entry.id}" data-ingredient-unit-index="${i}">${unitOptionsHtml(ing.unit || "g")}</select>
                   </div>
                 </div>
