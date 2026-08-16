@@ -2776,7 +2776,15 @@
         </button>
       </div>
     `;
-    document.getElementById("af-open-barcode-camera-btn").addEventListener("click", () => afBarcodeInput.click());
+    // Same live scanner the in-modal Barcode button opens. This used to go
+    // straight to afBarcodeInput (one still photo, no retry), which meant
+    // the quick action from the home screen kept the exact failure the live
+    // scanner exists to fix -- every barcode entry point has to land on the
+    // same scanner or the fix only applies to whichever one you happened to
+    // tap. startLiveBarcodeScan() still falls back to the photo input by
+    // itself when there's no camera to use.
+    document.getElementById("af-open-barcode-camera-btn")
+      .addEventListener("click", () => startLiveBarcodeScan());
   }
 
   // Re-logs a past scanned entry at the current moment, on the currently
@@ -2959,6 +2967,13 @@
   // this only stops a fast connection from queuing work faster than a hand
   // can steady the camera.
   const BARCODE_FRAME_INTERVAL_MS = 220;
+  // Gap between on-device decode attempts. Driven by a timer rather than
+  // requestAnimationFrame: rAF is tied to compositing, so anything that
+  // stops the page painting (a hidden/occluded tab, an aggressive throttle)
+  // silently drops the scan loop to a tick every couple of seconds while the
+  // camera preview still looks live -- indistinguishable, from the outside,
+  // from a scanner that just never reads anything.
+  const BARCODE_SCAN_INTERVAL_MS = 90;
 
   function openBarcodePhotoInput() {
     document.getElementById("af-barcode-input").click();
@@ -3048,11 +3063,105 @@
       return;
     }
 
-    if (nativeDetect) runNativeBarcodeLoop(video);
+    if (nativeDetect) {
+      runNativeBarcodeLoop(video);
+      return;
+    }
+    // No BarcodeDetector (Safari, every version). Decode on-device with the
+    // bundled zbar build if it loads; only fall back to shipping frames to
+    // the server if it doesn't.
+    const wasm = await loadWasmBarcodeDecoder();
+    if (!barcodeLiveStream) return; // cancelled while the decoder was loading
+    if (wasm) runWasmBarcodeLoop(video, wasm);
     else runServerBarcodeLoop(video);
   }
 
-  // Chrome/Android: decode in-page, every animation frame, no network.
+  // Safari ships no BarcodeDetector at any version, so the decoder has to
+  // come from somewhere. /static/vendor/zbar-wasm.js is zbar -- the same
+  // library that decodes on the server -- compiled to WebAssembly, with the
+  // .wasm inlined into the one file so there's no second fetch and no
+  // MIME/path setup for a project with no build step. Loaded lazily and only
+  // on browsers that need it, so Chrome never pays the ~330KB.
+  let wasmBarcodeDecoder = null;
+  let wasmBarcodeLoad = null;
+
+  function loadWasmBarcodeDecoder() {
+    if (wasmBarcodeDecoder) return Promise.resolve(wasmBarcodeDecoder);
+    if (wasmBarcodeLoad) return wasmBarcodeLoad;
+    wasmBarcodeLoad = new Promise((resolve) => {
+      if (typeof WebAssembly === "undefined") { resolve(null); return; }
+      const script = document.createElement("script");
+      script.src = "{{ asset_url('vendor/zbar-wasm.js') }}";
+      script.async = true;
+      script.onload = () => {
+        wasmBarcodeDecoder = window.zbarWasm || null;
+        resolve(wasmBarcodeDecoder);
+      };
+      // A failed load is not fatal -- runServerBarcodeLoop still works, it's
+      // just slower, so this degrades rather than dead-ends the scan.
+      script.onerror = () => resolve(null);
+      document.head.appendChild(script);
+    });
+    return wasmBarcodeLoad;
+  }
+
+  // On-device decoding: no upload, no round-trip, so this runs at camera
+  // speed rather than at network speed. That difference is the whole point --
+  // a barcode read is mostly a numbers game (many frames, one of them sharp),
+  // and posting ~100KB per attempt over mobile data only buys a couple of
+  // tries a second.
+  function runWasmBarcodeLoop(video, wasm) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const hintEl = document.getElementById("af-scanner-hint");
+    let attempts = 0;
+    let busy = false;
+
+    const tick = async () => {
+      if (!barcodeLiveStream) return;
+      if (!busy && video.videoWidth) {
+        busy = true;
+        try {
+          const scale = Math.min(1, BARCODE_FRAME_WIDTH / video.videoWidth);
+          canvas.width = Math.round(video.videoWidth * scale);
+          canvas.height = Math.round(video.videoHeight * scale);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const symbols = await wasm.scanImageData(frame);
+          if (!barcodeLiveStream) return;
+          const retail = (symbols || []).filter((s) => RETAIL_SYMBOLOGIES.test(s.typeName || ""));
+          const hit = retail[0] || (symbols || [])[0];
+          if (hit) {
+            const value = sanitizeBarcodeDigits(hit.decode());
+            if (value) {
+              stopLiveBarcodeScan();
+              lookupScannedBarcode(value);
+              return;
+            }
+          }
+          attempts += 1;
+          if (hintEl && attempts === 60) {
+            hintEl.textContent = "Still looking — try moving closer or adding light";
+          }
+        } catch (err) { // one bad frame shouldn't end the scan
+        } finally {
+          busy = false;
+        }
+      }
+      if (barcodeLiveStream) barcodeLoopTimer = setTimeout(tick, BARCODE_SCAN_INTERVAL_MS);
+    };
+    tick();
+  }
+
+  // Prefer retail product symbologies over any QR code or other barcode
+  // sharing the frame, same as the server does. Matched unanchored because
+  // this build reports its types with a library prefix ("ZBAR_EAN13", not
+  // "EAN13") -- anchoring here silently matched nothing and let a QR code
+  // win over the product barcode next to it.
+  const RETAIL_SYMBOLOGIES = /(EAN|UPC|ISBN)/i;
+
+  // Chrome/Android: decode in-page with the browser's own detector, no
+  // network. Timer-driven for the same reason as the WASM loop above.
   function runNativeBarcodeLoop(video) {
     const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
     const tick = async () => {
@@ -3067,9 +3176,9 @@
         }
       } catch (err) { // transient decode failure — keep scanning
       }
-      if (barcodeLiveStream) barcodeLiveRafId = requestAnimationFrame(tick);
+      if (barcodeLiveStream) barcodeLoopTimer = setTimeout(tick, BARCODE_SCAN_INTERVAL_MS);
     };
-    barcodeLiveRafId = requestAnimationFrame(tick);
+    tick();
   }
 
   // Safari (iOS included) has no BarcodeDetector at any version, so the old
