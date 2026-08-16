@@ -423,6 +423,10 @@
         history.push({ role: "assistant", text: reply });
         persistHistory();
         renderMessages();
+        // Counts toward the streak like any other use of the app. Needs an
+        // explicit mark because these threads are keyed by analysis id,
+        // not by date, so nothing in them says WHEN a question was asked.
+        if (data.ok && window.RepCheckStreak) RepCheckStreak.mark("analyze_chat");
         if (data.ok && data.limited) {
           applyLimitLockout(data.retry_after_seconds);
         }

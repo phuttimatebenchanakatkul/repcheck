@@ -465,6 +465,15 @@
     return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="pc-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
   }
 
+  // Completing the weekly check-in is one of the app's real actions, so it
+  // counts toward the streak. It needs an explicit mark: the check-in
+  // itself only writes undated state (the coaching profile, macro goals),
+  // and its weigh-in is optional, so on a check-in without one there'd
+  // otherwise be nothing dated to prove the day was used.
+  function markCheckinActivity() {
+    if (window.RepCheckStreak) RepCheckStreak.mark("checkin");
+  }
+
   function loadWeightLog() { return loadJson(WEIGHT_LOG_KEY, {}); }
   function loadDayStatusMap() { return loadJson(DAY_STATUS_KEY, {}); }
   function loadNutritionLog() { return loadJson(NUTRITION_LOG_KEY, {}); }
@@ -933,6 +942,7 @@
           }));
           this.profile.lastAdjustmentDate = c.todayIso;
           saveJson(PROFILE_KEY, this.profile);
+          markCheckinActivity();
           c.result = "goal-achieved";
           c.resultPrevious = null;
           c.step = "result";
@@ -1064,6 +1074,7 @@
         // weight saved inside the check-in itself doesn't dispatch
         // repcheck:weight-logged, so it never ran that check.)
         localStorage.removeItem(ACHIEVED_KEY);
+        markCheckinActivity();
 
         c.result = adjustment;
         c.resultPrevious = previousTargets;

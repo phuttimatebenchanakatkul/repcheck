@@ -81,6 +81,7 @@ from database import (
     delete_custom_food,
     delete_progress_photo,
     delete_user_data,
+    get_activity_dates,
     get_all_user_data,
     get_challenge,
     get_custom_exercises,
@@ -456,6 +457,7 @@ SYNCED_DATA_KEYS = {
     "repcheck_coaching_goal_achieved_handled_v1",
     "repcheck_hyrox_history_v1",
     "repcheck_hyrox_history_synced_v1",
+    "repcheck_activity_log_v1",
     # Favourited exercises (the heart toggle in the exercise picker) --
     # same shape and same "user-curated set" semantics as
     # repcheck_nutrition_favorites_v1 above, and it was the last curated
@@ -725,6 +727,27 @@ def api_checkin_photo_upload():
         return jsonify({"ok": False, "error": "angle must be 'front' or 'back'."}), 400
     date_iso = str(request.form.get("date") or "").strip()
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    try:
+        photo_date = date.fromisoformat(date_iso)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    # Bound the date to a sane window -- this field is now load-bearing for
+    # the streak's server-side back-fill (get_activity_dates() in
+    # database.py treats every distinct progress_photos.date as an active
+    # day), so an unbounded value here would let a user fabricate arbitrary
+    # streak history by uploading one photo with a forged date. A day of
+    # slack on the future side covers the client's local "today" running
+    # ahead of the server's clock; the account's own creation date is the
+    # natural floor since no check-in could have happened before it existed.
+    if photo_date > date.today() + timedelta(days=1):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    account_created_raw = str(user.get("created_at") or "")[:10]
+    try:
+        account_created = date.fromisoformat(account_created_raw)
+    except ValueError:
+        account_created = None
+    if account_created and photo_date < account_created:
         return jsonify({"ok": False, "error": "Invalid date."}), 400
 
     file = request.files.get("photo")
@@ -1624,6 +1647,24 @@ def api_friends_add():
         return jsonify({"ok": False, "error": "That's your own code."}), 400
     add_friendship(user["id"], other["id"])
     return jsonify({"ok": True, "friend": {"id": other["id"], "name": other["name"]}})
+
+
+# ---------- Streak activity ----------
+@app.route("/api/activity/dates", methods=["GET"])
+def api_activity_dates():
+    """Days this account did something that's only recorded server-side --
+    challenge attempts above all, plus form analyses, HYROX races and
+    check-in photos. static/streak.js merges these into its local activity
+    log once per session, which is what lets a streak survive switching
+    devices and lets history from before the local log existed still count.
+
+    Read-only and per-user; tz_offset_minutes just buckets UTC timestamps
+    into the caller's own calendar days (see get_activity_dates)."""
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    dates = get_activity_dates(user["id"], request.args.get("tz_offset_minutes", 0))
+    return jsonify({"ok": True, "dates": dates})
 
 
 # ---------- Challenges ----------

@@ -465,6 +465,11 @@
         history.push({ role: "coach", text: reply, date: todayIso });
         saveHistory(history);
         renderMessages();
+        // Asking the coach something is using the app, so it counts toward
+        // the streak. It needs an explicit mark: unlike the workout chat,
+        // this thread is a today-only rolling array that clears itself at
+        // the next day rollover, so it leaves no history to read back.
+        if (data.ok) RepCheckStreak.mark("coach_chat");
         if (data.ok && data.limited) {
           applyLimitLockout(data.retry_after_seconds);
         }

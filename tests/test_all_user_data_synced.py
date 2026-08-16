@@ -50,6 +50,12 @@ NOT_ACCOUNT_DATA = {
     # sessionStorage guard that stops account_sync's own hydration reload
     # from looping. Not user data at all.
     "repcheck_hydrated_reload": "sync bookkeeping",
+    # sessionStorage guard that limits the streak's server-side activity
+    # back-fill to once per browser session (static/streak.js). Deliberately
+    # per-session, not per-account -- syncing it would mean the back-fill
+    # only ever ran once per account EVER, on whichever device happened to
+    # sync it first, instead of once per session on every device.
+    "repcheck_activity_seeded": "sync bookkeeping",
 }
 
 
