@@ -20,6 +20,7 @@ image pixels themselves are irrelevant to what's under test.
 
 import io
 
+import pillow_heif
 import pytest
 from PIL import Image
 
@@ -30,6 +31,15 @@ from barcode_scanner import BarcodeScanError, decode_barcode, lookup_by_barcode
 def _tiny_png_bytes():
     buf = io.BytesIO()
     Image.new("RGB", (10, 10)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _tiny_heic_bytes():
+    """A real HEIC-encoded image -- this is the default format iPhones
+    save camera captures in, and Pillow has no built-in decoder for it."""
+    buf = io.BytesIO()
+    heif_image = pillow_heif.from_pillow(Image.new("RGB", (10, 10)))
+    heif_image.save(buf, format="HEIF", quality=50)
     return buf.getvalue()
 
 
@@ -80,6 +90,24 @@ def test_lookup_by_barcode_strips_non_digits_before_searching(monkeypatch):
     monkeypatch.setattr(barcode_scanner, "_lookup_product", fake_lookup_product)
     lookup_by_barcode(" 012-345 678901\n")
     assert captured["barcode"] == "012345678901"
+
+
+def test_decode_barcode_handles_heic_photos_without_crashing():
+    """iPhones save camera captures as HEIC by default (Settings > Camera >
+    Formats > High Efficiency). Two separate things must both be handled for
+    a real iPhone photo to scan: (1) Pillow has no built-in HEIC decoder, so
+    without pillow-heif registered Image.open() raises on the format
+    outright; (2) pyzbar picks its decode path with a literal
+    `'PIL.' in str(type(image))` check, which misses the pillow_heif
+    HeifImageFile subclass and crashes trying to unpack it as a raw
+    (pixels, width, height) tuple. This deliberately does NOT monkeypatch
+    zbar_decode, so it exercises pyzbar's real decode path -- a mocked
+    zbar_decode would hide bug (2) entirely. The fixture image is blank (no
+    real barcode drawn), so the only thing under test is that decoding
+    reaches the same "no barcode found" outcome a real photo with no visible
+    barcode would -- not a TypeError/AttributeError from the format mismatch."""
+    with pytest.raises(BarcodeScanError, match="No barcode found"):
+        decode_barcode(_tiny_heic_bytes())
 
 
 def test_lookup_by_barcode_rejects_a_value_with_no_digits_at_all(monkeypatch):
