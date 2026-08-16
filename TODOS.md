@@ -246,6 +246,20 @@
 **Priority:** P3
 **Depends on:** None
 
+## Analyze
+
+### Per-analysis chat thread merge can silently drop a message on a length tie
+
+**What:** `repcheck_analyze_chat_v1_<id>` (the AI chat thread attached to each form analysis) is reconciled across devices by `database.py`'s `_merge_chat_thread()` and `static/account_sync.js`'s `mergeChatThread()` picking whichever side's `history` array is *longer* -- not a true per-message union merge like every other `MERGE_LOG_KEYS` family in this file (see `_merge_by_id`/`_merge_date_keyed` and their JS mirrors). "Longer wins" only preserves every message if one side's history is always a strict prefix of the other's.
+
+**Why:** If two devices append *different* messages to the same thread and both end up the same length, whichever side is "incoming" wins the tie and its history entirely replaces the other's -- one real message is silently and permanently dropped, with no error surfaced to either device.
+
+**Context:** Found by Claude's adversarial review during `/ship` for the stranded-keys sync fix (`feat/sync-remaining-local-keys`), which introduced server-side sync for this key. Flagged INVESTIGATE rather than fixed inline: a proper fix needs a real per-message merge (e.g. tagging each history entry with a stable id/ordinal at send time, then unioning by that id the way `_merge_by_id` already does for every other array-shaped log), which is a design decision, not a mechanical one-line fix.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
 ## i18n
 
 ### Thai translation missing for the wizard's location step
