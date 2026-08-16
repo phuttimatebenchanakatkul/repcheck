@@ -1497,7 +1497,7 @@
     // openStationPickerSheet() below.
     openRaceSetupPage() {
       this.screen = "raceSetup";
-      this.render();
+      this.renderWithTransition();
     }
 
     // Leaves whatever category/format/custom-station choices were
@@ -1507,7 +1507,7 @@
     // discarding progress.
     closeRaceSetupPage() {
       this.screen = "setup";
-      this.render();
+      this.renderWithTransition();
     }
 
     showHistory() {
@@ -1778,6 +1778,39 @@
     }
 
     // ---------- Rendering ----------
+    // Screen swaps that the user reads as "going to another page" (the
+    // hero's "Start race" CTA -> the race-setup page, and the back arrow
+    // returning from it) go through here instead of render() directly.
+    //
+    // Moving between real routes in this app is already animated: style.css
+    // opts every navigation into cross-document view transitions
+    // (`@view-transition { navigation: auto }`), which is why leaving HYROX
+    // for the workout or nutrition log cross-fades instead of hard-cutting.
+    // The race-setup page is a page to the user but only a `screen` value in
+    // here, so swapping to it repainted #hyrox-root instantly and felt
+    // jarringly different from every other page change. Running the swap
+    // inside document.startViewTransition() puts it through the SAME
+    // machinery, so it picks up the identical ::view-transition-old/new(root)
+    // timing declared right next to that navigation rule -- one shared
+    // definition of "how a page change feels", not a second, hand-tuned one
+    // that would drift out of sync with it.
+    //
+    // Falls back to a plain render where startViewTransition doesn't exist
+    // (Firefox, older Safari). prefers-reduced-motion needs no branch here:
+    // the media query alongside that CSS already zeroes out every
+    // view-transition animation, same-document ones included.
+    renderWithTransition() {
+      if (!document.startViewTransition) return this.render();
+      const transition = document.startViewTransition(() => this.render());
+      // `ready` rejects whenever the browser decides not to animate after
+      // all -- the tab isn't visible, or a second transition starts on top
+      // of this one (an impatient double-tap on the CTA is enough). The DOM
+      // update still runs in every one of those cases, so there is nothing
+      // to recover from; without this handler the rejection surfaces as an
+      // "Uncaught (in promise) InvalidStateError" in the console.
+      transition.ready.catch(() => {});
+    }
+
     render() {
       // Skipped entirely while a custom-builder row is being dragged --
       // its row now lives directly in #hyrox-root (the race-setup page,
