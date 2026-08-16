@@ -278,6 +278,8 @@ describe("nutrition.html iconForFood -- category assignment regression", () => {
     expect(iconForFood("Korean Fish Cake")).toBe("\u{1F365}");
     // Bug: "Graham Cracker" was caught by the meat "ham" check (graHAM).
     expect(iconForFood("Graham Cracker")).toBe("\u{1F36A}"); // cookie, not steak
+    // Bug: "Duck Sauce" was caught by the "duck" check before it's a sauce.
+    expect(iconForFood("Duck Sauce")).toBe("\u{1F96B}"); // canned/sauce, not poultry
     // Bug: "Butter Chicken" was caught by the "butter" check before "chicken".
     expect(iconForFood("Butter Chicken")).toBe("\u{1F35A}"); // rice, not cheese
     // Bug: "Beef Tartare" was caught by a "tart" check meant for Tarte Tatin.
