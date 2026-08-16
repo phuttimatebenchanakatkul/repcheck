@@ -933,25 +933,28 @@
     })();
 
     // ---------- "Scan barcode" quick action ----------
-    // Browsers don't carry "user activation" across a full page
-    // navigation, so a hidden camera <input>'s .click() triggered from a
-    // page-load handler (after navigating here from another page) is
-    // silently blocked -- no camera opens, no error. When we're already
-    // on the Nutrition page, click the camera input directly, right here
-    // in this real click handler, so the gesture is never lost. Only
-    // when a navigation is unavoidable (coming from another page) do we
-    // fall back to nutrition.html's own single-tap "Open camera" prompt.
+    // Opens the live scanner when we're already on the Nutrition page (the
+    // gesture is still ours here, so the camera is allowed to start), and
+    // only navigates when coming from another page -- browsers don't carry
+    // "user activation" across a navigation, so nutrition.html shows its own
+    // single-tap "Open camera" prompt on the other side.
+    //
+    // This used to click nutrition.html's hidden af-barcode-input directly,
+    // which took a single still photo with no retry. That is exactly the
+    // failure the live scanner exists to fix, and because this handler lives
+    // in base.html it silently bypassed every fix made in nutrition.html --
+    // scanning from this button stayed broken while the in-page buttons
+    // worked. Go through the scanner's own entry point instead.
     (function () {
       const btn = document.getElementById("mt-fab-scan-barcode");
       if (!btn) return;
       btn.addEventListener("click", () => {
         if (window.closeFabSheet) window.closeFabSheet();
-        const barcodeInput = document.getElementById("af-barcode-input");
-        if (barcodeInput) {
-          barcodeInput.click();
-        } else {
-          location.href = btn.dataset.nutritionHref;
+        if (window.repcheckOpenBarcodeScanner) {
+          window.repcheckOpenBarcodeScanner();
+          return;
         }
+        location.href = btn.dataset.nutritionHref;
       });
     })();
   </script>

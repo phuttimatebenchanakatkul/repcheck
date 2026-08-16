@@ -3023,6 +3023,18 @@
       .addEventListener("click", openBarcodePhotoInput);
   }
 
+  // Entry point for the global "Scan barcode" quick action in base.html.
+  // That button is on every page, and when it fires while already on this
+  // page it used to click the hidden af-barcode-input directly -- one still
+  // photo, no retry, which is the whole failure the live scanner replaced.
+  // It bypassed every fix because it lives in base.html rather than here, so
+  // the scanner is exposed deliberately instead of leaving another caller to
+  // reach past it into the raw file input.
+  window.repcheckOpenBarcodeScanner = function () {
+    window.openBottomSheet(afModalOverlay, ".af-modal");
+    startLiveBarcodeScan();
+  };
+
   async function startLiveBarcodeScan() {
     setAfModalTitle(AF_MODAL_BARCODE_TITLE);
     // Checked before any await, so this still counts as the user's own tap
