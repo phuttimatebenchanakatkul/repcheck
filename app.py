@@ -101,6 +101,7 @@ from database import (
     get_visible_challenges,
     has_submitted_today,
     init_db,
+    is_analyze_chat_key,
     list_users,
     mark_onboarding_completed,
     prune_analyze_results,
@@ -453,7 +454,27 @@ SYNCED_DATA_KEYS = {
     "repcheck_coaching_goal_achieved_handled_v1",
     "repcheck_hyrox_history_v1",
     "repcheck_hyrox_history_synced_v1",
+    # Favourited exercises (the heart toggle in the exercise picker) --
+    # same shape and same "user-curated set" semantics as
+    # repcheck_nutrition_favorites_v1 above, and it was the last curated
+    # list still stranded per-browser.
+    "repcheck_exercise_favorites_v1",
+    # Which of the four global HYROX leaderboards the user counts as
+    # theirs, and the lane length of the gym they train in. hyrox.js calls
+    # the first "a standing identity" and asks for the second exactly once
+    # -- both are answers the user gave, so both belong on the account
+    # rather than on whichever browser happened to be open that day.
+    "repcheck_hyrox_leaderboard_gender_v1",
+    "repcheck_hyrox_facility_lane_v1",
 }
+
+
+def is_synced_data_key(key):
+    """Whether /api/sync accepts writes for this key. Everything in
+    SYNCED_DATA_KEYS, plus the per-analysis chat threads, which are keyed by
+    analyze_results row id and so can't be listed by name (see
+    database.is_analyze_chat_key)."""
+    return key in SYNCED_DATA_KEYS or is_analyze_chat_key(key)
 
 
 @app.route("/api/sync", methods=["GET"])
@@ -536,7 +557,7 @@ def api_sync_put(key):
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
-    if key not in SYNCED_DATA_KEYS:
+    if not is_synced_data_key(key):
         return jsonify({"ok": False, "error": "Unknown sync key."}), 400
     payload = request.get_json(silent=True) or {}
     if "value" not in payload:
@@ -553,7 +574,7 @@ def api_sync_delete(key):
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
-    if key not in SYNCED_DATA_KEYS:
+    if not is_synced_data_key(key):
         return jsonify({"ok": False, "error": "Unknown sync key."}), 400
     delete_user_data(user["id"], key)
     return jsonify({"ok": True})

@@ -14,6 +14,7 @@ it. See static/account_sync.js for the client side of this.
 
 import json
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -432,6 +433,18 @@ LOG_MERGE_DATE_KEYED_KEYS = {
 }
 MERGE_LOG_KEYS = LOG_MERGE_ARRAY_KEYS | LOG_MERGE_DATE_KEYED_KEYS
 
+# Per-analysis AI chat threads. Unlike every other synced key these have no
+# fixed name -- there is one per analyze_results row
+# (repcheck_analyze_chat_v1_<id>, see static/analyze_chat_widget.js) -- so
+# the family is matched by pattern instead of allowlisted individually. The
+# trailing id is restricted to digits so the sync route can't be turned into
+# an arbitrary per-user scratch store by a client inventing key names.
+ANALYZE_CHAT_KEY_RE = re.compile(r"^repcheck_analyze_chat_v1_\d+$")
+
+
+def is_analyze_chat_key(key):
+    return bool(ANALYZE_CHAT_KEY_RE.match(key or ""))
+
 
 def _merge_by_id(incoming, existing):
     """Union two lists of entries by 'id' (falling back to full-value
@@ -469,10 +482,44 @@ def _merge_date_keyed(incoming, existing):
     return out
 
 
+def _merge_chat_thread(incoming, existing):
+    """Union a stored analyze-chat thread ({"createdAtMs", "history": [...]})
+    with what's already saved. The widget only ever APPENDS to history (see
+    analyze_chat_widget.js: history.push for each user turn and each reply),
+    so "the longer transcript wins" is a complete merge rule -- and it's what
+    stops a device holding an older copy of the thread (a tab left open on
+    the same analysis, a phone that missed a push) from overwriting turns the
+    server already has. Mirrors account_sync.js's mergeChatThread."""
+    if not isinstance(existing, dict):
+        return incoming
+    if not isinstance(incoming, dict):
+        return existing
+    inc_history = incoming.get("history")
+    exi_history = existing.get("history")
+    inc_history = inc_history if isinstance(inc_history, list) else []
+    exi_history = exi_history if isinstance(exi_history, list) else []
+    longer, longer_history = (
+        (incoming, inc_history) if len(inc_history) >= len(exi_history) else (existing, exi_history)
+    )
+    merged = dict(longer)
+    merged["history"] = longer_history
+    # createdAtMs identifies the ANALYSIS (it's the row's created_at), not
+    # the write, so the two sides should already agree -- keep the earliest
+    # if they somehow don't, since the 24h prompting lock and the client's
+    # retention sweep are both anchored to it.
+    stamps = [
+        v for v in (incoming.get("createdAtMs"), existing.get("createdAtMs"))
+        if isinstance(v, (int, float)) and not isinstance(v, bool)
+    ]
+    if stamps:
+        merged["createdAtMs"] = min(stamps)
+    return merged
+
+
 def set_user_data(user_id, key, value):
-    """Sets a synced key's value. For MERGE_LOG_KEYS, merges with whatever
-    is already stored instead of overwriting it outright -- see that
-    constant's comment above for why.
+    """Sets a synced key's value. For MERGE_LOG_KEYS (and analyze-chat
+    threads), merges with whatever is already stored instead of overwriting
+    it outright -- see those constants' comments above for why.
 
     BEGIN IMMEDIATE for the merge branch, same reasoning as
     set_workout_log_day()'s: this key's dedicated authoritative endpoint
@@ -488,13 +535,15 @@ def set_user_data(user_id, key, value):
     represent "this was intentionally removed" -- but it does close the
     same-instant race, which is the more common case in practice."""
     with get_db() as conn:
-        if key in MERGE_LOG_KEYS:
+        if key in MERGE_LOG_KEYS or is_analyze_chat_key(key):
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT value FROM user_data WHERE user_id = ? AND key = ?", (user_id, key)
             ).fetchone()
             existing = json.loads(row["value"]) if row else None
-            if key in LOG_MERGE_ARRAY_KEYS:
+            if is_analyze_chat_key(key):
+                value = _merge_chat_thread(value, existing)
+            elif key in LOG_MERGE_ARRAY_KEYS:
                 value = _merge_by_id(
                     value if isinstance(value, list) else [],
                     existing if isinstance(existing, list) else [],
