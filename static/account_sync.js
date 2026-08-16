@@ -28,6 +28,13 @@
  *      avoids having to convert every page's initial render to be async.
  *
  * Must load before any other page script that reads/writes these keys.
+ *
+ * Dispatches "repcheck:sync-hydrated" on `document` once the load-time
+ * /api/sync pull has settled (success or failure) -- static/streak.js
+ * waits for this before running its own once-per-session server pull, so
+ * it can never read this device's local data before the account-switch
+ * wipe above has had a chance to clear it out. See streak.js's own
+ * comment on that wait for the full failure mode this closes.
  */
 (function () {
   "use strict";
@@ -57,6 +64,7 @@
     "repcheck_coaching_goal_achieved_handled_v1",
     "repcheck_hyrox_history_v1",
     "repcheck_hyrox_history_synced_v1",
+    "repcheck_activity_log_v1",
   ]);
 
   var nativeSetItem = Storage.prototype.setItem.bind(localStorage);
@@ -157,6 +165,17 @@
     }
   }
 
+  // static/streak.js back-fills the account's server-side activity
+  // (challenge attempts above all) once per browser session, remembering
+  // that it did via this sessionStorage flag. Both places below that wipe
+  // one account's local data have to drop it too: a session survives the
+  // reload into a DIFFERENT account, so leaving the flag set would mean
+  // the account now logged in never gets its own history back-filled, and
+  // it would be shown a zero streak for the rest of the session.
+  function clearStreakSeedFlag() {
+    try { sessionStorage.removeItem("repcheck_activity_seeded"); } catch (err) {}
+  }
+
   localStorage.setItem = function (key, value) {
     nativeSetItem(key, value);
     if (SYNC_KEYS.has(key)) {
@@ -226,6 +245,12 @@
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
     "repcheck_workout_chat_v1",
+    // The streak's activity log (date -> [action names], see
+    // static/streak.js). Same stakes as the logs above: it's the ONLY
+    // record that a daily challenge, check-in or coach chat ever
+    // happened, so a stale/empty server copy overwriting it would break
+    // a streak the user has actually earned.
+    "repcheck_activity_log_v1",
   ]);
 
   // Of those, these two are a flat ARRAY of entries; the rest are
@@ -337,6 +362,7 @@
     });
     nativeRemoveItem(WRITE_TIMES_KEY);
     try { sessionStorage.removeItem("repcheck_hydrated_reload"); } catch (err) {}
+    clearStreakSeedFlag();
   });
 
   // ---------- Hydrate from the account on load ----------
@@ -361,6 +387,7 @@
           if (!PER_DEVICE_KEYS.has(key)) nativeRemoveItem(key);
         });
         nativeRemoveItem(WRITE_TIMES_KEY);
+        clearStreakSeedFlag();
       }
       nativeSetItem(OWNER_KEY, currentOwnerId);
 
@@ -538,5 +565,12 @@
         location.reload();
       }
     })
-    .catch(function () {});
+    .catch(function () {})
+    // Chained AFTER the catch (not just inside .then), so this fires
+    // whether the pull above succeeded, hydrated something, reloaded, or
+    // failed outright -- streak.js is waiting on this signal and must
+    // never be left hanging because /api/sync errored.
+    .then(function () {
+      document.dispatchEvent(new CustomEvent("repcheck:sync-hydrated"));
+    });
 })();
