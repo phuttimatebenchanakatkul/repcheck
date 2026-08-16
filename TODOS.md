@@ -1,5 +1,31 @@
 # TODOS
 
+## Streaks
+
+### Four streak back-fill queries in get_activity_dates() have no covering index
+
+**What:** `get_activity_dates()` (`database.py`) runs one `WHERE user_id = ?` query per entry in `ACTIVITY_DATE_SOURCES` (`challenge_submissions`, `analyze_results`, `hyrox_results`, `progress_photos`). None of the four tables has an index usable for a bare `user_id` predicate -- `challenge_submissions`'s only key is `PRIMARY KEY (challenge_id, user_id)`, which can't serve it, and the other three have no secondary index at all.
+
+**Why:** This route is called once per browser session for essentially every logged-in user (via `static/streak.js`'s `seedFromServer()`), so it's four full table scans per session start, across tables that only grow. Invisible at current scale; becomes a real bottleneck as the user base and each table's row count grow.
+
+**Context:** Flagged by the performance specialist during `/ship`'s pre-landing review for the "streak counts any app use" feature. Deferred (user chose "ship as-is" over fixing inline) to keep that PR scoped to the streak-rule change itself; not urgent given the current data volume.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### static/streak.js's refresh() fully rebuilds its activity-day Set on every call instead of updating incrementally
+
+**What:** `refresh()` (`static/streak.js`) does a full `JSON.parse` + iterate over all 7 tracked localStorage logs (workout, nutrition, weight, workout chat, activity log, analyze log, HYROX history) every time it's called -- once unconditionally at module load, and again inside `mark()`/`seedFromServer()` whenever a new day is recorded. Since `templates/base.html` now loads `streak.js` on every page (not just pages that show a streak), this scan happens on every navigation regardless of whether the page uses the result.
+
+**Why:** Avoidable work: an incremental update (add just the new day to the existing `Set`) would suffice for `mark()`/`seedFromServer()`'s cases. Unlikely to be felt at realistic localStorage sizes for a long time (a few KB at most for any real user today), so this is a "before it becomes noticeable" cleanup, not an active problem.
+
+**Context:** Flagged by the performance specialist during `/ship`'s pre-landing review for the "streak counts any app use" feature. Deferred (user chose "ship as-is" over reworking the accounting logic) -- a real fix is a design change (incremental Set maintenance) with more risk of a subtle accounting bug than the current full-rebuild-every-time approach.
+
+**Effort:** M
+**Priority:** P4
+**Depends on:** None
+
 ## Workouts
 
 ### Workout chat's `describeSet()` duplicates the weight/reps formatting logic already in `renderEntry()`/`renderEntryDetail()`
