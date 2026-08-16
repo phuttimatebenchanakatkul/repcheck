@@ -282,58 +282,73 @@
 .hx-custom-add-btn.is-open { transform: rotate(45deg); }
 .hx-custom-add-btn.is-open:active { transform: rotate(45deg) scale(0.92); }
 
-/* The picker sheet's own body content -- every station as a full-width row
-   (icon left, name right). The sheet itself already slides up (see
-   base.html's shared bottom-sheet system), so this is just a plain list,
-   no entrance animation of its own needed. */
-.hx-station-picker-list {
+/* The add-station picker: a category tab bar (only one movement-pattern
+   group visible at a time -- Cardio, Sled Work, Carry & Lunge, Explosive)
+   above a grid of icon tiles for that category, same visual language as
+   the race-type/category choice cards earlier in setup. Each category
+   tops out at 3 stations, so the grid never wraps past one row. */
+.hx-station-picker-tabbar {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+.hx-station-picker-tab {
+  flex: 1 0 auto;
+  border: none;
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.hx-station-picker-tab.is-active {
+  background: var(--card-bg);
+  color: var(--blue);
+  box-shadow: 0 1px 3px rgba(16, 17, 20, 0.08);
+}
+.hx-station-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.hx-station-picker-tile {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-.hx-custom-palette-row {
-  display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
+  gap: 8px;
   border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 8px 10px;
+  border-radius: 14px;
+  padding: 14px 6px 12px;
   background: var(--bg);
   cursor: pointer;
   font-family: inherit;
-  text-align: left;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
-.hx-custom-palette-row:hover { border-color: var(--blue); background: var(--blue-bg); }
-.hx-custom-palette-row:active { transform: scale(0.99); }
-.hx-custom-palette-row-icon {
-  width: 28px; height: 28px; flex-shrink: 0; border-radius: 9px;
+.hx-station-picker-tile:hover {
+  border-color: var(--blue);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(20, 20, 20, 0.08);
+}
+.hx-station-picker-tile:active { transform: scale(0.97); }
+.hx-station-picker-tile-icon {
+  width: 40px; height: 40px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--blue-bg); color: var(--blue);
+  background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
 }
-.hx-custom-palette-row-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
-/* Trailing circled "+" on every row in the add-station sheet. The whole
-   row has always BEEN the add button (see buildStationPickerSheetContent),
-   but icon + label alone reads as a list you're browsing rather than one
-   you're picking from -- the plus is what says "tapping this adds it".
-   margin-left:auto pins it to the right edge; the name span has no flex
-   of its own, so nothing else claims the leftover space. Decorative
-   only (aria-hidden in the markup): the row's own label is already its
-   accessible name, and a second "add" announcement would just be noise. */
-.hx-custom-palette-row-add {
-  margin-left: auto;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  transition: color 0.15s ease;
+.hx-station-picker-tile-name {
+  font-size: 11.5px; font-weight: 700; color: var(--text);
+  line-height: 1.25;
 }
-/* Picks up the same blue the row's border/background already shift to on
-   hover, so the plus reads as part of one highlight rather than a
-   separately-lit element. */
-.hx-custom-palette-row:hover .hx-custom-palette-row-add { color: var(--blue); }
 .hx-custom-list { margin-bottom: 4px; }
 .hx-custom-row .hx-agenda-row-main { flex-wrap: wrap; row-gap: 6px; }
 .hx-custom-row .hx-agenda-name { flex-basis: 100%; order: -1; margin-left: 38px; }
