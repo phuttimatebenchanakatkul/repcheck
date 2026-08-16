@@ -166,6 +166,39 @@ def test_merge_chat_thread_ignores_a_malformed_incoming_value():
     assert database._merge_chat_thread(good, "not-a-thread") == good
 
 
+def test_pruning_analyze_results_also_deletes_the_matching_chat_thread(tmp_path, monkeypatch):
+    """prune_analyze_results() bounds analyze_results to `keep` rows per user;
+    without also deleting that row's repcheck_analyze_chat_v1_<id> entry, the
+    chat-thread family in user_data would grow forever (one per analysis ever
+    run) and get returned on every account's /api/sync hydration GET, no
+    matter how old. Confirmed the leak first: this test failed before the fix
+    (the pruned row's chat key was still present)."""
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "repcheck-test.db")
+    database.init_db()
+    user_id = database.create_local_user("prune-chat@example.com", "irrelevant-password", "Prune Chat Tester")
+
+    # created_at has only second precision (datetime('now')), so both rows
+    # can land on the same timestamp -- prune_analyze_results then breaks
+    # the tie by `id DESC`, keeping the higher (more recently inserted) id.
+    # Insert the row that must survive SECOND so its id is unambiguously
+    # higher, rather than depending on same-second created_at ordering.
+    to_prune_id = database.save_analyze_result(user_id, "Bench Press", 90, 90, 90, None, 8, "Good form")
+    kept_id = database.save_analyze_result(user_id, "Squat", 80, 80, 80, None, 10, "Depth is shallow")
+
+    kept_key = f"repcheck_analyze_chat_v1_{kept_id}"
+    pruned_key = f"repcheck_analyze_chat_v1_{to_prune_id}"
+    thread = {"createdAtMs": 1, "history": [{"role": "user", "text": "hi"}]}
+    database.set_user_data(user_id, kept_key, thread)
+    database.set_user_data(user_id, pruned_key, thread)
+
+    # keep=1: the older of the two rows (pruned_id) is dropped.
+    database.prune_analyze_results(user_id, keep=1)
+
+    stored = database.get_all_user_data(user_id)
+    assert kept_key in stored, "the surviving analysis's chat thread must not be touched"
+    assert pruned_key not in stored, "the pruned analysis's chat thread was orphaned in user_data"
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "repcheck-test.db")

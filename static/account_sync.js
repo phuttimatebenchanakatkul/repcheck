@@ -68,8 +68,11 @@
   // Keep the pattern identical to database.py's ANALYZE_CHAT_KEY_RE, which
   // is what the server validates writes against.
   var ANALYZE_CHAT_PREFIX = "repcheck_analyze_chat_v1_";
+  // Built from ANALYZE_CHAT_PREFIX rather than a second literal, so the
+  // prefix can't drift out of sync with the regex that validates it.
+  var ANALYZE_CHAT_KEY_RE = new RegExp("^" + ANALYZE_CHAT_PREFIX + "\\d+$");
   function isAnalyzeChatKey(key) {
-    return /^repcheck_analyze_chat_v1_\d+$/.test(key);
+    return ANALYZE_CHAT_KEY_RE.test(key);
   }
   function isSyncKey(key) {
     return SYNC_KEYS.has(key) || isAnalyzeChatKey(key);
@@ -132,6 +135,17 @@
   }
   function encodeForStorage(value) {
     return typeof value === "string" ? value : JSON.stringify(value);
+  }
+
+  // Shared by every "a recent local write is authoritative" branch below
+  // (union-merge keys, log-merge keys, analyze-chat threads): re-push the
+  // local value as-is when it differs from what the server has, and do
+  // nothing otherwise. Pulled out so the three call sites can't drift from
+  // each other on a future change to this trust-window logic.
+  function pushIfChangedFromLocal(key, localRaw, hasServer, serverValues) {
+    if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
+      pushToServer(key, localRaw);
+    }
   }
 
   function pushToServer(key, rawValue) {
@@ -494,9 +508,7 @@
         // other (see mergeChatThread).
         if (isAnalyzeChatKey(key)) {
           if (recentlyWrittenLocally) {
-            if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
-              pushToServer(key, localRaw);
-            }
+            pushIfChangedFromLocal(key, localRaw, hasServer, serverValues);
             return;
           }
           var localThread = null;
@@ -519,9 +531,7 @@
 
         if (MERGE_UNION_KEYS.has(key)) {
           if (recentlyWrittenLocally) {
-            if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
-              pushToServer(key, localRaw);
-            }
+            pushIfChangedFromLocal(key, localRaw, hasServer, serverValues);
             return;
           }
           var localArr = [];
@@ -559,9 +569,7 @@
           if (recentlyWrittenLocally) {
             // A just-made change (including a deletion) is authoritative;
             // make sure the server has it, don't merge the old copy back in.
-            if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
-              pushToServer(key, localRaw);
-            }
+            pushIfChangedFromLocal(key, localRaw, hasServer, serverValues);
             return;
           }
           var localLog = null, serverLog = null;

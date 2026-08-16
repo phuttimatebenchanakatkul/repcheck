@@ -106,6 +106,19 @@ describe("hydration", () => {
     expect(JSON.parse(storage.getItem(CHAT_KEY)).history).toHaveLength(1);
   });
 
+  it("keeps the local chat thread when the server copy is malformed", async () => {
+    // Mirrors database.py's test_merge_chat_thread_ignores_a_malformed_incoming_value
+    // -- mergeChatThread is the JS side of the same merge rule, fed straight
+    // from the hydration GET's response, which is server-controlled but not
+    // guaranteed to be the {createdAtMs, history} shape (an older/buggy
+    // build, or a row that predates this key family).
+    const local = thread("keep me");
+    mockSync({ [CHAT_KEY]: "not-a-thread" });
+    const { storage } = await start({ initialLocal: { [CHAT_KEY]: JSON.stringify(local) } });
+
+    expect(JSON.parse(storage.getItem(CHAT_KEY))).toEqual(local);
+  });
+
   it("never truncates a conversation when the server copy is behind", async () => {
     const local = thread("first", "second", "third");
     const fetchMock = mockSync({ [CHAT_KEY]: thread("first") });

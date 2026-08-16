@@ -1154,7 +1154,15 @@ def get_analyze_result(user_id, result_id):
 def prune_analyze_results(user_id, keep=20):
     """Delete this user's oldest analyze results beyond the newest `keep`,
     returning the deleted rows' video filenames so the caller can remove
-    the clips from disk too (the DB doesn't own those files)."""
+    the clips from disk too (the DB doesn't own those files).
+
+    Also deletes each pruned row's repcheck_analyze_chat_v1_<id> entry from
+    user_data (see is_analyze_chat_key/set_user_data above) in the same
+    transaction. Without this, an analysis's chat thread outlives the
+    analysis itself -- analyze_results is bounded to `keep` rows per user,
+    but the chat-thread family in user_data has no bound of its own, so it
+    would grow by one row per analysis ever run, forever, and get returned
+    on every account's /api/sync hydration GET regardless of age."""
     with get_db() as conn:
         stale = conn.execute(
             """SELECT id, video_filename FROM analyze_results
@@ -1166,6 +1174,10 @@ def prune_analyze_results(user_id, keep=20):
             conn.executemany(
                 "DELETE FROM analyze_results WHERE id = ?",
                 [(row["id"],) for row in stale],
+            )
+            conn.executemany(
+                "DELETE FROM user_data WHERE user_id = ? AND key = ?",
+                [(user_id, f"repcheck_analyze_chat_v1_{row['id']}") for row in stale],
             )
     return [row["video_filename"] for row in stale if row["video_filename"]]
 
