@@ -313,6 +313,27 @@
   background: var(--blue-bg); color: var(--blue);
 }
 .hx-custom-palette-row-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+/* Trailing circled "+" on every row in the add-station sheet. The whole
+   row has always BEEN the add button (see buildStationPickerSheetContent),
+   but icon + label alone reads as a list you're browsing rather than one
+   you're picking from -- the plus is what says "tapping this adds it".
+   margin-left:auto pins it to the right edge; the name span has no flex
+   of its own, so nothing else claims the leftover space. Decorative
+   only (aria-hidden in the markup): the row's own label is already its
+   accessible name, and a second "add" announcement would just be noise. */
+.hx-custom-palette-row-add {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+/* Picks up the same blue the row's border/background already shift to on
+   hover, so the plus reads as part of one highlight rather than a
+   separately-lit element. */
+.hx-custom-palette-row:hover .hx-custom-palette-row-add { color: var(--blue); }
 .hx-custom-list { margin-bottom: 4px; }
 .hx-custom-row .hx-agenda-row-main { flex-wrap: wrap; row-gap: 6px; }
 .hx-custom-row .hx-agenda-name { flex-basis: 100%; order: -1; margin-left: 38px; }
