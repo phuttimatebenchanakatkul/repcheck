@@ -865,7 +865,44 @@
   }
   .af-actions { display: flex; gap: 10px; margin-top: 16px; }
 
-  .af-field-hint { font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin: -6px 0 12px; }
+  /* "Create food" screen: nav row (back + title), a collapsed icon
+     picker, Optional/Required field tags, and a barcode row with its
+     own clear control -- in place of the old flat field list. */
+  .af-create-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
+  .af-create-back-btn { background: none; border: none; padding: 2px 4px 2px 0; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; }
+  .af-create-nav-title { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.005em; }
+
+  .af-icon-row {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 11px 12px; margin-bottom: 16px;
+  }
+  .af-icon-emoji { width: 38px; height: 38px; border-radius: 10px; background: var(--blue-bg); display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0; }
+  .af-icon-info { flex: 1; min-width: 0; }
+  .af-icon-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+  .af-icon-sub { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+  .af-icon-edit-btn {
+    flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 7px 13px; cursor: pointer;
+  }
+
+  .af-field-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+  .af-field-head label { font-size: 12px; font-weight: 700; color: var(--text); }
+  .af-tag { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+
+  .af-barcode-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .af-barcode-row input { flex: 1; margin: 0; }
+  .af-barcode-del-btn {
+    flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--bg);
+    border: 1px solid var(--border); color: var(--text-secondary); font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .af-section-title { font-size: 14.5px; font-weight: 800; color: var(--text); margin: 4px 0 12px; letter-spacing: -0.005em; }
+  .af-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+  .af-serving-weight-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .af-serving-weight-label { font-size: 14px; font-weight: 700; color: var(--text); }
+
   .af-add-serving-btn { width: 100%; margin-bottom: 12px; }
   .af-serving-row {
     display: flex;
@@ -2288,6 +2325,7 @@
       lqAmountValue = isFinite(parsed) && parsed >= 0 ? parsed : 0;
       refreshLqDonut();
     });
+    wireNumericClearOnFocus(amountInput);
     document.getElementById("lq-unit-seg").addEventListener("click", (event) => {
       const btn = event.target.closest("[data-unit]");
       if (!btn) return;
@@ -2815,6 +2853,7 @@
   }
 
   async function lookupScannedBarcode(barcode) {
+    barcode = sanitizeBarcodeDigits(barcode);
     afPreviewUrl = null; // no photo for a live scan — renderAfResult/loading skip the <img> when this is null
     afModalBody.innerHTML = `
       <div class="af-loading">
@@ -2974,6 +3013,7 @@
       afAmountValue = isFinite(parsed) && parsed >= 0 ? parsed : 0;
       refreshAfDonut(result);
     });
+    wireNumericClearOnFocus(amountInput);
     document.getElementById("af-unit-seg").addEventListener("click", (event) => {
       const btn = event.target.closest("[data-unit]");
       if (!btn) return;
@@ -3122,7 +3162,7 @@
         ${afCreateExtraServings.map((s, i) => `
           <div class="af-serving-row" data-serving-index="${i}">
             <span class="af-serving-row-label">${escapeHtml(s.label)}</span>
-            <span class="af-serving-row-grams">${s.grams}g</span>
+            <span class="af-serving-row-grams">${Math.round(s.grams * 10) / 10}g</span>
             <button type="button" class="af-serving-remove-btn" data-remove-serving="${i}" aria-label="Remove">&times;</button>
           </div>
         `).join("")}
@@ -3151,21 +3191,39 @@
     afCreateBarcode = notFoundBarcode || null;
     afCreateExtraServings = [];
     afModalBody.innerHTML = `
+      <div class="af-create-nav">
+        <button type="button" class="af-create-back-btn" id="af-create-back-btn" aria-label="Back">&#8249;</button>
+        <span class="af-create-nav-title">${quickMode ? "Log Macros" : "Create Food"}</span>
+      </div>
+      ${quickMode ? "" : `
+      <div class="af-icon-row">
+        <div class="af-icon-emoji" id="af-icon-emoji">${afCreateEmoji}</div>
+        <div class="af-icon-info">
+          <div class="af-icon-title">Emoji</div>
+          <div class="af-icon-sub">Tap to change</div>
+        </div>
+        <button type="button" class="af-icon-edit-btn" id="af-icon-edit-btn">Change</button>
+      </div>
+      <div class="af-emoji-grid" id="af-emoji-grid" style="display:none;">
+        ${CUSTOM_FOOD_EMOJIS.map((e, i) => `<button type="button" class="af-emoji-btn ${i === 0 ? "is-active" : ""}" data-emoji="${e}">${e}</button>`).join("")}
+      </div>
+      `}
       ${afCreateBarcode ? `
-      <div class="af-note">No product found for barcode ${escapeHtml(afCreateBarcode)} — add it yourself and it'll be saved to your account. Scanning this barcode again will always show what you enter here.</div>
+      <div class="af-field">
+        <div class="af-field-head"><label for="af-create-barcode-input">Barcode</label></div>
+        <div class="af-barcode-row">
+          <input type="text" inputmode="numeric" id="af-create-barcode-input" maxlength="20" value="${escapeAttr(afCreateBarcode)}">
+          <button type="button" class="af-barcode-del-btn" id="af-barcode-del-btn" aria-label="Clear barcode">&#128465;&#65039;</button>
+        </div>
+      </div>
       ` : ""}
       ${quickMode ? "" : `
       <div class="af-field">
-        <label for="af-create-name">Name (optional)</label>
+        <div class="af-field-head"><label for="af-create-name">Food Name</label><span class="af-tag">Optional</span></div>
         <input type="text" id="af-create-name" maxlength="60" placeholder="e.g. Mom's lasagna">
       </div>
-      <div class="af-field">
-        <label>Emoji</label>
-        <div class="af-emoji-grid" id="af-emoji-grid">
-          ${CUSTOM_FOOD_EMOJIS.map((e, i) => `<button type="button" class="af-emoji-btn ${i === 0 ? "is-active" : ""}" data-emoji="${e}">${e}</button>`).join("")}
-        </div>
-      </div>
       `}
+      <div class="af-section-title">Macros</div>
       <div class="af-macro-grid">
         <div class="af-field">
           <label for="af-create-protein">Protein (g)</label>
@@ -3185,57 +3243,138 @@
         <span class="af-create-calories-value" id="af-create-calories-value">0</span>
       </div>
       ${quickMode ? "" : `
-      <div class="af-macro-grid">
-        <div class="af-field">
-          <label for="af-create-serving-label">Serving size name</label>
-          <input type="text" id="af-create-serving-label" maxlength="40" placeholder="e.g. 1 bar" value="1 serving">
+      <div class="af-section-title">Serving</div>
+      <div class="af-icon-row" id="af-serving-summary-row">
+        <div class="af-icon-info">
+          <div class="af-icon-title" id="af-serving-summary-title">1 serving</div>
+          <div class="af-icon-sub" id="af-serving-summary-sub">= 100 g</div>
         </div>
+        <button type="button" class="af-icon-edit-btn" id="af-serving-edit-btn">Edit</button>
+      </div>
+      <div id="af-serving-editor" style="display:none;">
         <div class="af-field">
-          <label for="af-create-serving-grams">Serving size (g)</label>
-          <input type="text" inputmode="decimal" id="af-create-serving-grams" value="100">
+          <label class="f-label">Weight</label>
+          <div class="af-serving-weight-row">
+            <span class="af-serving-weight-label">1 serving</span>
+            <div class="nl-amount-field">
+              <input type="number" min="0" id="af-create-serving-amount" value="100">
+              <select class="nl-unit-select" id="af-create-serving-unit">${unitOptionsHtml("g")}</select>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="af-field-hint">The macros above are for one "serving size name" — e.g. if one bar is 45g, enter 45 here and its full macros above.</div>
       ${afExtraServingsListHtml()}
+      <div class="af-add-serving-form" id="af-add-serving-form" style="display:none;">
+        <div class="af-field">
+          <label class="f-label" for="af-new-serving-label">Serving name &amp; weight</label>
+          <div class="af-serving-weight-row">
+            <input type="text" id="af-new-serving-label" maxlength="40" placeholder="e.g. 1 box" style="flex:1;min-width:0;width:auto;margin:0;">
+            <div class="nl-amount-field">
+              <input type="number" min="0" id="af-new-serving-amount" value="1">
+              <select class="nl-unit-select" id="af-new-serving-unit">${unitOptionsHtml("g")}</select>
+            </div>
+          </div>
+        </div>
+        <div class="af-actions">
+          <button type="button" class="af-secondary-btn" id="af-new-serving-cancel-btn" style="flex:1;">Cancel</button>
+          <button type="button" class="nl-save-goals-btn" id="af-new-serving-confirm-btn" style="flex:1;">Add</button>
+        </div>
+      </div>
       <button type="button" class="af-secondary-btn af-add-serving-btn" id="af-add-serving-btn">+ Add another serving size</button>
       `}
       <div id="af-create-error" class="af-error" style="display:none;"></div>
-      <div class="af-actions">
-        <button type="button" class="af-secondary-btn" id="af-create-back-btn" style="flex:1;">Back</button>
-        <button type="button" class="nl-save-goals-btn" id="af-create-submit-btn" style="flex:2;">${quickMode ? "Log now" : "Create &amp; log"}</button>
-      </div>
+      <button type="button" class="nl-save-goals-btn" id="af-create-submit-btn" style="width:100%;">${quickMode ? "Log now" : "Create &amp; log"}</button>
     `;
 
     document.getElementById("af-create-back-btn").addEventListener("click", renderAfChoice);
     const emojiGrid = document.getElementById("af-emoji-grid");
+    const iconEmojiEl = document.getElementById("af-icon-emoji");
+    const iconEditBtn = document.getElementById("af-icon-edit-btn");
+    if (iconEditBtn) {
+      iconEditBtn.addEventListener("click", () => {
+        emojiGrid.style.display = emojiGrid.style.display === "none" ? "grid" : "none";
+      });
+    }
     if (emojiGrid) {
       emojiGrid.addEventListener("click", (event) => {
         const btn = event.target.closest("[data-emoji]");
         if (!btn) return;
         afCreateEmoji = btn.dataset.emoji;
+        if (iconEmojiEl) iconEmojiEl.textContent = afCreateEmoji;
         document.querySelectorAll("#af-emoji-grid .af-emoji-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+        emojiGrid.style.display = "none"; // picked -- collapse back behind the icon row
+      });
+    }
+    const barcodeDelBtn = document.getElementById("af-barcode-del-btn");
+    if (barcodeDelBtn) {
+      barcodeDelBtn.addEventListener("click", () => {
+        const barcodeInput = document.getElementById("af-create-barcode-input");
+        barcodeInput.value = "";
+        barcodeInput.focus();
       });
     }
     const calValueEl = document.getElementById("af-create-calories-value");
     ["af-create-protein", "af-create-fat", "af-create-carbs"].forEach((id) => {
-      document.getElementById(id).addEventListener("input", () => {
+      const macroInput = document.getElementById(id);
+      macroInput.addEventListener("input", () => {
         calValueEl.textContent = customFoodCalories();
       });
+      wireNumericClearOnFocus(macroInput);
     });
+    // Primary serving size: collapsed behind an "Edit" tap (same pattern as
+    // the emoji picker above). The name is fixed at "1 serving" -- not
+    // user-editable -- so only the weight amount/unit ever changes, and
+    // the summary's title never needs to update, only its subtitle.
+    const servingSummarySub = document.getElementById("af-serving-summary-sub");
+    const servingEditor = document.getElementById("af-serving-editor");
+    const servingEditBtn = document.getElementById("af-serving-edit-btn");
+    const servingAmountInput = document.getElementById("af-create-serving-amount");
+    const servingUnitSelect = document.getElementById("af-create-serving-unit");
+    if (servingEditBtn) {
+      const refreshServingSummary = () => {
+        servingSummarySub.textContent = `= ${servingAmountInput.value || 0} ${UNIT_LABELS[servingUnitSelect.value]}`;
+      };
+      servingEditBtn.addEventListener("click", () => {
+        servingEditor.style.display = servingEditor.style.display === "none" ? "block" : "none";
+      });
+      servingAmountInput.addEventListener("input", refreshServingSummary);
+      servingUnitSelect.addEventListener("change", refreshServingSummary);
+      wireNumericClearOnFocus(servingAmountInput);
+    }
+
+    // Extra serving sizes: an in-app amount+unit form (same nl-amount-field/
+    // nl-unit-select control used everywhere else in the app) instead of
+    // native browser prompt() dialogs, which look and feel like they're
+    // coming from outside the app rather than part of it.
     const addServingBtn = document.getElementById("af-add-serving-btn");
-    if (addServingBtn) {
+    const addServingForm = document.getElementById("af-add-serving-form");
+    if (addServingBtn && addServingForm) {
+      const newServingLabelInput = document.getElementById("af-new-serving-label");
+      const newServingAmountInput = document.getElementById("af-new-serving-amount");
+      const newServingUnitSelect = document.getElementById("af-new-serving-unit");
+      wireNumericClearOnFocus(newServingAmountInput);
       addServingBtn.addEventListener("click", () => {
-        const label = (prompt("Name this serving size (e.g. \"1 box\")") || "").trim().slice(0, 40);
-        if (!label) return;
-        const gramsRaw = prompt(`How many grams is one ${label}?`);
-        const grams = parseFloat(gramsRaw);
-        if (!isFinite(grams) || grams <= 0) return;
+        addServingForm.style.display = addServingForm.style.display === "none" ? "block" : "none";
+        if (addServingForm.style.display === "block") newServingLabelInput.focus();
+      });
+      document.getElementById("af-new-serving-cancel-btn").addEventListener("click", () => {
+        addServingForm.style.display = "none";
+      });
+      document.getElementById("af-new-serving-confirm-btn").addEventListener("click", () => {
+        const label = newServingLabelInput.value.trim().slice(0, 40);
+        const amount = parseFloat(newServingAmountInput.value);
+        if (!label || !isFinite(amount) || amount <= 0) return;
+        const grams = unitToGrams(amount, newServingUnitSelect.value);
         afCreateExtraServings.push({ label, grams });
+        newServingLabelInput.value = "";
+        newServingAmountInput.value = "1";
+        newServingUnitSelect.value = "g";
+        addServingForm.style.display = "none";
         const list = document.getElementById("af-extra-servings-list");
         if (list) {
           list.outerHTML = afExtraServingsListHtml();
         } else {
-          addServingBtn.insertAdjacentHTML("beforebegin", afExtraServingsListHtml());
+          addServingForm.insertAdjacentHTML("beforebegin", afExtraServingsListHtml());
         }
         wireAfServingRemoveButtons();
       });
@@ -3272,11 +3411,23 @@
 
     // Only sent for the full "Create food" form (quickMode=false) --
     // "Log macros" never shows these fields, so falls back to the
-    // server's own "1 serving = 100g" default.
-    const servingLabelEl = document.getElementById("af-create-serving-label");
-    const servingGramsEl = document.getElementById("af-create-serving-grams");
-    const servingLabel = servingLabelEl ? servingLabelEl.value.trim() : "";
-    const servingGrams = servingGramsEl ? parseFloat(servingGramsEl.value) : NaN;
+    // server's own "1 serving = 100g" default. The name isn't user-
+    // editable (always "1 serving"); amount is entered in whatever unit
+    // the picker is set to (g/oz/mL) and converted to grams here -- the
+    // server only ever stores/compares grams.
+    const servingAmountEl = document.getElementById("af-create-serving-amount");
+    const servingUnitEl = document.getElementById("af-create-serving-unit");
+    const servingLabel = servingAmountEl ? "1 serving" : "";
+    const servingAmount = servingAmountEl ? parseFloat(servingAmountEl.value) : NaN;
+    const servingGrams = (servingAmountEl && servingUnitEl && isFinite(servingAmount))
+      ? unitToGrams(servingAmount, servingUnitEl.value)
+      : NaN;
+
+    // Editable barcode field, pre-filled from the "not found" redirect --
+    // the user can correct a misread digit before saving. Digits only,
+    // same convention as the scan/lookup path.
+    const barcodeInputEl = document.getElementById("af-create-barcode-input");
+    const barcode = barcodeInputEl ? sanitizeBarcodeDigits(barcodeInputEl.value) : (afCreateBarcode || "");
 
     const submitBtn = document.getElementById("af-create-submit-btn");
     submitBtn.disabled = true;
@@ -3286,7 +3437,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, emoji: afCreateEmoji, protein, fat, carbs,
-          barcode: afCreateBarcode || undefined,
+          barcode: barcode || undefined,
           servingLabel: servingLabel || undefined,
           servingGrams: isFinite(servingGrams) && servingGrams > 0 ? servingGrams : undefined,
           servings: afCreateExtraServings.length ? afCreateExtraServings : undefined,
@@ -3515,6 +3666,37 @@
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Quantity/macro number fields (protein, fat, carbs, serving grams, log
+  // amount) start pre-filled with a default (0, 1, 100) that the user
+  // almost always has to backspace before typing their real value --
+  // clear it for them on focus so they can just type, and restore the
+  // default on blur if they leave it empty rather than leaving a blank
+  // field behind.
+  function wireNumericClearOnFocus(input) {
+    if (!input || input.dataset.clearOnFocusWired) return;
+    input.dataset.clearOnFocusWired = "1";
+    const original = input.value;
+    input.addEventListener("focus", () => {
+      if (input.value === "") return;
+      input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    input.addEventListener("blur", () => {
+      if (input.value.trim() === "") {
+        input.value = original;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+  }
+
+  // Retail barcodes (EAN/UPC) are always numeric -- strip anything else so
+  // every path (live BarcodeDetector scan, manual edit in the create-food
+  // form) keys on digits only, matching barcode_scanner.py's server-side
+  // _digits_only().
+  function sanitizeBarcodeDigits(value) {
+    return String(value).replace(/\D/g, "");
   }
 
   // escapeHtml() round-trips through textContent, which escapes < > and &

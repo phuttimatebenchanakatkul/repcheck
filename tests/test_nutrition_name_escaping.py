@@ -99,6 +99,24 @@ def test_favorite_toggle_attribute_uses_attribute_escaping(nutrition_html):
     )
 
 
+def test_create_food_barcode_attribute_uses_attribute_escaping(nutrition_html):
+    """The scanned barcode is attacker-influenced and lands in an attribute.
+
+    /api/lookup-barcode echoes the submitted `barcode` field back verbatim
+    in its not_found response (app.py), and that echoed value is what the
+    create-food form pre-fills its barcode input with -- so whatever a
+    caller POSTs ends up inside value="...". escapeHtml leaves the quote
+    that would close that attribute and let the rest inject an event
+    handler, so this site needs escapeAttr like the favorite toggle above.
+    """
+    match = re.search(r'id="af-create-barcode-input"[^>]*value="(.*?)"', nutrition_html)
+    assert match, "could not find the create-food barcode input"
+    assert match.group(1) == "${escapeAttr(afCreateBarcode)}", (
+        "the barcode input renders into an attribute with text-node escaping "
+        "-- a barcode containing a quote breaks out of value=\"...\""
+    )
+
+
 def test_escape_attr_helper_escapes_quotes(nutrition_html):
     """The helper itself must actually handle quotes.
 
