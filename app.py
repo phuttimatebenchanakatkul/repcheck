@@ -69,6 +69,7 @@ from coaching_engine import (
 from database import (
     DB_PATH,
     add_friendship,
+    analyze_chat_key_result_id,
     append_hyrox_history_entry,
     append_nutrition_log_entry,
     create_challenge,
@@ -559,6 +560,17 @@ def api_sync_put(key):
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
     if not is_synced_data_key(key):
+        return jsonify({"ok": False, "error": "Unknown sync key."}), 400
+    # A chat-thread key's digit suffix is otherwise just a client-supplied
+    # number -- confirm it actually names one of this user's own
+    # analyze_results rows before accepting a write. Without this, the key
+    # family has no bound (a client can invent any id, indefinitely growing
+    # user_data) and a stale/replayed write for an id that was just pruned
+    # (see prune_analyze_results) would silently resurrect the orphaned row
+    # that pruning exists to remove. Same 400/message as an unknown key so
+    # this doesn't reveal whether a specific id exists.
+    chat_result_id = analyze_chat_key_result_id(key)
+    if chat_result_id is not None and not get_analyze_result(user["id"], chat_result_id):
         return jsonify({"ok": False, "error": "Unknown sync key."}), 400
     payload = request.get_json(silent=True) or {}
     if "value" not in payload:

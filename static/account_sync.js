@@ -69,8 +69,13 @@
   // is what the server validates writes against.
   var ANALYZE_CHAT_PREFIX = "repcheck_analyze_chat_v1_";
   // Built from ANALYZE_CHAT_PREFIX rather than a second literal, so the
-  // prefix can't drift out of sync with the regex that validates it.
-  var ANALYZE_CHAT_KEY_RE = new RegExp("^" + ANALYZE_CHAT_PREFIX + "\\d+$");
+  // prefix can't drift out of sync with the regex that validates it. No
+  // leading zero on the id, matching database.py's ANALYZE_CHAT_KEY_RE --
+  // the server is the real authority (it also checks the id names a row
+  // this user actually owns), but keeping the shape identical here means
+  // this device never even tries to push/adopt a key the server will
+  // reject anyway.
+  var ANALYZE_CHAT_KEY_RE = new RegExp("^" + ANALYZE_CHAT_PREFIX + "(0|[1-9]\\d*)$");
   function isAnalyzeChatKey(key) {
     return ANALYZE_CHAT_KEY_RE.test(key);
   }

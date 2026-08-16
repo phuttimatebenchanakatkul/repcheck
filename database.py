@@ -437,13 +437,29 @@ MERGE_LOG_KEYS = LOG_MERGE_ARRAY_KEYS | LOG_MERGE_DATE_KEYED_KEYS
 # fixed name -- there is one per analyze_results row
 # (repcheck_analyze_chat_v1_<id>, see static/analyze_chat_widget.js) -- so
 # the family is matched by pattern instead of allowlisted individually. The
-# trailing id is restricted to digits so the sync route can't be turned into
-# an arbitrary per-user scratch store by a client inventing key names.
-ANALYZE_CHAT_KEY_RE = re.compile(r"^repcheck_analyze_chat_v1_\d+$")
+# trailing id is restricted to digits, with no leading zero (matching how
+# SQLite's AUTOINCREMENT ids are actually written), so "007" and "7" can't
+# become two different stored rows for what a client would treat as the
+# same analyze_results id -- prune_analyze_results() below only ever
+# targets the canonical (no-leading-zero) form, so a non-canonical
+# duplicate would live forever, immune to pruning.
+ANALYZE_CHAT_KEY_RE = re.compile(r"^repcheck_analyze_chat_v1_(0|[1-9]\d*)$")
 
 
 def is_analyze_chat_key(key):
     return bool(ANALYZE_CHAT_KEY_RE.match(key or ""))
+
+
+def analyze_chat_key_result_id(key):
+    """The analyze_results id encoded in a repcheck_analyze_chat_v1_<id> key,
+    or None if `key` isn't one (see is_analyze_chat_key). Used to verify the
+    row actually exists -- and is this user's own -- before accepting a
+    write, so the key family can't outgrow analyze_results (which is
+    already bounded per user by prune_analyze_results) and so a stale or
+    replayed write can't resurrect a chat thread whose analysis was already
+    pruned."""
+    match = ANALYZE_CHAT_KEY_RE.match(key or "")
+    return int(match.group(1)) if match else None
 
 
 def _merge_by_id(incoming, existing):

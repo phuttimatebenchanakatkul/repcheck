@@ -100,6 +100,11 @@ def test_sync_route_accepts_the_previously_stranded_keys(key):
     "repcheck_analyze_chat_v1_../../etc",
     "repcheck_analyze_chat_v1_abc",
     "repcheck_analyze_chat_v1_",
+    # Leading zeros are a distinct id from the canonical form ("007" != "7"
+    # as a *string*, even though they're the same row) -- see
+    # analyze_chat_key_result_id's docstring for why that must be rejected
+    # rather than silently accepted.
+    "repcheck_analyze_chat_v1_007",
 ])
 def test_sync_route_still_rejects_unknown_keys(key):
     assert not app_module.is_synced_data_key(key)
@@ -215,12 +220,14 @@ def _login(client, user_id):
 def test_api_sync_put_and_get_round_trip_a_chat_thread_over_http(client):
     """End-to-end through the actual route (not just is_synced_data_key() /
     set_user_data() called directly) -- covers app.py's api_sync_put wiring
-    the new is_synced_data_key() gate to a real request/response cycle for
-    the pattern-matched chat keys."""
+    the new is_synced_data_key() gate, plus the analyze_chat_key_result_id
+    existence check, to a real request/response cycle for the
+    pattern-matched chat keys."""
     user_id = database.create_local_user("chat-http@example.com", "irrelevant-password", "Chat HTTP Tester")
     _login(client, user_id)
+    result_id = database.save_analyze_result(user_id, "Bench Press", 90, 90, 90, None, 8, "Good form")
 
-    key = "repcheck_analyze_chat_v1_11"
+    key = f"repcheck_analyze_chat_v1_{result_id}"
     thread = {"createdAtMs": 5, "history": [{"role": "user", "text": "why is my bar path drifting?"}]}
     resp = client.put(f"/api/sync/{key}", json={"value": thread})
     assert resp.status_code == 200
@@ -246,3 +253,75 @@ def test_api_sync_put_still_rejects_a_chat_key_with_a_non_digit_suffix_over_http
         json={"value": {"createdAtMs": 1, "history": []}},
     )
     assert resp.status_code == 400
+
+
+def test_api_sync_put_rejects_a_chat_key_for_an_id_this_user_does_not_own(client):
+    """Adversarial-review finding: the digit-suffix id was never checked
+    against a real analyze_results row, so a client could invent any id
+    (unbounded user_data growth) or resurrect a chat thread for an id that
+    was already pruned (undoing prune_analyze_results' own cleanup). Covers
+    both a fabricated id that was never real and another user's real id."""
+    owner_id = database.create_local_user("chat-owner@example.com", "irrelevant-password", "Chat Owner")
+    other_id = database.create_local_user("chat-other@example.com", "irrelevant-password", "Chat Other")
+    owners_result_id = database.save_analyze_result(owner_id, "Bench Press", 90, 90, 90, None, 8, "Good form")
+
+    _login(client, other_id)
+    resp = client.put(
+        f"/api/sync/repcheck_analyze_chat_v1_{owners_result_id}",
+        json={"value": {"createdAtMs": 1, "history": [{"role": "user", "text": "hi"}]}},
+    )
+    assert resp.status_code == 400
+    assert f"repcheck_analyze_chat_v1_{owners_result_id}" not in database.get_all_user_data(other_id)
+
+    _login(client, owner_id)
+    resp = client.put(
+        "/api/sync/repcheck_analyze_chat_v1_999999",
+        json={"value": {"createdAtMs": 1, "history": [{"role": "user", "text": "hi"}]}},
+    )
+    assert resp.status_code == 400
+    assert "repcheck_analyze_chat_v1_999999" not in database.get_all_user_data(owner_id)
+
+
+def test_pruned_analysis_chat_key_cannot_be_resurrected_by_a_replayed_write(client):
+    """Adversarial-review finding: prune_analyze_results deletes the chat
+    row at prune time, but a stale/replayed write for that same id (a
+    queued sendBeacon from a backgrounded tab, e.g.) must not be able to
+    recreate it afterward -- the existence check makes that write rejected,
+    not just cleaned up after the fact."""
+    user_id = database.create_local_user("chat-replay@example.com", "irrelevant-password", "Chat Replay Tester")
+    _login(client, user_id)
+    result_id = database.save_analyze_result(user_id, "Squat", 80, 80, 80, None, 10, "Depth is shallow")
+    key = f"repcheck_analyze_chat_v1_{result_id}"
+
+    resp = client.put(f"/api/sync/{key}", json={"value": {"createdAtMs": 1, "history": [{"role": "user", "text": "hi"}]}})
+    assert resp.status_code == 200
+
+    database.prune_analyze_results(user_id, keep=0)
+    assert key not in database.get_all_user_data(user_id)
+
+    resp = client.put(f"/api/sync/{key}", json={"value": {"createdAtMs": 2, "history": [{"role": "user", "text": "replayed"}]}})
+    assert resp.status_code == 400
+    assert key not in database.get_all_user_data(user_id)
+
+
+@pytest.mark.parametrize("key,expected_id", [
+    ("repcheck_analyze_chat_v1_7", 7),
+    ("repcheck_analyze_chat_v1_0", 0),
+    ("repcheck_analyze_chat_v1_123456", 123456),
+])
+def test_analyze_chat_key_result_id_extracts_the_id(key, expected_id):
+    assert database.analyze_chat_key_result_id(key) == expected_id
+
+
+@pytest.mark.parametrize("key", [
+    "repcheck_analyze_chat_v1_007",
+    "repcheck_analyze_chat_v1_00",
+    "repcheck_workout_log_v2",
+    "not-a-key-at-all",
+])
+def test_analyze_chat_key_result_id_rejects_non_canonical_or_non_chat_keys(key):
+    """Leading-zero suffixes ("007") must be rejected, not just accepted and
+    misparsed -- prune_analyze_results only ever deletes the canonical
+    (no-leading-zero) key for a given id, so a "007" variant that slipped
+    through would be a permanent orphan no future prune could ever match."""
+    assert database.analyze_chat_key_result_id(key) is None

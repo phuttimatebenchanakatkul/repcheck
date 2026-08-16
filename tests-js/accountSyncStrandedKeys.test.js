@@ -96,6 +96,18 @@ describe("writes reach the server", () => {
     expect(pushesFor(fetchMock, "repcheck_tour_step")).toHaveLength(0);
     expect(pushesFor(fetchMock, "repcheck_analyze_chat_v1_not-a-row-id")).toHaveLength(0);
   });
+
+  it("does not push a leading-zero chat key -- the server would reject it anyway", async () => {
+    // Mirrors database.py's ANALYZE_CHAT_KEY_RE: "007" and "7" would be two
+    // distinct stored rows for what's really the same analyze_results id,
+    // and only the canonical ("7") form is ever cleaned up by pruning.
+    const fetchMock = mockSync();
+    const { storage } = await start();
+
+    storage.setItem("repcheck_analyze_chat_v1_007", "{}");
+
+    expect(pushesFor(fetchMock, "repcheck_analyze_chat_v1_007")).toHaveLength(0);
+  });
 });
 
 describe("hydration", () => {
