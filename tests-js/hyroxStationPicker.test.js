@@ -35,6 +35,22 @@ describe("buildStationPickerSheetContent", () => {
     expect(app.stationPickerCategory).toBeTruthy(); // build() sets a default, not left undefined
   });
 
+  it("marks up the tab bar with ARIA tablist/tab semantics, aria-selected matching is-active", () => {
+    const app = makeBareHyroxApp();
+    const wrap = app.buildStationPickerSheetContent();
+
+    const tabbar = wrap.querySelector(".hx-station-picker-tabbar");
+    expect(tabbar.getAttribute("role")).toBe("tablist");
+
+    const tabs = [...wrap.querySelectorAll(".hx-station-picker-tab")];
+    tabs.forEach((tab) => {
+      expect(tab.getAttribute("role")).toBe("tab");
+      const isActive = tab.classList.contains("is-active");
+      expect(tab.getAttribute("aria-selected")).toBe(String(isActive));
+    });
+    expect(tabs.filter((t) => t.getAttribute("aria-selected") === "true")).toHaveLength(1);
+  });
+
   it("renders every tile with a valid station key, a real icon, and a non-empty name", () => {
     const { CUSTOM_STATION_KEYS, STATION_TITLES } = loadHyroxApp();
     const app = makeBareHyroxApp();
@@ -129,5 +145,24 @@ describe("setStationPickerCategory", () => {
 
     expect(tileValues(secondWrap)).not.toEqual(firstTiles);
     expect(secondWrap.querySelectorAll(".hx-station-picker-tab")[1].classList.contains("is-active")).toBe(true);
+  });
+
+  it("routes a real click on a tab through the delegated handleClick dispatcher, not just a direct call", () => {
+    const app = makeBareHyroxApp();
+    const wrap = app.buildStationPickerSheetContent();
+    document.body.appendChild(wrap);
+    app.syncStationPickerSheetContent = vi.fn();
+    const secondTab = wrap.querySelectorAll(".hx-station-picker-tab")[1];
+    const expectedKey = secondTab.dataset.value;
+    expect(secondTab.dataset.action).toBe("set-station-picker-category");
+
+    // handleClick reads event.target.closest("[data-action]") -- a real
+    // DOM element satisfies that without a full dispatchEvent/bubbling
+    // simulation, since the tab itself carries data-action.
+    app.handleClick({ target: secondTab });
+
+    expect(app.stationPickerCategory).toBe(expectedKey);
+    expect(app.syncStationPickerSheetContent).toHaveBeenCalledTimes(1);
+    document.body.removeChild(wrap);
   });
 });

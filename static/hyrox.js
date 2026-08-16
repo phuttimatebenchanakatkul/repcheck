@@ -2038,10 +2038,11 @@
       const active = CATEGORIES.find((c) => c.key === this.stationPickerCategory) || CATEGORIES[0];
 
       const wrap = el(`<div class="hx-station-picker-tabs-wrap"></div>`);
-      const tabBar = el(`<div class="hx-station-picker-tabbar"></div>`);
+      const tabBar = el(`<div class="hx-station-picker-tabbar" role="tablist"></div>`);
       CATEGORIES.forEach((cat) => {
+        const isActive = cat.key === active.key;
         tabBar.appendChild(el(`
-          <button type="button" class="hx-station-picker-tab ${cat.key === active.key ? "is-active" : ""}" data-action="set-station-picker-category" data-value="${cat.key}">${cat.label}</button>
+          <button type="button" class="hx-station-picker-tab ${isActive ? "is-active" : ""}" role="tab" aria-selected="${isActive}" data-action="set-station-picker-category" data-value="${cat.key}">${cat.label}</button>
         `));
       });
       wrap.appendChild(tabBar);
