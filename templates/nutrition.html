@@ -2363,9 +2363,13 @@
   // One sticky header sits above a stack of screens, so it names whichever
   // screen is showing rather than the button that happened to open the
   // modal -- the create-food form is not "Analyze a food photo". Only the
-  // create form renames it, and every way out of that form goes through
-  // renderAfChoice() (back) or closes the modal (submit), so restoring the
-  // default on the two choice screens covers the whole flow.
+  // create form renames it, and the default is restored in three places so
+  // no other screen can inherit its name: the two choice screens (the "back"
+  // route out of the form) and closeAnalyzeFoodModal (every other route).
+  // The close reset is what makes this safe: useBarcodeImage() and
+  // openScannedResultModal() re-open this modal straight into a loading or
+  // result screen without passing through a choice screen, so a title left
+  // behind by a closed create-food form would sit on top of a barcode scan.
   const afModalTitleEl = document.getElementById("af-modal-title");
   const AF_MODAL_DEFAULT_TITLE = "Analyze a food photo";
   function setAfModalTitle(text) {
@@ -2413,6 +2417,7 @@
         afImageBlob = null;
         afResult = null;
         afNote = "";
+        setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
         stopLiveBarcodeScan();
       });
     } else {
@@ -2421,6 +2426,7 @@
       afImageBlob = null;
       afResult = null;
       afNote = "";
+      setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
       stopLiveBarcodeScan();
     }
   }
