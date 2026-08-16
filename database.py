@@ -429,6 +429,11 @@ LOG_MERGE_DATE_KEYED_KEYS = {
     # not just today's few messages, so it needs the same merge protection
     # as the workout log it's attached to.
     "repcheck_workout_chat_v1",
+    # The streak's activity log (date -> [action names], see
+    # static/streak.js): for a daily challenge, weekly check-in or coach
+    # chat it is the only record the day was ever used, so an overwrite
+    # from a device with a stale copy would delete an earned streak.
+    "repcheck_activity_log_v1",
 }
 MERGE_LOG_KEYS = LOG_MERGE_ARRAY_KEYS | LOG_MERGE_DATE_KEYED_KEYS
 
@@ -849,6 +854,60 @@ def get_user_activity_counts(user_id):
     }
     with get_db() as conn:
         return {name: conn.execute(sql, (user_id,)).fetchone()[0] for name, sql in queries.items()}
+
+
+# Server-recorded uses of the app, for the streak's back-fill (see
+# get_activity_dates below and static/streak.js). Action id -> the table
+# holding one row per use, and the column naming the day it happened.
+#
+# challenge_submissions is the important one: a daily challenge attempt
+# lives ONLY here, so without this the streak simply couldn't see it.
+# The rest already have a local mirror, but that mirror is capped to the
+# most recent N entries and only exists on the device that created it,
+# so reading the server's copy recovers days the client has forgotten.
+#
+# Table names are interpolated into SQL below, so this dict is the trust
+# boundary -- it is fixed, in-source, and must never take user input.
+ACTIVITY_DATE_SOURCES = {
+    "challenge": ("challenge_submissions", "created_at"),
+    "analysis": ("analyze_results", "created_at"),
+    "hyrox": ("hyrox_results", "created_at"),
+    # progress_photos.date is the check-in's own date, already recorded in
+    # the user's local calendar, so it needs no timezone shift.
+    "checkin_photo": ("progress_photos", "date"),
+}
+
+
+def get_activity_dates(user_id, tz_offset_minutes=0):
+    """Every local calendar day this user did something server-recorded,
+    as {"YYYY-MM-DD": ["challenge", ...]}.
+
+    created_at columns are UTC (datetime('now')), while a streak is counted
+    in the user's own days -- so the caller passes its UTC offset in minutes
+    (the conventional sign: UTC+7 is +420) and the timestamps are shifted
+    into local time before being reduced to a date. A bad or missing offset
+    degrades to UTC rather than failing the request; the range clamp keeps
+    the value inside real-world timezones."""
+    try:
+        offset = int(tz_offset_minutes)
+    except (TypeError, ValueError):
+        offset = 0
+    offset = max(-14 * 60, min(14 * 60, offset))
+    modifier = f"{offset:+d} minutes"
+
+    dates = {}
+    with get_db() as conn:
+        for action, (table, column) in ACTIVITY_DATE_SOURCES.items():
+            if column == "date":
+                sql = f"SELECT DISTINCT date({column}) AS day FROM {table} WHERE user_id = ?"
+                params = (user_id,)
+            else:
+                sql = f"SELECT DISTINCT date({column}, ?) AS day FROM {table} WHERE user_id = ?"
+                params = (modifier, user_id)
+            for row in conn.execute(sql, params).fetchall():
+                if row["day"]:
+                    dates.setdefault(row["day"], []).append(action)
+    return {day: sorted(actions) for day, actions in sorted(dates.items())}
 
 
 def get_or_create_friend_code(user_id):
