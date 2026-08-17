@@ -3362,7 +3362,6 @@
             pose: "sprint",
             title: t("hyrox.leaderboard.emptyTitle"),
             sub: t("hyrox.leaderboard.emptySub"),
-            label: t("hyrox.leaderboard.emptyTitle"),
           })));
         } else {
           const myRank = cache.data.me ? cache.data.me.rank : null;

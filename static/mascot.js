@@ -1,12 +1,17 @@
 /* RepCheck's mascot -- the one character that shows up wherever a screen
  * has nothing to show yet.
  *
- * Before this, every empty state in the app was either a bare grey
- * sentence (the leaderboard, both search sheets, challenges) or an emoji
- * in a tinted circle (race history's stopwatch, the workout log's
- * sprout). Four screens, four different treatments, none of them the
- * same shape. This gives all of them one body: a drawing, a short bold
- * headline, and a quieter line under it.
+ * Covers exactly four screens: the Hyrox leaderboard, the food search
+ * sheet, both exercise pickers, and challenges. Each of those was a bare
+ * grey sentence before; they now share one body -- a drawing, a short
+ * bold headline, and a quieter line under it.
+ *
+ * NOT converted, and still on their own treatment: race history's
+ * stopwatch (.hx-history-empty-rich) and the workout log's sprout
+ * (.wl-empty), both full-color emoji in a tinted circle. So the app
+ * currently has two empty-state languages, not one. Converting those two
+ * needs a pose each and is tracked as follow-up -- until then, don't read
+ * this module as the finished consolidation.
  *
  * The character is deliberately a blob with no arms or legs. Every pose
  * here is the same silhouette squashed, tilted, or scaled, so adding a
@@ -19,10 +24,14 @@
  *
  *   --rc-mascot-body    the silhouette
  *   --rc-mascot-detail  props on and around it (sweatband, crumbs,
- *                       speed lines, the podium block)
+ *                       speed lines, the podium outline)
  *   var(--card-bg)      the eyes and mouth, which are cut-outs rather
  *                       than shapes -- they're painted in whatever
  *                       surface sits behind the blob
+ *   var(--bg)           the podium block's fill, and only that. It reads
+ *                       as an outline on light (--bg is a hair off
+ *                       --card-bg) and as a recessed block on dark. That
+ *                       is the intended "empty plinth" either way.
  *
  * The body has its own token rather than reusing --text because --text
  * is right on the dark theme (a near-white blob) and wrong on the light
@@ -153,14 +162,19 @@ window.RepCheckMascot = (function () {
   };
 
   // The drawing on its own, for callers that want to place it in their
-  // own layout. `label` is the alt text -- always pass one, these carry
-  // the only visual content on an otherwise text-only screen.
-  function art(pose, label) {
+  // own layout.
+  //
+  // The drawing is marked aria-hidden and NOT given a role or label. It is
+  // decorative: the headline and sub-line beside it always render and
+  // always carry the actual message, so an accessible name here just makes
+  // a screen reader say the same sentence twice before the sighted user
+  // sees it once.
+  function art(pose) {
     var draw = POSES[pose];
     if (!draw) return "";
     return (
       '<svg class="rc-empty-art" viewBox="0 0 190 150" xmlns="http://www.w3.org/2000/svg" ' +
-      'role="img" aria-label="' + escapeHtml(label || "") + '">' +
+      'aria-hidden="true" focusable="false">' +
       draw() +
       "</svg>"
     );
@@ -172,18 +186,29 @@ window.RepCheckMascot = (function () {
   //
   // Escaping matters here because these headlines interpolate whatever
   // was typed into a search box and the call sites assign via innerHTML.
+  //
+  // CONTRACT: `query` is the ONLY parameter treated as untrusted. `title`
+  // and `sub` are interpolated raw so the <span> wrapper below survives,
+  // which means they must be i18n constants -- never t() with a vars
+  // object carrying user input, because t() does not escape its vars.
   function emptyState(opts) {
     var o = opts || {};
     var title = o.title || "";
     if (o.query != null) {
-      title = title.replace(
-        "{query}",
+      // split/join, NOT replace(). A string replacement is scanned for
+      // $&, $`, $' and $$, and escapeHtml puts a literal & into the
+      // replacement -- so a typed "$" landing before one of those turned
+      // into a substitution pattern and echoed the surrounding sentence
+      // back into the results. This also substitutes EVERY {query}, which
+      // matches how i18n.js's t() does it, so a translation that needs the
+      // term twice works instead of rendering a bare "{query}".
+      title = title.split("{query}").join(
         '<span class="rc-empty-q">' + escapeHtml(o.query) + "</span>"
       );
     }
     return (
       '<div class="rc-empty">' +
-      art(o.pose, o.label) +
+      art(o.pose) +
       '<div class="rc-empty-title">' + title + "</div>" +
       (o.sub ? '<div class="rc-empty-sub">' + o.sub + "</div>" : "") +
       "</div>"

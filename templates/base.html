@@ -35,12 +35,16 @@
   <script src="{{ asset_url('i18n.js') }}"></script>
   <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
-  <!-- Shared mascot + empty-state block (RepCheckMascot). Every screen
-       that can come up empty draws from this, so the leaderboard, both
-       search sheets, and challenges show the same character rather than
-       four different treatments. Must load after i18n.js: call sites
-       build their headline from RepCheckI18n.t() before handing it over. -->
-  <script src="{{ asset_url('mascot.js') }}"></script>
+  <!-- Shared mascot + empty-state block (RepCheckMascot), used by the
+       Hyrox leaderboard, both exercise pickers, the food search sheet,
+       and challenges. Race history and the workout log still use their
+       own emoji-circle empty states.
+       Deferred: nothing reads window.RepCheckMascot at parse time, only
+       inside render functions and event handlers, so it has no business
+       blocking first paint on a phone. Ordering against i18n.js is still
+       safe -- deferred scripts run in document order, and every call site
+       resolves its copy through RepCheckI18n.t() at render time. -->
+  <script src="{{ asset_url('mascot.js') }}" defer></script>
   <!-- Shared streak rule + activity log (RepCheckStreak). Loaded on every
        page, not just the ones showing a flame: any page can record that a
        feature was used, and account_sync.js must already be in place so

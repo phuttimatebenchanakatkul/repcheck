@@ -24,8 +24,13 @@
      (#ffffff). Going lighter than the body would suit the first and
      disappear against the second, so it goes darker and satisfies both.
      Still a charcoal grey, not the near-black --text this used to be.
-     The dark theme lands the same way for the same reason, just with the
-     lightness flipped: a mid grey on a near-white blob. */
+
+     The two themes are NOT symmetric, and it's worth knowing which way.
+     Measured: detail-on-body is 1.98:1 on light but 3.15:1 on dark, so the
+     sweatband in the `lift` pose is the softest thing in the set on light
+     and the first element to suffer if the art is ever scaled down. The
+     card side has enormous headroom either way (detail-on-card is 9.7:1 on
+     light), so the room to fix it is all in making -detail darker. */
   --rc-mascot-body: #6b6d78;
   --rc-mascot-detail: #3f414a;
   --sidebar-active: #f1f2f5;
@@ -2081,5 +2086,7 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
 
 /* Tighter inside the logging sheets, where the mascot shares a fixed
    sheet height with the search field and the results list above it. */
-.log-sheet .rc-empty { padding: 18px 0 10px; }
-.log-sheet .rc-empty-art { width: 104px; margin-bottom: 12px; }
+.log-sheet .rc-empty,
+.split-modal .rc-empty { padding: 18px 0 10px; }
+.log-sheet .rc-empty-art,
+.split-modal .rc-empty-art { width: 104px; margin-bottom: 12px; }

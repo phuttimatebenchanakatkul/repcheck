@@ -124,10 +124,10 @@ describe("art -- the drawing itself", () => {
 
   it("draws every pose as an <svg> on the shared 190x150 viewBox", () => {
     mascot.poses.forEach((pose) => {
-      const svg = parse(mascot.art(pose, pose)).querySelector("svg");
+      const svg = parse(mascot.art(pose)).querySelector("svg");
       expect(svg, pose).not.toBeNull();
       expect(svg.getAttribute("viewBox"), pose).toBe("0 0 190 150");
-      expect(svg.getAttribute("role"), pose).toBe("img");
+      expect(svg.getAttribute("aria-hidden"), pose).toBe("true");
       expect(svg.innerHTML.length, pose).toBeGreaterThan(0);
     });
   });
@@ -145,12 +145,16 @@ describe("art -- the drawing itself", () => {
     });
   });
 
-  it("escapes the accessible label, and falls back to an empty one", () => {
-    const labelled = parse(mascot.art("eat", 'No foods match "<b>x</b>"')).querySelector("svg");
-    expect(labelled.getAttribute("aria-label")).toBe('No foods match "<b>x</b>"');
-    expect(labelled.querySelector("b")).toBeNull();
-
-    expect(parse(mascot.art("sprint")).querySelector("svg").getAttribute("aria-label")).toBe("");
+  // art() used to take a `label` and set role="img" + aria-label. Every
+  // call site ended up passing text that was already rendered right below
+  // the drawing, so screen readers read the same sentence twice. It is
+  // decorative now, and takes no second argument -- an extra one is ignored
+  // rather than leaking into the markup.
+  it("ignores a stray second argument now that it takes no label", () => {
+    const markup = mascot.art("eat", 'No foods match "<b>x</b>"');
+    expect(markup).not.toContain("aria-label");
+    expect(markup).not.toContain("<b>");
+    expect(parse(markup).querySelector("svg").getAttribute("aria-hidden")).toBe("true");
   });
 });
 
@@ -222,5 +226,50 @@ describe("i18n -- the new empty-state copy", () => {
     expect(el.querySelector("script")).toBeNull();
     expect(el.querySelector(".rc-empty-q").textContent).toBe("<script>");
     expect(el.querySelector(".rc-empty-title").textContent).not.toContain("{query}");
+  });
+});
+
+describe("emptyState -- the query is data, never a replacement pattern", () => {
+  // String.replace() scans its replacement for $&, $`, $' and $$. The
+  // replacement here is built from escapeHtml output, which contains a
+  // literal & -- so a typed "$" landing just before one turned into a
+  // substitution and echoed the surrounding sentence back at the user.
+  // Verified failing before the split/join fix: query "$&" rendered
+  // {query}amp;, and "$`" rendered the whole headline prefix.
+  it("renders dollar sequences literally instead of expanding them", () => {
+    ["$&", "$`", "$'", "$$", "100$'s", "$&$`"].forEach((q) => {
+      const el = parse(mascot.emptyState({
+        pose: "eat",
+        title: 'Couldn\'t find "{query}"',
+        query: q,
+      }));
+      expect(el.querySelector(".rc-empty-q").textContent, q).toBe(q);
+      expect(el.querySelector(".rc-empty-title").textContent, q).not.toContain("{query}");
+    });
+  });
+
+  // i18n's t() substitutes every occurrence; emptyState has to agree, or a
+  // translation that restates the term renders a bare {query} on screen.
+  it("substitutes every {query} in a title, not just the first", () => {
+    const el = parse(mascot.emptyState({
+      pose: "eat",
+      title: '"{query}"? No {query} here.',
+      query: "tofu",
+    }));
+    expect(el.querySelectorAll(".rc-empty-q").length).toBe(2);
+    expect(el.querySelector(".rc-empty-title").textContent).not.toContain("{query}");
+  });
+});
+
+describe("art -- the drawing is decorative", () => {
+  // The headline and sub always render beside it and carry the message, so
+  // an accessible name here just makes a screen reader say it twice.
+  it("hides the svg from assistive tech rather than naming it", () => {
+    const el = parse(mascot.art("sprint"));
+    const svg = el.querySelector("svg");
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.getAttribute("focusable")).toBe("false");
+    expect(svg.getAttribute("role")).toBeNull();
+    expect(svg.getAttribute("aria-label")).toBeNull();
   });
 });

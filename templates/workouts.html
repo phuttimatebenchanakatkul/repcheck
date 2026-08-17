@@ -3006,9 +3006,14 @@
             title: RepCheckI18n.t("workouts.search.noMatchTitle"),
             sub: RepCheckI18n.t("workouts.search.noMatchSub"),
             query,
-            label: RepCheckI18n.t("workouts.search.noMatchSub"),
           })}
-          <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: query.trim() })}</span></button>
+          <!-- escapeHtml on the way in: t() substitutes its vars with a
+               plain split/join and does NOT escape them, and this lands in
+               innerHTML. Same reason the search term beside it is escaped
+               -- this is the one branch a no-match query reaches, so an
+               unescaped name here is the exact sink the mascot block above
+               just closed. -->
+          <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: escapeHtml(query.trim()) })}</span></button>
         </div>
       `;
       wireCreateButton(query.trim());
@@ -3782,7 +3787,6 @@
         title: t("workouts.search.noMatchTitle"),
         sub: t("workouts.search.noMatchSub"),
         query,
-        label: t("workouts.search.noMatchSub"),
       });
       listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
         checkbox.addEventListener("change", () => {

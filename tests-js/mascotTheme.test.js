@@ -17,9 +17,28 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
-const css = readFileSync(resolve(process.cwd(), "static/style.css"), "utf8");
+// Resolved from this file, not process.cwd(), so the suite doesn't pass or
+// fail based on which directory vitest was invoked from -- same reason
+// support/loadMascot.js does it this way.
+const CSS_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "static", "style.css");
+const css = readFileSync(CSS_PATH, "utf8");
+
+// Relative luminance, enough to compare two flat hex tokens.
+function lum(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map((v) => v / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+}
+
+function contrast(a, b) {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 // Grab a top-level block by its exact selector, up to the first closing brace
 // at column 0 -- these blocks are flat variable lists, so no nesting to worry
@@ -63,6 +82,26 @@ describe("mascot color tokens", () => {
   THEMES.forEach(({ label, selector }) => {
     it(`declares --card-bg on the ${label} theme, which the eyes are cut from`, () => {
       expect(tokenValue(block(selector), "--card-bg"), `--card-bg missing from ${label}`).toBeTruthy();
+    });
+  });
+
+  // The three above all pass if you paste the dark values into the light
+  // theme -- a white blob on a white card, invisible, suite green. That is
+  // the actual regression this file exists to catch, so check the thing
+  // that matters: the body has to be readable against the card it sits on,
+  // in each theme independently.
+  THEMES.forEach(({ label, selector }) => {
+    it(`keeps the body readable against the card on the ${label} theme`, () => {
+      const scope = block(selector);
+      const ratio = contrast(tokenValue(scope, "--rc-mascot-body"), tokenValue(scope, "--card-bg"));
+      expect(ratio, `${label}: body vs card is ${ratio.toFixed(2)}:1`).toBeGreaterThan(3);
+    });
+  });
+
+  it("does not reuse one theme's greys on the other", () => {
+    ["--rc-mascot-body", "--rc-mascot-detail"].forEach((tok) => {
+      expect(tokenValue(block(":root"), tok), tok)
+        .not.toBe(tokenValue(block(':root[data-theme="dark"]'), tok));
     });
   });
 });
