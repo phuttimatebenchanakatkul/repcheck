@@ -2679,8 +2679,19 @@
 
     const recentListEl = document.getElementById("af-recent-list");
     if (recentListEl) {
+      // Per-entry try/catch for the same reason the food sheet validates its
+      // re-log rows: entryTotals() reduces over `ingredients` with no guards,
+      // so one malformed entry (a truncated write, a merge from an older
+      // schema) threw while this innerHTML string was still being built --
+      // taking the whole choice screen down instead of its own row.
       recentListEl.innerHTML = recentScans.map((entry) => {
-        const totals = entryTotals(entry);
+        let totals;
+        try {
+          totals = entryTotals(entry);
+        } catch (err) {
+          return "";
+        }
+        if (!Number.isFinite(totals.calories) || !Number.isFinite(totals.grams)) return "";
         return `
           <div class="af-recent-row">
             <span class="af-recent-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
@@ -4351,15 +4362,20 @@
   // innerHTML string, the assignment never runs and the whole sheet comes up
   // blank with no search box at all. A missing grams/base* field is the
   // quieter version: NaN macros on the row, which relogEntry() would then
-  // copy into today's log and persist to the server. Either way the row falls
-  // back to the plain data-food path, which is inert but harmless.
+  // copy into today's log and persist to the server. Zero or negative grams
+  // are the third shape -- they compute fine and would render a plausible
+  // "0 kcal" row that logs a phantom entry into the day's totals.
+  // Either way the row falls back to the plain data-food path, whose handler
+  // now re-renders rather than dismissing the sheet on a name it can't
+  // resolve (see the click handler).
   function resolveRelogRowEntry(name) {
     const entry = latestEntryForFood(name);
     if (!entry) return null;
     try {
       const macros = scaledMacros(entry);
-      const usable = ["calories", "protein", "fat", "carbs"].every((key) => Number.isFinite(macros[key]));
-      return usable ? entry : null;
+      const finite = ["calories", "protein", "fat", "carbs"].every((key) => Number.isFinite(macros[key]));
+      const grams = entryTotals(entry).grams;
+      return (finite && Number.isFinite(grams) && grams > 0) ? entry : null;
     } catch (err) {
       return null;
     }
@@ -4379,15 +4395,19 @@
       </div>`;
   }
 
+  // entryForRow, not relogEntry: relogEntry is the module-level function that
+  // performs the log write, and shadowing it here would turn a future call to
+  // it inside this function into a TypeError thrown mid-innerHTML -- the exact
+  // blank-sheet failure resolveRelogRowEntry above exists to prevent.
   function foodRowHtml(name) {
     const isFav = favorites.has(name);
-    const relogEntry = relogRowEntry(name);
+    const entryForRow = relogRowEntry(name);
     return `
-      <button type="button" class="nl-food-row" ${relogEntry ? `data-relog-entry="${escapeAttr(relogEntry.id)}"` : `data-food="${escapeAttr(name)}"`}>
+      <button type="button" class="nl-food-row" ${entryForRow ? `data-relog-entry="${escapeAttr(entryForRow.id)}"` : `data-food="${escapeAttr(name)}"`}>
         <span class="nl-food-row-icon">${foodIconHtml(name, "nl-food-photo-row")}</span>
         <span class="nl-food-row-body">
           <span class="nl-food-row-name">${escapeHtml(name)}</span>
-          ${relogEntry ? relogMacroLine(relogEntry) : foodMacroLine(name)}
+          ${entryForRow ? relogMacroLine(entryForRow) : foodMacroLine(name)}
         </span>
         <span class="nl-food-row-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" role="button" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? HEART_FILLED : HEART_OUTLINE}</span>
       </button>
@@ -4450,9 +4470,21 @@
   // default view; renderModalResults()'s live-search branch never calls
   // this, so typing a query hides it the same way iOS search hides
   // segmented controls once you start typing.
-  function scopeSegHtml() {
+  // The whole "Custom" tab is dropped in add-ingredient mode. Everything on
+  // it -- the create row and the custom-food rows alike -- logs a standalone
+  // entry: both paths call closeModal(), which nulls modalMode, so the food
+  // lands as its own entry instead of an ingredient of the meal being
+  // edited. Suppressing just the create row (the first cut of this) left the
+  // rows next to it doing exactly what the suppression existed to prevent.
+  function scopeTabsForMode() {
     const t = RepCheckI18n.t;
-    const tabs = [["recent", t("nutrition.recent")], ["favorites", t("nutrition.favorites")], ["custom", t("nutrition.scope.custom")]];
+    const tabs = [["recent", t("nutrition.recent")], ["favorites", t("nutrition.favorites")]];
+    if (!modalMode || modalMode.type !== "add-ingredient") tabs.push(["custom", t("nutrition.scope.custom")]);
+    return tabs;
+  }
+
+  function scopeSegHtml() {
+    const tabs = scopeTabsForMode();
     return `
       <div class="nl-scope-seg">
         ${tabs.map(([key, label]) => `<button type="button" data-scope-tab="${key}" class="${modalScope === key ? "is-active" : ""}">${label}</button>`).join("")}
@@ -4489,6 +4521,10 @@
   function renderModalDefaultSections() {
     const t = RepCheckI18n.t;
     invalidateRelogRowCache();
+    // A scope whose tab isn't offered in this mode (see scopeTabsForMode)
+    // falls back to the landing tab, so the sheet can never render a tab the
+    // segmented control above it doesn't show.
+    if (!scopeTabsForMode().some(([key]) => key === modalScope)) modalScope = "recent";
     // "Custom" replaced the old "Recent" tab (Recent itself moved to where
     // "All" used to be). Nothing here is a library lookup: it's the foods
     // this user typed the macros for themselves (customFoods, from
@@ -4499,11 +4535,7 @@
       const listHtml = customFoods.length
         ? `<div class="nl-food-list">${customFoods.map((food, i) => customFoodRowHtml(food, i)).join("")}</div>`
         : `<div class="nl-search-empty">${t("nutrition.custom.empty")}</div>`;
-      // No create row in add-ingredient mode: creating a food closes this
-      // sheet (which clears modalMode), so the new food would land as its own
-      // separate log entry instead of an ingredient of the meal being edited.
-      const createRow = (modalMode && modalMode.type === "add-ingredient") ? "" : createFoodRowHtml();
-      modalResultsEl.innerHTML = scopeSegHtml() + createRow + listHtml + manualMacroCtaHtml();
+      modalResultsEl.innerHTML = scopeSegHtml() + createFoodRowHtml() + listHtml + manualMacroCtaHtml();
       return;
     }
 
@@ -4730,6 +4762,15 @@
     }, 350);
   }
 
+  // Redraws whichever view the sheet is currently showing -- the live-query
+  // results if something is typed, the default tab view otherwise. Used where
+  // a tap found stale data and the honest response is to redraw rather than
+  // do nothing.
+  function rerenderModalView() {
+    if (modalSearchInput.value.trim()) renderModalResults(modalSearchInput.value);
+    else renderModalDefaultSections();
+  }
+
   // Event delegation on the results container: listeners are attached
   // once here rather than re-attached after every render, so a click
   // never gets lost to a stale/replaced element reference.
@@ -4797,14 +4838,26 @@
         // sat open, or deleted on another device and merged in by
         // account_sync. Re-render instead of swallowing the tap, so the stale
         // row disappears rather than looking broken.
-        invalidateRelogRowCache();
-        renderModalDefaultSections();
+        rerenderModalView();
       }
       return;
     }
 
     const tile = event.target.closest("[data-food]");
     if (tile) {
+      // Both handlers below bail on a name they can't resolve
+      // (openLogAmountModal's `if (!food) return`, addIngredientToEntry's
+      // `if (!entry || !base) return`) -- and closing FIRST turned that into
+      // the same silent dead tap this sheet's re-log rows exist to remove:
+      // sheet dismissed, nothing logged, no feedback. A name can be here
+      // unresolvable in three ways: a favorited scan whose entries were all
+      // deleted, an entry whose stored macros don't compute (see
+      // resolveRelogRowEntry), or any log-only name in add-ingredient mode.
+      // Re-render instead, so the stale row goes away with the sheet still up.
+      if (!foodByName(tile.dataset.food)) {
+        rerenderModalView();
+        return;
+      }
       if (modalMode && modalMode.type === "add-ingredient") {
         addIngredientToEntry(modalMode.entryId, tile.dataset.food);
         closeModal();

@@ -204,6 +204,14 @@ export function loadNutritionFoodSheet({
     "addIngredientToEntry",
     "toggleFavorite",
     `${source}
+    // Makes the closeModal-clears-pendingHour ordering real inside the
+    // harness. nutrition.html's own closeModal() sets pendingHour = null, so a
+    // handler that closed the sheet BEFORE reading the hour would pass an
+    // hour of null in the page while still looking correct against a spy that
+    // never clears it. Reassigning the parameter rebinds what the already-
+    // registered click handler resolves at call time.
+    const __injectedCloseModal = closeModal;
+    closeModal = function () { pendingHour = null; __injectedCloseModal(); };
     return {
       showModal, renderModalDefaultSections, renderModalResults,
       scopeSegHtml, createFoodRowHtml, foodRowHtml, relogRowEntry,
@@ -234,7 +242,10 @@ export function loadNutritionFoodSheet({
     () => { calls.openCreateFoodModal++; },
     () => { calls.openQuickMacroModal++; },
     (res) => { calls.openScannedResultModal.push(res); },
-    (entry) => { calls.openRelogConfirmModal.push(entry); },
+    // Records the hour too: the bug this path fixed was an ORDERING one
+    // ("capture before closeModal() clears it"), so a spy that drops the
+    // second argument would stay green through a regression.
+    (entry, hour) => { calls.openRelogConfirmModal.push({ entry, hour }); },
     (name, hour) => { calls.openLogAmountModal.push({ name, hour }); },
     (entryId, name) => { calls.addIngredientToEntry.push({ entryId, name }); },
     (name) => { calls.toggleFavorite.push(name); }

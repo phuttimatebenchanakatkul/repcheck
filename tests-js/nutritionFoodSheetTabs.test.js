@@ -301,8 +301,13 @@ describe("food-search sheet -- re-log rows for names the library doesn't have", 
 
     expect(sheet.calls.closeModal).toBe(1);
     expect(sheet.calls.openRelogConfirmModal).toHaveLength(1);
-    expect(sheet.calls.openRelogConfirmModal[0].id).toBe("pb-new");
-    expect(sheet.calls.openRelogConfirmModal[0].food).toBe("Protein Bar");
+    expect(sheet.calls.openRelogConfirmModal[0].entry.id).toBe("pb-new");
+    expect(sheet.calls.openRelogConfirmModal[0].entry.food).toBe("Protein Bar");
+    // The hour the sheet was opened from must survive the close. closeModal()
+    // nulls pendingHour (the harness's injected one does too), so reading it
+    // after the close instead of before would arrive here as null and log the
+    // food at the wrong time.
+    expect(sheet.calls.openRelogConfirmModal[0].hour).toBe(8);
     // It must not also fall through into the data-food logging branch.
     expect(sheet.calls.openLogAmountModal).toEqual([]);
   });
@@ -382,6 +387,51 @@ describe("food-search sheet -- re-log rows for names the library doesn't have", 
     expect(row.textContent).not.toContain("NaN");
   });
 
+  it("falls back to data-food for an entry with zero grams, which computes fine but is junk", () => {
+    // A finiteness check alone passes this: 0/100 is 0, so the row would read
+    // a plausible "0 kcal / 0g / 0P / 0F / 0C", the confirm screen would show
+    // a donut with no segments, and "Log again" would write a phantom entry
+    // that renderSummary() sums into the day's totals.
+    const sheet = openSheet({
+      initialLog: {
+        ...LOG,
+        "2026-08-16": [
+          entry("zero", "Zero Portion", at(2026, 8, 16, 22, 0), { grams: 0 }),
+          ...LOG["2026-08-16"],
+        ],
+      },
+    });
+    sheet.renderModalDefaultSections();
+
+    const row = rowByName(sheet.modalResultsEl, "Zero Portion");
+    expect(row.dataset.food).toBe("Zero Portion");
+    expect(row.hasAttribute("data-relog-entry")).toBe(false);
+    expect(sheet.relogRowEntry("Zero Portion")).toBeNull();
+    // And the usable entry beside it still takes the re-log path.
+    expect(rowByName(sheet.modalResultsEl, "Protein Bar").dataset.relogEntry).toBe("pb-new");
+  });
+
+  it("re-renders rather than dismissing the sheet when a data-food row's name resolves to nothing", () => {
+    // The fallback path is not inert: openLogAmountModal() starts
+    // `if (!food) return`, and closing FIRST turned that into the same silent
+    // dead tap -- sheet gone, nothing logged, no feedback. Reachable via a
+    // favorited scan whose entries were all deleted, which is exactly this
+    // fixture: "Ghost Snack" is favorited and has no entry and no library row.
+    const sheet = openSheet({ favorites: ["Rice", "Ghost Snack"] });
+    sheet.modalScope = "favorites";
+    sheet.renderModalDefaultSections();
+
+    const row = rowByName(sheet.modalResultsEl, "Ghost Snack");
+    expect(row.dataset.food).toBe("Ghost Snack");
+    expect(rowMacroText(row)).toBeNull(); // nothing to show a macro line from
+    row.click();
+
+    expect(sheet.calls.closeModal).toBe(0); // the sheet stays up
+    expect(sheet.calls.openLogAmountModal).toEqual([]);
+    expect(sheet.calls.openRelogConfirmModal).toEqual([]);
+    expect(tabLabels(sheet.modalResultsEl)).toHaveLength(3); // re-rendered
+  });
+
   it("shows the portion's grams on a re-log row, since those macros are a whole portion and a library row's are per-100g", () => {
     const sheet = openSheet();
     sheet.renderModalDefaultSections();
@@ -419,27 +469,40 @@ describe("food-search sheet -- the 'Create a food' row", () => {
       .toEqual(["seg", "create", "list"]);
   });
 
-  it("is suppressed on the Custom tab in add-ingredient mode, where a new food couldn't become an ingredient", () => {
+  it("is unreachable in add-ingredient mode: the whole Custom tab is dropped, not just the create row", () => {
+    // Everything on that tab logs a STANDALONE entry -- the create row and the
+    // custom-food rows both close the sheet, which nulls modalMode, so the
+    // food lands as its own entry instead of an ingredient of the meal being
+    // edited. Suppressing only the create row left the rows beside it doing
+    // exactly what the suppression existed to prevent.
     const sheet = openSheet({
       customFoods: CUSTOM_FOODS,
       modalMode: { type: "add-ingredient", entryId: "a" },
     });
-    sheet.modalScope = "custom";
     sheet.renderModalDefaultSections();
 
-    expect(sheet.modalResultsEl.querySelector("[data-create-food]")).toBeNull();
-    // The rest of the tab is untouched -- the existing custom foods are still
-    // pickable, and the tab bar is still there.
-    expect(customRowNames(sheet.modalResultsEl)).toEqual(["Gym Shake", 'My "house" bar']);
-    expect(tabLabels(sheet.modalResultsEl)).toHaveLength(3);
+    expect(tabLabels(sheet.modalResultsEl)).toEqual(["nutrition.recent", "nutrition.favorites"]);
+    expect(sheet.modalResultsEl.querySelector('[data-scope-tab="custom"]')).toBeNull();
 
-    // Same suppression with an empty list: empty state, and still no create row.
-    const bare = openSheet({ customFoods: [], modalMode: { type: "add-ingredient", entryId: "a" } });
-    bare.modalScope = "custom";
-    bare.renderModalDefaultSections();
-    expect(bare.modalResultsEl.querySelector("[data-create-food]")).toBeNull();
-    expect(bare.modalResultsEl.querySelector(".nl-search-empty").textContent.trim())
-      .toBe("nutrition.custom.empty");
+    // Asking for the tab anyway falls back to the landing tab rather than
+    // rendering a tab the segmented control above it doesn't show.
+    sheet.modalScope = "custom";
+    sheet.renderModalDefaultSections();
+    expect(sheet.modalScope).toBe("recent");
+    expect(sheet.modalResultsEl.querySelector("[data-create-food]")).toBeNull();
+    expect(customRowNames(sheet.modalResultsEl)).toEqual([]);
+    expect(rowNames(sheet.modalResultsEl)).toContain("Rice");
+  });
+
+  it("keeps all three tabs, with the custom list and create row, in normal logging modes", () => {
+    for (const modalMode of [{ type: "add-food" }, { type: "quickadd", topPicksHour: 8 }]) {
+      const sheet = openSheet({ customFoods: CUSTOM_FOODS, modalMode });
+      sheet.modalScope = "custom";
+      sheet.renderModalDefaultSections();
+      expect(tabLabels(sheet.modalResultsEl)).toHaveLength(3);
+      expect(sheet.modalResultsEl.querySelector("[data-create-food]")).not.toBeNull();
+      expect(customRowNames(sheet.modalResultsEl)).toEqual(["Gym Shake", 'My "house" bar']);
+    }
   });
 
   it("tapping it closes the search sheet and opens the full create-food form", () => {
