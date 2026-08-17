@@ -944,6 +944,14 @@
     border: 1px solid var(--border); color: var(--text-secondary); font-size: 13px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
   }
+  /* Same circular footprint as the clear button beside it, but filled --
+     scanning is the reason this row exists, typing is the fallback. */
+  .af-barcode-scan-btn {
+    flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+    background: var(--purple); border: none; color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .af-barcode-scan-btn:active { transform: scale(0.94); }
 
   .af-section-title { font-size: 14.5px; font-weight: 800; color: var(--text); margin: 4px 0 12px; letter-spacing: -0.005em; }
   .af-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
@@ -2979,7 +2987,37 @@
     document.getElementById("af-barcode-input").click();
   }
 
+  // Normally a scan means "find me this product", so the reader hands its
+  // value to lookupScannedBarcode(). The create-food form wants the opposite:
+  // the digits themselves, written into a field on a form the user is still
+  // filling in. Both share one reader, so where the value goes is set here
+  // rather than duplicated into each decode loop.
+  let barcodeScanHandlers = null;
+
+  function deliverScannedBarcode(rawValue) {
+    const value = sanitizeBarcodeDigits(rawValue);
+    if (!value) return false;
+    stopLiveBarcodeScan();
+    const handlers = barcodeScanHandlers;
+    barcodeScanHandlers = null; // one-shot: the next scan is a lookup again
+    if (handlers && handlers.onResult) handlers.onResult(value);
+    else lookupScannedBarcode(value);
+    return true;
+  }
+
+  function cancelBarcodeScan() {
+    stopLiveBarcodeScan();
+    const handlers = barcodeScanHandlers;
+    barcodeScanHandlers = null;
+    if (handlers && handlers.onCancel) handlers.onCancel();
+    else renderAfChoice();
+  }
+
   function renderBarcodeScannerUI(hint) {
+    // The still-photo route runs a product lookup and takes over the modal,
+    // so it is only offered when a lookup is what the scan is for. Filling a
+    // form field has no use for it -- that field can just be typed into.
+    const offerPhoto = !barcodeScanHandlers;
     afModalBody.innerHTML = `
       <div class="af-scanner-wrap">
         <video id="af-scanner-video" class="af-scanner-video" autoplay playsinline muted></video>
@@ -2988,17 +3026,14 @@
       </div>
       <div class="af-actions">
         <button type="button" class="af-secondary-btn" id="af-scanner-cancel-btn" style="flex:1;">Cancel</button>
-        <button type="button" class="af-secondary-btn" id="af-scanner-photo-btn" style="flex:1;">Take photo</button>
+        ${offerPhoto ? `<button type="button" class="af-secondary-btn" id="af-scanner-photo-btn" style="flex:1;">Take photo</button>` : ""}
       </div>
     `;
-    document.getElementById("af-scanner-cancel-btn").addEventListener("click", () => {
-      stopLiveBarcodeScan();
-      renderAfChoice();
-    });
+    document.getElementById("af-scanner-cancel-btn").addEventListener("click", cancelBarcodeScan);
     // Escape hatch: a still photo gets the server's full (slower, more
     // thorough) decode cascade, which can catch a code the quick per-frame
     // pass keeps missing.
-    document.getElementById("af-scanner-photo-btn").addEventListener("click", () => {
+    if (offerPhoto) document.getElementById("af-scanner-photo-btn").addEventListener("click", () => {
       stopLiveBarcodeScan();
       openBarcodePhotoInput();
     });
@@ -3035,12 +3070,19 @@
     startLiveBarcodeScan();
   };
 
-  async function startLiveBarcodeScan() {
+  // options.onResult / options.onCancel divert the scan to a caller (the
+  // create-food form) instead of the default product lookup.
+  async function startLiveBarcodeScan(options) {
+    barcodeScanHandlers = (options && options.onResult) ? options : null;
     setAfModalTitle(AF_MODAL_BARCODE_TITLE);
     // Checked before any await, so this still counts as the user's own tap
     // and the file picker is allowed to open.
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      openBarcodePhotoInput();
+      // The photo route ends in a product lookup, which is not what a caller
+      // filling a field asked for -- hand control back so it can restore its
+      // own screen, where the barcode can still be typed.
+      if (barcodeScanHandlers) cancelBarcodeScan();
+      else openBarcodePhotoInput();
       return;
     }
     try {
@@ -3048,6 +3090,7 @@
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
       });
     } catch (err) {
+      if (barcodeScanHandlers) { cancelBarcodeScan(); return; }
       renderBarcodeCameraUnavailable();
       return;
     }
@@ -3071,7 +3114,8 @@
     if (!barcodeLiveStream) return; // cancelled while the camera was starting
     if (!video.videoWidth) {
       stopLiveBarcodeScan();
-      renderBarcodeCameraUnavailable();
+      if (barcodeScanHandlers) cancelBarcodeScan();
+      else renderBarcodeCameraUnavailable();
       return;
     }
 
@@ -3084,8 +3128,13 @@
     // the server if it doesn't.
     const wasm = await loadWasmBarcodeDecoder();
     if (!barcodeLiveStream) return; // cancelled while the decoder was loading
-    if (wasm) runWasmBarcodeLoop(video, wasm);
-    else runServerBarcodeLoop(video);
+    if (wasm) { runWasmBarcodeLoop(video, wasm); return; }
+    // The server loop answers with a resolved product rather than the digits,
+    // so it can't fill a form field. Rare (it only runs if the bundled
+    // decoder failed to load); hand back to the caller instead of silently
+    // scanning into a path that would take over the screen.
+    if (barcodeScanHandlers) { cancelBarcodeScan(); return; }
+    runServerBarcodeLoop(video);
   }
 
   // Safari ships no BarcodeDetector at any version, so the decoder has to
@@ -3204,14 +3253,7 @@
           if (!barcodeLiveStream) return;
           const retail = (symbols || []).filter((s) => RETAIL_SYMBOLOGIES.test(s.typeName || ""));
           const hit = retail[0] || (symbols || [])[0];
-          if (hit) {
-            const value = sanitizeBarcodeDigits(hit.decode());
-            if (value) {
-              stopLiveBarcodeScan();
-              lookupScannedBarcode(value);
-              return;
-            }
-          }
+          if (hit && deliverScannedBarcode(hit.decode())) return;
           attempts += 1;
           // Advise backing off, not leaning in. A phone camera can't focus
           // closer than about a hand's width, and the instinct when a scan
@@ -3250,12 +3292,7 @@
       if (!barcodeLiveStream) return;
       try {
         const codes = await detector.detect(video);
-        if (codes.length) {
-          const value = codes[0].rawValue;
-          stopLiveBarcodeScan();
-          lookupScannedBarcode(value);
-          return;
-        }
+        if (codes.length && deliverScannedBarcode(codes[0].rawValue)) return;
       } catch (err) { // transient decode failure — keep scanning
       }
       if (barcodeLiveStream) barcodeLoopTimer = setTimeout(tick, BARCODE_SCAN_INTERVAL_MS);
@@ -3751,6 +3788,64 @@
   // barcode is carried through to submitCustomFood() and saved with the
   // food, so scanning the same code again resolves straight to it (see
   // get_custom_food_by_barcode() in database.py).
+  // Everything on the create form that the user typed, so a trip out to the
+  // barcode scanner (which rebuilds the modal body from scratch) can put it
+  // back. renderAfCreateForm resets the module-level emoji/servings state
+  // too, so those travel here rather than surviving on their own.
+  function captureAfCreateFormState() {
+    const val = (id) => {
+      const el = document.getElementById(id);
+      return el ? el.value : null;
+    };
+    return {
+      quickMode: afCreateQuickMode,
+      barcode: val("af-create-barcode-input") || afCreateBarcode || "",
+      name: val("af-create-name"),
+      protein: val("af-create-protein"),
+      fat: val("af-create-fat"),
+      carbs: val("af-create-carbs"),
+      servingAmount: val("af-create-serving-amount"),
+      servingUnit: val("af-create-serving-unit"),
+      emoji: afCreateEmoji,
+      extraServings: afCreateExtraServings.map((s) => ({ ...s })),
+    };
+  }
+
+  function restoreAfCreateForm(state, barcode) {
+    renderAfCreateForm(state.quickMode, barcode || "");
+    afCreateEmoji = state.emoji;
+    afCreateExtraServings = state.extraServings.map((s) => ({ ...s }));
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      if (el && v !== null && v !== undefined) el.value = v;
+    };
+    set("af-create-name", state.name);
+    set("af-create-protein", state.protein);
+    set("af-create-fat", state.fat);
+    set("af-create-carbs", state.carbs);
+    set("af-create-serving-amount", state.servingAmount);
+    set("af-create-serving-unit", state.servingUnit);
+    const iconEl = document.getElementById("af-icon-emoji");
+    if (iconEl) iconEl.innerHTML = customFoodIconMarkup(afCreateEmoji);
+    const list = document.getElementById("af-extra-servings-list");
+    if (list) {
+      list.outerHTML = afExtraServingsListHtml();
+      wireAfServingRemoveButtons();
+    }
+    // Calories are derived from the macros, and the form only recomputes
+    // them on input -- so a restored value needs the total refreshed by hand
+    // or it sits at the fresh form's zero next to non-zero macros.
+    const caloriesEl = document.getElementById("af-create-calories-value");
+    if (caloriesEl) caloriesEl.textContent = customFoodCalories();
+    // The serving summary line is likewise only refreshed on edit.
+    const servingSub = document.getElementById("af-serving-summary-sub");
+    const amountEl = document.getElementById("af-create-serving-amount");
+    const unitEl = document.getElementById("af-create-serving-unit");
+    if (servingSub && amountEl && unitEl) {
+      servingSub.textContent = `= ${amountEl.value || 0} ${UNIT_LABELS[unitEl.value]}`;
+    }
+  }
+
   function renderAfCreateForm(quickMode, notFoundBarcode) {
     // The modal header carries this screen's name (see setAfModalTitle),
     // so the nav row below is just the back chevron -- no second copy of
@@ -3778,15 +3873,18 @@
         ${CUSTOM_FOOD_ICONS.map(({ slug, label }) => `<button type="button" class="af-emoji-btn" data-emoji="${slug}" title="${escapeAttr(label)}"><img src="/static/food_images/${slug}.png" alt="${escapeAttr(label)}"></button>`).join("")}
       </div>
       `}
-      ${afCreateBarcode ? `
+      ${quickMode ? "" : `
       <div class="af-field">
-        <div class="af-field-head"><label for="af-create-barcode-input">Barcode</label></div>
+        <div class="af-field-head"><label for="af-create-barcode-input">Barcode</label><span class="af-tag">Optional</span></div>
         <div class="af-barcode-row">
-          <input type="text" inputmode="numeric" id="af-create-barcode-input" maxlength="20" value="${escapeAttr(afCreateBarcode)}">
+          <input type="text" inputmode="numeric" id="af-create-barcode-input" maxlength="20" value="${escapeAttr(afCreateBarcode || "")}" placeholder="Scan or type">
+          <button type="button" class="af-barcode-scan-btn" id="af-barcode-scan-btn" aria-label="Scan barcode">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg>
+          </button>
           <button type="button" class="af-barcode-del-btn" id="af-barcode-del-btn" aria-label="Clear barcode">&#128465;&#65039;</button>
         </div>
       </div>
-      ` : ""}
+      `}
       ${quickMode ? "" : `
       <div class="af-field">
         <div class="af-field-head"><label for="af-create-name">Food Name</label><span class="af-tag">Optional</span></div>
@@ -3883,6 +3981,21 @@
         barcodeInput.focus();
       });
     }
+    const barcodeScanBtn = document.getElementById("af-barcode-scan-btn");
+    if (barcodeScanBtn) {
+      barcodeScanBtn.addEventListener("click", () => {
+        // The scanner takes over the modal body, so this form is destroyed
+        // and rebuilt around the result. Anything already typed has to be
+        // carried across by hand -- losing a half-filled form to a scan that
+        // was meant to add one field to it would be worse than not offering
+        // the scan at all.
+        const restore = captureAfCreateFormState();
+        startLiveBarcodeScan({
+          onResult: (code) => restoreAfCreateForm(restore, code),
+          onCancel: () => restoreAfCreateForm(restore, restore.barcode),
+        });
+      });
+    }
     const calValueEl = document.getElementById("af-create-calories-value");
     ["af-create-protein", "af-create-fat", "af-create-carbs"].forEach((id) => {
       const macroInput = document.getElementById(id);
@@ -3970,7 +4083,12 @@
     const fat = parseFloat(document.getElementById("af-create-fat").value) || 0;
     const carbs = parseFloat(document.getElementById("af-create-carbs").value) || 0;
 
-    if (protein <= 0 && fat <= 0 && carbs <= 0) {
+    // "Log macros" exists only to record macros, so submitting it empty would
+    // silently log a 0 kcal entry -- that stays blocked. Creating a food is a
+    // different intent: someone cataloguing a product (scanning its barcode,
+    // naming it, setting its serving) may not have the label to hand yet, and
+    // a saved food with no macros is a useful thing to come back and fill in.
+    if (afCreateQuickMode && protein <= 0 && fat <= 0 && carbs <= 0) {
       errorEl.textContent = "Enter at least one macro (protein, fat, or carbs).";
       errorEl.style.display = "block";
       return;
