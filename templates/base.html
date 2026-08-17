@@ -35,6 +35,12 @@
   <script src="{{ asset_url('i18n.js') }}"></script>
   <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
+  <!-- Shared mascot + empty-state block (RepCheckMascot). Every screen
+       that can come up empty draws from this, so the leaderboard, both
+       search sheets, and challenges show the same character rather than
+       four different treatments. Must load after i18n.js: call sites
+       build their headline from RepCheckI18n.t() before handing it over. -->
+  <script src="{{ asset_url('mascot.js') }}"></script>
   <!-- Shared streak rule + activity log (RepCheckStreak). Loaded on every
        page, not just the ones showing a flame: any page can record that a
        feature was used, and account_sync.js must already be in place so
