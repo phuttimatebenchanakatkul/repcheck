@@ -62,8 +62,8 @@
     flame is needed by three templates AND by static/coaching.js, which builds
     its badge as a JS string and so can't reach a Jinja macro. <use> inherits
     currentColor, so both icons follow --text and flip with the theme toggle
-    with no second asset. Sized by CSS (.rc-icon is 1em) so each call site
-    keeps its own scale.
+    with no second asset. Sized by CSS (.rc-icon is 1.05em) so each call site
+    keeps its own scale from the font-size it already sets.
   -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <symbol id="rc-flame" viewBox="0 0 24 24">
