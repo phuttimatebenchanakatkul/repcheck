@@ -987,6 +987,7 @@
       if (action === "move-custom-station") return this.moveCustomStation(target.dataset.id, parseInt(target.dataset.direction, 10));
       if (action === "reset-custom-stations") return this.resetCustomStations();
       if (action === "open-station-picker") return this.openStationPickerSheet();
+      if (action === "set-station-picker-category") return this.setStationPickerCategory(target.dataset.value);
       if (action === "toggle-pb-format") return this.togglePbFormat(target.dataset.format);
       if (action === "pb-no-detail") return showInfoToast(t("hyrox.pb.noDetailAvailable"));
     }
@@ -2018,20 +2019,45 @@
       body.appendChild(this.buildStationPickerSheetContent());
     }
 
+    // Persists across re-syncs the same way this.stationPickerSheetOpen
+    // does, so the active tab survives whatever triggered the re-render
+    // (e.g. a station getting added elsewhere in the app).
+    setStationPickerCategory(catKey) {
+      this.stationPickerCategory = catKey;
+      this.syncStationPickerSheetContent();
+    }
+
     buildStationPickerSheetContent() {
-      const list = el(`<div class="hx-station-picker-list"></div>`);
-      CUSTOM_STATION_KEYS.forEach((key) => {
-        list.appendChild(el(`
-          <button type="button" class="hx-custom-palette-row" data-action="add-custom-station" data-value="${key}">
-            <span class="hx-custom-palette-row-icon">${stationIconSvg(key, 22)}</span>
-            <span class="hx-custom-palette-row-name">${STATION_TITLES[key]}</span>
-            <span class="hx-custom-palette-row-add" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-            </span>
+      const CATEGORIES = [
+        { key: "cardio", label: "Cardio", keys: ["run", "skierg", "row"] },
+        { key: "sled", label: "Sled Work", keys: ["sledPush", "sledPull"] },
+        { key: "carry", label: "Carry & Lunge", keys: ["farmersCarry", "lunges"] },
+        { key: "explosive", label: "Explosive", keys: ["burpeeBroadJump", "wallBalls"] },
+      ];
+      if (!this.stationPickerCategory) this.stationPickerCategory = CATEGORIES[0].key;
+      const active = CATEGORIES.find((c) => c.key === this.stationPickerCategory) || CATEGORIES[0];
+
+      const wrap = el(`<div class="hx-station-picker-tabs-wrap"></div>`);
+      const tabBar = el(`<div class="hx-station-picker-tabbar" role="tablist"></div>`);
+      CATEGORIES.forEach((cat) => {
+        const isActive = cat.key === active.key;
+        tabBar.appendChild(el(`
+          <button type="button" class="hx-station-picker-tab ${isActive ? "is-active" : ""}" role="tab" aria-selected="${isActive}" data-action="set-station-picker-category" data-value="${cat.key}">${cat.label}</button>
+        `));
+      });
+      wrap.appendChild(tabBar);
+
+      const grid = el(`<div class="hx-station-picker-grid"></div>`);
+      active.keys.forEach((key) => {
+        grid.appendChild(el(`
+          <button type="button" class="hx-station-picker-tile" data-action="add-custom-station" data-value="${key}">
+            <span class="hx-station-picker-tile-icon">${stationIconSvg(key, 24)}</span>
+            <span class="hx-station-picker-tile-name">${STATION_TITLES[key]}</span>
           </button>
         `));
       });
-      return list;
+      wrap.appendChild(grid);
+      return wrap;
     }
 
     buildSetupSteps() {
