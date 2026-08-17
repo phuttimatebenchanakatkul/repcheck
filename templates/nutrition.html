@@ -1267,10 +1267,10 @@
 
   /* "Create a food" row at the top of the Custom tab. Deliberately shaped
      like a .nl-food-row (same height, same 40px leading icon slot, same
-     inset card) so it reads as the first item of the list it seeds, just
-     tinted blue to mark it as the action rather than a food. Its own card
-     rather than being welded into .nl-food-list, so the empty state (no
-     custom foods yet) still shows a single tidy row. */
+     inset card) so it reads as the first item of the list it seeds, with a
+     blue icon badge and blue label to mark it as the action rather than a
+     food. Its own card rather than being welded into .nl-food-list, so the
+     empty state (no custom foods yet) still shows a single tidy row. */
   .nl-create-food-row {
     display: flex;
     align-items: center;
@@ -1288,15 +1288,26 @@
   }
   .nl-create-food-row:hover { background: var(--bg); }
   .nl-create-food-row:active { background: var(--sidebar-active); }
+  /* Both list rows are real <button>s reached by keyboard and neither had a
+     focus ring -- .nl-cal-ring-wrap:focus-visible above is the house
+     treatment, so it applies here too. */
+  .nl-create-food-row:focus-visible,
+  .nl-food-row:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .nl-create-food-icon {
     flex-shrink: 0;
     width: 40px; height: 40px;
     border-radius: 11px;
-    background: rgba(47, 102, 232, 0.12);
+    /* --blue-bg, not a hardcoded rgba() of --blue: the token is redefined per
+       theme (#eaf0fd light / #14213f dark in style.css) and is what every
+       other blue badge uses (.af-icon-emoji, .nl-empty-icon). A fixed 12%
+       alpha over the dark card read visibly flatter than those. */
+    background: var(--blue-bg);
     color: var(--blue);
     display: flex; align-items: center; justify-content: center;
   }
-  .nl-create-food-label { font-size: 14px; font-weight: 700; color: var(--blue); }
+  .nl-create-food-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .nl-create-food-label { font-size: 14px; font-weight: 700; color: var(--blue); line-height: 1.3; }
+  .nl-create-food-sub { font-size: 12px; color: var(--text-secondary); line-height: 1.3; }
 
   /* iOS grouped/inset list: one rounded card per list, hairline dividers
      between rows, no per-row floating radius -- replaces the earlier
@@ -2297,6 +2308,17 @@
     return names;
   }
 
+  // The most recent logged entry for a food NAME. Recent rows and top picks
+  // are just names, and a name that came from a photo scan, a barcode
+  // product, or a quick-macro entry has no FOOD_LIBRARY match -- its own log
+  // entry is the only place its macros live, so rows for those names are
+  // built and re-logged from the entry instead (see foodRowHtml).
+  function latestEntryForFood(name) {
+    return allLoggedEntries()
+      .filter((entry) => entry.food === name)
+      .sort((a, b) => b.addedAt - a.addedAt)[0] || null;
+  }
+
   function getRecentScans(limit) {
     return allLoggedEntries()
       .filter((e) => e.source === "scan")
@@ -2611,20 +2633,21 @@
   // (see manualMacroCtaHtml()) -- opens straight to the existing quickMode
   // macro-entry form instead of the full choice screen, matching what the
   // user actually asked for from that context.
-  function openQuickMacroModal() {
-    if (window.openBottomSheet) window.openBottomSheet(afModalOverlay, ".af-modal");
-    else afModalOverlay.style.display = "flex";
-    renderAfCreateForm(true);
-  }
+  function openQuickMacroModal() { openAfCreateSheet(true); }
 
   // Entry point for the "Create a food" row on the food-search sheet's
   // "Custom" tab -- same sheet as openQuickMacroModal above, but the full
   // form (name, icon, serving sizes) since a food you're adding to your own
   // library needs to be identifiable when you search for it later.
-  function openCreateFoodModal() {
+  function openCreateFoodModal() { openAfCreateSheet(false); }
+
+  // Both food-search-sheet entry points into the macro-entry form open the
+  // same af sheet and differ only in which form they land on, so the sheet
+  // opening lives here once.
+  function openAfCreateSheet(quickMode) {
     if (window.openBottomSheet) window.openBottomSheet(afModalOverlay, ".af-modal");
     else afModalOverlay.style.display = "flex";
-    renderAfCreateForm(false);
+    renderAfCreateForm(quickMode);
   }
 
   afScanBtn.addEventListener("click", openAnalyzeFoodModal);
@@ -2687,7 +2710,11 @@
   // scanned meal's name (e.g. Gemini's freeform "Pad Kra Pao Moo Krob")
   // was never a real foodByName() match -- reusing the food-search confirm
   // sheet here would have silently done nothing.
-  function renderRelogConfirm(original) {
+  // hourForLog / onCancel are supplied when this screen is reached from the
+  // food-search sheet (openRelogConfirmModal): that sheet can be opened
+  // pinned to a specific hour row, and its "back" is not the scan screen.
+  // Both default to the original recent-scans behaviour when omitted.
+  function renderRelogConfirm(original, hourForLog, onCancel) {
     const m = scaledMacros(original);
     // The calorie number means nothing without the amount it came from --
     // "804 kcal" could be a snack or a platter. entryTotals() already sums
@@ -2734,8 +2761,22 @@
         <button type="button" class="nl-save-goals-btn" id="af-relog-confirm-btn" style="flex:2;">Log again</button>
       </div>
     `;
-    document.getElementById("af-relog-cancel-btn").addEventListener("click", renderAfChoice);
-    document.getElementById("af-relog-confirm-btn").addEventListener("click", () => relogEntry(original));
+    // Cancel goes back to wherever this screen was opened FROM. Reached from
+    // the recent-scans list that lives on the choice screen, "back" is that
+    // screen; reached from a food-search row (see openRelogConfirmModal),
+    // that screen is an unrelated flow the user never asked for, so the
+    // caller passes its own way out instead.
+    document.getElementById("af-relog-cancel-btn").addEventListener("click", onCancel || renderAfChoice);
+    const relogConfirmBtn = document.getElementById("af-relog-confirm-btn");
+    relogConfirmBtn.addEventListener("click", () => {
+      // The sheet animates out over ~300ms after relogEntry() pushes, and the
+      // button stays hit-testable for that whole window -- a second tap wrote
+      // a second entry with a fresh UUID, indistinguishable from a real
+      // second helping. One-shot, so the double-tap lands on a dead button.
+      if (relogConfirmBtn.disabled) return;
+      relogConfirmBtn.disabled = true;
+      relogEntry(original, hourForLog);
+    });
   }
 
   function renderAfChoice() {
@@ -2841,14 +2882,26 @@
   // Re-logs a past scanned entry at the current moment, on the currently
   // selected day — same ingredient breakdown, fresh id/timestamp, so it's
   // independently editable from the original without touching it.
-  async function relogEntry(original) {
+  // hourForLog is set when the re-log came from a food-search sheet that was
+  // opened from a specific hour row's "+": the food belongs at THAT hour, not
+  // at whatever time the tap happened, the same way openLogAmountModal()'s
+  // path honours pendingHour. Omitted (recent-scans list, quick-add bar) it
+  // keeps using the current wall clock.
+  async function relogEntry(original, hourForLog) {
     const dateForEntry = selectedDate;
     if (!log[dateForEntry]) log[dateForEntry] = [];
     const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
     const now = new Date();
     const addedAt = new Date(dateForEntry + "T00:00:00");
-    addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
-    const clone = { id, food: original.food, addedAt: addedAt.getTime(), source: "scan" };
+    if (typeof hourForLog === "number") addedAt.setHours(hourForLog, 0, 0, 0);
+    else addedAt.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
+    // Provenance is copied, not asserted: this used to hardcode "scan" because
+    // the only way here was the recent-SCANS list. Re-logging a quick-macro or
+    // barcode food as a "scan" put it in the af sheet's "Recent scans" list
+    // ("Photos you scan and log will show up here"), and since the clone
+    // becomes the newest entry for that name, the wrong label self-perpetuated.
+    const clone = { id, food: original.food, addedAt: addedAt.getTime() };
+    if (original.source) clone.source = original.source;
     if (original.ingredients) {
       clone.ingredients = original.ingredients.map((ing) => ({ ...ing }));
     } else {
@@ -3786,6 +3839,9 @@
       if (data.ok) customFoods = data.foods;
     } catch (err) {
       // Search just falls back to FOOD_LIBRARY + Open Food Facts — not fatal.
+      // The food sheet's "Custom" tab is backed by this same array, so a
+      // failed fetch also leaves that tab showing its "nothing here yet"
+      // empty state (see renderModalDefaultSections) rather than an error.
     }
   }
 
@@ -4263,14 +4319,75 @@
   // phone and lets each result carry its macros without crowding. The
   // data-food / data-fav-toggle hooks are unchanged, so the same delegated
   // click handler (tap row = pick to log, tap heart = favorite) still works.
+  // A name with no FOOD_LIBRARY match (a photo scan, a barcode product, a
+  // quick-macro entry) cannot be logged through openLogAmountModal(): its
+  // foodByName() lookup returns nothing and the tap died silently, showing a
+  // macro-less row that did nothing -- on the Recent tab, which is now the
+  // sheet's landing view. The food's own log entry carries the real macros,
+  // so those rows render from the entry and tap into renderRelogConfirm(),
+  // the same "Log again" confirm screen the recent-scans list uses.
+  // Add-ingredient mode is excluded: an ingredient needs per-100g library
+  // macros, so it keeps taking the data-food path it always did.
+  //
+  // latestEntryForFood() flattens the user's ENTIRE logging history and the
+  // sheet asks once per row, so a long history paid that cost ~16x per open.
+  // The cache is cleared wherever the sheet re-renders and whenever the log
+  // changes underneath it.
+  let relogRowCache = null;
+  function invalidateRelogRowCache() { relogRowCache = null; }
+
+  function relogRowEntry(name) {
+    if (foodByName(name)) return null;
+    if (modalMode && modalMode.type === "add-ingredient") return null;
+    if (!relogRowCache) relogRowCache = new Map();
+    if (!relogRowCache.has(name)) relogRowCache.set(name, resolveRelogRowEntry(name));
+    return relogRowCache.get(name);
+  }
+
+  // An entry only backs a row if its stored macros actually compute. A
+  // truncated localStorage write, or an entry merged in from a different app
+  // version by account_sync, can carry a null ingredient -- entryTotals()
+  // would throw mid-render, and since the throw happens while building the
+  // innerHTML string, the assignment never runs and the whole sheet comes up
+  // blank with no search box at all. A missing grams/base* field is the
+  // quieter version: NaN macros on the row, which relogEntry() would then
+  // copy into today's log and persist to the server. Either way the row falls
+  // back to the plain data-food path, which is inert but harmless.
+  function resolveRelogRowEntry(name) {
+    const entry = latestEntryForFood(name);
+    if (!entry) return null;
+    try {
+      const macros = scaledMacros(entry);
+      const usable = ["calories", "protein", "fat", "carbs"].every((key) => Number.isFinite(macros[key]));
+      return usable ? entry : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // Same shape as foodMacroLine, but these numbers are the WHOLE logged
+  // portion rather than per-100g like a library row, so the line names the
+  // amount it is talking about. Without it the Recent tab could show
+  // "142 kcal" (per 100g) directly above "804 kcal" (a 600g meal) in
+  // identical type, inviting a 5x misread.
+  function relogMacroLine(entry) {
+    const macros = scaledMacros(entry);
+    const grams = Math.round(entryTotals(entry).grams);
+    return `<div class="nl-food-row-macros">
+        <span class="nl-frm-cal">${Math.round(macros.calories)} kcal</span>
+        <span class="nl-frm-macros">${Number.isFinite(grams) ? `${grams}g / ` : ""}${Math.round(macros.protein)}P / ${Math.round(macros.fat)}F / ${Math.round(macros.carbs)}C</span>
+      </div>`;
+  }
+
   function foodRowHtml(name) {
     const isFav = favorites.has(name);
+    const relogEntry = relogRowEntry(name);
     return `
-      <button type="button" class="nl-food-row" data-food="${escapeAttr(name)}">
+      <button type="button" class="nl-food-row" ${relogEntry ? `data-relog-entry="${escapeAttr(relogEntry.id)}"` : `data-food="${escapeAttr(name)}"`}>
         <span class="nl-food-row-icon">${foodIconHtml(name, "nl-food-photo-row")}</span>
         <span class="nl-food-row-body">
           <span class="nl-food-row-name">${escapeHtml(name)}</span>
-          ${foodMacroLine(name)}
+          ${relogEntry ? relogMacroLine(relogEntry) : foodMacroLine(name)}
         </span>
         <span class="nl-food-row-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" role="button" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? HEART_FILLED : HEART_OUTLINE}</span>
       </button>
@@ -4349,20 +4466,29 @@
   // reads as part of the same list it seeds. Distinct from the sticky
   // "Quick add" dock below, which punches in macros and logs them without
   // naming anything -- this opens the full create form (name, icon, serving
-  // sizes) so the food is reusable later.
+  // sizes) so the food is reusable later. That difference used to live only
+  // in this comment, which left two same-looking "enter macros" actions on
+  // one tab with the louder-looking one (the dock's filled primary button)
+  // doing the less complete thing -- hence the subtitle, in the same
+  // two-line shape the sibling food rows already use.
   function createFoodRowHtml() {
+    const t = RepCheckI18n.t;
     return `
       <button type="button" class="nl-create-food-row" data-create-food="1">
         <span class="nl-create-food-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </span>
-        <span class="nl-create-food-label">${RepCheckI18n.t("nutrition.custom.create")}</span>
+        <span class="nl-create-food-body">
+          <span class="nl-create-food-label">${t("nutrition.custom.create")}</span>
+          <span class="nl-create-food-sub">${t("nutrition.custom.createSub")}</span>
+        </span>
       </button>
     `;
   }
 
   function renderModalDefaultSections() {
     const t = RepCheckI18n.t;
+    invalidateRelogRowCache();
     // "Custom" replaced the old "Recent" tab (Recent itself moved to where
     // "All" used to be). Nothing here is a library lookup: it's the foods
     // this user typed the macros for themselves (customFoods, from
@@ -4373,7 +4499,11 @@
       const listHtml = customFoods.length
         ? `<div class="nl-food-list">${customFoods.map((food, i) => customFoodRowHtml(food, i)).join("")}</div>`
         : `<div class="nl-search-empty">${t("nutrition.custom.empty")}</div>`;
-      modalResultsEl.innerHTML = scopeSegHtml() + createFoodRowHtml() + listHtml + manualMacroCtaHtml();
+      // No create row in add-ingredient mode: creating a food closes this
+      // sheet (which clears modalMode), so the new food would land as its own
+      // separate log entry instead of an ingredient of the meal being edited.
+      const createRow = (modalMode && modalMode.type === "add-ingredient") ? "" : createFoodRowHtml();
+      modalResultsEl.innerHTML = scopeSegHtml() + createRow + listHtml + manualMacroCtaHtml();
       return;
     }
 
@@ -4512,6 +4642,18 @@
     renderAfResult(result);
   }
 
+  // Same idea for a food-search-sheet row whose name only exists in the log
+  // (see relogRowEntry): open the af sheet on the "Log again" confirm screen
+  // built from that entry's own stored macros. hourForLog carries the hour
+  // row the sheet was opened from, and Cancel closes this sheet rather than
+  // dropping the user on the scan-choice screen they never asked for.
+  function openRelogConfirmModal(entry, hourForLog) {
+    afPreviewUrl = null;
+    afResult = null;
+    window.openBottomSheet(afModalOverlay, ".af-modal");
+    renderRelogConfirm(entry, hourForLog, closeAnalyzeFoodModal);
+  }
+
   // Ranks food-name matches so the simplest, most on-point results come
   // first and hyper-specific ones sink. A plain substring filter buried
   // "Chicken Breast" under "Thai fried chicken curry adobo sauce" just
@@ -4546,6 +4688,7 @@
   const MODAL_MAX_RESULTS = 14;
 
   function renderModalResults(query) {
+    invalidateRelogRowCache();
     const q = query.trim().toLowerCase();
     if (!q) {
       renderModalDefaultSections();
@@ -4638,6 +4781,24 @@
       if (food) {
         closeModal();
         openScannedResultModal(customFoodToResult(food));
+      }
+      return;
+    }
+
+    const relogRow = event.target.closest("[data-relog-entry]");
+    if (relogRow) {
+      const entry = allLoggedEntries().find((e) => e.id === relogRow.dataset.relogEntry);
+      if (entry) {
+        const hourForLog = pendingHour; // capture before closeModal() clears it
+        closeModal();
+        openRelogConfirmModal(entry, hourForLog);
+      } else {
+        // The entry went away under us -- deleted in this tab while the sheet
+        // sat open, or deleted on another device and merged in by
+        // account_sync. Re-render instead of swallowing the tap, so the stale
+        // row disappears rather than looking broken.
+        invalidateRelogRowCache();
+        renderModalDefaultSections();
       }
       return;
     }

@@ -80,7 +80,7 @@ def test_relog_confirm_screen_shows_macros_before_logging(nutrition_html):
     same helpers as a fresh scan result) rather than logging blind."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )
@@ -99,20 +99,37 @@ def test_relog_confirm_button_is_the_only_thing_that_logs(nutrition_html):
     relogEntry() -- cancelling must not log anything."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )
     assert fn_match, "renderRelogConfirm() is missing"
     body = fn_match.group(1)
+    # The confirm button's handler is a block (it also one-shots itself against
+    # double-taps), so this checks the CALL rather than a one-liner arrow: only
+    # this handler may reach relogEntry, and relogEntry is called with the
+    # entry -- plus optionally the hour the sheet was pinned to.
     assert re.search(
-        r'af-relog-confirm-btn"\)\.addEventListener\("click",\s*\(\)\s*=>\s*relogEntry\(original\)\)',
-        body,
-    ), "the confirm screen's Log again button should call relogEntry(original)"
-    assert re.search(
-        r'af-relog-cancel-btn"\)\.addEventListener\("click",\s*renderAfChoice\)',
-        body,
-    ), "Cancel should return to the choice screen, not log anything"
+        r'af-relog-confirm-btn"\);?\n?', body
+    ), "the confirm screen should wire up its own Log again button"
+    assert re.search(r"relogEntry\(original(,\s*\w+)?\)", body), (
+        "the confirm screen's Log again button should call relogEntry(original)"
+    )
+    # Cancel goes back to wherever the screen was opened from: renderAfChoice
+    # for the recent-scans list, or a caller-supplied handler for the
+    # food-search sheet, whose "back" is not the scan screen. Either way it
+    # must not log.
+    cancel_match = re.search(
+        r'af-relog-cancel-btn"\)\.addEventListener\("click",\s*([^)]+)\)', body
+    )
+    assert cancel_match, "Cancel should be wired to a handler"
+    assert "relogEntry" not in cancel_match.group(1), (
+        "Cancel must not log anything"
+    )
+    assert "renderAfChoice" in cancel_match.group(1), (
+        "Cancel should still fall back to the choice screen when no caller "
+        "supplies its own way out"
+    )
 
 
 def test_relog_confirm_shows_the_serving_amount(nutrition_html):
@@ -121,7 +138,7 @@ def test_relog_confirm_shows_the_serving_amount(nutrition_html):
     the entry actually represents."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )
@@ -141,7 +158,7 @@ def test_relog_confirm_lists_per_ingredient_amounts(nutrition_html):
     is only meaningful as 150g pork + 200g rice + 50g egg."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )

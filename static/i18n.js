@@ -415,6 +415,7 @@
       "nutrition.scope.all": "All",
       "nutrition.scope.custom": "Custom",
       "nutrition.custom.create": "Create a food",
+      "nutrition.custom.createSub": "Name it and save it to your foods",
       "nutrition.custom.empty": "Foods you build yourself show up here.",
       "nutrition.noMatch": "No foods match \"{query}\".",
       "nutrition.searchToAdd": "Search for a food to add it.",
@@ -1267,6 +1268,7 @@
       "nutrition.scope.all": "ทั้งหมด",
       "nutrition.scope.custom": "กำหนดเอง",
       "nutrition.custom.create": "สร้างอาหารเอง",
+      "nutrition.custom.createSub": "ตั้งชื่อและบันทึกไว้ในอาหารของคุณ",
       "nutrition.custom.empty": "อาหารที่คุณสร้างเองจะแสดงที่นี่",
       "nutrition.noMatch": "ไม่พบอาหารที่ตรงกับ \"{query}\"",
 
