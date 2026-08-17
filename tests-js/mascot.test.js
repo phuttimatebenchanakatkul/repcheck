@@ -273,3 +273,13 @@ describe("art -- the drawing is decorative", () => {
     expect(svg.getAttribute("aria-label")).toBeNull();
   });
 });
+
+describe("emptyState -- announced when it appears", () => {
+  // These blocks get injected into an already-open sheet on a keystroke,
+  // and the drawing is aria-hidden. Without a live region nothing tells a
+  // screen-reader user the search missed.
+  it("marks the block as a polite live region", () => {
+    const el = parse(mascot.emptyState({ pose: "eat", title: "Nothing", sub: "Try again" }));
+    expect(el.querySelector(".rc-empty").getAttribute("role")).toBe("status");
+  });
+});

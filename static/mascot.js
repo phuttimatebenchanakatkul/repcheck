@@ -206,8 +206,15 @@ window.RepCheckMascot = (function () {
         '<span class="rc-empty-q">' + escapeHtml(o.query) + "</span>"
       );
     }
+    // role="status" because these blocks are injected AFTER the screen is
+    // already open -- on a keystroke in a search sheet, or when a fetch
+    // comes back empty. Without a live region a screen-reader user gets no
+    // signal at all that the search missed: the drawing is aria-hidden and
+    // the headline is a plain div nobody moves focus to. status (polite)
+    // rather than alert so it waits its turn instead of cutting off what
+    // is being read.
     return (
-      '<div class="rc-empty">' +
+      '<div class="rc-empty" role="status">' +
       art(o.pose) +
       '<div class="rc-empty-title">' + title + "</div>" +
       (o.sub ? '<div class="rc-empty-sub">' + o.sub + "</div>" : "") +
