@@ -471,3 +471,123 @@
 **Effort:** S
 **Priority:** P4
 **Depends on:** None
+
+### "Quick add" dock still abandons the meal being edited in add-ingredient mode
+
+**What:** `manualMacroCtaHtml()` (`templates/nutrition.html`) is appended on every branch of the food-search sheet, including when the sheet was opened by `openAddIngredientModal()`. Its `[data-manual-macro]` handler does `closeModal(); openQuickMacroModal();` -- and `closeModal()` nulls `modalMode`, so the food gets logged as its own standalone entry instead of being added as an ingredient of the meal the user was editing. The `[data-custom-index]` branch has the same gap.
+
+**Why:** The user is mid-edit on one meal and silently ends up with a second unrelated entry in their day, which they then have to find and delete. The sticky dock is the loudest control on the sheet, so it's the one they're most likely to reach for.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. That branch fixed its own new instance (the Custom tab's "Create a food" row is suppressed in add-ingredient mode) but deliberately did not touch the two pre-existing ones -- a real fix threads the `entryId` through the create/quick-macro/custom-food paths and the af-sheet result flow so the created food can be appended as an ingredient, which is a separate change with its own tests.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** None
+
+### A custom food can be created but never deleted from the app
+
+**What:** `DELETE /api/custom-foods/<id>` exists (`app.py`) and has no caller anywhere in `templates/` or `static/`.
+
+**Why:** A typo'd food (a mistyped name with an 8000 kcal value) is permanent and keeps matching every future search. The food sheet's new "Custom" tab now presents that list prominently, which makes the missing affordance obvious in a way it wasn't when custom foods only surfaced as search hits.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: needs a UI decision (swipe-to-delete on the row, matching the food log's own swipe gesture, vs an edit mode) rather than just wiring the endpoint.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** None
+
+### The Custom tab can't tell "you have no custom foods" from "the fetch failed"
+
+**What:** `loadCustomFoods()` (`templates/nutrition.html`) swallows every failure into an empty `catch`, is called exactly once at page load, and never re-runs. The food sheet's Custom tab renders `nutrition.custom.empty` ("Foods you build yourself show up here.") for all of: a genuinely empty library, a 500, a 401, an offline phone, and a request that simply hasn't landed yet.
+
+**Why:** A user with 40 saved foods can be told, in a confident empty state, that they have none -- and the obvious next action ("Create a food") makes them recreate a duplicate. There is no loading state, no error state, and no retry.
+
+**Context:** Flagged by the maintainability specialist and Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: needs a tri-state (unloaded / loaded / failed) plus a re-render when the fetch resolves while the sheet is open, which is more than the tab change itself warranted.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### Favoriting a scanned food leaves a dead row once its log entries are gone
+
+**What:** The `[data-fav-toggle]` handler keys on the food NAME, so a scan/barcode/quick-macro name can be favorited, and that favorite persists in localStorage independently of the log. Delete every entry for that name and `relogRowEntry()` finds nothing, so the Favorites tab renders it with no macro line on the `data-food` path, where `openLogAmountModal()` early-returns -- a row that does nothing on tap, with no way to clear it except re-hearting it.
+
+**Why:** It is the same dead-row failure `feat/food-sheet-custom-tab` removed from the Recent tab, surviving in the one place that fix can't reach (there is no entry left to render from).
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: the honest fix is either to drop unresolvable names from the favorites list (silently hides a favorite) or to render them as explicitly unavailable -- a product call, not a mechanical fix.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### The analyze-food sheet's screens are hardcoded English
+
+**What:** `renderRelogConfirm()`, `renderAfChoice()` and the create-food form (`templates/nutrition.html`) emit literals -- "Amount", "Cancel", "Log again", "Log your food any way you like.", "Create food" -- while the food-search sheet around them is fully `RepCheckI18n.t()`-driven.
+
+**Why:** A Thai user tapping a Thai-named food on a Thai-labelled tab is dropped onto an English confirm dialog. The food sheet's re-log row now makes that transition part of a normal logging flow rather than a scan-only path.
+
+**Context:** Noticed by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: it's a bulk i18n extraction across the whole af sheet (dozens of strings, en + th), unrelated to that branch's scope.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Blue label text on the card background falls below AA contrast in dark mode
+
+**What:** `--blue` is a single fixed `#2f66e8` in both themes (`static/style.css`), so blue 14px text on the dark `--card-bg` (`#1c1c1e`) is ~3.4:1 -- below AA's 4.5:1 for non-large text. The house `background: var(--blue-bg); color: var(--blue)` pairing is ~3.2:1 in dark, so this is systemic, not local to one component. Affects the food sheet's new `.nl-create-food-label` and existing blue-on-card text such as `static/style.css:1471`.
+
+**Why:** The blue label is what carries the affordance's meaning, and dark mode is this app's default theme.
+
+**Context:** Flagged by the design specialist during `/ship` on `feat/food-sheet-custom-tab`. Deferred: the fix is a theme-aware accent token (a lighter blue under `:root[data-theme="dark"]`) applied across every blue-on-card use -- a design-system change, not something to do inside one feature branch.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### relogEntry() silently drops any field it doesn't enumerate, and lands collapsed
+
+**What:** `relogEntry()` (`templates/nutrition.html`) whitelists `grams, unit, baseCalories, baseCarbs, baseFat, baseProtein` when cloning a non-composite entry. Anything else on the original (`barcode`, `servings`, `emoji`, a future field) is lost, and because the clone becomes the newest entry for that name, `latestEntryForFood()` hands the degraded copy to every later render -- lossy on each round trip. It also skips the `EXPANDED.add(id)` that `addFoodToSelectedDay()` does, so a re-logged entry appears collapsed while a searched one appears expanded.
+
+**Why:** Small today (few extra fields exist), but it is a silent data-narrowing path that compounds, and the re-log flow is now reachable from the food sheet's landing tab rather than only the recent-scans list.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: switching to a copy-then-override shape needs a check of every consumer that assumes those exact keys.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### openScannedResultModal()/openRelogConfirmModal() null afPreviewUrl without revoking it
+
+**What:** Both set `afPreviewUrl = null` directly, dropping the last reference to a live blob URL. `useAfImage()` and `closeAnalyzeFoodModal()` both call `URL.revokeObjectURL` first.
+
+**Why:** Leaks a full-resolution meal photo for the page's lifetime each time it happens. Narrow window (a preview must still be assigned), and it is a copied pattern rather than a new one.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### The Custom tab renders every custom food with no cap and no lazy images
+
+**What:** The Custom branch of `renderModalDefaultSections()` maps over all of `customFoods`, while every other list in that sheet is bounded (`getRecentFoods(8)`, `getTopPicksForHour(hour, 8)`, `MODAL_MAX_RESULTS` for search). `get_custom_foods()` (`database.py`) has no LIMIT either, and each row's food image has no `loading="lazy"`.
+
+**Why:** A heavy user's whole library becomes one unbounded `innerHTML` rebuild inside a bottom sheet on every tab tap. Not felt at realistic library sizes; capping is also a product call, since this list is the user's own library where completeness matters more than in a suggestion list.
+
+**Context:** Flagged by the performance specialist during `/ship` on `feat/food-sheet-custom-tab`.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### foodIconHtml()'s image lookup walks Object.prototype
+
+**What:** `foodIconHtml()` (`templates/nutrition.html`) does a bare `FOOD_IMAGES[name]` lookup, so a food named `constructor`, `toString`, or `__proto__` returns a truthy inherited value and renders a broken image whose src is the coerced function source.
+
+**Why:** Cosmetic, not injectable (the coerced values contain no quotes), but a food name is user- and model-authored text, so the guard belongs there.
+
+**Context:** Noticed by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Fix is an `Object.prototype.hasOwnProperty.call(FOOD_IMAGES, name)` check.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
