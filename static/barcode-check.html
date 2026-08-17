@@ -51,8 +51,20 @@
   <tr><td>Last error</td><td class="v" id="err">none</td></tr>
 </table>
 
+<button id="grab">Capture this frame</button>
+<div id="shot" hidden>
+  <p><small><b>Long-press the image below and share/save it</b> — this is the exact
+  crop the decoder is being given, and it is what's needed to work out why it
+  won't read.</small></p>
+  <img id="shotimg" style="width:100%;border-radius:10px;display:block">
+  <table>
+    <tr><td>Crop size</td><td class="v" id="shotsize">—</td></tr>
+    <tr><td>Server decode</td><td class="v" id="server">…</td></tr>
+  </table>
+</div>
 <button id="copy">Copy results</button>
-<p><small>Point at the barcode from about 20cm and hold steady for ~10 seconds, then screenshot this page (or tap Copy results).</small></p>
+<p><small>Move so the barcode fills the blue box, hold steady ~10s, then tap
+Capture this frame.</small></p>
 
 <script src="/static/vendor/zbar-wasm.js"></script>
 <script>
@@ -147,6 +159,34 @@
     $("verdict").textContent = text;
     $("verdict").className = cls;
   }
+
+  // Hands back the exact pixels the decoder is failing on. A screenshot of
+  // the preview isn't the same thing -- it's re-scaled and re-compressed by
+  // the screenshot itself, so it can't be used to reproduce the failure.
+  $("grab").addEventListener("click", () => {
+    if (!canvas.width) return;
+    $("shot").hidden = false;
+    $("shotsize").textContent = canvas.width + " x " + canvas.height;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      $("shotimg").src = URL.createObjectURL(blob);
+      // Ask the server to decode the same pixels. If it succeeds where the
+      // in-page decoder didn't, the fault is on the device side; if it fails
+      // too, the frame itself is the problem.
+      const fd = new FormData();
+      fd.append("image", blob, "frame.jpg");
+      fetch("/api/scan-barcode", { method: "POST", body: fd })
+        .then((r) => r.json().catch(() => ({})))
+        .then((d) => {
+          $("server").textContent = d && d.ok
+            ? "read it: " + (d.food_name || "ok")
+            : (d && d.barcode ? "read " + d.barcode + " but lookup failed"
+                              : "also could not read it");
+          $("server").className = "v " + (d && (d.ok || d.barcode) ? "good" : "bad");
+        })
+        .catch((e) => { $("server").textContent = "request failed: " + e; });
+    }, "image/jpeg", 0.95);
+  });
 
   $("copy").addEventListener("click", () => {
     const lines = [

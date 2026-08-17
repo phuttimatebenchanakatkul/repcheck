@@ -3131,24 +3131,51 @@
   // Sampling the middle at full sensor resolution instead of downscaling the
   // entire frame keeps the bars sharp at the distance the lens can actually
   // focus at.
+  // The preview is a 4:3 box with object-fit:cover, so on a portrait phone
+  // stream most of the frame is off-screen: a 1440x2560 iPhone feed shows
+  // only its middle 42% of height. Fixed percentages of the *raw* frame
+  // therefore have nothing to do with the guide the user is aiming through --
+  // measured against a real iPhone stream, a "crop" of 86%x46% came out 3.2x
+  // taller than the guide box and spilled past the visible area entirely.
+  // (A 16:9 landscape test stream hides this, because there the two roughly
+  // coincide.) Derive the sample from the displayed geometry instead.
+  const SCANNER_BOX_ASPECT = 4 / 3;
+  const SCANNER_GUIDE_W = 0.78;  // .af-scanner-frame width, fraction of the box
+  const SCANNER_GUIDE_H = 0.34;  // .af-scanner-frame height
+
+  function visibleVideoRect(vw, vh) {
+    const videoAspect = vw / vh;
+    if (videoAspect > SCANNER_BOX_ASPECT) {
+      // wider than the box: sides are cropped away
+      const w = vh * SCANNER_BOX_ASPECT;
+      return { x: (vw - w) / 2, y: 0, w: w, h: vh };
+    }
+    // taller than the box (every portrait phone stream): top and bottom go
+    const h = vw / SCANNER_BOX_ASPECT;
+    return { x: 0, y: (vh - h) / 2, w: vw, h: h };
+  }
+
   function captureBarcodeFrame(video, canvas, ctx, mode) {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
+    const vis = visibleVideoRect(vw, vh);
     if (mode === "crop") {
-      // Matches .af-scanner-frame (78% x 34%), padded a little so a barcode
-      // straddling the guide still lands inside the sample.
-      const cw = Math.round(vw * 0.86);
-      const ch = Math.round(vh * 0.46);
-      const sx = Math.round((vw - cw) / 2);
-      const sy = Math.round((vh - ch) / 2);
+      // Exactly the guide the user lines the barcode up with, at the sensor's
+      // own resolution, plus a small margin for a barcode overlapping its edge.
+      const cw = Math.min(vw, Math.round(vis.w * SCANNER_GUIDE_W * 1.1));
+      const ch = Math.min(vh, Math.round(vis.h * SCANNER_GUIDE_H * 1.35));
+      const sx = Math.round(vis.x + (vis.w - cw) / 2);
+      const sy = Math.round(vis.y + (vis.h - ch) / 2);
       canvas.width = cw;
       canvas.height = ch;
       ctx.drawImage(video, sx, sy, cw, ch, 0, 0, cw, ch); // 1:1, no rescale
     } else {
-      const scale = Math.min(1, BARCODE_FRAME_WIDTH / vw);
-      canvas.width = Math.round(vw * scale);
-      canvas.height = Math.round(vh * scale);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Everything the user can actually see, scaled down -- for a barcode
+      // sitting outside the guide.
+      const scale = Math.min(1, BARCODE_FRAME_WIDTH / vis.w);
+      canvas.width = Math.round(vis.w * scale);
+      canvas.height = Math.round(vis.h * scale);
+      ctx.drawImage(video, vis.x, vis.y, vis.w, vis.h, 0, 0, canvas.width, canvas.height);
     }
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
@@ -3190,11 +3217,13 @@
           // closer than about a hand's width, and the instinct when a scan
           // isn't working is to move nearer -- which blurs the bars past the
           // point any decoder can read them.
+          // What actually decides a read is how many pixels land on each bar,
+          // so aim the user at filling the guide rather than at a distance.
           if (hintEl && attempts === 40) {
-            hintEl.textContent = "Hold about 20cm away and let it focus";
+            hintEl.textContent = "Move so the barcode fills the blue box";
           }
           if (hintEl && attempts === 120) {
-            hintEl.textContent = "Try more light, or flatten the label if it's curved";
+            hintEl.textContent = "Too close won't focus — back off slightly, or add light";
           }
         } catch (err) { // one bad frame shouldn't end the scan
         } finally {
