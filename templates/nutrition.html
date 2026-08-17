@@ -1226,7 +1226,7 @@
   }
   .nl-search-empty { padding: 26px 14px; font-size: 13px; color: var(--text-secondary); text-align: center; }
 
-  /* iOS-style segmented control (All / Favorites / Recent) replacing the
+  /* iOS-style segmented control (Recent / Favorites / Custom) replacing the
      old stacked "FAVORITES" / "RECENT" section headers -- one filtered
      list instead of three concatenated ones. Track + sliding light capsule
      for the selected segment, matching UISegmentedControl rather than a
@@ -1256,6 +1256,39 @@
     font-weight: 700;
     box-shadow: var(--shadow);
   }
+
+  /* "Create a food" row at the top of the Custom tab. Deliberately shaped
+     like a .nl-food-row (same height, same 40px leading icon slot, same
+     inset card) so it reads as the first item of the list it seeds, just
+     tinted blue to mark it as the action rather than a food. Its own card
+     rather than being welded into .nl-food-list, so the empty state (no
+     custom foods yet) still shows a single tidy row. */
+  .nl-create-food-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--card-bg);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background-color 0.13s ease;
+  }
+  .nl-create-food-row:hover { background: var(--bg); }
+  .nl-create-food-row:active { background: var(--sidebar-active); }
+  .nl-create-food-icon {
+    flex-shrink: 0;
+    width: 40px; height: 40px;
+    border-radius: 11px;
+    background: rgba(47, 102, 232, 0.12);
+    color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nl-create-food-label { font-size: 14px; font-weight: 700; color: var(--blue); }
 
   /* iOS grouped/inset list: one rounded card per list, hairline dividers
      between rows, no per-row floating radius -- replaces the earlier
@@ -2319,7 +2352,7 @@
 
   function showModal() {
     modalSearchInput.value = "";
-    modalScope = "all";
+    modalScope = "recent";
     renderModalDefaultSections();
     if (window.openBottomSheet) window.openBottomSheet(modalOverlay, ".log-sheet");
     else modalOverlay.classList.add("is-open");
@@ -2574,6 +2607,16 @@
     if (window.openBottomSheet) window.openBottomSheet(afModalOverlay, ".af-modal");
     else afModalOverlay.style.display = "flex";
     renderAfCreateForm(true);
+  }
+
+  // Entry point for the "Create a food" row on the food-search sheet's
+  // "Custom" tab -- same sheet as openQuickMacroModal above, but the full
+  // form (name, icon, serving sizes) since a food you're adding to your own
+  // library needs to be identifiable when you search for it later.
+  function openCreateFoodModal() {
+    if (window.openBottomSheet) window.openBottomSheet(afModalOverlay, ".af-modal");
+    else afModalOverlay.style.display = "flex";
+    renderAfCreateForm(false);
   }
 
   afScanBtn.addEventListener("click", openAnalyzeFoodModal);
@@ -4155,10 +4198,15 @@
     `;
   }
 
-  // Which of All / Favorites / Recent the default (no-query) view is
-  // showing. Reset to "all" every time the sheet opens fresh (showModal())
+  // Which of Recent / Favorites / Custom the default (no-query) view is
+  // showing. Reset to "recent" every time the sheet opens fresh (showModal())
   // so it never reopens on whatever tab was last picked in a prior session.
-  let modalScope = "all";
+  // "Recent" replaced the old merged "All" tab as the landing view: All was
+  // just favorites + top picks + recent concatenated, which meant the first
+  // thing you saw was a list you'd already seen under the other two tabs.
+  // What you ate last is the single best predictor of what you're logging
+  // now, so it leads instead.
+  let modalScope = "recent";
 
   // Segmented control replacing the old stacked "FAVORITES" / "RECENT"
   // section headers -- one filtered list instead of three concatenated
@@ -4169,7 +4217,7 @@
   // segmented controls once you start typing.
   function scopeSegHtml() {
     const t = RepCheckI18n.t;
-    const tabs = [["all", t("nutrition.scope.all")], ["favorites", t("nutrition.favorites")], ["recent", t("nutrition.recent")]];
+    const tabs = [["recent", t("nutrition.recent")], ["favorites", t("nutrition.favorites")], ["custom", t("nutrition.scope.custom")]];
     return `
       <div class="nl-scope-seg">
         ${tabs.map(([key, label]) => `<button type="button" data-scope-tab="${key}" class="${modalScope === key ? "is-active" : ""}">${label}</button>`).join("")}
@@ -4177,8 +4225,40 @@
     `;
   }
 
+  // The "Custom" tab's own first row: the way IN to building a food from
+  // your own macro numbers, sitting at the top of the list of ones you've
+  // already built. Styled as a row rather than a full-width button so it
+  // reads as part of the same list it seeds. Distinct from the sticky
+  // "Quick add" dock below, which punches in macros and logs them without
+  // naming anything -- this opens the full create form (name, icon, serving
+  // sizes) so the food is reusable later.
+  function createFoodRowHtml() {
+    return `
+      <button type="button" class="nl-create-food-row" data-create-food="1">
+        <span class="nl-create-food-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
+        <span class="nl-create-food-label">${RepCheckI18n.t("nutrition.custom.create")}</span>
+      </button>
+    `;
+  }
+
   function renderModalDefaultSections() {
     const t = RepCheckI18n.t;
+    // "Custom" replaced the old "Recent" tab (Recent itself moved to where
+    // "All" used to be). Nothing here is a library lookup: it's the foods
+    // this user typed the macros for themselves (customFoods, from
+    // GET /api/custom-foods), plus the row that creates another one. Rows
+    // reuse customFoodRowHtml/data-custom-index, so tapping one opens the
+    // same review screen a search hit for it would.
+    if (modalScope === "custom") {
+      const listHtml = customFoods.length
+        ? `<div class="nl-food-list">${customFoods.map((food, i) => customFoodRowHtml(food, i)).join("")}</div>`
+        : `<div class="nl-search-empty">${t("nutrition.custom.empty")}</div>`;
+      modalResultsEl.innerHTML = scopeSegHtml() + createFoodRowHtml() + listHtml + manualMacroCtaHtml();
+      return;
+    }
+
     // "Top picks" hour comes from wherever the modal was opened: the
     // hour-row "+" pins it to that row's hour via pendingHour, while the
     // quick-add bar (which leaves pendingHour null so logging still uses
@@ -4193,13 +4273,14 @@
 
     let names;
     if (modalScope === "favorites") names = favoritesList;
-    else if (modalScope === "recent") names = recent;
     else {
-      // "All" = favorites, then top picks, then recent, deduped in that
-      // priority order -- the same priority the old stacked sections used,
-      // just merged into one list instead of three labeled ones.
+      // "Recent" = what you logged most recently, then this hour's top
+      // picks appended and deduped. Top picks are themselves foods you've
+      // eaten at this time of day before, so they belong under "Recent"
+      // rather than being dropped along with the old "All" tab -- that
+      // hour context was the one thing the merged list contributed.
       const seen = new Set();
-      names = [...favoritesList, ...topPicks, ...recent].filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
+      names = [...recent, ...topPicks].filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
     }
 
     const listHtml = names.length ? `<div class="nl-food-list">${names.map(foodRowHtml).join("")}</div>` : `<div class="nl-search-empty">${t("nutrition.searchToAdd")}</div>`;
@@ -4402,6 +4483,12 @@
     if (event.target.closest("[data-manual-macro]")) {
       closeModal();
       openQuickMacroModal();
+      return;
+    }
+
+    if (event.target.closest("[data-create-food]")) {
+      closeModal();
+      openCreateFoodModal();
       return;
     }
 
