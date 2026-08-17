@@ -471,3 +471,35 @@
 **Effort:** S
 **Priority:** P4
 **Depends on:** None
+
+## Security
+
+### RepCheckI18n.t() does not escape its vars, and ~8 innerHTML sinks rely on it
+
+**What:** `t(key, vars)` (`static/i18n.js`) substitutes with `text = text.split("{"+k+"}").join(vars[k])` -- no escaping. Nearly every list row in the app is a template literal assigned via `innerHTML`, so any `t()` call carrying a user-controlled var inside one is an injection sink. Remaining unescaped sinks are the user's OWN custom exercise and food names: `templates/workouts.html` (`exerciseRowHtml`'s `data-name`/`${name}`/`data-fav-toggle`, and `renderList`'s `data-exercise`), plus the food equivalents in `templates/nutrition.html`. Names are stored raw (`create_custom_exercise` caps length at 60 but does not sanitize).
+
+**Why:** Self-XSS only -- these strings never leave the account that typed them, and `SESSION_COOKIE_SAMESITE = "Lax"` (`app.py`) blocks the drive-by CSRF path. That is why it was not fixed inline. But the pattern is one shared-list feature away from becoming cross-user, and the current state is inconsistent: the same file now escapes some interpolations and not others.
+
+**Context:** Found by the adversarial pass during `/ship` on `feat/mascot-empty-states`, alongside a genuinely cross-user stored XSS on the leaderboards and friends list -- that one WAS fixed on that branch (see `tests/test_cross_user_name_escaping.py`). The right fix here is systemic: make `t()` escape its vars by default and give the handful of call sites that intentionally pass markup an explicit opt-out, rather than adding more call-site `escapeHtml()` calls. Note there is no shared escape helper -- `workouts.html`, `nutrition.html`, `index.html`, `hyrox.js`, `challenges.html` and `friends.html` each define their own.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+## Design
+
+### Two competing empty-state treatments ship side by side
+
+**What:** `static/mascot.js` covers four screens (Hyrox leaderboard, food search, both exercise pickers, challenges). Race history (`.hx-history-empty-rich`, a stopwatch emoji in an `--amber-bg` circle, `static/hyrox.js`) and the workout log (`.wl-empty`, a sprout emoji, `templates/workouts.html`) still use their own treatment. On the Hyrox page the two sit one tab apart.
+
+**Why:** The point of the mascot was one empty-state language; the app currently has two systematised-but-mutually-inconsistent ones. Converting the remaining pair needs one new pose each (a timer-flavoured pose and a ready-to-start pose) plus deleting `.hx-history-empty-icon` / `.wl-empty-icon`.
+
+**Context:** Flagged by the design specialist during `/ship` on `feat/mascot-empty-states`. Left out to keep that PR scoped; the comments in `static/mascot.js` and `templates/base.html` were narrowed so they no longer claim a consolidation that hasn't happened.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+## Completed
+
+<!-- Shipped items move here, newest first, with the version or date they landed. -->

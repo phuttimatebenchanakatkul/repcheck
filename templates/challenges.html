@@ -422,10 +422,26 @@
     // same design language as the Hyrox leaderboard (see static/hyrox.js's
     // renderLeaderboardCard), so both leaderboards in the app look and
     // read as one consistent system.
+    // Display names come from other accounts and are stored exactly as
+    // typed (the server strips whitespace, nothing more), so they have to
+    // be escaped before reaching innerHTML -- an unescaped name on the
+    // global board runs in every viewer's browser, not just its owner's.
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text == null ? "" : text;
+      return div.innerHTML;
+    }
+
     function renderLeaderboardRows(container, rows, meId, totalEntries) {
       container.innerHTML = "";
       if (!rows.length) {
-        container.appendChild(el(`<div class="ch-lb-empty">${t("challenges.empty")}</div>`));
+        // The empty first-place block carries what the headline can't:
+        // the spot exists and nobody is standing on it yet.
+        container.appendChild(el(RepCheckMascot.emptyState({
+          pose: "podium",
+          title: t("challenges.emptyTitle"),
+          sub: t("challenges.emptySub"),
+        })));
         return;
       }
       rows.forEach((row, i) => {
@@ -434,7 +450,7 @@
           <div class="ch-lb-entry-row ${row.user_id === meId ? "is-me" : ""}">
             <div>
               <div class="ch-lb-entry-value">${row.total_reps} ${t("challenges.reps")}</div>
-              <div class="ch-lb-entry-name">${row.name}${row.user_id === meId ? t("challenges.you") : ""}</div>
+              <div class="ch-lb-entry-name">${escapeHtml(row.name)}${row.user_id === meId ? t("challenges.you") : ""}</div>
             </div>
             <div class="ch-lb-entry-right">
               <div class="ch-lb-entry-rank">#${rank}</div>
@@ -458,7 +474,7 @@
             <div class="ch-lb-me-badge ${myRank.rank <= 3 ? "is-top" : ""}">${myRank.rank}</div>
             <div class="ch-lb-me-info">
               <div class="ch-lb-me-value">${myRank.total_reps} ${t("challenges.reps")}</div>
-              <div class="ch-lb-me-name">${myRank.name}</div>
+              <div class="ch-lb-me-name">${escapeHtml(myRank.name)}</div>
             </div>
             <div class="ch-lb-me-trophy">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4M7 5H4a2 2 0 0 0-2 2v1a4 4 0 0 0 4 4"/></svg>

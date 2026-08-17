@@ -39,6 +39,22 @@ upload, barcode, create, macros, etc.) keeps one accent consistently across
 every screen it appears on. Don't reassign an accent already claimed by
 another action.
 
+The empty-state mascot is the one deliberate exception, and it is monochrome
+precisely because of that rule: it narrates rather than acts, so giving it an
+accent would either burn a color no future action could use, or make it change
+identity per screen. It has its own greys instead of reusing `--text`, because
+`--text` is right on dark (a near-white blob) and wrong on light (a near-black
+inkblot on a white card):
+
+| Token | Light | Dark |
+|---|---|---|
+| `--rc-mascot-body` | `#6b6d78` | `#f5f5f7` |
+| `--rc-mascot-detail` | `#3f414a` | `#8e8e93` |
+
+`-body` is the silhouette; `-detail` is the props on and around it (sweatband,
+crumbs, speed lines, podium outline) and must stay darker than `-body`, since
+some props are drawn on top of it. Long-form reasoning is in `static/mascot.js`.
+
 ## Type
 
 System font stack, no webfont: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`.

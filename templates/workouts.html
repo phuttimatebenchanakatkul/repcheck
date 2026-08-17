@@ -2998,8 +2998,22 @@
       // Nothing matched -- offer to create exactly what they typed.
       exModalBody.innerHTML = `
         <div class="ex-modal-section">
-          <div class="ex-modal-empty">${RepCheckI18n.t("workouts.search.noMatch", { query })}</div>
-          <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: query.trim() })}</span></button>
+          ${RepCheckMascot.emptyState({
+            pose: "lift",
+            // t() takes no vars here so {query} survives into
+            // emptyState(), which escapes it and gives the searched-for
+            // term its own weight.
+            title: RepCheckI18n.t("workouts.search.noMatchTitle"),
+            sub: RepCheckI18n.t("workouts.search.noMatchSub"),
+            query,
+          })}
+          <!-- escapeHtml on the way in: t() substitutes its vars with a
+               plain split/join and does NOT escape them, and this lands in
+               innerHTML. Same reason the search term beside it is escaped
+               -- this is the one branch a no-match query reaches, so an
+               unescaped name here is the exact sink the mascot block above
+               just closed. -->
+          <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: escapeHtml(query.trim()) })}</span></button>
         </div>
       `;
       wireCreateButton(query.trim());
@@ -3768,7 +3782,12 @@
       }).join("");
 
       const html = customHtml + builtInHtml;
-      listEl.innerHTML = html || `<div class="ex-modal-empty">${t("workouts.search.noMatch", { query })}</div>`;
+      listEl.innerHTML = html || RepCheckMascot.emptyState({
+        pose: "lift",
+        title: t("workouts.search.noMatchTitle"),
+        sub: t("workouts.search.noMatchSub"),
+        query,
+      });
       listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) selected.add(checkbox.dataset.exercise);
