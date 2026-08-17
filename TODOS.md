@@ -591,3 +591,27 @@
 **Effort:** S
 **Priority:** P4
 **Depends on:** None
+
+### Search doesn't match log-only food names, so a Recent row vanishes when you type it
+
+**What:** `renderModalResults()` (`templates/nutrition.html`) builds rows from `FOOD_LIBRARY.filter(...)` plus `customFoods` only. Every one of those names passes `foodByName()`, so `foodRowHtml`'s `data-relog-entry` branch is structurally unreachable in the query view. A scanned meal is now the first thing a user can see on the Recent tab -- but typing its name yields `nutrition.noMatch` ("No foods match ...") for a food that is one tap away on the tab behind the search box.
+
+**Why:** Browse and search disagree about what exists. The Recent tab change made this visible by putting log-only names in front of every user on open.
+
+**Context:** Found by the red-team pass during `/ship` on `feat/food-sheet-custom-tab`. Deferred: matching distinct log-only names in the query view is a new search source (ranking, dedup against library hits, and a cap), not a fix to the tab change.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Custom-food and Open Food Facts rows don't honour the hour the sheet was opened from
+
+**What:** The `[data-custom-index]` and `[data-off-index]` click branches (`templates/nutrition.html`) call `closeModal(); openScannedResultModal(...)` with no `const hourForLog = pendingHour` capture, unlike the `[data-food]` and `[data-relog-entry]` branches beside them. `renderAfResult` then renders its hour select with "Now" pre-selected, so `addAfResultToLog` logs at the current wall clock.
+
+**Why:** Opening the sheet from a specific hour row and picking a Recent row logs at that hour, while picking a Custom row logs at "Now" -- two rows in one sheet behaving differently. Currently unreachable in the shipped UI: nothing calls `openAddFoodModal()` since the hour-row "+" was removed, so `pendingHour` is always null when this sheet opens. It becomes a live inconsistency the moment an hour-pinned entry point comes back.
+
+**Context:** Found by the red-team pass during `/ship` on `feat/food-sheet-custom-tab`. Deferred: the fix needs `renderAfResult` to accept a pre-selected hour, which is the scan-result screen's own contract rather than this sheet's.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
