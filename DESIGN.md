@@ -29,15 +29,44 @@ Accent colors (same hex in both themes, only the `-bg` tint flips):
 | `--purple` | `#7c4fe0` | `#f3edfd` | `#2a1f45` |
 | `--pink` | `#c0398c` | `#fbeaf4` | `#3a1830` |
 
-Icon badges use a gradient of the accent, not the flat hex — e.g. green:
-`linear-gradient(135deg, #29b87e, var(--green))`, with a matching tinted
-box-shadow (`0 6px 14px rgba(31, 169, 113, 0.42)` for green). Follow this
-pattern for any new colored icon badge instead of a flat fill.
+Icon badges come in two treatments, and which one you use depends on where the
+badge sits, not on what it does.
+
+**Entry-point badges** — the icon on a choice tile, a primary CTA, a quick
+action: a gradient of the accent, not the flat hex (green:
+`linear-gradient(135deg, #29b87e, var(--green))`), with a matching tinted
+box-shadow (`0 6px 14px rgba(31, 169, 113, 0.42)` for green). These are the
+screen's destinations, so they get the lift.
+
+**In-list badges** — the leading glyph on an inset-card row, or an empty
+state's icon: flat `var(--<accent>-bg)` fill with a `var(--<accent>)` glyph
+and **no box-shadow**. A row is a list item, not a destination, and a glowing
+badge on every row turns a scannable list into a field of lights. See
+`.af-icon-emoji` and `.nl-empty-icon` (`templates/nutrition.html`), and
+`.nl-create-food-icon`, the "Create a food" row on the food sheet's Custom tab.
+Use the `--<accent>-bg` token rather than an `rgba()` of the accent: the token
+is redefined per theme, so a fixed alpha over the dark card reads flat.
 
 Color is also an identifier: each entry point in a choice grid (take photo,
 upload, barcode, create, macros, etc.) keeps one accent consistently across
 every screen it appears on. Don't reassign an accent already claimed by
 another action.
+
+The empty-state mascot is the one deliberate exception, and it is monochrome
+precisely because of that rule: it narrates rather than acts, so giving it an
+accent would either burn a color no future action could use, or make it change
+identity per screen. It has its own greys instead of reusing `--text`, because
+`--text` is right on dark (a near-white blob) and wrong on light (a near-black
+inkblot on a white card):
+
+| Token | Light | Dark |
+|---|---|---|
+| `--rc-mascot-body` | `#6b6d78` | `#f5f5f7` |
+| `--rc-mascot-detail` | `#3f414a` | `#8e8e93` |
+
+`-body` is the silhouette; `-detail` is the props on and around it (sweatband,
+crumbs, speed lines, podium outline) and must stay darker than `-body`, since
+some props are drawn on top of it. Long-form reasoning is in `static/mascot.js`.
 
 ## Type
 

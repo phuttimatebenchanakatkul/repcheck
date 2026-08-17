@@ -14,6 +14,30 @@ Use /browse for all web browsing. Use ~/.claude/skills/gstack/... for gstack fil
 ## API server
 Don't start the backend/API server unless the current task actually requires it running.
 
+## Testing
+
+Two suites, both must pass before shipping:
+
+```bash
+npm run test          # vitest + jsdom -- tests-js/*.test.js
+python -m pytest -q   # tests/*.py
+```
+
+`npm install` first if vitest is missing. There is no build step; the JS under
+test is loaded straight from `static/*.js` and from inline `<script>` blocks in
+`templates/*.html` via the extractors in `tests-js/support/`.
+
+Some suites are source-level regex assertions against the real file rather than
+behavioural tests (see `tests/test_hyrox_personal_best_section.py`,
+`tests/test_cross_user_name_escaping.py`). That is a deliberate tradeoff for
+hand-rolled JS with no module boundary -- when adding one, mutation-check it:
+break the thing it guards and confirm the test actually fails.
+
+Escaping note: `RepCheckI18n.t()` does NOT escape its vars, and most list rows
+are template literals assigned via `innerHTML`. Any `t()` call carrying
+user-controlled data inside one needs an explicit `escapeHtml()`. There is no
+shared helper -- each file defines its own.
+
 ## Deploy Configuration (configured by /setup-deploy)
 - Platform: Render
 - Production URL: https://repcheck-q0m4.onrender.com

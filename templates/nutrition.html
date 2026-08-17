@@ -4741,12 +4741,28 @@
       .map((food, i) => ({ food, i }))
       .filter(({ food }) => food.name.toLowerCase().includes(q));
 
+    // This runs on every keystroke (the input listener below is not
+    // debounced), so the mascot is built ONLY when there is actually
+    // nothing to show. Interpolating it unconditionally and hiding it with
+    // display:none meant parsing ~600 bytes of SVG into namespaced DOM on
+    // every letter typed, in the common case where the search DID match.
+    const hasLocalMatches = matches.length > 0 || customMatches.length > 0;
+
     // Online results land in this SAME list once they arrive (see below)
     // rather than a separate labeled section — it should just read as
     // "more search results", not a distinct source.
     modalResultsEl.innerHTML = `
       <div class="nl-food-list" id="modal-food-list">${matches.map(foodRowHtml).join("")}${customMatches.map(({ food, i }) => customFoodRowHtml(food, i)).join("")}</div>
-      <div class="nl-search-empty" id="modal-empty-msg" style="${matches.length || customMatches.length ? "display:none;" : ""}">${RepCheckI18n.t("nutrition.noMatch", { query })}</div>
+      ${hasLocalMatches ? "" : `<div id="modal-empty-msg">${RepCheckMascot.emptyState({
+        pose: "eat",
+        // No vars passed to t() on purpose -- the {query} placeholder has
+        // to survive into emptyState(), which escapes the typed text and
+        // wraps it so the searched-for term reads heavier than the
+        // sentence around it.
+        title: RepCheckI18n.t("nutrition.noMatchTitle"),
+        sub: RepCheckI18n.t("nutrition.noMatchSub"),
+        query,
+      })}</div>`}
       ${manualMacroCtaHtml()}
     `;
 

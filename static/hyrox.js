@@ -588,6 +588,17 @@
     return wrap.firstElementChild;
   }
 
+  // Anything that came from another account has to go through this before
+  // it reaches el(). Display names are stored exactly as typed (the server
+  // strips whitespace and nothing else), and the leaderboard endpoint hands
+  // out every competitor's name -- so an unescaped name here executes in the
+  // browser of everyone who opens the board, not just its owner.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text == null ? "" : text;
+    return div.innerHTML;
+  }
+
   // Both toast variants share the same fixed bottom-center slot, so only
   // one can be legible at a time -- clear any toast of EITHER class, not
   // just this one's own, before inserting (a delayed save-error toast
@@ -3351,12 +3362,18 @@
         const rowHtml = (rank, name, seconds, isMe) => `
           <div class="hx-lb-row ${isMe ? "is-me" : ""}">
             <span class="hx-lb-rank ${rank <= 3 ? `is-top is-top-${rank}` : ""}">${rank}</span>
-            <span class="hx-lb-name">${name}${isMe ? `<span class="hx-lb-you">${t("hyrox.leaderboard.you")}</span>` : ""}</span>
+            <span class="hx-lb-name">${escapeHtml(name)}${isMe ? `<span class="hx-lb-you">${t("hyrox.leaderboard.you")}</span>` : ""}</span>
             <span class="hx-lb-time">${formatClock(seconds)}</span>
           </div>
         `;
         if (!rows.length) {
-          listEl.appendChild(el(`<div class="hx-history-empty">${t("hyrox.leaderboard.empty")}</div>`));
+          // An empty board is an invitation, not a failure, so the mascot
+          // sprints here rather than slumping -- see static/mascot.js.
+          listEl.appendChild(el(RepCheckMascot.emptyState({
+            pose: "sprint",
+            title: t("hyrox.leaderboard.emptyTitle"),
+            sub: t("hyrox.leaderboard.emptySub"),
+          })));
         } else {
           const myRank = cache.data.me ? cache.data.me.rank : null;
           rows.forEach((r, i) => {

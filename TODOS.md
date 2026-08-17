@@ -532,6 +532,32 @@
 **Priority:** P2
 **Depends on:** None
 
+### The food sheet's two default-view empty states are still plain text, not the mascot
+
+**What:** `#163` standardised four empty screens onto `RepCheckMascot.emptyState()`, and on the food-search sheet that covers only the no-match QUERY state. The sheet's two default-view empty states -- `nutrition.searchToAdd` (pre-existing) and `nutrition.custom.empty` (added with the Custom tab) -- still render as plain `.nl-search-empty` text, so the same sheet shows a mascot when a search misses and a grey sentence when a tab is empty.
+
+**Why:** The Custom tab's empty state is the one every user hits on first open, which is exactly the moment the mascot exists for. Converting both together is one change and one visual check; converting either alone leaves the sheet half-and-half.
+
+**Context:** Noticed during `/ship` on `feat/food-sheet-custom-tab` while merging `#163`. Not done there: it needs a title/sub copy split (en + th) for both states and a pose choice, and the branch's dev session had expired so the result could not be checked visually. Related to the existing "Two competing empty-state treatments ship side by side" entry under Design.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+## Security
+
+### RepCheckI18n.t() does not escape its vars, and ~8 innerHTML sinks rely on it
+
+**What:** `t(key, vars)` (`static/i18n.js`) substitutes with `text = text.split("{"+k+"}").join(vars[k])` -- no escaping. Nearly every list row in the app is a template literal assigned via `innerHTML`, so any `t()` call carrying a user-controlled var inside one is an injection sink. Remaining unescaped sinks are the user's OWN custom exercise and food names: `templates/workouts.html` (`exerciseRowHtml`'s `data-name`/`${name}`/`data-fav-toggle`, and `renderList`'s `data-exercise`), plus the food equivalents in `templates/nutrition.html`. Names are stored raw (`create_custom_exercise` caps length at 60 but does not sanitize).
+
+**Why:** Self-XSS only -- these strings never leave the account that typed them, and `SESSION_COOKIE_SAMESITE = "Lax"` (`app.py`) blocks the drive-by CSRF path. That is why it was not fixed inline. But the pattern is one shared-list feature away from becoming cross-user, and the current state is inconsistent: the same file now escapes some interpolations and not others.
+
+**Context:** Found by the adversarial pass during `/ship` on `feat/mascot-empty-states`, alongside a genuinely cross-user stored XSS on the leaderboards and friends list -- that one WAS fixed on that branch (see `tests/test_cross_user_name_escaping.py`). The right fix here is systemic: make `t()` escape its vars by default and give the handful of call sites that intentionally pass markup an explicit opt-out, rather than adding more call-site `escapeHtml()` calls. Note there is no shared escape helper -- `workouts.html`, `nutrition.html`, `index.html`, `hyrox.js`, `challenges.html` and `friends.html` each define their own.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
 ### Blue label text on the card background falls below AA contrast in dark mode
 
 **What:** `--blue` is a single fixed `#2f66e8` in both themes (`static/style.css`), so blue 14px text on the dark `--card-bg` (`#1c1c1e`) is ~3.4:1 -- below AA's 4.5:1 for non-large text. The house `background: var(--blue-bg); color: var(--blue)` pairing is ~3.2:1 in dark, so this is systemic, not local to one component. Affects the food sheet's new `.nl-create-food-label` and existing blue-on-card text such as `static/style.css:1471`.
@@ -551,6 +577,20 @@
 **Why:** Small today (few extra fields exist), but it is a silent data-narrowing path that compounds, and the re-log flow is now reachable from the food sheet's landing tab rather than only the recent-scans list.
 
 **Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: switching to a copy-then-override shape needs a check of every consumer that assumes those exact keys.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+## Design
+
+### Two competing empty-state treatments ship side by side
+
+**What:** `static/mascot.js` covers four screens (Hyrox leaderboard, food search, both exercise pickers, challenges). Race history (`.hx-history-empty-rich`, a stopwatch emoji in an `--amber-bg` circle, `static/hyrox.js`) and the workout log (`.wl-empty`, a sprout emoji, `templates/workouts.html`) still use their own treatment. On the Hyrox page the two sit one tab apart.
+
+**Why:** The point of the mascot was one empty-state language; the app currently has two systematised-but-mutually-inconsistent ones. Converting the remaining pair needs one new pose each (a timer-flavoured pose and a ready-to-start pose) plus deleting `.hx-history-empty-icon` / `.wl-empty-icon`.
+
+**Context:** Flagged by the design specialist during `/ship` on `feat/mascot-empty-states`. Left out to keep that PR scoped; the comments in `static/mascot.js` and `templates/base.html` were narrowed so they no longer claim a consolidation that hasn't happened.
 
 **Effort:** S
 **Priority:** P3
@@ -615,3 +655,7 @@
 **Effort:** S
 **Priority:** P3
 **Depends on:** None
+
+## Completed
+
+<!-- Shipped items move here, newest first, with the version or date they landed. -->
