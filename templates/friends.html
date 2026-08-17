@@ -176,11 +176,19 @@
       myFriends.forEach((f) => {
         listEl.appendChild(el(`
           <div class="fr-friend-row">
-            <div class="fr-friend-avatar">${f.name[0].toUpperCase()}</div>
-            <div>${f.name}</div>
+            <div class="fr-friend-avatar">${escapeHtml(f.name[0].toUpperCase())}</div>
+            <div>${escapeHtml(f.name)}</div>
           </div>
         `));
       });
+    }
+
+    // Friend names come from other accounts and are stored exactly as
+    // typed, so they are escaped before reaching innerHTML below.
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text == null ? "" : text;
+      return div.innerHTML;
     }
 
     function el(html) {

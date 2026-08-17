@@ -111,9 +111,19 @@ def test_create_food_barcode_attribute_uses_attribute_escaping(nutrition_html):
     """
     match = re.search(r'id="af-create-barcode-input"[^>]*value="(.*?)"', nutrition_html)
     assert match, "could not find the create-food barcode input"
-    assert match.group(1) == "${escapeAttr(afCreateBarcode)}", (
-        "the barcode input renders into an attribute with text-node escaping "
-        "-- a barcode containing a quote breaks out of value=\"...\""
+    value_expr = match.group(1)
+    # Asserted as a property rather than an exact string: the expression
+    # legitimately grew a `|| ""` default once the field started rendering
+    # for every created food, not just ones reached from a failed scan. What
+    # must not change is which escaper wraps it.
+    assert "escapeAttr(" in value_expr, (
+        "the barcode input renders into an attribute and must be escaped with "
+        "escapeAttr -- got: " + value_expr
+    )
+    assert "escapeHtml(" not in value_expr, (
+        "escapeHtml is text-node escaping and leaves the quote that closes "
+        "value=\"...\", letting the rest of a crafted barcode inject an "
+        "event handler -- got: " + value_expr
     )
 
 

@@ -798,6 +798,16 @@
     wireExerciseRows();
   }
 
+  // RepCheckI18n.t() substitutes its vars with a plain split/join and does
+  // NOT escape them, and the result below lands in innerHTML -- so the
+  // typed query has to be escaped on the way in. Same round-trip helper
+  // workouts.html uses; this file had none of its own.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
   function renderExerciseModalSearch(query) {
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -807,7 +817,7 @@
     const matches = EXERCISE_LIBRARY.filter((name) => name.toLowerCase().includes(q)).slice(0, 30);
     exModalBody.innerHTML = matches.length
       ? `<div class="ex-modal-section">${matches.map(exerciseRowHtml).join("")}</div>`
-      : `<div class="ex-modal-empty">${RepCheckI18n.t("analyze.noMatch", { query })}</div>`;
+      : `<div class="ex-modal-empty">${RepCheckI18n.t("analyze.noMatch", { query: escapeHtml(query) })}</div>`;
     wireExerciseRows();
   }
 

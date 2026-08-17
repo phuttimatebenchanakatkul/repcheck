@@ -1197,8 +1197,12 @@ def api_create_custom_food():
     # erroring.
     name = name or "Custom food"
     emoji = emoji or "\U0001F37D️"
-    if protein == 0 and fat == 0 and carbs == 0:
-        return jsonify({"ok": False, "error": "Enter at least one macro (protein, fat, or carbs)."}), 400
+    # Macros are optional too. A food with none is a legitimate thing to
+    # store -- someone cataloguing a product from its barcode may not have
+    # the label to hand, and saving it now beats losing the scan. It logs as
+    # 0 kcal until filled in, which is what an unknown food honestly is.
+    # The "Log macros" quick form, whose entire purpose is entering them,
+    # still requires at least one client-side (see submitCustomFood).
 
     # Set only when this food is being created from the barcode-scan
     # "not found" flow (see renderAfCreateForm(false, barcode) in

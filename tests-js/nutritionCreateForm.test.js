@@ -428,8 +428,8 @@ describe("nutrition.html renderAfCreateForm -- serving editor", () => {
   });
 });
 
-describe("nutrition.html renderAfCreateForm -- barcode clear button", () => {
-  it("clears and focuses the barcode input when clicked, and is entirely absent when no barcode was passed in", () => {
+describe("nutrition.html renderAfCreateForm -- barcode field", () => {
+  it("clears and focuses the barcode input when the clear button is clicked", () => {
     const mod = loadNutritionCreateForm();
     mod.renderAfCreateForm(false, "01234567");
 
@@ -438,13 +438,31 @@ describe("nutrition.html renderAfCreateForm -- barcode clear button", () => {
     document.getElementById("af-barcode-del-btn").click();
     expect(input.value).toBe("");
     expect(document.activeElement).toBe(input);
+  });
 
-    // This form only shows the barcode field/button at all when a barcode
-    // was passed in (notFoundBarcode truthy) -- verify both are absent
-    // when it wasn't.
+  it("offers an empty barcode field and a scan button even when no barcode was passed in", () => {
+    // The field used to appear only when arriving from a "barcode not found"
+    // redirect, which meant the one way to attach a barcode to a food was to
+    // have already scanned an unknown one. Creating a food deliberately --
+    // the usual route -- had nowhere to put a barcode at all, so the product
+    // could never be found by scanning it later.
+    const mod = loadNutritionCreateForm();
     mod.renderAfCreateForm(false, null);
-    expect(document.getElementById("af-barcode-del-btn")).toBeNull();
+
+    const input = document.getElementById("af-create-barcode-input");
+    expect(input).not.toBeNull();
+    expect(input.value).toBe("");
+    expect(document.getElementById("af-barcode-scan-btn")).not.toBeNull();
+  });
+
+  it("does not offer the barcode field on the quick 'Log macros' form", () => {
+    // That form logs macros against no particular product, so a barcode has
+    // nothing to attach to.
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(true, null);
+
     expect(document.getElementById("af-create-barcode-input")).toBeNull();
+    expect(document.getElementById("af-barcode-scan-btn")).toBeNull();
   });
 });
 
@@ -544,5 +562,49 @@ describe("nutrition.html create-food form -- number fields opt into clear-on-foc
       expect(input, id).not.toBeNull();
       expect(input.hasAttribute("data-clear-on-focus"), id).toBe(true);
     });
+  });
+});
+
+describe("nutrition.html submitCustomFood -- macros are optional when creating a food", () => {
+  // Creating a food and logging macros are different intents sharing one
+  // form. Cataloguing a product -- scan its barcode, name it, set its
+  // serving -- is worth saving even when the label isn't to hand, and the
+  // macros can be filled in later. Blocking that lost the scan for the sake
+  // of a number the user didn't have yet.
+  it("submits a food with every macro left at zero", async () => {
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(false, "8850132042278");
+    document.getElementById("af-create-name").value = "Mineral water";
+    // protein/fat/carbs deliberately untouched -- they render at 0
+
+    const calls = stubFetchCapturingBody();
+    await mod.submitCustomFood();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body.protein).toBe(0);
+    expect(calls[0].body.fat).toBe(0);
+    expect(calls[0].body.carbs).toBe(0);
+    expect(calls[0].body.barcode).toBe("8850132042278");
+    // The request going out at all is the point: the only thing that can
+    // surface now is the stub's own reply, not a client-side macro guard.
+    // (stubFetchCapturingBody always answers ok:false, so the error element
+    // being visible here says nothing about validation either way.)
+    expect(document.getElementById("af-create-error").textContent)
+      .toBe("not tested past this point");
+  });
+
+  it("still refuses an empty submission on the quick 'Log macros' form", async () => {
+    // That form's whole purpose is the macros, so an empty one would log a
+    // silent 0 kcal entry -- a no-op the user would read as the app losing it.
+    const mod = loadNutritionCreateForm();
+    mod.renderAfCreateForm(true, null);
+
+    const calls = stubFetchCapturingBody();
+    await mod.submitCustomFood();
+
+    expect(calls).toHaveLength(0);
+    const errorEl = document.getElementById("af-create-error");
+    expect(errorEl.style.display).toBe("block");
+    expect(errorEl.textContent).toMatch(/at least one macro/i);
   });
 });
