@@ -425,7 +425,14 @@
     function renderLeaderboardRows(container, rows, meId, totalEntries) {
       container.innerHTML = "";
       if (!rows.length) {
-        container.appendChild(el(`<div class="ch-lb-empty">${t("challenges.empty")}</div>`));
+        // The empty first-place block carries what the headline can't:
+        // the spot exists and nobody is standing on it yet.
+        container.appendChild(el(RepCheckMascot.emptyState({
+          pose: "podium",
+          title: t("challenges.emptyTitle"),
+          sub: t("challenges.emptySub"),
+          label: t("challenges.emptyTitle"),
+        })));
         return;
       }
       rows.forEach((row, i) => {

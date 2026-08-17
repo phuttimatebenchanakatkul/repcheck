@@ -3356,7 +3356,14 @@
           </div>
         `;
         if (!rows.length) {
-          listEl.appendChild(el(`<div class="hx-history-empty">${t("hyrox.leaderboard.empty")}</div>`));
+          // An empty board is an invitation, not a failure, so the mascot
+          // sprints here rather than slumping -- see static/mascot.js.
+          listEl.appendChild(el(RepCheckMascot.emptyState({
+            pose: "sprint",
+            title: t("hyrox.leaderboard.emptyTitle"),
+            sub: t("hyrox.leaderboard.emptySub"),
+            label: t("hyrox.leaderboard.emptyTitle"),
+          })));
         } else {
           const myRank = cache.data.me ? cache.data.me.rank : null;
           rows.forEach((r, i) => {

@@ -2998,7 +2998,16 @@
       // Nothing matched -- offer to create exactly what they typed.
       exModalBody.innerHTML = `
         <div class="ex-modal-section">
-          <div class="ex-modal-empty">${RepCheckI18n.t("workouts.search.noMatch", { query })}</div>
+          ${RepCheckMascot.emptyState({
+            pose: "lift",
+            // t() takes no vars here so {query} survives into
+            // emptyState(), which escapes it and gives the searched-for
+            // term its own weight.
+            title: RepCheckI18n.t("workouts.search.noMatchTitle"),
+            sub: RepCheckI18n.t("workouts.search.noMatchSub"),
+            query,
+            label: RepCheckI18n.t("workouts.search.noMatchSub"),
+          })}
           <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: query.trim() })}</span></button>
         </div>
       `;
@@ -3768,7 +3777,13 @@
       }).join("");
 
       const html = customHtml + builtInHtml;
-      listEl.innerHTML = html || `<div class="ex-modal-empty">${t("workouts.search.noMatch", { query })}</div>`;
+      listEl.innerHTML = html || RepCheckMascot.emptyState({
+        pose: "lift",
+        title: t("workouts.search.noMatchTitle"),
+        sub: t("workouts.search.noMatchSub"),
+        query,
+        label: t("workouts.search.noMatchSub"),
+      });
       listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) selected.add(checkbox.dataset.exercise);

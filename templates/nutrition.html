@@ -4372,7 +4372,17 @@
     // "more search results", not a distinct source.
     modalResultsEl.innerHTML = `
       <div class="nl-food-list" id="modal-food-list">${matches.map(foodRowHtml).join("")}${customMatches.map(({ food, i }) => customFoodRowHtml(food, i)).join("")}</div>
-      <div class="nl-search-empty" id="modal-empty-msg" style="${matches.length || customMatches.length ? "display:none;" : ""}">${RepCheckI18n.t("nutrition.noMatch", { query })}</div>
+      <div id="modal-empty-msg" style="${matches.length || customMatches.length ? "display:none;" : ""}">${RepCheckMascot.emptyState({
+        pose: "eat",
+        // No vars passed to t() on purpose -- the {query} placeholder has
+        // to survive into emptyState(), which escapes the typed text and
+        // wraps it so the searched-for term reads heavier than the
+        // sentence around it.
+        title: RepCheckI18n.t("nutrition.noMatchTitle"),
+        sub: RepCheckI18n.t("nutrition.noMatchSub"),
+        query,
+        label: RepCheckI18n.t("nutrition.noMatchSub"),
+      })}</div>
       ${manualMacroCtaHtml()}
     `;
 
