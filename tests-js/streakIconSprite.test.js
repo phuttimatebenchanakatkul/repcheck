@@ -98,6 +98,24 @@ describe.each(CALL_SITES)("$file.1 references the sprite correctly", ({ file, sy
     expect(src).toContain(`href="#${symbol}"`);
   });
 
+  it("carries the .rc-icon class and an em size floor on every icon", () => {
+    // Everything about the size hangs on the .rc-icon hook. An <svg> with no
+    // width/height defaults to 300x150px, so a one-character typo in the class
+    // does not degrade -- it detonates the layout. The class is asserted here
+    // so CI catches the typo, and the width/height attributes are a runtime
+    // floor for the same failure (CSS beats presentation attributes, so they
+    // change nothing whenever the stylesheet actually loaded).
+    const icons = [...src.matchAll(/<svg\b[^>]*\bclass="([^"]*)"[^>]*>/g)]
+      .filter((m) => m[0].includes("#rc-") || m[1].includes("rc-icon"));
+    const uses = [...src.matchAll(/<svg\b[^>]*>\s*<use href="#rc-/g)];
+    expect(uses.length).toBeGreaterThan(0);
+    for (const tag of uses.map((m) => m[0])) {
+      expect(tag).toContain('class="rc-icon"');
+      expect(tag).toMatch(/width="1em"/);
+      expect(tag).toMatch(/height="1em"/);
+    }
+  });
+
   it("has no <use> pointing at a symbol base.html does not define", () => {
     // A typo'd href fails silently -- nothing throws, the icon is just blank.
     const refs = [...src.matchAll(/href="#(rc-[a-z-]+)"/g)].map((m) => m[1]);
