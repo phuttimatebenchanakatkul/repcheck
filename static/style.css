@@ -87,6 +87,17 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  /* Tabular lining figures everywhere. DESIGN.md has specified this since
+     the start ("numeric values that line up in columns should use
+     tabular-nums") but nothing in the app actually set it, so every
+     counter, rank, macro and timer shifted width as its digits changed --
+     a 1 is much narrower than a 0 in Inter's default proportional figures.
+     Setting it on `body` instead of per-component means new numeric UI
+     inherits it rather than having to remember. Opt out with
+     `.num-proportional` on the rare bit of running prose where uniform
+     digit widths look too wide. */
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
   /* Safety net: a `flex-wrap: nowrap` row with `overflow-x: auto` and
      non-shrinking children (a horizontal-scroll pattern used in a few
      places) can, if its content ever doesn't fit, expand the whole
@@ -151,6 +162,9 @@ html.pc-sheet-active .app {
 @media (prefers-reduced-motion: reduce) {
   .app { transition: none; }
 }
+
+/* Escape hatch for the body-level tabular figures above. */
+.num-proportional { font-variant-numeric: proportional-nums; font-feature-settings: "pnum" 1; }
 
 /* ---------- Sidebar ---------- */
 
