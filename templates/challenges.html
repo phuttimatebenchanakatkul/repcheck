@@ -520,10 +520,18 @@
             meta: lbGap(row.total_reps, myReps),
           }))
           .join("");
-      } else {
+      } else if (myRank) {
         // You're the only one here. Your pinned row already says so, so the
         // list stays empty and the footer carries the one useful action.
-        listEl.innerHTML = myRank ? "" : `<div class="ch-lb-empty">${t("challenges.empty")}</div>`;
+        listEl.innerHTML = "";
+      } else {
+        // Nobody has a score yet, you included -- the podium mascot carries
+        // that instead of the bare "0 entries" text a blank board would read as.
+        listEl.innerHTML = RepCheckMascot.emptyState({
+          pose: "podium",
+          title: t("challenges.emptyTitle"),
+          sub: t("challenges.emptySub"),
+        });
       }
 
       // A short board reads as broken unless you say it's short on purpose.
