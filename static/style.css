@@ -1142,7 +1142,6 @@ input[type="file"], select {
   .qa-sheet { padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
   .qa-head { margin: 2px 4px 16px; }
   .qa-head-title { font-size: 20px; font-weight: 800; letter-spacing: -0.015em; color: var(--text); }
-  .qa-head-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; font-weight: 500; }
 
   .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .qa-tile {
@@ -1157,9 +1156,12 @@ input[type="file"], select {
     font-family: inherit;
     cursor: pointer;
     text-align: center;
-    transition: transform 0.12s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+    transition: transform 0.12s ease, border-color 0.16s ease;
   }
-  .qa-tile:hover { border-color: transparent; box-shadow: 0 10px 24px rgba(20, 20, 20, 0.12); transform: translateY(-2px); }
+  /* No glow anywhere in this sheet: hover moves the border, never paints
+     a shadow. A drop shadow under a tile reads as a halo on the dark
+     theme, which is the effect we keep being asked to remove. */
+  .qa-tile:hover { border-color: var(--text-secondary); }
   .qa-tile:active { transform: scale(0.95); }
   .qa-tile-icon {
     display: flex; align-items: center; justify-content: center;
@@ -1167,18 +1169,60 @@ input[type="file"], select {
   }
   .qa-tile-title { font-size: 13.5px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
 
-  /* The odd 5th tile fills the last row, but keeps the exact same
-     vertical/centered icon-over-title layout as the others so it reads as
-     one of the set -- just a wider one -- instead of a different shape. */
-  .qa-tile-wide { grid-column: 1 / -1; }
-
-  /* "More" section inside the "+" sheet -- the pages that used to sit
-     behind the bar's removed "More" tab (Coach/Friends/Settings/etc.),
-     rendered as a simple labelled list of rows below the action tiles. */
-  .qa-section-label {
-    font-size: 12px; font-weight: 700; color: var(--text-secondary);
-    text-transform: uppercase; letter-spacing: 0.03em; margin: 18px 4px 6px;
+  /* The odd 5th tile fills the last row as a centered ROW (icon beside
+     title) rather than a stretched square: it saves ~36px of height, which
+     is what keeps the actions pane clear of the sheet's max-height cap. */
+  .qa-tile-wide {
+    grid-column: 1 / -1;
+    flex-direction: row; justify-content: center; gap: 12px; padding: 14px;
   }
+  .qa-tile-wide .qa-tile-icon { width: 42px; height: 42px; border-radius: 13px; }
+
+  /* ---------- Sliding panes ----------
+     The "More" pages used to sit in a labelled list UNDER the action tiles,
+     which made the sheet tall enough to scroll on short phones. They now
+     live on a second pane that slides in over the first, so only one is
+     ever mounted and neither pane scrolls. .qa-panes animates its own
+     height between the two so the sheet morphs instead of jumping. */
+  .qa-panes { position: relative; overflow: hidden; transition: height 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+  .qa-pane { transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease; }
+  .qa-pane[hidden] { display: none; }
+  /* Only while animating are both panes stacked/absolute -- at rest the
+     live pane is in normal flow so the sheet sizes itself. */
+  .qa-panes.is-animating .qa-pane { position: absolute; top: 0; left: 0; right: 0; }
+  .qa-pane.is-pre-right { transform: translateX(100%); opacity: 0; }
+  .qa-pane.is-pre-left  { transform: translateX(-100%); opacity: 0; }
+  .qa-pane.is-out-left  { transform: translateX(-26%); opacity: 0; }
+  .qa-pane.is-out-right { transform: translateX(26%); opacity: 0; }
+
+  /* The "More options" row: deliberately quiet. A text row, not a tile, so
+     it never competes with the five coloured actions -- but still a full
+     44px-tall target. The chevron points RIGHT because it opens a page. */
+  .qa-more-link {
+    width: 100%; margin-top: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    min-height: 44px; padding: 12px;
+    border: none; background: none; color: var(--text-secondary);
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    letter-spacing: -0.005em; border-radius: 12px; cursor: pointer;
+    opacity: 0.85;
+    transition: background 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+  }
+  .qa-more-link:hover { background: var(--sidebar-active); color: var(--text); opacity: 1; }
+  .qa-more-link svg { flex-shrink: 0; }
+
+  .qa-pane-head { display: flex; align-items: center; gap: 8px; margin: 2px 0 12px; }
+  .qa-back {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; flex-shrink: 0;
+    border: none; border-radius: 11px;
+    background: var(--bg); color: var(--text); cursor: pointer;
+    transition: background 0.16s ease;
+  }
+  .qa-back:hover { background: var(--sidebar-active); }
+  .qa-back:active { transform: scale(0.94); }
+  .qa-pane-title { font-size: 18px; font-weight: 800; letter-spacing: -0.015em; color: var(--text); }
+
   .qa-links { display: flex; flex-direction: column; }
   .qa-links .mt-sheet-action { border-radius: 12px; }
   .qa-links .mt-sheet-action:active { background: var(--sidebar-active); }
@@ -1212,7 +1256,7 @@ input[type="file"], select {
   .mt-sheet-overlay.is-open .qa-tile:nth-child(3) { animation-delay: 0.15s; }
   .mt-sheet-overlay.is-open .qa-tile:nth-child(4) { animation-delay: 0.20s; }
   .mt-sheet-overlay.is-open .qa-tile:nth-child(5) { animation-delay: 0.25s; }
-  .mt-sheet-overlay.is-open .qa-tile:nth-child(6) { animation-delay: 0.30s; }
+  .mt-sheet-overlay.is-open .qa-more-link { animation: qa-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1) 0.30s backwards; }
   .mt-sheet-overlay.is-open .qa-cancel { animation: qa-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards; }
   @keyframes qa-pop {
     from { opacity: 0; transform: translateY(14px) scale(0.94); }
@@ -1233,7 +1277,9 @@ input[type="file"], select {
    (the sheet still opens, just without the flourish). */
 @media (prefers-reduced-motion: reduce) {
   .mt-sheet-overlay.is-open .qa-tile,
+  .mt-sheet-overlay.is-open .qa-more-link,
   .mt-sheet-overlay.is-open .qa-cancel { animation: none; }
+  .qa-panes, .qa-pane { transition: none; }
 }
 
 /* ---------- Ultra-smooth page-to-page nav (View Transitions API) ----------

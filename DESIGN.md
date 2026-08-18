@@ -34,6 +34,13 @@ Icon badges use a gradient of the accent, not the flat hex — e.g. green:
 box-shadow (`0 6px 14px rgba(31, 169, 113, 0.42)` for green). Follow this
 pattern for any new colored icon badge instead of a flat fill.
 
+Exception, and increasingly the default: the quick-actions sheet's tiles
+(`.qa-*` in `static/style.css`) use FLAT accent fills with no tinted
+box-shadow. The glow reads as a halo on the dark theme and has now been
+stripped on three separate branches (`fix/remove-cta-glow-effect`,
+`fix/remove-af-icon-glow`, `feat/quick-actions-five`). Prefer a flat fill
+on new icon badges and ask before adding the glow back.
+
 Color is also an identifier: each entry point in a choice grid (take photo,
 upload, barcode, create, macros, etc.) keeps one accent consistently across
 every screen it appears on. Don't reassign an accent already claimed by
@@ -78,6 +85,8 @@ Numeric values that line up in columns (calories, weights, times) should use
 - Small icon badges: 11px radius; small buttons: 999px (full pill)
 - `--shadow: 0 1px 2px rgba(16,17,20,.03), 0 8px 24px rgba(16,17,20,.05)` — default resting elevation
 - Hover elevation on interactive tiles/rows: `0 8-10px 18-24px rgba(20,20,20,.08-.12)` + `translateY(-1px to -2px)`
+  - Not used by the quick-actions tiles: they move `border-color` on hover and
+    paint no shadow at all. See the icon-badge exception above.
 - Bottom sheets: `border-radius: 22px 22px 0 0`, slide up via `transform: translateY(100%) → 0`, `transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1)`
 - Mobile breakpoint: `max-width: 380px` gets tighter padding and smaller icon/label sizes — see `.af-tile`, `.af-primary-cta-icon`, `.af-sec-*` in `templates/nutrition.html` for the pattern
 

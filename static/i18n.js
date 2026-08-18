@@ -63,7 +63,7 @@
       "sidebar.login": "Log in",
 
       "mobile.quickActions": "Quick actions",
-      "mobile.quickActionsSub": "What do you want to do?",
+      "mobile.moreOptions": "More options",
       "mobile.more": "More",
       "mobile.scanMeal": "Scan a meal",
       "mobile.scanMealSub": "Snap a photo, get instant macros",
@@ -927,7 +927,7 @@
       "sidebar.login": "เข้าสู่ระบบ",
 
       "mobile.quickActions": "ทางลัด",
-      "mobile.quickActionsSub": "อยากทำอะไรดี?",
+      "mobile.moreOptions": "ตัวเลือกเพิ่มเติม",
       "mobile.more": "เพิ่มเติม",
       "mobile.scanMeal": "สแกนมื้ออาหาร",
       "mobile.scanMealSub": "ถ่ายรูป รับข้อมูลโภชนาการทันที",
