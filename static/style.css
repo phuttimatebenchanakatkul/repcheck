@@ -507,6 +507,22 @@ input[type="file"], select {
   font-weight: 500;
 }
 
+/* ---------- Streak icons (sprite defined in base.html) ----------
+   Replaces the 🔥 / 🏆 emoji, which rendered differently per OS and could not
+   follow the theme. Sized in em so every call site keeps its own scale from
+   whatever font-size it already sets: 22px in .st-stat-icon, 13px in the home
+   and challenges streak chips, 12px in .pc-streak-badge. 1.05em because an
+   emoji glyph draws slightly larger than its em box, and matching that keeps
+   the chips from looking like the flame shrank. */
+
+.rc-icon {
+  width: 1.05em;
+  height: 1.05em;
+  display: block;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
 /* ---------- Exercise icon (used in the selected-exercise chip) ---------- */
 
 .exercise-icon {

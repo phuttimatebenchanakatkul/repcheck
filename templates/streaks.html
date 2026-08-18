@@ -24,7 +24,10 @@
 
   .st-stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .st-stat { background: var(--bg); border-radius: 12px; padding: 16px 12px; text-align: center; }
-  .st-stat-icon { font-size: 22px; line-height: 1; margin-bottom: 6px; }
+  /* font-size still drives the icon size -- .rc-icon is sized in em -- but the
+     flex centering is needed now that the child is an <svg> block rather than
+     an inline emoji glyph. */
+  .st-stat-icon { font-size: 22px; line-height: 1; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; }
   .st-stat-value { font-size: 22px; font-weight: 700; }
   .st-stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
 
@@ -77,12 +80,12 @@
 <div class="st-card">
   <div class="st-stats-row">
     <div class="st-stat">
-      <div class="st-stat-icon">🔥</div>
+      <div class="st-stat-icon"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg></div>
       <div class="st-stat-value" id="st-current-value">0</div>
       <div class="st-stat-label" data-i18n="streaks.current">Current streak</div>
     </div>
     <div class="st-stat">
-      <div class="st-stat-icon">🏆</div>
+      <div class="st-stat-icon"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-trophy"/></svg></div>
       <div class="st-stat-value" id="st-longest-value">0</div>
       <div class="st-stat-label" data-i18n="streaks.longest">Longest streak ever</div>
     </div>

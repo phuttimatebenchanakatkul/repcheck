@@ -1708,7 +1708,7 @@
               </div>
               <div class="pc-card-title">${t("coaching.logging.title")}</div>
             </div>
-            <div class="pc-streak-badge ${streak > 0 ? "is-active" : ""}">🔥 ${t("coaching.streak", { n: streak, s: streak === 1 ? "" : "s" })}</div>
+            <div class="pc-streak-badge ${streak > 0 ? "is-active" : ""}"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg>${t("coaching.streak", { n: streak, s: streak === 1 ? "" : "s" })}</div>
           </div>
           <div class="pc-day-strip" id="pc-day-strip"></div>
           <div class="pc-day-legend">
