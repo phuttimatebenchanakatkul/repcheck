@@ -326,6 +326,18 @@
 **Priority:** P3
 **Depends on:** None
 
+### History rows render comboLabel() unescaped (pre-existing, self-XSS only)
+
+**What:** `renderHistory()` and `renderRaceDetailModal()` (`static/hyrox.js`) both emit `<span class="hx-history-tag">${comboLabel(r.gender, r.category, r.format)}</span>` into a template literal assigned via `innerHTML`. `comboLabel()` builds that string through `RepCheckI18n.t("hyrox.finishLabel", {...})`, which substitutes its vars with split/join and does not escape them, and it passes `category`/`format` straight through whenever they are not one of the fixed ids. `setCategory(value)` stores whatever `data-value` it is handed without validating against `CATEGORY_IDS`, and history records also arrive through account sync.
+
+**Why:** Verified, not theoretical: rendering a history record whose `category`, `format`, or `gender` contains `"><img src=x onerror=alert(1)>` produces a live `<img>` in the row, confirmed against the real English dictionary. Self-XSS only -- the data is the user's own -- which is why it is P3 and not P0. Same class as the workout-log entry above.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-pb-leaderboard`. That branch closed the instance it introduced (`pbBoardLabel()` now goes through `escapeHtml`, and the board's `data-key` through a new `escapeAttr`), and deliberately left these two pre-existing call sites alone. The systemic fix is making `RepCheckI18n.t()` escape its vars by default, which would close all of the remaining sinks at once; the narrow fix is wrapping these two call sites in the `escapeHtml` that already exists in the file.
+
+**Effort:** S (two call sites) / M (systemic t() escaping + audit of every intentional-markup caller)
+**Priority:** P3
+**Depends on:** None
+
 ### "No detail available" toast always blames "another device" even when the real cause is local-history eviction
 
 **What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.
