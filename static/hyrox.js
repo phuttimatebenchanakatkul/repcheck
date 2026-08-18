@@ -2488,6 +2488,9 @@
           ${best ? `
             <div class="hx-hero-title">${formatClock(best.totalSeconds)}</div>
             <div class="hx-hero-sub">${t("hyrox.hero.pbSub", { combo: comboLabel(best.gender, best.category, best.format) })}</div>
+          ` : raceCount ? `
+            <div class="hx-hero-title">${t("hyrox.hero.noPbTitle")}</div>
+            <div class="hx-hero-sub">${t("hyrox.hero.noPbSub")}</div>
           ` : `
             <div class="hx-hero-title">${t("hyrox.hero.emptyTitle")}</div>
             <div class="hx-hero-sub">${t("hyrox.hero.emptySub")}</div>

@@ -2,6 +2,20 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.1.1.0] - 2026-08-18
+
+### Fixed
+
+- HYROX: a flagged race no longer tells you it wasn't saved. Beat the realistic-time
+  floor and the finish screen said the race was "not saved to your history" — then the
+  history screen listed it, under a heading reading "Saved times". It always was saved;
+  what it doesn't do is count toward your personal bests or the leaderboard, which is
+  what the message says now.
+- HYROX: the landing card no longer counts your races and calls you a first-timer in the
+  same breath. If every race you'd run was a custom one (or got flagged), the header
+  showed "11 races" directly above "Your first race awaits", and it never resolved no
+  matter how many more you ran. It now says you have no ranked time yet, and why.
+
 ## [0.1.0.0] - 2026-08-18
 
 ### Fixed
