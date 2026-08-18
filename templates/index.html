@@ -11,7 +11,7 @@
 
   <div class="an-hero">
     <div class="an-hero-icon">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
     </div>
     <div class="an-hero-title" data-i18n="analyze.heroTitle">See exactly what to fix</div>
   </div>
@@ -43,6 +43,7 @@
       <div class="selected-exercise-chip" id="selected-exercise-chip" style="display:none;">
         <div class="exercise-icon" id="selected-exercise-icon"></div>
         <span id="selected-exercise-label"></span>
+        <button type="button" class="change-exercise-btn" id="change-exercise-btn" data-i18n="analyze.changeExercise">Change</button>
         <button type="button" class="clear-exercise-btn" id="clear-exercise-btn" data-i18n-aria-label="analyze.clearExercise" aria-label="Clear selected exercise">&times;</button>
       </div>
     </div>
@@ -103,13 +104,13 @@
 <div id="result-view" style="display:none;"></div>
 
 <style>
-  .an-hero { text-align: center; padding: 4px 4px 24px; }
+  .an-hero { text-align: center; padding: 2px 4px 16px; }
   .an-hero-icon {
-    width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%;
+    width: 44px; height: 44px; margin: 0 auto 10px; border-radius: 50%;
     background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
     display: flex; align-items: center; justify-content: center;
   }
-  .an-hero-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
+  .an-hero-title { font-size: 17px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
 
   .file-drop {
     position: relative;
@@ -200,11 +201,15 @@
   .an-recent-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0; }
   .an-recent-view-all { font-size: 12px; font-weight: 700; color: var(--blue); text-decoration: none; white-space: nowrap; }
   .an-recent-view-all:hover { text-decoration: underline; }
-  .an-recent-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .an-recent-strip { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; scrollbar-width: none; }
   .an-recent-strip::-webkit-scrollbar { display: none; }
   .an-recent-card {
     flex-shrink: 0;
-    width: 104px;
+    /* Exactly three fit inside the card at any width -- a fixed px width
+       clipped the third one on a 390px screen. Entries past the third
+       scroll, and snap so a half-card never rests mid-view. */
+    width: calc((100% - 20px) / 3);
+    scroll-snap-align: start;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -299,6 +304,17 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
+  }
+  .change-exercise-btn {
+    background: none;
+    border: none;
+    font-family: inherit;
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 10px 2px;
+    min-height: 44px;
   }
   .clear-exercise-btn {
     background: none;
@@ -525,6 +541,7 @@
   const selectedExerciseIcon = document.getElementById("selected-exercise-icon");
   const selectedExerciseLabel = document.getElementById("selected-exercise-label");
   const clearExerciseBtn = document.getElementById("clear-exercise-btn");
+  const changeExerciseBtn = document.getElementById("change-exercise-btn");
   const exPickerBtn = document.getElementById("ex-picker-btn");
   const exModalOverlay = document.getElementById("ex-modal-overlay");
   const exModalSearch = document.getElementById("ex-modal-search");
@@ -693,11 +710,24 @@
     selectedExerciseLabel.textContent = name;
     selectedExerciseIcon.innerHTML = exerciseIconHtml(name);
     selectedExerciseChip.style.display = "flex";
+    exPickerBtn.style.display = "none";
   }
 
   function clearSelectedExercise() {
     exerciseInput.value = "";
     selectedExerciseChip.style.display = "none";
+    exPickerBtn.style.display = "flex";
+  }
+
+  // The exercise you analyzed last is overwhelmingly the one you are
+  // about to analyze again, so pre-fill it -- that is two taps (open the
+  // picker, find the row) the common case no longer pays. "Change"
+  // reopens the picker, the x clears back to the empty picker button,
+  // and a first run with an empty log just shows that button as before.
+  function preselectLastExercise() {
+    clearSelectedExercise();
+    const last = getRecentAnalyzed(1)[0];
+    if (last) selectExercise(last);
   }
 
   // ---------- Exercise favorites ----------
@@ -868,6 +898,7 @@
   });
   exModalSearch.addEventListener("input", () => renderExerciseModalSearch(exModalSearch.value));
   clearExerciseBtn.addEventListener("click", clearSelectedExercise);
+  changeExerciseBtn.addEventListener("click", openExerciseModal);
 
   // ---------- File dropzone ----------
   const fileDrop = document.getElementById("file-drop");
@@ -895,6 +926,7 @@
   document.addEventListener("repcheck:language-changed", updateFileDropDisplay);
 
   loadServerHistory();
+  preselectLastExercise();
   document.addEventListener("repcheck:language-changed", renderRecentAnalyses);
 
   videoInput.addEventListener("change", updateFileDropDisplay);
@@ -1160,7 +1192,7 @@
     uploadView.style.display = "block";
     form.reset();
     updateFileDropDisplay();
-    clearSelectedExercise();
+    preselectLastExercise();
     // Re-fetch so a just-finished analysis shows up in the strip (the
     // server saved it during the analyze request).
     loadServerHistory();
