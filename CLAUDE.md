@@ -38,6 +38,13 @@ are template literals assigned via `innerHTML`. Any `t()` call carrying
 user-controlled data inside one needs an explicit `escapeHtml()`. There is no
 shared helper -- each file defines its own.
 
+## Versioning
+
+`VERSION` (4-digit `MAJOR.MINOR.PATCH.MICRO`) is the source of truth; `package.json`
+carries the npm-valid 3-digit translation of it. Both are bumped by `/ship`, which also
+writes the matching `CHANGELOG.md` entry and prefixes the PR title with `v<VERSION>`.
+Started at 0.1.0.0 -- anything before that shipped unversioned.
+
 ## Deploy Configuration (configured by /setup-deploy)
 - Platform: Render
 - Production URL: https://repcheck-q0m4.onrender.com
