@@ -968,6 +968,7 @@
 
       if (action === "set-category") return this.setCategory(target.dataset.value);
       if (action === "set-format") return this.setFormat(target.dataset.value);
+      if (action === "set-gender") return this.setGender(target.dataset.value);
       if (action === "set-scale") return this.setScale(target.dataset.value);
       if (action === "start-race") return this.startRace();
       if (action === "complete-segment") return this.completeSegment();
@@ -1067,6 +1068,16 @@
       // Half is Singles-only, so switching to Doubles must drop it rather
       // than silently racing a half-length Doubles nobody selected.
       if (value !== "singles") this.scale = "full";
+      this.render();
+    }
+
+    // Only reachable for a profile with no gender saved (see the gender
+    // step in buildSetupSteps()) -- everyone else has this.gender already
+    // filled in from profileGender() and never sees the question.
+    setGender(value) {
+      if (!GENDER_IDS.includes(value)) return;
+      this.gender = value;
+      this.stationWeights = {};
       this.render();
     }
 
@@ -2117,6 +2128,7 @@
           <div class="hx-choice-grid" data-group="category"></div>
           <div class="hx-step-label">${t("hyrox.step.format")}</div>
           <div class="hx-choice-grid" data-group="format"></div>
+          <div id="hx-gender-block"></div>
           <div id="hx-scale-block"></div>
           <div id="hx-training-space-block"></div>
           <div id="hx-pro-adjust-block"></div>
@@ -2141,6 +2153,30 @@
           </button>
         `));
       });
+
+      // Normally never shown: #109 stopped asking for gender here because
+      // onboarding already did, and profileGender() reads that answer
+      // straight off the coaching profile. But a user who reaches this page
+      // with no saved profile (never onboarded, storage cleared, a brand-new
+      // browser) has no gender anywhere, and every gendered weight/PB lookup
+      // below -- plus canStart() itself -- needs one. Without this the Start
+      // button just sat there permanently disabled with nothing explaining
+      // why and no way to fix it, so the race could never be started at all.
+      // Asking here is the same question the flow used to ask everyone, now
+      // shown only to the handful of users who still owe an answer.
+      const genderBlock = standardSteps.querySelector("#hx-gender-block");
+      if (this.needsGender() && !profileGender()) {
+        genderBlock.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.gender")}</div>`));
+        const genderGrid = el(`<div class="hx-choice-grid" data-group="gender"></div>`);
+        GENDER_IDS.forEach((id) => {
+          genderGrid.appendChild(el(`
+            <button type="button" class="hx-choice-card ${this.gender === id ? "is-selected" : ""}" data-action="set-gender" data-value="${id}">
+              <div class="hx-choice-title">${t(`hyrox.gender.${id}`)}</div>
+            </button>
+          `));
+        });
+        genderBlock.appendChild(genderGrid);
+      }
 
       // Half/full race length. Singles only (see SCALE_IDS) -- a Doubles
       // pair already halves the work between two people.
