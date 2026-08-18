@@ -672,39 +672,114 @@
     return { el: wrap, etaEl: wrap.querySelector("#ob-rate-eta") };
   }
 
+  // The bounds a goal weight may take, given which way the user said they
+  // want to move. A typed number let you set a goal on the WRONG side of
+  // your current weight -- "lose" with a goal above where you already are,
+  // which then drove a "Rate of weight loss" slider and a goal date for a
+  // gain. Deriving the range from aspiration makes that unreachable rather
+  // than merely discouraged. Whole kg, matching the ruler's tick unit, so
+  // the nearest legal value is always exactly on a tick.
+  function goalWeightBounds(aspiration, currentKg) {
+    const cur = parseFloat(currentKg) || 0;
+    if (aspiration === "lose") {
+      // Strictly below current: the highest legal goal is the last whole
+      // kg under it (69 for a 70 kg user, 69 for a 69.4 kg one).
+      const max = Math.min(MAX_WEIGHT_KG, Math.ceil(cur) - 1);
+      return { min: MIN_WEIGHT_KG, max, valid: max >= MIN_WEIGHT_KG };
+    }
+    if (aspiration === "gain") {
+      const min = Math.max(MIN_WEIGHT_KG, Math.floor(cur) + 1);
+      return { min, max: MAX_WEIGHT_KG, valid: min <= MAX_WEIGHT_KG };
+    }
+    return { min: MIN_WEIGHT_KG, max: MAX_WEIGHT_KG, valid: true };
+  }
+
+  const GOAL_RULER_TICK_PX = 14;
+
   function renderGoalWeightStep() {
-    const weightUnit = RepCheckUnits.weightUnitLabel();
-    const displayGoalWeight = w.goalWeightKg ? RepCheckUnits.kgToDisplay(parseFloat(w.goalWeightKg)) : "";
+    const bounds = goalWeightBounds(w.aspiration, w.weightKg);
+
+    // A goal carried in from a previous pass (or a previous aspiration)
+    // can sit outside the range this direction allows, so snap it in
+    // before drawing -- otherwise the wheel would open showing a value it
+    // cannot actually travel back to.
+    const seeded = parseFloat(w.goalWeightKg) || 0;
+    const startKg = bounds.valid
+      ? Math.max(bounds.min, Math.min(bounds.max, seeded > 0 ? Math.round(seeded) : (w.aspiration === "gain" ? bounds.min : bounds.max)))
+      : 0;
+    if (bounds.valid) w.goalWeightKg = String(startKg);
+
+    let cols = [];
+    if (bounds.valid) {
+      for (let kg = bounds.min; kg <= bounds.max; kg++) {
+        const isMajor = kg % 10 === 0;
+        const isMid = !isMajor && kg % 5 === 0;
+        cols.push(`
+          <div class="ob-goal-ruler-col">
+            <span class="ob-goal-ruler-collabel">${isMajor ? kg : ""}</span>
+            <span class="ob-goal-ruler-tick ${isMajor ? "is-major" : isMid ? "is-mid" : ""}"></span>
+          </div>
+        `);
+      }
+    }
+
+    // When there's no legal goal in this direction (current weight is
+    // already sitting on MIN_WEIGHT_KG/MAX_WEIGHT_KG), skip the ruler
+    // entirely rather than draw an empty, non-functional track -- just the
+    // blocked message below and a disabled Next.
     const wrap = el(`
       <div>
         <div class="ob-wizard-step-label">${t("coaching.wizard.stepGoalWeight")}</div>
-        <div class="ob-field">
-          <label for="ob-goal-weight-kg">${t("coaching.wizard.goalWeight", { unit: weightUnit })}</label>
-          <input type="number" id="ob-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}" data-clear-on-focus>
-          <div class="ob-field-hint" id="ob-goal-weight-hint"></div>
+        ${bounds.valid ? `
+        <div class="ob-goal-ruler">
+          <div class="ob-goal-ruler-value" id="ob-goal-value"></div>
+          <div class="ob-goal-ruler-delta" id="ob-goal-weight-hint"></div>
+          <div class="ob-goal-ruler-window">
+            <div class="ob-goal-ruler-indicator"></div>
+            <div class="ob-goal-ruler-scroll" id="ob-goal-scroll" tabindex="0"
+                 role="slider" aria-valuemin="${bounds.min}" aria-valuemax="${bounds.max}"
+                 aria-label="${t("coaching.wizard.goalWeight", { unit: RepCheckUnits.weightUnitLabel() })}">
+              <div class="ob-goal-ruler-pad" id="ob-goal-pad-start"></div>
+              ${cols.join("")}
+              <div class="ob-goal-ruler-pad" id="ob-goal-pad-end"></div>
+            </div>
+          </div>
+          <div class="ob-goal-ruler-bounds">
+            <span>${RepCheckUnits.formatWeightKg(bounds.min)}</span>
+            <span>${RepCheckUnits.formatWeightKg(bounds.max)}</span>
+          </div>
         </div>
+        ` : `<div class="ob-field-hint" id="ob-goal-weight-hint"></div>`}
       </div>
     `);
-    const goalInput = wrap.querySelector("#ob-goal-weight-kg");
+    const scrollEl = wrap.querySelector("#ob-goal-scroll");
+    const valueEl = wrap.querySelector("#ob-goal-value");
     const hintEl = wrap.querySelector("#ob-goal-weight-hint");
     const updateHint = () => {
       const cur = parseFloat(w.weightKg) || 0;
       const goal = parseFloat(w.goalWeightKg) || 0;
-      if (goal > 0 && goal < MIN_WEIGHT_KG) {
-        hintEl.textContent = t("coaching.wizard.minWeightHint", { min: RepCheckUnits.formatWeightKg(MIN_WEIGHT_KG) });
-        return;
-      }
       hintEl.textContent = cur > 0 && goal > 0
         ? t("coaching.wizard.goalWeightHint", { diff: RepCheckUnits.formatWeightKg(Math.abs(cur - goal)), weight: RepCheckUnits.formatWeightKg(cur) })
         : "";
     };
+
+    if (!bounds.valid) {
+      // Current weight sits right at MIN_WEIGHT_KG (lose) or MAX_WEIGHT_KG
+      // (gain), leaving no legal goal on the requested side at all -- the
+      // ruler has nowhere to go, so don't draw one a user could scroll
+      // forever without ever landing on a value.
+      hintEl.textContent = t("coaching.wizard.goalNoRoomHint");
+      wrap.appendChild(renderWizardActions(false));
+      return wrap;
+    }
+
     updateHint();
 
     // No-op unless the rate field below actually exists (aspiration is
-    // lose/gain) -- goalInput's own listener at the bottom of this function
-    // calls this unconditionally so typing a new goal weight keeps the ETA
-    // under the rate slider in sync, without the two listeners needing to
-    // know about each other's state.
+    // lose/gain) -- the ruler's own scroll listener further down calls this
+    // unconditionally so scrolling to a new goal weight keeps the ETA under
+    // the rate slider in sync, without the two listeners needing to know
+    // about each other's state.
     let updateRateEta = () => {};
 
     // Rate-of-change slider: only meaningful when actually moving away
@@ -740,18 +815,56 @@
       wrap.appendChild(rateSlider.el);
     }
 
-    const canProceed = () => {
-      const gv = parseFloat(w.goalWeightKg);
-      return gv >= MIN_WEIGHT_KG && gv <= MAX_WEIGHT_KG;
-    };
-    wrap.appendChild(renderWizardActions(canProceed()));
-    const nextBtn = wrap.querySelector('[data-action="next"]');
-    goalInput.addEventListener("input", (e) => {
-      w.goalWeightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
+    // The ruler can never land on a value outside [bounds.min, bounds.max]
+    // by construction (every column is clamped, same reasoning as the
+    // current-weight ruler above), so unlike the old text input there's
+    // nothing left to validate here -- Next only needs updateRateEta/hint
+    // wiring, not a disabled toggle.
+    wrap.appendChild(renderWizardActions(true));
+
+    // Each column's own scroll-snap point is its CENTRE, not its left
+    // edge -- `scroll-snap-align: center` means the browser settles at
+    // `padStart + i*TICK + TICK/2`, half a tick past where a naive
+    // `i*TICK` would put it. Both the initial scrollLeft and the
+    // scroll-handler's inverse of it have to use the same offset or the
+    // rest position for a given kg drifts by one tick from what the
+    // native snap actually lands on (confirmed against this build: with
+    // no `-TICK/2` term, landing exactly at the left bound read back one
+    // kg higher than the bound itself).
+    const GOAL_RULER_HALF_TICK = GOAL_RULER_TICK_PX / 2;
+    valueEl.textContent = RepCheckUnits.formatWeightKg(startKg);
+    scrollEl.setAttribute("aria-valuenow", startKg);
+    scrollEl.addEventListener("scroll", () => {
+      const index = Math.round((scrollEl.scrollLeft - GOAL_RULER_HALF_TICK) / GOAL_RULER_TICK_PX);
+      const kg = Math.max(bounds.min, Math.min(bounds.max, bounds.min + index));
+      w.goalWeightKg = String(kg);
+      scrollEl.setAttribute("aria-valuenow", kg);
+      valueEl.textContent = RepCheckUnits.formatWeightKg(kg);
       updateHint();
       updateRateEta();
-      nextBtn.disabled = !canProceed();
+    }, { passive: true });
+
+    // The left/right pads have to be exactly half the window's width so
+    // the first and last ticks can still scroll to the centre indicator --
+    // computed from the measured element rather than hardcoded, since the
+    // window is fluid-width, not a fixed px box like the vertical ruler.
+    // setTimeout (not requestAnimationFrame) matches renderHeightStep's
+    // reasoning: the wrap must be attached to the document and laid out
+    // before getBoundingClientRect()/scrollTo() are meaningful, and
+    // wizard navigation attaches it synchronously right after this
+    // function returns, one tick later than rAF would allow.
+    setTimeout(() => {
+      // Rounded to a whole px: a fractional pad width (e.g. 143.5px) shifts
+      // the browser's true scrollLeft=0 a few px off from where the tick
+      // math expects it, so the leftmost bound becomes unreachable by one
+      // or two kg even though the pad and the ticks are otherwise correct.
+      const windowEl = wrap.querySelector(".ob-goal-ruler-window");
+      const halfWidth = windowEl ? Math.round(windowEl.getBoundingClientRect().width / 2) : 0;
+      wrap.querySelector("#ob-goal-pad-start").style.width = `${halfWidth}px`;
+      wrap.querySelector("#ob-goal-pad-end").style.width = `${halfWidth}px`;
+      scrollEl.scrollLeft = (startKg - bounds.min) * GOAL_RULER_TICK_PX + GOAL_RULER_TICK_PX / 2;
     });
+
     return wrap;
   }
 
