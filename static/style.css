@@ -1156,7 +1156,7 @@ input[type="file"], select {
     font-family: inherit;
     cursor: pointer;
     text-align: center;
-    transition: transform 0.12s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+    transition: transform 0.12s ease, border-color 0.16s ease;
   }
   /* No glow anywhere in this sheet: hover moves the border, never paints
      a shadow. A drop shadow under a tile reads as a halo on the dark
