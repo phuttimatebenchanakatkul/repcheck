@@ -720,6 +720,11 @@
 
       const DURATION = 300;
       let busy = false;
+      // Handle for the in-flight slide's cleanup. reset() MUST cancel it:
+      // that cleanup hides the pane the slide moved away from, so if the
+      // sheet is dismissed mid-slide it would land afterwards and hide the
+      // actions pane reset() just restored -- next open showed an empty sheet.
+      let slideTimer = null;
 
       function go(from, to, forward) {
         if (busy || from === to) return;
@@ -738,7 +743,8 @@
         to.classList.remove("is-pre-right", "is-pre-left");
         wrap.style.height = target + "px";
 
-        window.setTimeout(function () {
+        slideTimer = window.setTimeout(function () {
+          slideTimer = null;
           wrap.classList.remove("is-animating");
           from.hidden = true;
           from.classList.remove("is-out-left", "is-out-right");
@@ -756,7 +762,10 @@
       // Always reopen on the actions pane. Reset without animating, and only
       // once the sheet is fully closed so the swap is never visible.
       function reset() {
-        if (more.hidden) return;
+        if (slideTimer !== null) {
+          window.clearTimeout(slideTimer);
+          slideTimer = null;
+        }
         more.hidden = true;
         actions.hidden = false;
         more.classList.remove("is-out-left", "is-out-right", "is-pre-left", "is-pre-right");

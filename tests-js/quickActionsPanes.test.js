@@ -185,6 +185,31 @@ describe("quick-actions sliding More pane", () => {
     expect(actions().hidden).toBe(true);
   });
 
+  it("does not let an aborted slide land after the sheet was dismissed", () => {
+    // The abort race: the slide schedules cleanup 300ms out, and that cleanup
+    // hides whichever pane it was moving AWAY from. Dismiss the sheet inside
+    // that window and the cleanup still fires -- hiding the actions pane that
+    // reset() just restored, leaving the next open showing an EMPTY sheet.
+    openBtn().click();
+    fab().click(); // dismissed mid-slide
+    settle(); // the aborted slide's cleanup would fire here
+
+    expect(actions().hidden).toBe(false);
+    expect(more().hidden).toBe(true);
+    expect(openBtn().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("shows the tiles again on the next open after an aborted slide", () => {
+    openBtn().click();
+    fab().click();
+    settle();
+
+    fab().click(); // reopen
+
+    expect(actions().hidden).toBe(false);
+    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(5);
+  });
+
   it("does not throw when the sheet markup is absent", () => {
     // base.html loads on every page; a template that omits the sheet must
     // not take the whole inline script down with it.
