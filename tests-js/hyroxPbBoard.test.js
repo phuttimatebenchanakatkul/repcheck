@@ -120,7 +120,19 @@ describe("getPbBoards", () => {
     expect(boards).toHaveLength(4);
   });
 
-  it("orders boards most-recently-raced first, so the default tab is what you last did", () => {
+  it("orders boards by race count, so the default tab has the most to rank", () => {
+    // A one-race board is a single row with no gap to compare against --
+    // the least useful thing to land on, however recently it was raced.
+    const boards = app([
+      race({ category: "open", date: "2026-01-01T10:00:00.000Z" }),
+      race({ category: "open", date: "2026-01-02T10:00:00.000Z" }),
+      race({ category: "pro", date: "2026-03-01T10:00:00.000Z" }),
+    ]).getPbBoards();
+
+    expect(boards.map((b) => b.category)).toEqual(["open", "pro"]);
+  });
+
+  it("breaks a race-count tie by most recently raced", () => {
     const boards = app([
       race({ category: "open", date: "2026-01-01T10:00:00.000Z" }),
       race({ category: "pro", date: "2026-03-01T10:00:00.000Z" }),
@@ -205,9 +217,12 @@ describe("renderPbBoard", () => {
     expect(row.getAttribute("tabindex")).toBe("0");
   });
 
-  it("shows a tab per combo once there is more than one, defaulting to the most recent", () => {
+  it("shows a tab per combo once there is more than one, defaulting to the fullest board", () => {
     const card = app([
       race({ category: "open", date: "2026-01-01T10:00:00.000Z", totalSeconds: 4200 }),
+      race({ category: "open", date: "2026-01-02T10:00:00.000Z", totalSeconds: 4260 }),
+      // Raced more recently, but a single race -- must not win the default
+      // over the two-race board next to it.
       race({ category: "pro", date: "2026-03-01T10:00:00.000Z", totalSeconds: 4400 }),
     ]).renderPbBoard();
 
@@ -217,7 +232,7 @@ describe("renderPbBoard", () => {
     expect(tabs.filter((tab) => tab.classList.contains("is-active"))).toHaveLength(1);
     expect(tabs[0].dataset.action).toBe("set-pb-board");
     // The active tab's board is the one rendered, not just the one highlighted.
-    expect(timesOf(card)).toEqual(["1:13:20"]);
+    expect(timesOf(card)).toEqual(["1:10:00", "1:11:00"]);
   });
 
   it("names the combo in plain text instead of a one-option tab bar", () => {

@@ -753,7 +753,7 @@
       // default same as analysisExpanded above.
       this.pbExpandedFormats = new Set();
       // Which of the personal-best board's combo tabs is selected (a
-      // pbKeyFor() key). null = "whichever combo you raced most recently",
+      // pbKeyFor() key). null = "whichever combo you have raced most",
       // resolved at render time so a first visit -- or a visit after the
       // selected combo's last race was deleted -- lands on a real tab
       // instead of an empty board. See renderPbBoard().
@@ -985,9 +985,11 @@
     // board: it covers half the distance, so it would win every time and
     // mean nothing.
     //
-    // Boards are ordered most-recently-raced first, so the default tab is
-    // whatever the user was last actually doing; entries within a board are
-    // fastest-first, which is what the board ranks by.
+    // Boards are ordered by how many races they hold, most first, so the
+    // default tab is the combo with the most to rank -- a board of one
+    // race is a single row with no gaps to compare against, which is the
+    // least useful thing to land on. Ties break most-recently-raced first.
+    // Entries within a board are fastest-first, which is what it ranks by.
     getPbBoards() {
       const byKey = new Map();
       this.history.forEach((r) => {
@@ -1002,7 +1004,7 @@
       });
       const boards = Array.from(byKey.values());
       boards.forEach((b) => b.entries.sort((a, c) => a.totalSeconds - c.totalSeconds));
-      boards.sort((a, b) => b.latest - a.latest);
+      boards.sort((a, b) => b.entries.length - a.entries.length || b.latest - a.latest);
       return boards;
     }
 
