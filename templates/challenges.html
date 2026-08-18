@@ -49,9 +49,14 @@
   <button type="button" data-scope="friends" data-i18n="challenges.friends">Friends</button>
   <button type="button" data-scope="global" data-i18n="challenges.global">Global</button>
 </div>
+<!-- Your own standing is the FIRST child so it can stick to the top of the
+     scroller while the rest of the board passes underneath it; it is also
+     the only place you appear (renderLeaderboard filters you out of the
+     list below). -->
 <div class="ch-lb-card">
+  <div class="ch-lb-me-pin" id="ch-lb-me"></div>
   <div class="ch-lb-full-list" id="ch-lb-full-list"></div>
-  <div id="ch-lb-me"></div>
+  <div class="ch-lb-foot" id="ch-lb-foot"></div>
 </div>
 
 <div class="ch-overlay" id="ch-record-overlay">
@@ -166,46 +171,73 @@
 
   /* ---------- Leaderboard section (inline on the page now, not a sheet) ---------- */
   .ch-section-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; margin: 0 4px 10px; }
+  /* No padding-top: the pinned row below supplies its own, so that when it
+     sticks there is no strip of card above it for rows to scroll through. */
   .ch-lb-card {
     background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow);
-    padding: 16px; margin-bottom: 18px;
+    padding: 0 0 6px; margin-bottom: 18px;
   }
-  .ch-lb-full-list { display: flex; flex-direction: column; gap: 8px; }
-  .ch-lb-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 14px 0; }
+  .ch-lb-full-list { display: flex; flex-direction: column; padding: 0 8px; }
+  .ch-lb-empty { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 18px 0; }
+  .ch-lb-foot {
+    font-size: 11.5px; color: var(--text-secondary); text-align: center;
+    padding: 12px 12px 6px; line-height: 1.55;
+  }
+  .ch-lb-foot:empty { display: none; }
+  .ch-lb-foot a { color: var(--blue); font-weight: 700; text-decoration: none; }
 
-  /* Each competitor's row: reps + name on the left, rank + total on the
-     right -- same layout language as the Hyrox leaderboard, so both
-     leaderboards in the app read as one consistent design. */
-  .ch-lb-entry-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 14px;
-    padding: 13px 16px; background: var(--bg); border-radius: 14px;
+  /* Your standing stays put while the board scrolls beneath it, so your
+     rank is never more than a glance away no matter how far down you are.
+     The card is the sticky container, so it releases naturally once the
+     leaderboard scrolls off -- no fixed positioning, no JS. */
+  .ch-lb-me-pin {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 8px 8px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ch-lb-me-pin:empty { display: none; }
+
+  /* ONE row component for every entry on the board, yours included. Your
+     row is this same markup with a blue tint and a "You" label -- nothing
+     in the list uses a layout your own row doesn't, and you appear in
+     exactly one place. */
+  .ch-lb-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: var(--radius-md);
     border: 1px solid transparent;
   }
-  .ch-lb-entry-row.is-me { background: var(--blue-bg); border-color: rgba(52, 104, 224, 0.25); }
-  .ch-lb-entry-value { font-size: 17px; font-weight: 800; line-height: 1.15; }
-  .ch-lb-entry-name { font-size: 12px; color: var(--text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ch-lb-entry-right { text-align: right; flex-shrink: 0; }
-  .ch-lb-entry-rank { font-size: 14px; font-weight: 800; }
-  .ch-lb-entry-total { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+  .ch-lb-rank { width: 56px; flex-shrink: 0; line-height: 1; }
+  .ch-lb-body { flex: 1; min-width: 0; }
+  .ch-lb-label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ch-lb-reps { font-weight: 800; line-height: 1.15; margin-top: 3px; }
+  .ch-lb-meta { font-size: 11.5px; color: var(--text-secondary); flex-shrink: 0; align-self: flex-start; }
 
-  /* The current user's own standing -- numbered badge (gold for top 3),
-     reps + name, trophy, plus a plain-language rank caption underneath. */
-  .ch-lb-me-card {
-    display: flex; align-items: center; gap: 14px;
-    padding: 13px 16px; margin-top: 8px;
-    background: var(--blue-bg); border-radius: 14px;
+  /* The big numeral is deliberately scarce -- you and the podium only. If
+     all 25 rows had it, none of it would read. */
+  .ch-lb-row.is-me { background: var(--blue-bg); border-color: rgba(52, 104, 224, 0.28); }
+  .ch-lb-row.is-me .ch-lb-rank { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; }
+  .ch-lb-row.is-me .ch-lb-label { color: var(--blue); }
+  .ch-lb-row.is-me .ch-lb-reps { font-size: 20px; }
+
+  .ch-lb-row.is-podium .ch-lb-rank { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; }
+  .ch-lb-row.is-podium .ch-lb-reps { font-size: 20px; }
+  /* Flat amber on the winner, not the gradient badge -- one accent, no glow. */
+  .ch-lb-row.is-podium[data-rank="1"] .ch-lb-rank { color: #e8a33f; }
+
+  .ch-lb-row.is-rest .ch-lb-rank { font-size: 15px; font-weight: 800; color: var(--text-secondary); }
+  .ch-lb-row.is-rest .ch-lb-reps { font-size: 17px; }
+
+  @media (max-width: 380px) {
+    .ch-lb-row { padding: 12px 12px; gap: 10px; }
+    .ch-lb-rank { width: 46px; }
+    .ch-lb-row.is-me .ch-lb-rank,
+    .ch-lb-row.is-podium .ch-lb-rank { font-size: 27px; }
   }
-  .ch-lb-me-badge {
-    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 800; background: var(--card-bg); color: var(--text);
-  }
-  .ch-lb-me-badge.is-top { background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff; }
-  .ch-lb-me-info { flex: 1; min-width: 0; }
-  .ch-lb-me-value { font-size: 17px; font-weight: 800; line-height: 1.15; }
-  .ch-lb-me-name { font-size: 12px; color: var(--text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ch-lb-me-trophy { color: var(--blue); flex-shrink: 0; display: flex; }
-  .ch-lb-me-caption { margin-top: 10px; text-align: center; font-size: 11px; font-weight: 700; color: var(--blue); }
 
   .ch-lb-scope-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
   .ch-lb-scope-tabs button {
@@ -418,10 +450,11 @@
       }
     }
 
-    // Row layout: reps + name on the left, rank + total on the right --
-    // same design language as the Hyrox leaderboard (see static/hyrox.js's
-    // renderLeaderboardCard), so both leaderboards in the app look and
-    // read as one consistent system.
+    // Only the top 25 are listed. Your own standing is pinned above them
+    // and is never also in the list, so however deep the board goes you
+    // still see your rank without scrolling and only ever once.
+    const LB_LIMIT = 25;
+
     // Display names come from other accounts and are stored exactly as
     // typed (the server strips whitespace, nothing more), so they have to
     // be escaped before reaching innerHTML -- an unescaped name on the
@@ -432,57 +465,71 @@
       return div.innerHTML;
     }
 
-    function renderLeaderboardRows(container, rows, meId, totalEntries) {
-      container.innerHTML = "";
-      if (!rows.length) {
-        // The empty first-place block carries what the headline can't:
-        // the spot exists and nobody is standing on it yet.
-        container.appendChild(el(RepCheckMascot.emptyState({
-          pose: "podium",
-          title: t("challenges.emptyTitle"),
-          sub: t("challenges.emptySub"),
-        })));
-        return;
-      }
-      rows.forEach((row, i) => {
-        const rank = i + 1;
-        container.appendChild(el(`
-          <div class="ch-lb-entry-row ${row.user_id === meId ? "is-me" : ""}">
-            <div>
-              <div class="ch-lb-entry-value">${row.total_reps} ${t("challenges.reps")}</div>
-              <div class="ch-lb-entry-name">${escapeHtml(row.name)}${row.user_id === meId ? t("challenges.you") : ""}</div>
-            </div>
-            <div class="ch-lb-entry-right">
-              <div class="ch-lb-entry-rank">#${rank}</div>
-              <div class="ch-lb-entry-total">${t("challenges.of", { n: totalEntries })}</div>
-            </div>
+    // The one row component for every entry on the board. Yours is this
+    // same markup with `is-me`; nothing in the list uses a layout your own
+    // row doesn't have. Only the numeral scale varies, and only for you
+    // and the podium -- if all 25 rows shouted, none of them would read.
+    function lbRow({ rank, label, reps, kind, meta }) {
+      return `
+        <div class="ch-lb-row ${kind}" data-rank="${rank}">
+          <div class="ch-lb-rank">${kind === "is-rest" ? "" : "#"}${rank}</div>
+          <div class="ch-lb-body">
+            <div class="ch-lb-label">${escapeHtml(label)}</div>
+            <div class="ch-lb-reps">${reps} ${t("challenges.reps")}</div>
           </div>
-        `));
-      });
+          <div class="ch-lb-meta">${meta}</div>
+        </div>`;
     }
 
-    // The current user's own standing -- a numbered badge (gold for a
-    // top-3 finish), reps + name, and a trophy, plus a rank caption
-    // underneath. Shown even when "myRank" falls outside whatever rows
-    // are displayed (see api_leaderboard's unlimited rank lookup).
-    function renderMeCard(container, myRank, totalEntries) {
-      container.innerHTML = "";
-      if (!myRank) return;
-      container.appendChild(el(`
-        <div>
-          <div class="ch-lb-me-card">
-            <div class="ch-lb-me-badge ${myRank.rank <= 3 ? "is-top" : ""}">${myRank.rank}</div>
-            <div class="ch-lb-me-info">
-              <div class="ch-lb-me-value">${myRank.total_reps} ${t("challenges.reps")}</div>
-              <div class="ch-lb-me-name">${escapeHtml(myRank.name)}</div>
-            </div>
-            <div class="ch-lb-me-trophy">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3a2 2 0 0 1 2 2v1a4 4 0 0 1-4 4M7 5H4a2 2 0 0 0-2 2v1a4 4 0 0 0 4 4"/></svg>
-            </div>
-          </div>
-          <div class="ch-lb-me-caption">${t("challenges.rankCaption", { rank: myRank.rank, total: totalEntries })}</div>
-        </div>
-      `));
+    // The right-hand slot says "of N" on your row and the rep gap on
+    // everyone else's, so every row's meta column means something rather
+    // than being blank on all but one.
+    function lbGap(reps, myReps) {
+      if (myReps == null) return "";
+      const d = reps - myReps;
+      if (d === 0) return t("challenges.tied");
+      return d > 0 ? `+${d}` : `${d}`;
+    }
+
+    function renderLeaderboard(listEl, meEl, footEl, data) {
+      const total = data.totalEntries;
+      const myRank = data.myRank;
+      const rows = (data.leaderboard || []).map((row, i) => ({ ...row, rank: i + 1 }));
+      // You are pinned above; being in both places is the duplicate-entry
+      // bug this layout replaces.
+      const others = rows.filter((row) => row.user_id !== data.me);
+
+      meEl.innerHTML = myRank
+        ? lbRow({
+            rank: myRank.rank,
+            label: t("challenges.youLabel"),
+            reps: myRank.total_reps,
+            kind: "is-me",
+            meta: t("challenges.of", { n: total }),
+          })
+        : "";
+
+      const myReps = myRank ? myRank.total_reps : null;
+      if (others.length) {
+        listEl.innerHTML = others
+          .map((row) => lbRow({
+            rank: row.rank,
+            label: row.name,
+            reps: row.total_reps,
+            kind: row.rank <= 3 ? "is-podium" : "is-rest",
+            meta: lbGap(row.total_reps, myReps),
+          }))
+          .join("");
+      } else {
+        // You're the only one here. Your pinned row already says so, so the
+        // list stays empty and the footer carries the one useful action.
+        listEl.innerHTML = myRank ? "" : `<div class="ch-lb-empty">${t("challenges.empty")}</div>`;
+      }
+
+      // A short board reads as broken unless you say it's short on purpose.
+      footEl.innerHTML = total > rows.length
+        ? t("challenges.showingTop", { n: rows.length, total })
+        : `${t("challenges.thatsEveryone")} <a href="/friends">${t("challenges.inviteFriends")}</a>`;
     }
 
     // Default to Global -- everyone, not just friends -- so a new user
@@ -496,14 +543,15 @@
     async function loadFullLeaderboard() {
       const listEl = document.getElementById("ch-lb-full-list");
       const meEl = document.getElementById("ch-lb-me");
+      const footEl = document.getElementById("ch-lb-foot");
       listEl.innerHTML = `<div class="ch-lb-empty">${t("common.loading")}</div>`;
       meEl.innerHTML = "";
-      const res = await fetch(`/api/leaderboard?scope=${lbScope}&limit=50`);
+      footEl.innerHTML = "";
+      const res = await fetch(`/api/leaderboard?scope=${lbScope}&limit=${LB_LIMIT}`);
       const data = await res.json();
       if (!data.ok) return;
       myUserId = data.me;
-      renderLeaderboardRows(listEl, data.leaderboard, data.me, data.totalEntries);
-      renderMeCard(meEl, data.myRank, data.totalEntries);
+      renderLeaderboard(listEl, meEl, footEl, data);
     }
     document.querySelectorAll("#ch-lb-scope-tabs button").forEach((btn) => {
       btn.addEventListener("click", () => {

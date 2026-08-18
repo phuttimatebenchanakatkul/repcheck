@@ -47,9 +47,15 @@ def test_hyrox_leaderboard_escapes_competitor_names():
 
 def test_challenges_leaderboard_escapes_competitor_names():
     src = read("templates/challenges.html")
-    assert "${escapeHtml(row.name)}" in src, "challenge board rows must escape row.name"
-    assert "${escapeHtml(myRank.name)}" in src, "the me-card must escape myRank.name"
+    # All rows (yours included) render through the single lbRow() component,
+    # which escapes its `label` before interpolating -- so the guarantee is
+    # that row.name only ever reaches the DOM as that escaped label, and
+    # never through a second, unescaped interpolation.
+    assert "${escapeHtml(label)}" in src, "lbRow() must escape label before interpolating"
+    assert "label: row.name" in src, "leaderboard rows must route row.name through lbRow's label"
     assert "${row.name}" not in src, "found a raw ${row.name}"
+    # myRank.name isn't displayed at all -- your own pinned row shows a
+    # fixed "You" label instead, so there's no raw-name sink to guard here.
     assert "${myRank.name}" not in src, "found a raw ${myRank.name}"
 
 
