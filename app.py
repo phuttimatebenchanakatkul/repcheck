@@ -945,6 +945,9 @@ def analyze_page():
         i18n_page="analyze",
         exercise_icons=EXERCISE_ICONS,
         exercise_videos=EXERCISE_VIDEOS,
+        # Feeds the picker's "Suggested" tab when the user has no split
+        # plan yet -- see getDefaultSuggestions() in index.html.
+        exercise_categories=EXERCISE_CATEGORIES,
     )
 
 
@@ -2342,7 +2345,7 @@ def analyze():
             return jsonify({"ok": False, "error": message}), 400
         return render_template(
             "index.html", exercise_library=EXERCISE_LIBRARY, active_nav="analyze", i18n_page="analyze",
-            exercise_videos=EXERCISE_VIDEOS, error=message
+            exercise_videos=EXERCISE_VIDEOS, exercise_categories=EXERCISE_CATEGORIES, error=message
         )
 
     video_file = request.files.get("video")

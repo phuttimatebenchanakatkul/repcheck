@@ -1457,6 +1457,51 @@ input[type="file"], select {
   .log-sheet-overlay.is-entering .log-sheet-body { animation: none; }
 }
 
+/* ---------- Exercise picker: scope segments + favorite heart ----------
+   Shared by the workouts log sheet and the analyze page's picker, which
+   both show one filtered list under an iOS-style segmented control. Lives
+   here rather than inline in either template so the two can't drift. */
+.ex-scope-seg {
+  display: flex; gap: 2px;
+  background: var(--sidebar-active);
+  border-radius: 9px;
+  padding: 2px;
+  margin: 0 0 12px;
+}
+.ex-scope-seg button {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+}
+.ex-scope-seg button.is-active {
+  background: var(--card-bg);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+.ex-modal-result-item span:nth-child(2) { flex: 1; }
+.ex-modal-result-fav {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.ex-modal-result-fav:hover { opacity: 1; color: var(--red); }
+.ex-modal-result-fav:active { transform: scale(0.85); }
+.ex-modal-result-fav.is-fav { color: var(--red); opacity: 1; }
+
 /* ---------- "Log weight" quick-action popup (base.html) ---------- */
 .lw-modal-overlay {
   position: fixed;
