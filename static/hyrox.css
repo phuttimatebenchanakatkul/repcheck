@@ -1056,15 +1056,15 @@
   .hx-pb-lb-row.is-podium .hx-pb-lb-rank { font-size: 26px; }
 }
 
-/* ---------- "Your personal bests" card (renderMyBestsCard()) ----------
+/* ---------- Personal-bests card header (renderMyBestsCard(), renderPbBoard()) ----
    Trophy-badge header matches the Leaderboard card's own .hx-lb-trophy
-   treatment (same gradient/shadow) so the two cards read as one family. */
+   treatment (same gradient) so the cards read as one family -- but flat,
+   with no tinted glow behind the badge. */
 .pb-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .pb-trophy {
   width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
-  box-shadow: 0 6px 14px rgba(185, 131, 42, 0.35);
 }
 .pb-trophy svg { width: 15px; height: 15px; }
 .pb-header .hx-step-label { margin-bottom: 0; }
