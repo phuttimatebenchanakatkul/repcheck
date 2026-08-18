@@ -30,9 +30,18 @@ Accent colors (same hex in both themes, only the `-bg` tint flips):
 | `--pink` | `#c0398c` | `#fbeaf4` | `#3a1830` |
 
 Icon badges use a gradient of the accent, not the flat hex — e.g. green:
-`linear-gradient(135deg, #29b87e, var(--green))`, with a matching tinted
-box-shadow (`0 6px 14px rgba(31, 169, 113, 0.42)` for green). Follow this
-pattern for any new colored icon badge instead of a flat fill.
+`linear-gradient(135deg, #29b87e, var(--green))`. Follow this pattern for any
+new colored icon badge instead of a flat fill.
+
+The gradient is the whole treatment: no tinted `box-shadow` glow behind it.
+This doc used to prescribe one (`0 6px 14px rgba(31, 169, 113, 0.42)` for
+green) and it was removed everywhere it got applied — see
+`fix/remove-cta-glow-effect`, `fix/remove-af-icon-glow`, the HYROX
+add-a-station tiles, and the personal-bests trophy badge. A colored halo on
+every badge reads as decoration competing with the accent it is supposed to
+carry. Elevation still belongs on things that actually sit above the page
+(`--shadow` on cards, the hover lift on interactive rows — see Layout); it
+does not belong on a badge that is flush inside one.
 
 Exception, and increasingly the default: the quick-actions sheet's tiles
 (`.qa-*` in `static/style.css`) use FLAT accent fills with no tinted
