@@ -287,6 +287,50 @@ describe("renderPbBoard", () => {
     expect(labels.some((l) => l.includes("hyrox.scale.half.title"))).toBe(true);
   });
 
+  it("escapes the combo label instead of letting a stored record inject markup", () => {
+    // Regression: renderPbBoard builds its tabs as template literals assigned
+    // via innerHTML, and comboLabel() routes through RepCheckI18n.t(), which
+    // substitutes vars with split/join and does NOT escape. A record whose
+    // category is not one of the fixed ids (setCategory takes whatever
+    // data-value it gets, and records also arrive via account sync) reaches
+    // that interpolation verbatim. Verified live against the real English
+    // dictionary before the fix: one injected <img> per poisoned field.
+    const evil = '"><img src=x onerror=alert(1)>';
+    // t() is stubbed to substitute the way the real one does, or this test
+    // passes for the wrong reason (a stub that drops vars injects nothing).
+    globalThis.RepCheckI18n.t = (key, vars) => {
+      let out = key === "hyrox.finishLabel" ? "{gender} {category} {format}" : key;
+      if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(v);
+      return out;
+    };
+
+    const card = app([
+      race({ category: evil, totalSeconds: 4200 }),
+      race({ category: "open", totalSeconds: 4300 }),
+    ]).renderPbBoard();
+
+    expect(card.querySelectorAll("img")).toHaveLength(0);
+    // The label still shows the raw text, just as text rather than markup.
+    expect(card.textContent).toContain("<img src=x");
+  });
+
+  it("escapes the board key before it lands in a double-quoted attribute", () => {
+    // escapeHtml() alone does not escape the double quote, so the key -- which
+    // is built from the same untrusted category/format/gender -- would break
+    // out of data-key="..." and become new attributes.
+    const evil = '" onmouseover="alert(1)';
+    const card = app([
+      race({ category: evil, totalSeconds: 4200 }),
+      race({ category: "open", totalSeconds: 4300 }),
+    ]).renderPbBoard();
+
+    const tabs = [...card.querySelectorAll(".hx-lb-tab")];
+    expect(tabs).toHaveLength(2);
+    expect(tabs.some((tab) => tab.hasAttribute("onmouseover"))).toBe(false);
+    // The key still round-trips intact, so selecting that tab still works.
+    expect(tabs.some((tab) => tab.dataset.key.includes(evil))).toBe(true);
+  });
+
   it("shows the sprinting mascot -- not an empty list -- when nothing is rankable yet", () => {
     const card = app([race({ category: "custom" })]).renderPbBoard();
 

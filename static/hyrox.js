@@ -605,6 +605,15 @@
     return div.innerHTML;
   }
 
+  // escapeHtml() is a textContent round-trip, so it escapes & < > but NOT the
+  // double quote -- fine for element text, useless for a value going into a
+  // double-quoted HTML attribute, where a bare " ends the attribute and the
+  // rest of the string becomes markup. Anything interpolated into an
+  // attribute in a template literal needs this one instead.
+  function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, "&quot;");
+  }
+
   // Both toast variants share the same fixed bottom-center slot, so only
   // one can be legible at a time -- clear any toast of EITHER class, not
   // just this one's own, before inserting (a delayed save-error toast
@@ -1012,9 +1021,16 @@
     // gender/category/format; scale isn't in it (history rows don't need
     // it) but it IS part of the board's identity, so a Half board has to
     // say so or two tabs would read identically.
+    // Escaped, because this lands in a template literal assigned via
+    // innerHTML and comboLabel() builds it through RepCheckI18n.t(), which
+    // substitutes its vars with split/join and does NOT escape them. For a
+    // combo the app itself offers this is inert, but category/format/gender
+    // reach here straight off a stored history record -- setCategory() takes
+    // whatever data-value it is handed, and records also arrive from account
+    // sync -- so the string is not guaranteed to be one of the fixed ids.
     pbBoardLabel(board) {
-      const base = comboLabel(board.gender, board.category, board.format);
-      return board.scale === "half" ? `${base} · ${t("hyrox.scale.half.title")}` : base;
+      const base = escapeHtml(comboLabel(board.gender, board.category, board.format));
+      return board.scale === "half" ? `${base} · ${escapeHtml(t("hyrox.scale.half.title"))}` : base;
     }
 
     // ---------- Event handling ----------
@@ -3225,7 +3241,7 @@
         const tabsEl = el(`<div class="hx-lb-tabs"></div>`);
         boards.forEach((b) => {
           tabsEl.appendChild(el(`
-            <button type="button" class="hx-lb-tab ${b.key === active.key ? "is-active" : ""}" data-action="set-pb-board" data-key="${b.key}">
+            <button type="button" class="hx-lb-tab ${b.key === active.key ? "is-active" : ""}" data-action="set-pb-board" data-key="${escapeAttr(b.key)}">
               ${this.pbBoardLabel(b)}
             </button>
           `));
@@ -3278,10 +3294,10 @@
 
     // Your own PBs, scoped to your own gender and split into a Singles
     // section and a Doubles section -- shown on the setup screen right
-    // under the leaderboard. Different from renderPersonalBests() above
-    // (the history screen's card): that one reads local `history` and
-    // shows every combo you've ever raced, including a different gender
-    // if you ever switched your leaderboard preference mid-history. This
+    // under the leaderboard. Different from renderPbBoard() above (the
+    // history screen's card): that one reads local `history` and ranks
+    // every combo you've ever raced, including a different gender if you
+    // ever switched your leaderboard preference mid-history. This
     // one is sourced from the server (loadMyBests(), same endpoint the
     // leaderboard card itself uses) so it always agrees with what your own
     // leaderboard shows -- a result recorded on another device, or before
