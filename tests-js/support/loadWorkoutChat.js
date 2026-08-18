@@ -39,6 +39,7 @@ const RETURN_STMT = `
       loadAllThreads,
       isSelectedDateToday,
       applyDateLockState,
+      applyChatVisibility,
       refreshForSelectedDate,
       getChatHistory: () => chatHistory,
       setChatHistory: (h) => { chatHistory = h; },
