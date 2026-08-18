@@ -141,6 +141,19 @@ describe("getPbBoards", () => {
     expect(boards.map((b) => b.category)).toEqual(["pro", "open"]);
   });
 
+  it("survives a record with an unparseable date instead of poisoning the order", () => {
+    // new Date("").getTime() is NaN, and NaN in the tie-break sort would make
+    // the comparator non-deterministic -- the `|| 0` floor is what stops it.
+    const boards = app([
+      race({ category: "open", date: "not-a-date" }),
+      race({ category: "pro", date: "2026-03-01T10:00:00.000Z" }),
+    ]).getPbBoards();
+
+    expect(boards).toHaveLength(2);
+    expect(boards.every((b) => Number.isFinite(b.latest))).toBe(true);
+    expect(boards.map((b) => b.category)).toEqual(["pro", "open"]);
+  });
+
   it("returns no boards at all when every race is ineligible", () => {
     const boards = app([
       race({ category: "custom" }),
@@ -286,5 +299,76 @@ describe("renderPbBoard", () => {
 
   it("always returns a card, so the history screen never appends null", () => {
     expect(app([]).renderPbBoard().classList.contains("hx-card")).toBe(true);
+  });
+});
+
+// The wiring between a tab tap and a re-rendered board, plus the screen that
+// stacks the board on top of the History list. Live QA exercises both, but
+// nothing pinned them: handleClick's dispatch line and renderHistory's two
+// appendChild calls are exactly the kind of one-liner a later refactor drops
+// without any test going red.
+describe("setPbBoard", () => {
+  it("stores the key and re-renders", () => {
+    const instance = app([race({})]);
+    let renders = 0;
+    instance.render = () => { renders += 1; };
+
+    instance.setPbBoard("open|singles|men|full");
+
+    expect(instance.pbBoardKey).toBe("open|singles|men|full");
+    expect(renders).toBe(1);
+  });
+
+  it("ignores a missing key instead of blanking the selection", () => {
+    // A trigger rendered without data-key would otherwise wipe pbBoardKey to
+    // undefined and silently bounce the user back to the default board.
+    const instance = app([race({})], { pbBoardKey: "open|singles|men|full" });
+    let renders = 0;
+    instance.render = () => { renders += 1; };
+
+    instance.setPbBoard(undefined);
+
+    expect(instance.pbBoardKey).toBe("open|singles|men|full");
+    expect(renders).toBe(0);
+  });
+
+  it("is what the click dispatcher routes a tab tap to", () => {
+    const instance = app([race({})]);
+    instance.render = () => {};
+    const tab = document.createElement("button");
+    tab.dataset.action = "set-pb-board";
+    tab.dataset.key = "pro|doubles|women|half";
+    document.body.appendChild(tab);
+
+    instance.handleClick({ target: tab });
+
+    expect(instance.pbBoardKey).toBe("pro|doubles|women|half");
+    tab.remove();
+  });
+});
+
+describe("renderHistory", () => {
+  it("puts the board first and the full History list under it", () => {
+    const screen = app([
+      race({ totalSeconds: 4200 }),
+      race({ category: "custom", format: null, gender: null, totalSeconds: 1420 }),
+      race({ totalSeconds: 1800, flagged: true }),
+    ]).renderHistory();
+
+    const cards = [...screen.querySelectorAll(".hx-card")];
+    expect(cards[0].querySelector(".hx-pb-lb-list")).not.toBeNull();
+    // Every race is in History, including the two the board cannot rank --
+    // that is the whole point of keeping the list unfiltered beneath it.
+    expect(screen.querySelectorAll(".hx-history-row")).toHaveLength(3);
+    expect(screen.querySelectorAll(".hx-pb-lb-row")).toHaveLength(1);
+  });
+
+  it("still renders the board card when no race is rankable", () => {
+    // renderPbBoard() always returns a card (never null), so the history
+    // screen must not need a null guard the way it did for the old list.
+    const screen = app([race({ category: "custom", format: null, gender: null })]).renderHistory();
+
+    expect(screen.querySelector(".mascot-empty")).not.toBeNull();
+    expect(screen.querySelectorAll(".hx-history-row")).toHaveLength(1);
   });
 });
