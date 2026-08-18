@@ -2164,8 +2164,17 @@
       // why and no way to fix it, so the race could never be started at all.
       // Asking here is the same question the flow used to ask everyone, now
       // shown only to the handful of users who still owe an answer.
+      //
+      // Both halves of the condition matter. profileGender() is re-read on
+      // every render while this.gender is seeded once per race (resetSetup),
+      // so a profile saved AFTER this page loaded -- onboarding finishing in
+      // a second tab, a gender change over on the coaching page -- would
+      // otherwise hide the question while this.gender is still null, putting
+      // the user right back in front of a dead Start button. Keeping the
+      // grid up whenever we don't actually hold an answer also lets someone
+      // who just answered change their mind.
       const genderBlock = standardSteps.querySelector("#hx-gender-block");
-      if (this.needsGender() && !profileGender()) {
+      if (this.needsGender() && (!profileGender() || !this.gender)) {
         genderBlock.appendChild(el(`<div class="hx-step-label">${t("hyrox.step.gender")}</div>`));
         const genderGrid = el(`<div class="hx-choice-grid" data-group="gender"></div>`);
         GENDER_IDS.forEach((id) => {

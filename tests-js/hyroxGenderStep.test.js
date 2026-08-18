@@ -89,6 +89,21 @@ describe("race setup gender step", () => {
     expect(genderButtons(wrap)).toEqual([]);
   });
 
+  // profileGender() is re-read every render; this.gender is seeded once per
+  // race. A profile that lands in between (onboarding finishing in another
+  // tab) must not hide the question while the answer this race is using is
+  // still null -- that's the dead Start button all over again.
+  it("keeps asking when a profile appears after the race was set up", () => {
+    const app = setupApp({ category: "open", format: "singles" });
+    localStorage.setItem(COACHING_PROFILE_KEY, JSON.stringify({ gender: "male" }));
+
+    const wrap = app.buildSetupSteps();
+
+    expect(app.gender).toBeNull();
+    expect(genderButtons(wrap)).toEqual(["men", "women"]);
+    expect(startBtn(wrap).disabled).toBe(true);
+  });
+
   it("holds the question until a format is picked", () => {
     const app = setupApp({ category: "open", format: null });
 
