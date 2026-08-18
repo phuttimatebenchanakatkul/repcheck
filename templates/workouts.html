@@ -33,7 +33,7 @@
      own sibling section (not inside #wl-day, which renderTimeline()
      fully overwrites on every render) so it survives date navigation and
      set edits untouched. See the wlc- styles/script below. -->
-<div class="wlc-chat" id="wlc-chat">
+<div class="wlc-chat" id="wlc-chat" hidden>
   <div class="wlc-header">
     <div class="wlc-header-icon">🤖</div>
     <div class="wlc-header-text">
@@ -1617,6 +1617,7 @@
   }
 
   /* ---------- AI chat beneath the workout list (scoped to last 7 days) ---------- */
+  .wlc-chat[hidden] { display: none; }
   .wlc-chat {
     margin-top: 16px;
     background: var(--card-bg);
@@ -4710,14 +4711,29 @@
       }
     }
 
+    // Nothing logged, nothing to chat about -- the card would just sit
+    // dead under an empty first-run screen, so it stays hidden until the
+    // user has logged at least one exercise on any day. renderTimeline()
+    // fires repcheck:workout-date-changed after every log/delete, so this
+    // re-runs the moment that first exercise lands.
+    function hasAnyLoggedExercise() {
+      return Object.keys(log).some((dateIso) => (log[dateIso] || []).length > 0);
+    }
+
+    function applyChatVisibility() {
+      chatEl.hidden = !hasAnyLoggedExercise();
+    }
+
     function refreshForSelectedDate() {
       chatHistory = loadHistory(selectedDate);
+      applyChatVisibility();
       applyDateLockState();
       renderMessages();
     }
 
     document.addEventListener("repcheck:workout-date-changed", refreshForSelectedDate);
 
+    applyChatVisibility();
     applyDateLockState();
     renderMessages();
     document.addEventListener("repcheck:language-changed", renderMessages);
