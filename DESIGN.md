@@ -30,22 +30,34 @@ Accent colors (same hex in both themes, only the `-bg` tint flips):
 | `--pink` | `#c0398c` | `#fbeaf4` | `#3a1830` |
 
 Icon badges come in two treatments, and which one you use depends on where the
-badge sits, not on what it does.
+badge sits, not on what it does. Neither treatment has a glow.
 
 **Entry-point badges** — the icon on a choice tile, a primary CTA, a quick
 action: a gradient of the accent, not the flat hex (green:
-`linear-gradient(135deg, #29b87e, var(--green))`), with a matching tinted
-box-shadow (`0 6px 14px rgba(31, 169, 113, 0.42)` for green). These are the
-screen's destinations, so they get the lift.
+`linear-gradient(135deg, #29b87e, var(--green))`). The gradient is the whole
+treatment: no tinted `box-shadow` behind it. This doc used to prescribe one
+(`0 6px 14px rgba(31, 169, 113, 0.42)` for green) and it was removed
+everywhere it got applied — see `fix/remove-cta-glow-effect`,
+`fix/remove-af-icon-glow`, `feat/quick-actions-five`, the HYROX add-a-station
+tiles, and the personal-bests trophy badge. A colored halo on every badge
+reads as decoration competing with the accent it is supposed to carry.
+Elevation still belongs on things that actually sit above the page
+(`--shadow` on cards, the hover lift on interactive rows — see Layout); it
+does not belong on a badge that is flush inside one. Ask before adding a glow
+back.
+
+The quick-actions sheet's tiles (`.qa-*` in `static/style.css`) go further and
+use FLAT accent fills rather than a gradient — fine, and increasingly the
+default for a dense grid of them.
 
 **In-list badges** — the leading glyph on an inset-card row, or an empty
-state's icon: flat `var(--<accent>-bg)` fill with a `var(--<accent>)` glyph
-and **no box-shadow**. A row is a list item, not a destination, and a glowing
-badge on every row turns a scannable list into a field of lights. See
-`.af-icon-emoji` and `.nl-empty-icon` (`templates/nutrition.html`), and
-`.nl-create-food-icon`, the "Create a food" row on the food sheet's Custom tab.
-Use the `--<accent>-bg` token rather than an `rgba()` of the accent: the token
-is redefined per theme, so a fixed alpha over the dark card reads flat.
+state's icon: flat `var(--<accent>-bg)` fill with a `var(--<accent>)` glyph.
+A row is a list item, not a destination, and even a gradient on every row
+turns a scannable list into a field of lights. See `.af-icon-emoji` and
+`.nl-empty-icon` (`templates/nutrition.html`), and `.nl-create-food-icon`, the
+"Create a food" row on the food sheet's Custom tab. Use the `--<accent>-bg`
+token rather than an `rgba()` of the accent: the token is redefined per theme,
+so a fixed alpha over the dark card reads flat.
 
 Color is also an identifier: each entry point in a choice grid (take photo,
 upload, barcode, create, macros, etc.) keeps one accent consistently across
@@ -91,6 +103,8 @@ Numeric values that line up in columns (calories, weights, times) should use
 - Small icon badges: 11px radius; small buttons: 999px (full pill)
 - `--shadow: 0 1px 2px rgba(16,17,20,.03), 0 8px 24px rgba(16,17,20,.05)` — default resting elevation
 - Hover elevation on interactive tiles/rows: `0 8-10px 18-24px rgba(20,20,20,.08-.12)` + `translateY(-1px to -2px)`
+  - Not used by the quick-actions tiles: they move `border-color` on hover and
+    paint no shadow at all. See the icon-badge exception above.
 - Bottom sheets: `border-radius: 22px 22px 0 0`, slide up via `transform: translateY(100%) → 0`, `transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1)`
 - Mobile breakpoint: `max-width: 380px` gets tighter padding and smaller icon/label sizes — see `.af-tile`, `.af-primary-cta-icon`, `.af-sec-*` in `templates/nutrition.html` for the pattern
 

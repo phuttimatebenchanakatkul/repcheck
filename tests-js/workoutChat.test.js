@@ -462,3 +462,50 @@ describe("applyLimitLockout / formatCountdown", () => {
     vi.useRealTimers();
   });
 });
+
+describe("empty-log visibility", () => {
+  it("stays hidden when nothing has ever been logged", () => {
+    const { dom } = loadWorkoutChat({ log: {} });
+    expect(dom.chatEl.hidden).toBe(true);
+  });
+
+  it("stays hidden when a day exists in the log but holds no exercises", () => {
+    const { dom } = loadWorkoutChat({ log: { [isoDaysAgo(0)]: [] } });
+    expect(dom.chatEl.hidden).toBe(true);
+  });
+
+  it("shows once at least one exercise is logged on any day", () => {
+    const log = {
+      [isoDaysAgo(3)]: [
+        { name: "Bench Press", addedAt: 1, sets: [{ reps: 8, weightKg: 60 }] },
+      ],
+    };
+    const { dom } = loadWorkoutChat({ log });
+    expect(dom.chatEl.hidden).toBe(false);
+  });
+
+  it("appears after the first exercise lands and the timeline re-renders", () => {
+    const today = isoDaysAgo(0);
+    const log = {};
+    const { dom, refreshForSelectedDate } = loadWorkoutChat({ log, selectedDate: today });
+    expect(dom.chatEl.hidden).toBe(true);
+
+    log[today] = [{ name: "Squat", addedAt: 1, sets: [{ reps: 5, weightKg: 80 }] }];
+    refreshForSelectedDate(); // what repcheck:workout-date-changed triggers
+
+    expect(dom.chatEl.hidden).toBe(false);
+  });
+
+  it("keeps showing on an empty past day when other days have workouts", () => {
+    const log = {
+      [isoDaysAgo(2)]: [
+        { name: "Deadlift", addedAt: 1, sets: [{ reps: 5, weightKg: 100 }] },
+      ],
+    };
+    const { dom, setSelectedDate, refreshForSelectedDate } = loadWorkoutChat({ log });
+    setSelectedDate(isoDaysAgo(5));
+    refreshForSelectedDate();
+
+    expect(dom.chatEl.hidden).toBe(false);
+  });
+});

@@ -33,7 +33,7 @@
      own sibling section (not inside #wl-day, which renderTimeline()
      fully overwrites on every render) so it survives date navigation and
      set edits untouched. See the wlc- styles/script below. -->
-<div class="wlc-chat" id="wlc-chat">
+<div class="wlc-chat" id="wlc-chat" hidden>
   <div class="wlc-header">
     <div class="wlc-header-icon">🤖</div>
     <div class="wlc-header-text">
@@ -386,6 +386,65 @@
   .wl-plan-more svg { transition: transform 0.15s ease; }
   .wl-plan-more.is-expanded svg { transform: rotate(180deg); }
 
+  /* max-height 0 -> the panel's own measured scrollHeight (set inline by
+     openPicker() in renderWholeSplitBody()) is what makes the inline "Pick
+     exercises" picker (see renderInlineExercisePicker()) grow the
+     weekly-split view in place, instead of swapping the whole sheet to a
+     new step. .split-modal is height:auto up to 86vh, so the sheet itself
+     follows this panel frame by frame and grows with it.
+
+     Measured rather than a fixed cap: a cap generous enough for a full
+     exercise list is far taller than a filtered one, and max-height
+     transitions run to the *cap*, so a short panel would finish its growth
+     early and sit still for the rest of the duration. openPicker() also
+     drops the cap to `none` once the growth ends, so the list resizing
+     under a search query doesn't get clipped by a stale measurement.
+
+     Deliberately not the grid-template-rows 0fr->1fr trick: it needs the
+     row's track to size itself to the item's max-content contribution, and
+     an overflow circularity there stuck this content at ~padding height. */
+  .wl-plan-picker-expand {
+    max-height: 0;
+    overflow: hidden;
+    /* Same curve .split-modal uses to present itself, so the panel grows
+       with the sheet's own feel rather than a second, unrelated motion. */
+    transition: max-height 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  /* Opening is the direction the eye actually follows, so it runs close to
+     twice the collapse's length -- long enough to read as growing rather
+     than as a jump. The durations are split across the two rules (not one
+     shared value) because openPicker() adds .is-open before writing the
+     target height and closePicker() removes it before writing 0, so each
+     direction picks up its own timing: unhurried out, snappy back. */
+  .wl-plan-picker-expand.is-open { transition-duration: 0.62s; }
+  .wl-plan-picker-expand-inner { padding-top: 12px; }
+
+  /* The staged reveal. The panel's contents are rendered *before* it opens
+     (so the growth animates over real content rather than an empty box),
+     each wrapped element carrying --stage in top-to-bottom order: the
+     search field first, then the categorised list, then everything after
+     it. The delays (and the longer fade) apply only while opening -- on
+     close everything drops out together as the panel collapses, so
+     dismissing stays snappy. The last stage lands ~720ms in, just after
+     the panel itself stops growing, so the cascade reads as filling the
+     space the panel just opened rather than racing it. */
+  .wl-plan-picker-stage {
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.24s ease, transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .wl-plan-picker-expand.is-open .wl-plan-picker-stage {
+    opacity: 1;
+    transform: none;
+    transition-duration: 0.42s;
+    transition-delay: calc(var(--stage, 0) * 100ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wl-plan-picker-expand { transition: none; }
+    .wl-plan-picker-stage { transition: none; transform: none; }
+    .wl-plan-picker-expand.is-open .wl-plan-picker-stage { transition-delay: 0s; }
+  }
+
   /* Names the split the AI chose on the "Let AI build it" path, where the
      user never picked one themselves. */
   .split-suggested-banner {
@@ -469,35 +528,9 @@
   }
   .ex-modal-close:hover { color: var(--text); }
   .ex-modal-body { overflow-y: auto; padding: 16px; }
-  /* iOS-style segmented control replacing the stacked FAVORITES / CUSTOM /
-     SUGGESTED / RECENT headers -- one filtered list instead of up to four
-     concatenated ones. Grey track + light sliding capsule for the selected
-     segment, matching UISegmentedControl rather than a Material tab bar. */
-  .ex-scope-seg {
-    display: flex; gap: 2px;
-    background: var(--sidebar-active);
-    border-radius: 9px;
-    padding: 2px;
-    margin: 0 0 12px;
-  }
-  .ex-scope-seg button {
-    flex: 1;
-    padding: 6px 4px;
-    border: none;
-    border-radius: 7px;
-    background: none;
-    color: var(--text-secondary);
-    font-size: 13px;
-    font-weight: 500;
-    font-family: inherit;
-    cursor: pointer;
-  }
-  .ex-scope-seg button.is-active {
-    background: var(--card-bg);
-    color: var(--text);
-    font-weight: 700;
-    box-shadow: var(--shadow);
-  }
+  /* The segmented control (.ex-scope-seg) and the favorite heart
+     (.ex-modal-result-fav) are shared with the analyze page's picker and
+     live in style.css. */
 
   /* iOS grouped/inset list: one rounded card, hairline dividers between
      rows, no per-row floating radius. */
@@ -520,20 +553,6 @@
   .ex-modal-result-item:hover { background: var(--bg); }
   .ex-modal-result-item:active { background: var(--sidebar-active); }
   .ex-modal-result-item span:nth-child(2) { flex: 1; }
-  .ex-modal-result-fav {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    opacity: 0.5;
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
-  .ex-modal-result-fav:hover { opacity: 1; color: var(--red); }
-  .ex-modal-result-fav:active { transform: scale(0.85); }
-  .ex-modal-result-fav.is-fav { color: var(--red); opacity: 1; }
   .ex-modal-empty { padding: 12px 10px; font-size: 13px; color: var(--text-secondary); }
 
   /* ---------- Create-a-custom-exercise button + form (in the log sheet) ---------- */
@@ -969,7 +988,7 @@
   }
   .split-carousel-arrow:hover { color: var(--text); }
   .split-carousel-arrow:active { transform: scale(0.92); }
-  .split-carousel-heading { flex: 1; min-width: 0; text-align: center; }
+  .split-carousel-heading { flex: 1; min-width: 0; text-align: center; position: relative; }
   .split-carousel-day { font-size: 16px; font-weight: 700; }
   .split-carousel-pill {
     display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
@@ -985,7 +1004,33 @@
      letting a long one push past the modal's edge (regression caught by
      /qa: a long custom label ran clean off the card with no ellipsis). */
   .split-carousel-pill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .split-carousel-pill svg { flex-shrink: 0; opacity: 0.6; }
+  .split-carousel-pill svg { flex-shrink: 0; opacity: 0.6; transition: transform 0.15s; }
+  .split-carousel-pill.is-open svg { transform: rotate(180deg); }
+
+  /* position:absolute anchored to the heading's position:relative -- not a
+     transform, so it doesn't create the fixed-descendant stacking trap the
+     bottom-sheet's .app scale transform causes elsewhere in this file. */
+  .split-carousel-pill-menu {
+    position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    min-width: 168px; max-width: 240px; z-index: 2;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+    text-align: left;
+  }
+  .split-carousel-pill-menu-item {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+    background: none; border: none; border-radius: 8px; padding: 8px 10px;
+    font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; font-family: inherit;
+  }
+  .split-carousel-pill-menu-item:hover { background: var(--bg); }
+  .split-carousel-pill-menu-item.is-selected { background: var(--day-accent-bg, var(--sidebar-active)); }
+  .split-carousel-pill-menu-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--day-accent, var(--text-secondary));
+  }
+  .split-carousel-pill-menu-dot.is-rest { background: var(--text-secondary); }
+  .split-carousel-pill-menu-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .split-carousel-pill-menu-check { flex-shrink: 0; margin-left: auto; opacity: 0.8; }
 
   .split-carousel-dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 2px; }
   .split-carousel-dot {
@@ -1617,6 +1662,7 @@
   }
 
   /* ---------- AI chat beneath the workout list (scoped to last 7 days) ---------- */
+  .wlc-chat[hidden] { display: none; }
   .wlc-chat {
     margin-top: 16px;
     background: var(--card-bg);
@@ -1934,7 +1980,7 @@
     // A custom exercise shows the emoji the user picked for it; everything
     // else uses the library's per-exercise emoji.
     const meta = customExerciseMeta[name];
-    if (meta && meta.emoji) return meta.emoji;
+    if (meta && meta.emoji) return escapeHtml(meta.emoji);
     return exerciseDetail(name).emoji;
   }
   // Prefer the real per-exercise illustration from the icon pack; fall
@@ -2425,7 +2471,7 @@
           <div class="wl-entry-card ${complete ? "is-complete" : ""}" data-toggle-entry="${entry.id}">
             <div class="wl-entry-iconwrap" data-exercise-video="${escapeAttr(entry.exercise)}" title="Watch video & tutorial"><div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}</div><span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
             <div class="wl-entry-info">
-              <div class="wl-entry-name">${entry.exercise}</div>
+              <div class="wl-entry-name">${escapeHtml(entry.exercise)}</div>
               <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry)}</div>
             </div>
             <button type="button" class="wl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? t("common.minimize") : "Expand"}">
@@ -2874,10 +2920,10 @@
   function exerciseRowHtml(name) {
     const isFav = exerciseFavorites.has(name);
     return `
-      <div class="ex-modal-result-item" data-name="${name}">
+      <div class="ex-modal-result-item" data-name="${escapeAttr(name)}">
         <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-        <span>${name}</span>
-        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${name}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
+        <span>${escapeHtml(name)}</span>
+        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
       </div>
     `;
   }
@@ -3233,14 +3279,14 @@
         ${shown.map((name, i) => {
           const isAdded = loggedToday.has(name);
           return `
-          <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+          <div class="wl-plan-exercise-row" data-exercise-detail="${escapeAttr(name)}" title="Tap to see how to perform this">
             <span class="wl-plan-exercise-num">${i + 1}</span>
             <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
             <span class="wl-plan-exercise-info">
-              <span class="wl-plan-exercise-name">${name}</span>
-              <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+              <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
+              <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
             </span>
-            <button type="button" class="wl-plan-quick-add${isAdded ? " is-added" : ""}" data-quick-add="${name}" aria-label="${isAdded ? `${name} already logged today` : `Log ${name} now`}" title="${isAdded ? "Already logged today" : "Log now"}"${isAdded ? ' aria-disabled="true"' : ""}>${isAdded ? SMALL_CHECK_ICON : "+"}</button>
+            <button type="button" class="wl-plan-quick-add${isAdded ? " is-added" : ""}" data-quick-add="${escapeAttr(name)}" aria-label="${isAdded ? `${escapeAttr(name)} already logged today` : `Log ${escapeAttr(name)} now`}" title="${isAdded ? "Already logged today" : "Log now"}"${isAdded ? ' aria-disabled="true"' : ""}>${isAdded ? SMALL_CHECK_ICON : "+"}</button>
             <span class="wl-plan-exercise-grip">${PLAN_GRIP_SVG}</span>
           </div>
         `;
@@ -3407,6 +3453,21 @@
   }
 
   function closeSplitModal() {
+    // Closing the modal (X button, overlay tap) bypasses the picker menu's
+    // own dismiss paths, which only fire on a click/Escape that's actually
+    // observed by those listeners -- so reset the same state here that
+    // renderSplitStepReview() resets on its own next run, rather than
+    // leaving a stale "menu open" flag and two live document listeners
+    // sitting around until the wizard happens to reach this step again.
+    reviewPillMenuOpen = false;
+    if (reviewDismissMenuOnOutsideClick) {
+      document.removeEventListener("click", reviewDismissMenuOnOutsideClick);
+      reviewDismissMenuOnOutsideClick = null;
+    }
+    if (reviewDismissMenuOnEscape) {
+      document.removeEventListener("keydown", reviewDismissMenuOnEscape);
+      reviewDismissMenuOnEscape = null;
+    }
     if (window.closeBottomSheet) {
       window.closeBottomSheet(splitModalOverlay, ".split-modal", () => {
         splitModalOverlay.style.display = "none";
@@ -3648,7 +3709,7 @@
     splitModalTitle.textContent = t("workouts.wizard.goalTitle");
     splitModalBody.innerHTML = `
       <div class="split-step-label">${t(aiSuggest() ? "workouts.wizard.stepGoalAi" : "workouts.wizard.stepGoalEdit")}</div>
-      <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${splitWizard.goal.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
+      <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${escapeHtml(splitWizard.goal)}</textarea>
       <button type="button" class="split-primary-btn" id="split-goal-next-btn">${t("common.next")}</button>
     `;
     document.getElementById("split-goal-next-btn").addEventListener("click", () => {
@@ -3676,7 +3737,7 @@
       const pickedCount = (splitWizard.customDayExercises[name] || []).length;
       return `
         <div class="split-custom-day-row">
-          <span class="split-custom-day-name">${name}</span>
+          <span class="split-custom-day-name">${escapeHtml(name)}</span>
           <button type="button" class="split-custom-pick-btn" data-pick-exercises="${i}">
             ${pickedCount ? t("workouts.wizard.exercisesPicked", { n: pickedCount }) : t("workouts.wizard.pickExercises")}
           </button>
@@ -3716,6 +3777,56 @@
   // Prenatal / Low-Impact) instead of only relying on the app's guess
   // from the day's typed name. Picking is optional -- skip it and the
   // backend still guesses a sensible pool for that day's name.
+  // Pure HTML for the categorized exercise checklist (custom exercises
+  // first, then EXERCISE_CATEGORIES, filtered by `query`) -- shared by the
+  // wizard's full-step picker (renderExercisePickerStep) below and the
+  // inline "Pick exercises" expansion in the weekly-split view
+  // (renderInlineExercisePicker) so both list exercises identically.
+  function buildExercisePickerListHtml(query, selected) {
+    const t = RepCheckI18n.t;
+    const q = query.trim().toLowerCase();
+    const customNames = customExercises.map((e) => e.name);
+    const filteredCustom = q ? customExercises.filter((e) => e.name.toLowerCase().includes(q)) : customExercises;
+    const customHtml = filteredCustom.length ? `
+      <div class="split-ex-picker-category">
+        <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
+        ${filteredCustom.map((ex) => `
+          <label class="split-ex-picker-item">
+            <input type="checkbox" data-exercise="${escapeAttr(ex.name)}" ${selected.has(ex.name) ? "checked" : ""}>
+            <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
+            <span>${escapeHtml(ex.name)}</span>
+            <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
+          </label>
+        `).join("")}
+      </div>
+    ` : "";
+
+    const builtInHtml = Object.entries(EXERCISE_CATEGORIES).map(([category, names]) => {
+      const filtered = (q ? names.filter((n) => n.toLowerCase().includes(q)) : names).filter((n) => !customNames.includes(n));
+      if (!filtered.length) return "";
+      return `
+        <div class="split-ex-picker-category">
+          <div class="split-ex-picker-category-title">${category}</div>
+          ${filtered.map((name) => `
+            <label class="split-ex-picker-item">
+              <input type="checkbox" data-exercise="${escapeAttr(name)}" ${selected.has(name) ? "checked" : ""}>
+              <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
+              <span>${escapeHtml(name)}</span>
+            </label>
+          `).join("")}
+        </div>
+      `;
+    }).join("");
+
+    const html = customHtml + builtInHtml;
+    return html || RepCheckMascot.emptyState({
+      pose: "lift",
+      title: t("workouts.search.noMatchTitle"),
+      sub: t("workouts.search.noMatchSub"),
+      query,
+    });
+  }
+
   async function renderExercisePickerStep(dayName, { getSelected, onDone }) {
     const myGeneration = ++splitModalGeneration;
     const t = RepCheckI18n.t;
@@ -3747,47 +3858,7 @@
     const createSlot = document.getElementById("split-ex-create-slot");
 
     function renderList(query) {
-      const q = query.trim().toLowerCase();
-      const customNames = customExercises.map((e) => e.name);
-      const filteredCustom = q ? customExercises.filter((e) => e.name.toLowerCase().includes(q)) : customExercises;
-      const customHtml = filteredCustom.length ? `
-        <div class="split-ex-picker-category">
-          <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
-          ${filteredCustom.map((ex) => `
-            <label class="split-ex-picker-item">
-              <input type="checkbox" data-exercise="${ex.name}" ${selected.has(ex.name) ? "checked" : ""}>
-              <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
-              <span>${ex.name}</span>
-              <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
-            </label>
-          `).join("")}
-        </div>
-      ` : "";
-
-      const builtInHtml = Object.entries(EXERCISE_CATEGORIES).map(([category, names]) => {
-        const filtered = (q ? names.filter((n) => n.toLowerCase().includes(q)) : names).filter((n) => !customNames.includes(n));
-        if (!filtered.length) return "";
-        return `
-          <div class="split-ex-picker-category">
-            <div class="split-ex-picker-category-title">${category}</div>
-            ${filtered.map((name) => `
-              <label class="split-ex-picker-item">
-                <input type="checkbox" data-exercise="${name}" ${selected.has(name) ? "checked" : ""}>
-                <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-                <span>${name}</span>
-              </label>
-            `).join("")}
-          </div>
-        `;
-      }).join("");
-
-      const html = customHtml + builtInHtml;
-      listEl.innerHTML = html || RepCheckMascot.emptyState({
-        pose: "lift",
-        title: t("workouts.search.noMatchTitle"),
-        sub: t("workouts.search.noMatchSub"),
-        query,
-      });
+      listEl.innerHTML = buildExercisePickerListHtml(query, selected);
       listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) selected.add(checkbox.dataset.exercise);
@@ -3993,6 +4064,7 @@
 
   let reviewSchedule = null;         // weekday key -> day label, or the literal "Rest"
   let reviewSelectedIndex = 0;       // index into REVIEW_MONDAY_FIRST
+  let reviewPillMenuOpen = false;    // whether the day-type picker menu is open for the shown day
   // `${label}::${exerciseName}` -> {sets, reps}. Keyed by day label (not by
   // weekday) because the same generated day can land on more than one
   // weekday (a 6-day PPL repeats Push/Pull/Legs) -- editing Monday's Push
@@ -4000,6 +4072,11 @@
   // generated day template, not two independent copies of it.
   let exercisePrescriptions = {};
   let reviewRerenderCarousel = null; // set each time the step renders; lets the editor modal refresh the row it just closed
+  // Both re-bound each time renderSplitStepReview() runs (the wizard can be
+  // opened/closed/reopened many times in one page load); the old pair is
+  // removed first so document listeners don't pile up across reopens.
+  let reviewDismissMenuOnOutsideClick = null;
+  let reviewDismissMenuOnEscape = null;
 
   // JSON.stringify, not a "${label}::${name}" template string: day labels
   // are unrestricted free text on the custom-split path (no maxlength, no
@@ -4030,6 +4107,7 @@
     // Copied rather than aliased so backing out of the step doesn't leave
     // the generated schedule mutated by whatever was tapped here.
     reviewSchedule = { ...splitWizard.generatedSchedule };
+    reviewPillMenuOpen = false; // never carry an open picker menu into a fresh render of this step
     // Open on the first weekday that actually trains, so the carousel
     // starts on a session instead of a rest day.
     const firstTraining = REVIEW_MONDAY_FIRST.findIndex(
@@ -4075,6 +4153,8 @@
       const exercises = day ? day.exercises : [];
       const weekdayName = WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[reviewSelectedIndex]];
 
+      const pillMenuOptions = [...uniqueLabels, "Rest"];
+
       carouselEl.setAttribute("style", rest ? "" : accentStyle(label));
       carouselEl.innerHTML = `
         <div class="split-carousel-nav">
@@ -4083,10 +4163,28 @@
           </button>
           <div class="split-carousel-heading">
             <div class="split-carousel-day">${escapeHtml(weekdayName)}</div>
-            <button type="button" class="split-carousel-pill" data-cycle-day title="${t("workouts.wizard.tapToChange")}">
+            <button type="button" class="split-carousel-pill${reviewPillMenuOpen ? " is-open" : ""}" data-pill-toggle
+                    title="${t("workouts.wizard.tapToChange")}" aria-haspopup="listbox" aria-expanded="${reviewPillMenuOpen}">
               <span class="split-carousel-pill-text">${escapeHtml(rest ? restLabel : label)}</span>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
             </button>
+            ${reviewPillMenuOpen ? `
+              <div class="split-carousel-pill-menu" role="listbox">
+                ${pillMenuOptions.map((opt) => {
+                  const optRest = opt === "Rest";
+                  const selected = opt === (rest ? "Rest" : label);
+                  return `
+                    <button type="button" class="split-carousel-pill-menu-item${selected ? " is-selected" : ""}"
+                            data-select-day="${escapeAttr(opt)}" role="option" aria-selected="${selected}"
+                            style="${optRest ? "" : accentStyle(opt)}">
+                      <span class="split-carousel-pill-menu-dot${optRest ? " is-rest" : ""}"></span>
+                      <span class="split-carousel-pill-menu-label">${escapeHtml(optRest ? restLabel : opt)}</span>
+                      ${selected ? `<svg class="split-carousel-pill-menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ""}
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+            ` : ""}
           </div>
           <button type="button" class="split-carousel-arrow" data-carousel-dir="1" aria-label="${t("common.next")}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
@@ -4126,10 +4224,32 @@
 
     // Delegated once on the container, which outlives its own innerHTML.
     // Tapping a dot just moves the carousel to that day; tapping the pill
-    // in the heading cycles what's scheduled on the day currently showing
-    // (see the data-cycle-day branch below) -- the carousel's equivalent of
-    // the old grid's "tap the already-selected cell" gesture.
+    // opens a menu of every split-type option (plus Rest) so the day can be
+    // reassigned directly, instead of cycling blindly one tap at a time.
     carouselEl.addEventListener("click", (event) => {
+      const pillMenu = event.target.closest(".split-carousel-pill-menu");
+      const pillToggle = event.target.closest("[data-pill-toggle]");
+      if (reviewPillMenuOpen && !pillMenu && !pillToggle) {
+        // A tap anywhere else in the carousel while the menu is open just
+        // dismisses it -- matches how tapping away from any dropdown closes
+        // it without also triggering whatever's underneath.
+        reviewPillMenuOpen = false;
+        renderCarousel();
+        return;
+      }
+      if (pillToggle) {
+        reviewPillMenuOpen = !reviewPillMenuOpen;
+        renderCarousel();
+        return;
+      }
+      const option = event.target.closest("[data-select-day]");
+      if (option) {
+        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+        reviewSchedule[key] = option.dataset.selectDay;
+        reviewPillMenuOpen = false;
+        renderCarousel();
+        return;
+      }
       const arrow = event.target.closest("[data-carousel-dir]");
       if (arrow) {
         reviewSelectedIndex = (reviewSelectedIndex + Number(arrow.dataset.carouselDir) + 7) % 7;
@@ -4142,25 +4262,38 @@
         renderCarousel();
         return;
       }
-      const pill = event.target.closest("[data-cycle-day]");
-      if (pill) {
-        // Tapping the pill cycles what's scheduled on the day the carousel
-        // is currently showing -- the carousel's one equivalent of the old
-        // grid's "tap the already-selected cell" gesture, since there's no
-        // grid of other cells to tap instead.
-        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
-        const options = [...uniqueLabels, "Rest"];
-        const current = options.indexOf(reviewSchedule[key] || "Rest");
-        reviewSchedule[key] = options[(current + 1) % options.length];
-        renderCarousel();
-        return;
-      }
       const exRow = event.target.closest("[data-exercise-edit]");
       if (exRow) {
         const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
         openExercisePrescriptionEditor(reviewSchedule[key], exRow.dataset.exerciseEdit);
       }
     });
+
+    // Dismiss the menu on a tap outside the carousel entirely (e.g. the
+    // rationale text or the Save button), and on Escape.
+    if (reviewDismissMenuOnOutsideClick) document.removeEventListener("click", reviewDismissMenuOnOutsideClick);
+    if (reviewDismissMenuOnEscape) document.removeEventListener("keydown", reviewDismissMenuOnEscape);
+    reviewDismissMenuOnOutsideClick = (event) => {
+      if (!reviewPillMenuOpen) return;
+      // composedPath(), not carouselEl.contains(event.target): a click on the
+      // pill itself is handled by carouselEl's own listener first, which
+      // calls renderCarousel() and replaces carouselEl's children -- by the
+      // time this document-level listener runs in the same bubble phase,
+      // event.target may already be a detached node that .contains() would
+      // wrongly see as "outside". composedPath() is a snapshot taken before
+      // that mutation, so it still reflects the original click location.
+      if (event.composedPath().includes(carouselEl)) return;
+      reviewPillMenuOpen = false;
+      renderCarousel();
+    };
+    reviewDismissMenuOnEscape = (event) => {
+      if (event.key === "Escape" && reviewPillMenuOpen) {
+        reviewPillMenuOpen = false;
+        renderCarousel();
+      }
+    };
+    document.addEventListener("click", reviewDismissMenuOnOutsideClick);
+    document.addEventListener("keydown", reviewDismissMenuOnEscape);
 
     renderCarousel();
     reviewRerenderCarousel = renderCarousel;
@@ -4186,6 +4319,143 @@
 
   const SPLIT_VIEW_MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   let wholeSplitActiveDay = null; // weekday key (WEEKDAY_KEYS form) currently selected in the tab strip
+
+  // Same categorized search+pick UI as renderExercisePickerStep(), but
+  // mounted into a small container inside the already-open weekly-split
+  // view (see #wl-plan-picker-expand in renderWholeSplitBody() below)
+  // instead of replacing #split-modal-body wholesale -- tapping "Pick
+  // exercises" here grows the view in place rather than navigating to a
+  // different screen. Kept separate from renderExercisePickerStep() rather
+  // than sharing its wiring because that function's DOM lookups are
+  // scoped to the fixed #split-ex-picker-* ids on #split-modal-body, not
+  // reusable against an arbitrary container.
+  async function renderInlineExercisePicker(container, { getSelected, onDone }, isStale) {
+    const t = RepCheckI18n.t;
+    const selected = new Set(getSelected());
+
+    await loadCustomExercises();
+    if (isStale()) return;
+
+    // --stage numbers the top-to-bottom reveal the panel plays as it grows
+    // (see .wl-plan-picker-stage): the search field leads, the categorised
+    // list follows, then everything after it. The create slot is empty at
+    // reveal time and fills in later on demand, so it takes no stage.
+    container.innerHTML = `
+      <input type="text" class="split-ex-picker-search wl-plan-picker-stage" style="--stage:0;" placeholder="${t("workouts.search.placeholder")}" autocomplete="off">
+      <button type="button" class="split-ex-create-btn wl-plan-picker-stage" style="--stage:1;">+ ${t("workouts.wizard.createExercise")}</button>
+      <div class="split-ex-create-slot"></div>
+      <div class="split-ex-picker-list wl-plan-picker-stage" style="--stage:2;"></div>
+      <button type="button" class="split-primary-btn wl-plan-picker-stage" style="--stage:3; margin-top:12px;">${t("common.done")}</button>
+    `;
+
+    const searchInput = container.querySelector(".split-ex-picker-search");
+    const createBtn = container.querySelector(".split-ex-create-btn");
+    const createSlot = container.querySelector(".split-ex-create-slot");
+    const listEl = container.querySelector(".split-ex-picker-list");
+    const doneBtn = container.querySelector(".split-primary-btn");
+
+    function renderList(query) {
+      listEl.innerHTML = buildExercisePickerListHtml(query, selected);
+      listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) selected.add(checkbox.dataset.exercise);
+          else selected.delete(checkbox.dataset.exercise);
+          updateDoneLabel();
+        });
+      });
+      listEl.querySelectorAll("[data-remove-custom-exercise]").forEach((btn) => {
+        btn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          const id = parseInt(btn.dataset.removeCustomExercise, 10);
+          const removed = customExercises.find((e) => e.id === id);
+          customExercises = customExercises.filter((e) => e.id !== id);
+          if (removed) selected.delete(removed.name);
+          renderList(searchInput.value);
+          updateDoneLabel();
+          try {
+            await fetch(`/api/custom-exercises/${id}`, { method: "DELETE" });
+          } catch (err) {
+            // Already removed from the UI; a failed request just means it
+            // may reappear next time the picker loads fresh data.
+          }
+        });
+      });
+    }
+
+    function updateDoneLabel() {
+      doneBtn.textContent = selected.size ? t("workouts.wizard.doneWithCount", { n: selected.size }) : t("common.done");
+    }
+
+    function closeCreateForm() {
+      createSlot.innerHTML = "";
+    }
+
+    function openCreateForm() {
+      createSlot.innerHTML = `
+        <div class="split-ex-create-form">
+          <input type="text" class="split-ex-create-name" placeholder="${t("workouts.wizard.exerciseName")}" autocomplete="off" maxlength="60">
+          <div class="split-ex-create-form-actions">
+            <button type="button" class="split-secondary-btn split-ex-create-cancel-btn">${t("common.cancel")}</button>
+            <button type="button" class="split-primary-btn split-ex-create-save-btn">${t("common.save")}</button>
+          </div>
+        </div>
+      `;
+      const nameInput = createSlot.querySelector(".split-ex-create-name");
+      nameInput.focus();
+      createSlot.querySelector(".split-ex-create-cancel-btn").addEventListener("click", closeCreateForm);
+      createSlot.querySelector(".split-ex-create-save-btn").addEventListener("click", async () => {
+        const name = nameInput.value.trim();
+        if (!name) return;
+        try {
+          const response = await fetch("/api/custom-exercises", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          const data = await response.json();
+          if (!data.ok) return;
+          customExercises = [data.exercise, ...customExercises];
+          closeCreateForm();
+          openAddPrompt(data.exercise.name);
+        } catch (err) {
+          // Nothing to add to the picker if this fails -- the user can retry.
+        }
+      });
+    }
+
+    function openAddPrompt(name) {
+      createSlot.innerHTML = `
+        <div class="split-ex-add-prompt">
+          <p>${t("workouts.wizard.addExerciseNowQuestion", { name })}</p>
+          <div class="split-ex-add-prompt-actions">
+            <button type="button" class="split-secondary-btn split-ex-add-later-btn">${t("workouts.wizard.saveForLater")}</button>
+            <button type="button" class="split-primary-btn split-ex-add-now-btn">${t("workouts.wizard.addNow")}</button>
+          </div>
+        </div>
+      `;
+      createSlot.querySelector(".split-ex-add-later-btn").addEventListener("click", () => {
+        closeCreateForm();
+        renderList(searchInput.value);
+      });
+      createSlot.querySelector(".split-ex-add-now-btn").addEventListener("click", () => {
+        selected.add(name);
+        closeCreateForm();
+        renderList(searchInput.value);
+        updateDoneLabel();
+      });
+    }
+
+    createBtn.addEventListener("click", () => {
+      if (createSlot.innerHTML) closeCreateForm();
+      else openCreateForm();
+    });
+
+    searchInput.addEventListener("input", () => renderList(searchInput.value));
+    renderList("");
+    updateDoneLabel();
+
+    doneBtn.addEventListener("click", () => onDone(Array.from(selected)));
+  }
 
   function renderWholeSplitView() {
     const plan = loadSplitPlan();
@@ -4236,24 +4506,27 @@
           `;
         }).join("")}
       </div>
-      <div class="split-day-plan-label">${planLabel}</div>
+      <div class="split-day-plan-label">${escapeHtml(planLabel)}</div>
       ${!showExerciseList
         ? `<div class="wl-plan-rest">${t("workouts.plan.restText")}</div>`
         : `<div class="wl-plan-exercise-list">
             ${activeDay.exercises.map((name, i) => `
-              <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+              <div class="wl-plan-exercise-row" data-exercise-detail="${escapeAttr(name)}" title="Tap to see how to perform this">
                 <span class="wl-plan-exercise-num">${i + 1}</span>
                 <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
                 <span class="wl-plan-exercise-info">
-                  <span class="wl-plan-exercise-name">${name}</span>
-                  <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+                  <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
+                  <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
                 </span>
                 <button type="button" class="split-custom-remove-btn" data-remove-day-exercise="${i}" aria-label="${t("common.remove")}">&times;</button>
               </div>
             `).join("")}
             ${!activeDay.exercises.length ? `<div class="wl-plan-rest">${t("workouts.plan.noExercisesText")}</div>` : ""}
           </div>
-          <button type="button" class="split-secondary-btn" id="split-view-pick-exercises-btn" style="margin-top:12px;">${t("workouts.wizard.pickExercises")}</button>`
+          <button type="button" class="split-secondary-btn" id="split-view-pick-exercises-btn" style="margin-top:12px;">${t("workouts.wizard.pickExercises")}</button>
+          <div class="wl-plan-picker-expand" id="wl-plan-picker-expand">
+            <div class="wl-plan-picker-expand-inner" id="wl-plan-picker-expand-inner"></div>
+          </div>`
       }
       <button type="button" class="split-primary-btn" id="split-edit-from-view-btn" style="margin-top:18px;">${t("workouts.plan.editSplit")}</button>
     `;
@@ -4278,14 +4551,140 @@
           renderWholeSplitBody(plan);
         });
       });
-      document.getElementById("split-view-pick-exercises-btn").addEventListener("click", () => {
-        renderExercisePickerStep(activeLabel, {
+      const pickBtn = document.getElementById("split-view-pick-exercises-btn");
+      const pickerExpand = document.getElementById("wl-plan-picker-expand");
+      const pickerInner = document.getElementById("wl-plan-picker-expand-inner");
+      // Captured here (rather than once at the top of renderWholeSplitBody)
+      // is equivalent, since nothing async happens between the top of this
+      // synchronous function and here -- but keeping the increment's own
+      // line unaccompanied matches the shape every other render-generation
+      // entry point uses (see test_every_modal_body_render_function_bumps...).
+      const renderGeneration = splitModalGeneration;
+      let pickerToken = 0;
+
+      // max-height can't transition to or from `auto`/`none`, so both
+      // directions pin a concrete pixel height first, force a reflow so the
+      // browser takes that as the start of the animation rather than
+      // collapsing both writes into one style recalc, and only then set the
+      // end value.
+      function pinHeight(px) {
+        pickerExpand.style.maxHeight = px + "px";
+        void pickerExpand.offsetHeight;
+      }
+
+      // Fires for the panel's own max-height only: the staged children
+      // transition opacity/transform and those events bubble up here too.
+      function onPanelSettled(handler) {
+        function listener(ev) {
+          if (ev.target !== pickerExpand || ev.propertyName !== "max-height") return;
+          pickerExpand.removeEventListener("transitionend", listener);
+          handler();
+        }
+        pickerExpand.addEventListener("transitionend", listener);
+        return () => pickerExpand.removeEventListener("transitionend", listener);
+      }
+
+      let cancelPanelSettled = null;
+
+      // Under reduced motion the CSS above sets transition: none, so
+      // transitionend never fires and the settle steps that onPanelSettled
+      // defers (dropping the measured cap, emptying the panel) would never
+      // run -- leaving the list clipped at its opening height and stale
+      // content parked inside a collapsed panel. Run them inline instead.
+      function reducedMotion() {
+        return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      }
+
+      // The grown panel is routinely taller than what's left of the sheet
+      // (.split-ex-picker-list alone caps at 50vh, and .split-modal stops
+      // at 86vh with the day's tabs, heading and exercise rows already
+      // above it), so its lower half -- the Done button included -- can
+      // finish the growth below the fold with nothing on screen to suggest
+      // it's there. Scroll the toggle button up to the top of the sheet's
+      // scrollport so the panel gets everything below it.
+      //
+      // Only when it actually overflows: a short list on a tall screen
+      // already fits, and scrolling then would shove the day's exercise
+      // list out of view for nothing. And only once the growth has settled
+      // -- while the panel is still expanding, splitModalBody hasn't
+      // reached its final scrollHeight, so the target would clamp short and
+      // land in the wrong place.
+      function revealPicker(smooth) {
+        const bodyRect = splitModalBody.getBoundingClientRect();
+        if (pickerExpand.getBoundingClientRect().bottom <= bodyRect.bottom) return;
+        const top = splitModalBody.scrollTop
+          + (pickBtn.getBoundingClientRect().top - bodyRect.top)
+          - 8; // a sliver of the row above, so the panel doesn't read as the whole sheet
+        splitModalBody.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
+      }
+
+      function openPicker() {
+        if (cancelPanelSettled) cancelPanelSettled();
+        if (reducedMotion()) {
+          pickerExpand.classList.add("is-open");
+          pickerExpand.style.maxHeight = "none";
+          revealPicker(false);
+          return;
+        }
+        pinHeight(0);
+        pickerExpand.classList.add("is-open");
+        pickerExpand.style.maxHeight = pickerExpand.scrollHeight + "px";
+        // Once grown, drop the measured cap. The list re-renders on every
+        // keystroke and shrinks as the query narrows, so holding the
+        // opening measurement would clip (or strand blank space under) it.
+        cancelPanelSettled = onPanelSettled(() => {
+          cancelPanelSettled = null;
+          pickerExpand.style.maxHeight = "none";
+          revealPicker(true);
+        });
+      }
+
+      function closePicker(myToken) {
+        if (cancelPanelSettled) cancelPanelSettled();
+        if (reducedMotion()) {
+          pickerExpand.classList.remove("is-open");
+          pickerExpand.style.maxHeight = "0px";
+          pickerInner.innerHTML = "";
+          return;
+        }
+        pinHeight(pickerExpand.scrollHeight);
+        pickerExpand.classList.remove("is-open");
+        pickerExpand.style.maxHeight = "0px";
+        // Emptied only once the collapse has actually played -- clearing it
+        // up front would drop the panel's height to zero instantly and
+        // there'd be nothing left to animate. Guarded on the token so a
+        // quick re-open in the meantime doesn't get wiped by this.
+        cancelPanelSettled = onPanelSettled(() => {
+          cancelPanelSettled = null;
+          if (myToken !== pickerToken) return;
+          pickerInner.innerHTML = "";
+        });
+      }
+
+      pickBtn.addEventListener("click", () => {
+        const opening = !pickerExpand.classList.contains("is-open");
+        pickBtn.textContent = opening ? t("common.cancel") : t("workouts.wizard.pickExercises");
+        pickerToken++;
+        const myToken = pickerToken;
+        if (!opening) {
+          closePicker(myToken);
+          return;
+        }
+        const isStale = () => myToken !== pickerToken || splitModalGeneration !== renderGeneration;
+        // Rendered while the panel is still collapsed, and opened only
+        // afterwards, so the growth is measured against the real content
+        // and plays over it -- opening first would animate an empty box and
+        // then pop the picker in once loadCustomExercises() resolved.
+        renderInlineExercisePicker(pickerInner, {
           getSelected: () => activeDay.exercises,
           onDone: (selected) => {
             activeDay.exercises = selected;
             persistSplitPlan(plan);
             renderWholeSplitBody(plan);
           },
+        }, isStale).then(() => {
+          if (isStale()) return;
+          openPicker();
         });
       });
     }
@@ -4710,14 +5109,29 @@
       }
     }
 
+    // Nothing logged, nothing to chat about -- the card would just sit
+    // dead under an empty first-run screen, so it stays hidden until the
+    // user has logged at least one exercise on any day. renderTimeline()
+    // fires repcheck:workout-date-changed after every log/delete, so this
+    // re-runs the moment that first exercise lands.
+    function hasAnyLoggedExercise() {
+      return Object.keys(log).some((dateIso) => (log[dateIso] || []).length > 0);
+    }
+
+    function applyChatVisibility() {
+      chatEl.hidden = !hasAnyLoggedExercise();
+    }
+
     function refreshForSelectedDate() {
       chatHistory = loadHistory(selectedDate);
+      applyChatVisibility();
       applyDateLockState();
       renderMessages();
     }
 
     document.addEventListener("repcheck:workout-date-changed", refreshForSelectedDate);
 
+    applyChatVisibility();
     applyDateLockState();
     renderMessages();
     document.addEventListener("repcheck:language-changed", renderMessages);

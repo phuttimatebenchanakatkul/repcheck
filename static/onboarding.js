@@ -38,18 +38,11 @@
   const PROFILE_KEY = "repcheck_coaching_profile_v1";
   const GOALS_KEY = "repcheck_nutrition_goals_v1";
   const DISTRIBUTION_KEY = "repcheck_coaching_distribution_v1";
-  const SPLIT_PLAN_KEY = "repcheck_split_plan_v1";
   // Goal-achievement state, cleared when save() writes a new goal -- see
   // there. Same keys as coaching.js/base.html; declared here too since this
   // file is a standalone IIFE with no shared module scope.
   const ACHIEVED_KEY = "repcheck_coaching_goal_achieved_v1";
   const ACHIEVED_HANDLED_KEY = "repcheck_coaching_goal_achieved_handled_v1";
-
-  const MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-  // Same "not actually i18n'd" convention already used for these labels in
-  // workouts.html/home.html's own weekday strips -- matched here rather
-  // than introducing a translation this app doesn't have anywhere else.
-  const MONDAY_FIRST_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   const HEIGHT_MIN_CM = 130;
   const HEIGHT_MAX_CM = 230;
@@ -154,10 +147,6 @@
   const ACTIVITY_ICONS = { lift_and_cardio: "liftCardio", cardio_only: "pulse", lift_only: "dumbbell", none: "moon" };
   const DIET_ICONS = { balanced: "plate", low_fat: "droplet", low_carb: "wheatSlash", keto: "avocado" };
   const DISTRIBUTION_ICONS = { stable: "barsEven", weekly: "barsUneven" };
-  const LOCATION_ICONS = { gym: "dumbbell", home: "home", hybrid: "homeGym" };
-  const SPLIT_TYPE_ICONS = { ppl: "ppl", upper_lower: "upperLower", full_body: "person", bro_split: "calendar", custom: "sliders" };
-  const GYM_EXPERIENCE_IDS = ["home_workouts", "gym_regular", "new_or_lapsed"];
-  const GYM_EXPERIENCE_ICONS = { home_workouts: "home", gym_regular: "dumbbell", new_or_lapsed: "sparkle" };
 
   // Mirrors coaching_engine.py's ranges exactly (same ids).
   const MALE_BODY_FAT_RANGES = [
@@ -206,39 +195,27 @@
     return wrap.firstElementChild;
   }
 
-  // Real per-exercise illustration from the icon pack (see
-  // exercise_icons.py / workouts.html's identical helper) -- falls back
-  // to a generic barbell for any exercise the pack doesn't cover.
-  function exerciseIconHtml(name) {
-    const path = (window.EXERCISE_ICONS || {})[name];
-    if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
-    return "\u{1F3CB}️";
-  }
-
   // ---------- State ----------
   // stepIndex -1 = intro screen, 0..STEPS.length-1 = question steps,
   // "generating"/"result" handled via separate boolean/string flags below.
+  // Nutrition questions only. First run no longer asks anything about a
+  // workout split -- those questions live in workouts.html's split wizard,
+  // which every user goes through anyway the first time they build or edit
+  // a split, so asking them here only made setup longer and handed people a
+  // plan before they'd seen the app. Onboarding now always finishes on the
+  // nutrition-only result screen and never writes a split plan; home.html/
+  // workouts.html already treat "no plan yet" as the create-a-plan CTA.
   const STEPS = [
     "aspiration", "gender", "weight", "goal_weight", "height", "body_type", "activity",
-    "protein", "diet", "distribution", "gym_experience", "location", "split_type",
-    "lifting_goal", "days_per_week",
+    "protein", "diet", "distribution",
   ];
-
-  // Steps built entirely around a workout split -- meaningless once the
-  // user has said they don't exercise at all, so the whole section is
-  // skipped and they land straight on the nutrition-only result screen
-  // (see generateAndCalculate()/renderResult()/save() below for the other
-  // half of this: none of them call /api/generate-split or expect a plan).
-  const WORKOUT_SECTION_STEPS = ["gym_experience", "location", "split_type", "lifting_goal", "days_per_week"];
 
   // "goal_weight" only makes sense when the user is actually trying to move
   // away from their current weight -- for "maintain" it's the same number
   // by definition, so the step is skipped rather than asking a redundant
   // question (see nextVisibleIndex/prevVisibleIndex below).
   function shouldSkipStep(step) {
-    if (step === "goal_weight") return w.aspiration === "maintain";
-    if (WORKOUT_SECTION_STEPS.includes(step)) return w.activityLevel === "none";
-    return false;
+    return step === "goal_weight" && w.aspiration === "maintain";
   }
   function visibleSteps() {
     return STEPS.filter((s) => !shouldSkipStep(s));
@@ -275,15 +252,6 @@
     distribution: "stable",
     lossRatePct: LOSS_RATE_DEFAULT_PCT,
     gainRatePct: GAIN_RATE_DEFAULT_PCT,
-    gymExperience: null,
-    location: null,
-    splitType: null,
-    customDays: [],
-    liftingGoal: "",
-    daysPerWeek: null,
-    generatedDays: null,
-    generatedSchedule: null,
-    rationale: null,
     nutritionResult: null,
     generating: false,
     error: null,
@@ -326,12 +294,7 @@
     if (step === "activity") return renderActivityStep();
     if (step === "protein") return renderProteinStep();
     if (step === "diet") return renderDietStep();
-    if (step === "distribution") return renderDistributionStep();
-    if (step === "gym_experience") return renderGymExperienceStep();
-    if (step === "location") return renderLocationStep();
-    if (step === "split_type") return renderSplitTypeStep();
-    if (step === "lifting_goal") return renderLiftingGoalStep();
-    return renderDaysPerWeekStep();
+    return renderDistributionStep();
   }
 
   // ---------- Intro ----------
@@ -672,39 +635,114 @@
     return { el: wrap, etaEl: wrap.querySelector("#ob-rate-eta") };
   }
 
+  // The bounds a goal weight may take, given which way the user said they
+  // want to move. A typed number let you set a goal on the WRONG side of
+  // your current weight -- "lose" with a goal above where you already are,
+  // which then drove a "Rate of weight loss" slider and a goal date for a
+  // gain. Deriving the range from aspiration makes that unreachable rather
+  // than merely discouraged. Whole kg, matching the ruler's tick unit, so
+  // the nearest legal value is always exactly on a tick.
+  function goalWeightBounds(aspiration, currentKg) {
+    const cur = parseFloat(currentKg) || 0;
+    if (aspiration === "lose") {
+      // Strictly below current: the highest legal goal is the last whole
+      // kg under it (69 for a 70 kg user, 69 for a 69.4 kg one).
+      const max = Math.min(MAX_WEIGHT_KG, Math.ceil(cur) - 1);
+      return { min: MIN_WEIGHT_KG, max, valid: max >= MIN_WEIGHT_KG };
+    }
+    if (aspiration === "gain") {
+      const min = Math.max(MIN_WEIGHT_KG, Math.floor(cur) + 1);
+      return { min, max: MAX_WEIGHT_KG, valid: min <= MAX_WEIGHT_KG };
+    }
+    return { min: MIN_WEIGHT_KG, max: MAX_WEIGHT_KG, valid: true };
+  }
+
+  const GOAL_RULER_TICK_PX = 14;
+
   function renderGoalWeightStep() {
-    const weightUnit = RepCheckUnits.weightUnitLabel();
-    const displayGoalWeight = w.goalWeightKg ? RepCheckUnits.kgToDisplay(parseFloat(w.goalWeightKg)) : "";
+    const bounds = goalWeightBounds(w.aspiration, w.weightKg);
+
+    // A goal carried in from a previous pass (or a previous aspiration)
+    // can sit outside the range this direction allows, so snap it in
+    // before drawing -- otherwise the wheel would open showing a value it
+    // cannot actually travel back to.
+    const seeded = parseFloat(w.goalWeightKg) || 0;
+    const startKg = bounds.valid
+      ? Math.max(bounds.min, Math.min(bounds.max, seeded > 0 ? Math.round(seeded) : (w.aspiration === "gain" ? bounds.min : bounds.max)))
+      : 0;
+    if (bounds.valid) w.goalWeightKg = String(startKg);
+
+    let cols = [];
+    if (bounds.valid) {
+      for (let kg = bounds.min; kg <= bounds.max; kg++) {
+        const isMajor = kg % 10 === 0;
+        const isMid = !isMajor && kg % 5 === 0;
+        cols.push(`
+          <div class="ob-goal-ruler-col">
+            <span class="ob-goal-ruler-collabel">${isMajor ? kg : ""}</span>
+            <span class="ob-goal-ruler-tick ${isMajor ? "is-major" : isMid ? "is-mid" : ""}"></span>
+          </div>
+        `);
+      }
+    }
+
+    // When there's no legal goal in this direction (current weight is
+    // already sitting on MIN_WEIGHT_KG/MAX_WEIGHT_KG), skip the ruler
+    // entirely rather than draw an empty, non-functional track -- just the
+    // blocked message below and a disabled Next.
     const wrap = el(`
       <div>
         <div class="ob-wizard-step-label">${t("coaching.wizard.stepGoalWeight")}</div>
-        <div class="ob-field">
-          <label for="ob-goal-weight-kg">${t("coaching.wizard.goalWeight", { unit: weightUnit })}</label>
-          <input type="number" id="ob-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}" data-clear-on-focus>
-          <div class="ob-field-hint" id="ob-goal-weight-hint"></div>
+        ${bounds.valid ? `
+        <div class="ob-goal-ruler">
+          <div class="ob-goal-ruler-value" id="ob-goal-value"></div>
+          <div class="ob-goal-ruler-delta" id="ob-goal-weight-hint"></div>
+          <div class="ob-goal-ruler-window">
+            <div class="ob-goal-ruler-indicator"></div>
+            <div class="ob-goal-ruler-scroll" id="ob-goal-scroll" tabindex="0"
+                 role="slider" aria-valuemin="${bounds.min}" aria-valuemax="${bounds.max}"
+                 aria-label="${t("coaching.wizard.goalWeight", { unit: RepCheckUnits.weightUnitLabel() })}">
+              <div class="ob-goal-ruler-pad" id="ob-goal-pad-start"></div>
+              ${cols.join("")}
+              <div class="ob-goal-ruler-pad" id="ob-goal-pad-end"></div>
+            </div>
+          </div>
+          <div class="ob-goal-ruler-bounds">
+            <span>${RepCheckUnits.formatWeightKg(bounds.min)}</span>
+            <span>${RepCheckUnits.formatWeightKg(bounds.max)}</span>
+          </div>
         </div>
+        ` : `<div class="ob-field-hint" id="ob-goal-weight-hint"></div>`}
       </div>
     `);
-    const goalInput = wrap.querySelector("#ob-goal-weight-kg");
+    const scrollEl = wrap.querySelector("#ob-goal-scroll");
+    const valueEl = wrap.querySelector("#ob-goal-value");
     const hintEl = wrap.querySelector("#ob-goal-weight-hint");
     const updateHint = () => {
       const cur = parseFloat(w.weightKg) || 0;
       const goal = parseFloat(w.goalWeightKg) || 0;
-      if (goal > 0 && goal < MIN_WEIGHT_KG) {
-        hintEl.textContent = t("coaching.wizard.minWeightHint", { min: RepCheckUnits.formatWeightKg(MIN_WEIGHT_KG) });
-        return;
-      }
       hintEl.textContent = cur > 0 && goal > 0
         ? t("coaching.wizard.goalWeightHint", { diff: RepCheckUnits.formatWeightKg(Math.abs(cur - goal)), weight: RepCheckUnits.formatWeightKg(cur) })
         : "";
     };
+
+    if (!bounds.valid) {
+      // Current weight sits right at MIN_WEIGHT_KG (lose) or MAX_WEIGHT_KG
+      // (gain), leaving no legal goal on the requested side at all -- the
+      // ruler has nowhere to go, so don't draw one a user could scroll
+      // forever without ever landing on a value.
+      hintEl.textContent = t("coaching.wizard.goalNoRoomHint");
+      wrap.appendChild(renderWizardActions(false));
+      return wrap;
+    }
+
     updateHint();
 
     // No-op unless the rate field below actually exists (aspiration is
-    // lose/gain) -- goalInput's own listener at the bottom of this function
-    // calls this unconditionally so typing a new goal weight keeps the ETA
-    // under the rate slider in sync, without the two listeners needing to
-    // know about each other's state.
+    // lose/gain) -- the ruler's own scroll listener further down calls this
+    // unconditionally so scrolling to a new goal weight keeps the ETA under
+    // the rate slider in sync, without the two listeners needing to know
+    // about each other's state.
     let updateRateEta = () => {};
 
     // Rate-of-change slider: only meaningful when actually moving away
@@ -740,18 +778,56 @@
       wrap.appendChild(rateSlider.el);
     }
 
-    const canProceed = () => {
-      const gv = parseFloat(w.goalWeightKg);
-      return gv >= MIN_WEIGHT_KG && gv <= MAX_WEIGHT_KG;
-    };
-    wrap.appendChild(renderWizardActions(canProceed()));
-    const nextBtn = wrap.querySelector('[data-action="next"]');
-    goalInput.addEventListener("input", (e) => {
-      w.goalWeightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
+    // The ruler can never land on a value outside [bounds.min, bounds.max]
+    // by construction (every column is clamped, same reasoning as the
+    // current-weight ruler above), so unlike the old text input there's
+    // nothing left to validate here -- Next only needs updateRateEta/hint
+    // wiring, not a disabled toggle.
+    wrap.appendChild(renderWizardActions(true));
+
+    // Each column's own scroll-snap point is its CENTRE, not its left
+    // edge -- `scroll-snap-align: center` means the browser settles at
+    // `padStart + i*TICK + TICK/2`, half a tick past where a naive
+    // `i*TICK` would put it. Both the initial scrollLeft and the
+    // scroll-handler's inverse of it have to use the same offset or the
+    // rest position for a given kg drifts by one tick from what the
+    // native snap actually lands on (confirmed against this build: with
+    // no `-TICK/2` term, landing exactly at the left bound read back one
+    // kg higher than the bound itself).
+    const GOAL_RULER_HALF_TICK = GOAL_RULER_TICK_PX / 2;
+    valueEl.textContent = RepCheckUnits.formatWeightKg(startKg);
+    scrollEl.setAttribute("aria-valuenow", startKg);
+    scrollEl.addEventListener("scroll", () => {
+      const index = Math.round((scrollEl.scrollLeft - GOAL_RULER_HALF_TICK) / GOAL_RULER_TICK_PX);
+      const kg = Math.max(bounds.min, Math.min(bounds.max, bounds.min + index));
+      w.goalWeightKg = String(kg);
+      scrollEl.setAttribute("aria-valuenow", kg);
+      valueEl.textContent = RepCheckUnits.formatWeightKg(kg);
       updateHint();
       updateRateEta();
-      nextBtn.disabled = !canProceed();
+    }, { passive: true });
+
+    // The left/right pads have to be exactly half the window's width so
+    // the first and last ticks can still scroll to the centre indicator --
+    // computed from the measured element rather than hardcoded, since the
+    // window is fluid-width, not a fixed px box like the vertical ruler.
+    // setTimeout (not requestAnimationFrame) matches renderHeightStep's
+    // reasoning: the wrap must be attached to the document and laid out
+    // before getBoundingClientRect()/scrollTo() are meaningful, and
+    // wizard navigation attaches it synchronously right after this
+    // function returns, one tick later than rAF would allow.
+    setTimeout(() => {
+      // Rounded to a whole px: a fractional pad width (e.g. 143.5px) shifts
+      // the browser's true scrollLeft=0 a few px off from where the tick
+      // math expects it, so the leftmost bound becomes unreachable by one
+      // or two kg even though the pad and the ticks are otherwise correct.
+      const windowEl = wrap.querySelector(".ob-goal-ruler-window");
+      const halfWidth = windowEl ? Math.round(windowEl.getBoundingClientRect().width / 2) : 0;
+      wrap.querySelector("#ob-goal-pad-start").style.width = `${halfWidth}px`;
+      wrap.querySelector("#ob-goal-pad-end").style.width = `${halfWidth}px`;
+      scrollEl.scrollLeft = (startKg - bounds.min) * GOAL_RULER_TICK_PX + GOAL_RULER_TICK_PX / 2;
     });
+
     return wrap;
   }
 
@@ -859,137 +935,6 @@
     return wrap;
   }
 
-  function renderGymExperienceStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("onboarding.gymExperience.stepLabel")}</div></div>`);
-    wrap.appendChild(renderChoiceGrid(optionsFor(GYM_EXPERIENCE_IDS, "onboarding.gymExperience", GYM_EXPERIENCE_ICONS), "set-gym-experience", w.gymExperience, true));
-    wrap.appendChild(renderWizardActions(!!w.gymExperience));
-    return wrap;
-  }
-
-  // ---------- Workout-split steps (mirrors workouts.html's split wizard) ----------
-  function getTrainingLocations() {
-    return [
-      { id: "gym", title: t("workouts.wizard.location.gym.title"), sub: t("workouts.wizard.location.gym.sub"), icon: iconSvg(LOCATION_ICONS.gym) },
-      { id: "home", title: t("workouts.wizard.location.home.title"), sub: t("workouts.wizard.location.home.sub"), icon: iconSvg(LOCATION_ICONS.home) },
-      { id: "hybrid", title: t("workouts.wizard.location.hybrid.title"), sub: t("workouts.wizard.location.hybrid.sub"), icon: iconSvg(LOCATION_ICONS.hybrid) },
-    ];
-  }
-  function getSplitTypes() {
-    return [
-      { id: "ppl", title: t("workouts.split.ppl"), sub: t("workouts.split.pplSub"), icon: iconSvg(SPLIT_TYPE_ICONS.ppl) },
-      { id: "upper_lower", title: t("workouts.split.upperLower"), sub: t("workouts.split.upperLowerSub"), icon: iconSvg(SPLIT_TYPE_ICONS.upper_lower) },
-      { id: "full_body", title: t("workouts.split.fullBody"), sub: t("workouts.split.fullBodySub"), icon: iconSvg(SPLIT_TYPE_ICONS.full_body) },
-      { id: "bro_split", title: t("workouts.split.broSplit"), sub: t("workouts.split.broSplitSub"), icon: iconSvg(SPLIT_TYPE_ICONS.bro_split) },
-      { id: "custom", title: t("workouts.split.custom"), sub: t("workouts.split.customSub"), icon: iconSvg(SPLIT_TYPE_ICONS.custom) },
-    ];
-  }
-
-  function renderLocationStep() {
-    const wrap = el(`
-      <div>
-        <div class="ob-section-label">${t("onboarding.workoutSectionLabel")}</div>
-        <div class="ob-wizard-step-label">${t("workouts.wizard.stepLocation")}</div>
-        <div class="ob-type-grid"></div>
-      </div>
-    `);
-    const grid = wrap.querySelector(".ob-type-grid");
-    getTrainingLocations().forEach((loc) => {
-      grid.appendChild(el(`
-        <div class="ob-type-card ${w.location === loc.id ? "is-selected" : ""}" data-action="set-location" data-value="${loc.id}">
-          <div class="ob-type-card-icon">${loc.icon}</div>
-          <div class="ob-type-card-text">
-            <div class="ob-type-card-title">${loc.title}</div>
-            <div class="ob-type-card-sub">${loc.sub}</div>
-          </div>
-        </div>
-      `));
-    });
-    wrap.appendChild(renderWizardActions(!!w.location));
-    return wrap;
-  }
-
-  function renderSplitTypeStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("workouts.wizard.step1")}</div><div class="ob-type-grid"></div></div>`);
-    const grid = wrap.querySelector(".ob-type-grid");
-    getSplitTypes().forEach((st) => {
-      grid.appendChild(el(`
-        <div class="ob-type-card ${w.splitType === st.id ? "is-selected" : ""}" data-action="set-split-type" data-value="${st.id}">
-          <div class="ob-type-card-icon">${st.icon}</div>
-          <div class="ob-type-card-text">
-            <div class="ob-type-card-title">${st.title}</div>
-            <div class="ob-type-card-sub">${st.sub}</div>
-          </div>
-        </div>
-      `));
-    });
-
-    if (w.splitType === "custom") {
-      const customWrap = el(`
-        <div>
-          <div class="ob-custom-input-row">
-            <input type="text" id="ob-custom-input" placeholder="${t("workouts.wizard.customPlaceholder")}" autocomplete="off">
-            <button type="button" class="ob-custom-add-btn" id="ob-custom-add-btn">${t("workouts.wizard.add")}</button>
-          </div>
-          <div class="ob-custom-days" id="ob-custom-days"></div>
-        </div>
-      `);
-      wrap.appendChild(customWrap);
-      const daysList = customWrap.querySelector("#ob-custom-days");
-      w.customDays.forEach((name, i) => {
-        daysList.appendChild(el(`
-          <div class="ob-custom-day-row">
-            <span>${name}</span>
-            <button type="button" class="ob-custom-day-remove" data-action="remove-custom-day" data-value="${i}">&times;</button>
-          </div>
-        `));
-      });
-      const input = customWrap.querySelector("#ob-custom-input");
-      const addBtn = customWrap.querySelector("#ob-custom-add-btn");
-      const addDay = () => {
-        const value = input.value.trim();
-        if (value) { w.customDays.push(value); render(); }
-      };
-      addBtn.addEventListener("click", addDay);
-      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addDay(); } });
-    }
-
-    const canProceed = w.splitType === "custom" ? w.customDays.length > 0 : !!w.splitType;
-    wrap.appendChild(renderWizardActions(canProceed));
-    return wrap;
-  }
-
-  // Optional free-text goal, mirrors workouts.html's renderSplitStepGoal --
-  // reuses that wizard's own i18n keys/backend field rather than inventing
-  // a new one, since /api/generate-split already keyword-matches and
-  // (for AI-backed plans) verbatim-injects this text; onboarding previously
-  // just hardcoded goal:"" and skipped asking entirely.
-  function renderLiftingGoalStep() {
-    const wrap = el(`
-      <div>
-        <div class="ob-wizard-step-label">${t("workouts.wizard.stepGoal")}</div>
-        <div class="ob-field-hint" style="margin-bottom:12px;">${t("workouts.wizard.goalHint")}</div>
-        <div class="ob-field">
-          <textarea id="ob-goal-text" class="ob-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${w.liftingGoal}</textarea>
-        </div>
-      </div>
-    `);
-    wrap.querySelector("#ob-goal-text").addEventListener("input", (e) => {
-      w.liftingGoal = e.target.value;
-    });
-    wrap.appendChild(renderWizardActions(true));
-    return wrap;
-  }
-
-  function renderDaysPerWeekStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("workouts.wizard.step2")}</div><div class="ob-days-grid"></div></div>`);
-    const grid = wrap.querySelector(".ob-days-grid");
-    [1, 2, 3, 4, 5, 6, 7].forEach((n) => {
-      grid.appendChild(el(`<button type="button" class="ob-day-btn ${w.daysPerWeek === n ? "is-selected" : ""}" data-action="set-days" data-value="${n}">${n}</button>`));
-    });
-    wrap.appendChild(renderWizardActions(!!w.daysPerWeek));
-    return wrap;
-  }
-
   // ---------- Generate + result ----------
   function renderGenerating() {
     return el(`<div class="ob-loading">${t("onboarding.generating")}</div>`);
@@ -1000,40 +945,6 @@
     w.error = null;
     render();
     try {
-      let trainingDays = [];
-      // A user who said they don't exercise at all never went through the
-      // workout-split questions (see WORKOUT_SECTION_STEPS) -- there's no
-      // split_type/location/etc to generate a plan from, and generating
-      // one anyway would silently hand them a workout plan they explicitly
-      // said they don't want. Nutrition targets don't need a plan either
-      // way (see api_coaching_calculate in app.py).
-      if (w.activityLevel !== "none") {
-        const splitRes = await fetch("/api/generate-split", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            split_type: w.splitType,
-            days_per_week: w.daysPerWeek,
-            custom_days: w.customDays,
-            goal: w.splitType === "custom" ? "" : w.liftingGoal,
-            custom_days_exercises: {},
-            location: w.location,
-          }),
-        });
-        const splitData = await splitRes.json();
-        if (!splitData.ok) throw new Error(splitData.error || t("onboarding.error"));
-        w.generatedDays = splitData.days;
-        w.generatedSchedule = splitData.schedule;
-        w.rationale = splitData.rationale;
-        trainingDays = Object.keys(w.generatedSchedule).filter(
-          (day) => w.generatedSchedule[day] && w.generatedSchedule[day] !== "Rest"
-        );
-      } else {
-        w.generatedDays = null;
-        w.generatedSchedule = null;
-        w.rationale = null;
-      }
-
       const coachRes = await fetch("/api/coaching/calculate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1049,7 +960,10 @@
           distribution: w.distribution,
           loss_rate_pct: w.aspiration === "lose" ? w.lossRatePct : null,
           gain_rate_pct: w.aspiration === "gain" ? w.gainRatePct : null,
-          training_days: trainingDays,
+          // Onboarding no longer builds a split, so there are no known
+          // training days yet -- same shape api_coaching_calculate already
+          // handled for users who said they don't exercise.
+          training_days: [],
         }),
       });
       const coachData = await coachRes.json();
@@ -1072,9 +986,20 @@
     }
   }
 
+  // w.error carries whatever the API put in `error` (or a thrown message)
+  // straight into innerHTML via el(). Not another user's text -- #178
+  // deleted the free-text onboarding steps that were -- but still a
+  // non-i18n string reaching a markup sink, which is the same shape as the
+  // bug this file's tests were written for. Cheap to close, so it is.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text == null ? "" : text;
+    return div.innerHTML;
+  }
+
   function renderResult() {
     if (w.error) {
-      const wrap = el(`<div><div class="ob-error">${w.error}</div></div>`);
+      const wrap = el(`<div><div class="ob-error">${escapeHtml(w.error)}</div></div>`);
       wrap.appendChild(el(`
         <div class="ob-wizard-actions">
           <button type="button" class="ob-btn-secondary" data-action="back-to-days">${t("common.back")}</button>
@@ -1119,52 +1044,6 @@
       </div>
     `);
 
-    // No split plan at all for a "none" activity user (see
-    // generateAndCalculate()) -- the whole split-review + weekday-assign
-    // block only applies when one was actually generated.
-    if (w.generatedDays) {
-      const splitSection = el(`
-        <div class="ob-result-section">
-          <div class="ob-section-label">${t("onboarding.result.splitLabel", { n: w.generatedDays.length })}</div>
-          ${w.generatedDays.map((day, i) => `
-            <div class="ob-review-day">
-              <div class="ob-review-day-header">
-                <div class="ob-review-day-icon">${iconSvg("dumbbell")}</div>
-                <div class="ob-review-day-title">Day ${i + 1} · ${day.label}</div>
-              </div>
-              <div class="ob-review-exercise-chips">
-                ${day.exercises.map((ex) => `<span class="ob-review-exercise-chip"><span class="ob-review-exercise-chip-icon">${exerciseIconHtml(ex)}</span>${ex}</span>`).join("")}
-              </div>
-            </div>
-          `).join("")}
-          ${w.rationale ? `
-            <div class="ob-rationale">
-              <div class="ob-rationale-label">${iconSvg("bulb")}<span>${t("workouts.wizard.whyThisSchedule")}</span></div>
-              <div class="ob-rationale-text">${w.rationale}</div>
-            </div>
-          ` : ""}
-          <div class="ob-section-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
-          <div id="ob-weekday-assign"></div>
-        </div>
-      `);
-      wrap.appendChild(splitSection);
-
-      const uniqueLabels = [...new Set(w.generatedDays.map((d) => d.label))];
-      const restLabel = t("workouts.wizard.rest");
-      const assignEl = splitSection.querySelector("#ob-weekday-assign");
-      MONDAY_FIRST.forEach((key, i) => {
-        assignEl.appendChild(el(`
-          <div class="ob-weekday-row">
-            <label>${MONDAY_FIRST_LABELS[i]}</label>
-            <select data-weekday="${key}">
-              <option value="Rest" ${w.generatedSchedule[key] === "Rest" ? "selected" : ""}>${restLabel}</option>
-              ${uniqueLabels.map((label) => `<option value="${label}" ${w.generatedSchedule[key] === label ? "selected" : ""}>${label}</option>`).join("")}
-            </select>
-          </div>
-        `));
-      });
-    }
-
     wrap.appendChild(el(`
       <div class="ob-wizard-actions">
         <button type="button" class="ob-btn-primary" id="ob-save-btn" style="flex:1;">${t("onboarding.getStarted")}</button>
@@ -1207,7 +1086,6 @@
       heightCm: w.heightCm,
       bodyFatRangeId: w.bodyFatRangeId,
       activityLevel: w.activityLevel,
-      gymExperience: w.gymExperience,
       proteinPreference: w.proteinPreference,
       dietPreference: w.dietPreference,
       distribution: w.distribution,
@@ -1245,26 +1123,6 @@
 
     const syncPromises = [putSynced(PROFILE_KEY, profile), putSynced(GOALS_KEY, goals)];
 
-    // No split plan was ever generated for a "none" activity user (see
-    // generateAndCalculate()) -- leave the key entirely absent rather than
-    // writing one with nulled-out fields, matching how home.html/
-    // workouts.html already treat "key missing" as "no plan yet, show the
-    // create-a-plan CTA" instead of a broken/empty plan.
-    if (w.generatedDays) {
-      const schedule = {};
-      document.querySelectorAll("#ob-weekday-assign [data-weekday]").forEach((select) => {
-        schedule[select.dataset.weekday] = select.value;
-      });
-      const splitPlan = {
-        splitType: w.splitType,
-        daysPerWeek: w.daysPerWeek,
-        goal: w.splitType === "custom" ? "" : w.liftingGoal,
-        days: w.generatedDays,
-        schedule,
-      };
-      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(splitPlan));
-      syncPromises.push(putSynced(SPLIT_PLAN_KEY, splitPlan));
-    }
     if (w.nutritionResult.distribution) {
       syncPromises.push(putSynced(DISTRIBUTION_KEY, w.nutritionResult.distribution));
     }
@@ -1309,11 +1167,6 @@
     if (action === "set-protein") { w.proteinPreference = value; return render(); }
     if (action === "set-diet") { w.dietPreference = value; return render(); }
     if (action === "set-distribution") { w.distribution = value; return render(); }
-    if (action === "set-gym-experience") { w.gymExperience = value; return render(); }
-    if (action === "set-location") { w.location = value; return render(); }
-    if (action === "set-split-type") { w.splitType = value; return render(); }
-    if (action === "remove-custom-day") { w.customDays.splice(parseInt(value, 10), 1); return render(); }
-    if (action === "set-days") { w.daysPerWeek = parseInt(value, 10); return render(); }
     if (action === "back-to-days") { w.error = null; w.stepIndex = lastVisibleIndex(); return render(); }
     if (action === "retry-generate") return generateAndCalculate();
 
@@ -1323,13 +1176,6 @@
       return render();
     }
     if (action === "next") {
-      // Custom splits already fully specify their own days -- skip the
-      // lifting-goal and days-per-week steps and go straight to
-      // generation, same as the original split wizard.
-      if (currentStep() === "split_type" && w.splitType === "custom") {
-        w.daysPerWeek = Math.min(w.customDays.length, 7);
-        return generateAndCalculate();
-      }
       const nextIndex = nextVisibleIndex(w.stepIndex);
       if (nextIndex >= STEPS.length) return generateAndCalculate();
       w.stepIndex = nextIndex;

@@ -1,6 +1,6 @@
 // DOM-level coverage for renderSplitStepReview()'s interactive state
-// machine -- the carousel's prev/next/dot navigation, the day-pill cycle
-// gesture, and the exercise row -> editor wiring. These were the pieces
+// machine -- the carousel's prev/next/dot navigation, the day-type picker
+// menu, and the exercise row -> editor wiring. These were the pieces
 // ship's coverage audit flagged as needing an actual JS runtime rather
 // than source-text assertions (see tests/test_split_review_step.py for
 // the escaping/saved-plan-contract half of the coverage).
@@ -26,7 +26,13 @@ function dots(body) {
   return [...body.querySelectorAll("[data-weekday-cell]")];
 }
 function pill(body) {
-  return body.querySelector("[data-cycle-day]");
+  return body.querySelector("[data-pill-toggle]");
+}
+function pillMenu(body) {
+  return body.querySelector(".split-carousel-pill-menu");
+}
+function pillMenuOption(body, value) {
+  return body.querySelector(`[data-select-day="${value}"]`);
 }
 function exRows(body) {
   return [...body.querySelectorAll(".split-ex-row")];
@@ -162,31 +168,166 @@ describe("renderSplitStepReview — navigation", () => {
     expect(dots(splitModalBody)[3].classList.contains("is-active")).toBe(true);
   });
 
-  it("clicking the day pill cycles the CURRENTLY SHOWN day's assignment, not some other day", () => {
+  it("tapping the pill opens a menu listing every unique label plus Rest", () => {
+    const { splitModalBody } = ctx;
+    expect(pillMenu(splitModalBody)).toBeNull();
+    pill(splitModalBody).click();
+
+    const menu = pillMenu(splitModalBody);
+    expect(menu).not.toBeNull();
+    expect(pill(splitModalBody).getAttribute("aria-expanded")).toBe("true");
+    const values = [...menu.querySelectorAll("[data-select-day]")].map((el) => el.dataset.selectDay);
+    expect(values).toEqual(["Push", "Pull", "Legs", "Rest"]);
+    // Monday is Push -- that option (and only that one) should read selected.
+    expect(pillMenuOption(splitModalBody, "Push").classList.contains("is-selected")).toBe(true);
+    expect(pillMenuOption(splitModalBody, "Pull").classList.contains("is-selected")).toBe(false);
+  });
+
+  it("a single-label split (e.g. a whole-week Full Body plan) offers exactly that label plus Rest, no duplicates", () => {
+    const days = [{ label: "Full Body", exercises: ["Squat"] }];
+    const schedule = { monday: "Full Body", tuesday: "Full Body", wednesday: "Rest", thursday: "Full Body", friday: "Full Body", saturday: "Rest", sunday: "Rest" };
+    const solo = loadReviewStep({ generatedDays: days, generatedSchedule: schedule });
+    solo.renderSplitStepReview();
+
+    pill(solo.splitModalBody).click();
+    const values = [...pillMenu(solo.splitModalBody).querySelectorAll("[data-select-day]")].map((el) => el.dataset.selectDay);
+    expect(values).toEqual(["Full Body", "Rest"]);
+  });
+
+  it("selecting an option reassigns the CURRENTLY SHOWN day directly, not some other day, and closes the menu", () => {
     const { splitModalBody } = ctx;
     dots(splitModalBody)[3].click(); // move to Thursday = Legs, without touching Monday
     pill(splitModalBody).click();
+    pillMenuOption(splitModalBody, "Rest").click();
+
     expect(pill(splitModalBody).textContent.trim()).toContain("Rest");
+    expect(pillMenu(splitModalBody)).toBeNull(); // menu closes on selection
+    expect(splitModalBody.querySelector(".split-day-rest-note")).not.toBeNull();
 
     // Monday (not visited) must be untouched.
     dots(splitModalBody)[0].click();
     expect(pill(splitModalBody).textContent.trim()).toContain("Push");
   });
 
-  it("cycles through every unique label then Rest, then wraps back", () => {
+  it("tapping the pill again while the menu is open closes it without changing the day", () => {
     const { splitModalBody } = ctx;
-    // Monday starts as Push.
-    const pillText = () => pill(splitModalBody).textContent.trim();
-    expect(pillText()).toContain("Push");
     pill(splitModalBody).click();
-    expect(pillText()).toContain("Pull");
+    expect(pillMenu(splitModalBody)).not.toBeNull();
     pill(splitModalBody).click();
-    expect(pillText()).toContain("Legs");
+    expect(pillMenu(splitModalBody)).toBeNull();
+    expect(pill(splitModalBody).textContent.trim()).toContain("Push"); // unchanged
+  });
+
+  it("a tap elsewhere in the carousel dismisses the open menu instead of also performing that tap's own action", () => {
+    const { splitModalBody } = ctx;
+    const dayName = () => splitModalBody.querySelector(".split-carousel-day").textContent;
     pill(splitModalBody).click();
-    expect(pillText()).toContain("Rest");
-    expect(splitModalBody.querySelector(".split-day-rest-note")).not.toBeNull();
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    splitModalBody.querySelector('[data-carousel-dir="1"]').click(); // first click: dismiss only
+    expect(pillMenu(splitModalBody)).toBeNull();
+    expect(dayName()).toBe("Monday"); // arrow's own action did NOT also fire
+
+    splitModalBody.querySelector('[data-carousel-dir="1"]').click(); // second click: now it navigates
+    expect(dayName()).toBe("Tuesday");
+  });
+
+  it("tapping a weekday dot while the menu is open dismisses it without also navigating", () => {
+    const { splitModalBody } = ctx;
     pill(splitModalBody).click();
-    expect(pillText()).toContain("Push"); // wraps back
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    dots(splitModalBody)[3].click(); // first click: dismiss only
+    expect(pillMenu(splitModalBody)).toBeNull();
+    expect(splitModalBody.querySelector(".split-carousel-day").textContent).toBe("Monday");
+
+    dots(splitModalBody)[3].click(); // second click: now it navigates
+    expect(splitModalBody.querySelector(".split-carousel-day").textContent).toBe("Thursday");
+  });
+
+  it("tapping an exercise row while the menu is open dismisses it instead of opening the editor", () => {
+    const { splitModalBody, calls } = ctx;
+    pill(splitModalBody).click();
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    exRows(splitModalBody)[0].click(); // first click: dismiss only
+    expect(pillMenu(splitModalBody)).toBeNull();
+    expect(calls.editorOpenedWith).toBeUndefined();
+
+    exRows(splitModalBody)[0].click(); // second click: now it opens the editor
+    expect(calls.editorOpenedWith).toEqual({ label: "Push", name: "Bench Press" });
+  });
+
+  it("a tap outside the carousel entirely dismisses the open menu", () => {
+    const { splitModalBody } = ctx;
+    pill(splitModalBody).click();
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    splitModalBody.click(); // outside .split-carousel, but still inside the modal body
+    expect(pillMenu(splitModalBody)).toBeNull();
+  });
+
+  it("Escape dismisses the open menu without changing the day", () => {
+    const { splitModalBody } = ctx;
+    pill(splitModalBody).click();
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(pillMenu(splitModalBody)).toBeNull();
+    expect(pill(splitModalBody).textContent.trim()).toContain("Push"); // unchanged
+  });
+});
+
+describe("renderSplitStepReview — listener cleanup across repeated renders", () => {
+  // The wizard can be closed and reopened many times in one page load, and
+  // renderSplitStepReview() re-binds reviewDismissMenuOnOutsideClick /
+  // reviewDismissMenuOnEscape on `document` every time it runs, removing the
+  // previous pair first. Every other test in this file only calls
+  // renderSplitStepReview() once, so none of them would notice if that
+  // removeEventListener cleanup were silently dropped -- the stale listener
+  // from the first render would keep firing on `document` alongside the new
+  // one, both racing to read/write the shared reviewPillMenuOpen flag. These
+  // tests call it a second time (simulating a reopen) specifically to catch
+  // that class of regression.
+  it("a stale outside-click listener from a previous render doesn't block the new render's outside-click dismiss", () => {
+    const ctx = loadReviewStep({ generatedDays: PPL_DAYS, generatedSchedule: { ...PPL_SCHEDULE } });
+    ctx.renderSplitStepReview(); // first render (e.g. wizard opened once)
+    ctx.renderSplitStepReview(); // re-render (e.g. wizard closed and reopened)
+    const { splitModalBody } = ctx;
+
+    pill(splitModalBody).click();
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    splitModalBody.click(); // outside .split-carousel, but still inside the modal body
+    expect(pillMenu(splitModalBody)).toBeNull();
+  });
+
+  it("a stale Escape listener from a previous render doesn't block the new render's Escape dismiss", () => {
+    const ctx = loadReviewStep({ generatedDays: PPL_DAYS, generatedSchedule: { ...PPL_SCHEDULE } });
+    ctx.renderSplitStepReview();
+    ctx.renderSplitStepReview();
+    const { splitModalBody } = ctx;
+
+    pill(splitModalBody).click();
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(pillMenu(splitModalBody)).toBeNull();
+    expect(pill(splitModalBody).textContent.trim()).toContain("Push"); // unchanged
+  });
+
+  it("re-rendering a third time still leaves exactly one working outside-click dismiss path, not a growing pile of stale ones", () => {
+    const ctx = loadReviewStep({ generatedDays: PPL_DAYS, generatedSchedule: { ...PPL_SCHEDULE } });
+    ctx.renderSplitStepReview();
+    ctx.renderSplitStepReview();
+    ctx.renderSplitStepReview();
+    const { splitModalBody } = ctx;
+
+    pill(splitModalBody).click();
+    expect(pillMenu(splitModalBody)).not.toBeNull();
+
+    splitModalBody.click();
+    expect(pillMenu(splitModalBody)).toBeNull();
   });
 });
 
@@ -237,11 +378,12 @@ describe("renderSplitStepReview — save", () => {
     });
     renderSplitStepReview();
 
-    pill(splitModalBody).click(); // cycle Monday: Push -> Pull
+    pill(splitModalBody).click(); // open the picker for Monday
+    pillMenuOption(splitModalBody, "Pull").click(); // reassign Monday: Push -> Pull
     splitModalBody.querySelector("#split-save-btn").click();
 
     const saved = JSON.parse(localStorage.getItem(SPLIT_PLAN_KEY));
-    expect(saved.schedule.monday).toBe("Pull"); // the cycled value, not "Push"
+    expect(saved.schedule.monday).toBe("Pull"); // the reassigned value, not "Push"
     expect(saved.schedule.wednesday).toBe("Rest");
     expect(Object.keys(saved.schedule)).toHaveLength(7);
     expect(saved.exercisePrescriptions).toBeTypeOf("object");
@@ -273,7 +415,8 @@ describe("renderSplitStepReview — save", () => {
     });
     renderSplitStepReview();
 
-    pill(splitModalBody).click(); // cycle Monday
+    pill(splitModalBody).click(); // open the picker for Monday
+    pillMenuOption(splitModalBody, "Pull").click(); // reassign Monday
 
     expect(splitWizard.generatedSchedule.monday).toBe("Push"); // untouched
   });
@@ -328,5 +471,26 @@ describe("renderSplitStepReview — trust boundary (real DOM, not source-text re
 
     expect(pill(splitModalBody).querySelector("img")).toBeNull();
     expect(pill(splitModalBody).textContent).toContain(evilLabel);
+  });
+
+  it("escapes a quote in a day label so it can't break out of the picker menu option's data-select-day attribute", () => {
+    // Same failure class as the exercise row's data-exercise-edit (escapeHtml
+    // alone leaves quotes untouched), but for the picker menu option added by
+    // this redesign -- data-select-day="${escapeAttr(opt)}" has never been
+    // exercised against a live DOM before this test.
+    const evilLabel = 'Push" onmouseover="window.__pwned=1';
+    const days = [{ label: evilLabel, exercises: ["Bench Press"] }];
+    const schedule = { monday: evilLabel, tuesday: "Rest", wednesday: "Rest", thursday: "Rest", friday: "Rest", saturday: "Rest", sunday: "Rest" };
+    const { renderSplitStepReview, splitModalBody } = loadReviewStep({
+      generatedDays: days,
+      generatedSchedule: schedule,
+    });
+    renderSplitStepReview();
+
+    pill(splitModalBody).click();
+    const option = pillMenu(splitModalBody).querySelector(".split-carousel-pill-menu-item");
+    expect(option).not.toBeNull();
+    expect(option.getAttribute("onmouseover")).toBeNull();
+    expect(option.dataset.selectDay).toBe(evilLabel);
   });
 });

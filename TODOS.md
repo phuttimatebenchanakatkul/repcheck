@@ -140,6 +140,8 @@
 
 **Fixed by /qa on feat/assign-week-carousel, 2026-08-13** -- resolved by removal, not a direct fix. The "Assign your week" screen no longer has a weekday grid at all: `renderSplitStepReview()` was redesigned into a one-day-at-a-time carousel, and `.split-week-cell` no longer exists in `templates/workouts.html`. The carousel's own controls have a different (better, though not perfect) sizing profile: `.split-carousel-arrow` is 34px, and day-to-day jumps have two paths -- the arrows, or the new 8px `.split-carousel-dot` row (a secondary/supplementary way to jump directly to a day, not the primary interaction). The dots are below the 44px guideline too, but as optional pagination affordances behind a same-purpose 34px primary control, this is a materially smaller gap than the old grid being users' *only* way to assign a day. Not re-opened as a fresh TODO since it's a common, accepted mobile pattern (photo-gallery-style pagination dots) rather than the primary control missing a target size.
 
+**Addendum (feat/assign-week-day-picker, 2026-08-13):** The day pill's tap-to-cycle gesture was replaced with a tap-to-open `.split-carousel-pill-menu` (see the "day-type picker" entry below). Its `.split-carousel-pill-menu-item` options are `padding: 8px 10px` at 13px font, an effective height under 44px -- and unlike the dots, this IS the primary control for reassigning a day (there's no other path). Flagged as [LOW] confidence by the design review (code-only, not visually measured) and not blocking ship, but worth a closer look if this screen gets another pass -- padding the tappable area without growing the visible menu row would close most of the gap.
+
 ~~**What:** The 7-cell weekday grid in the split-review "Assign your week" screen (`.split-week-cell` in `templates/workouts.html`) renders at roughly 28-36px square on real phone widths (320-375px) -- the primary interactive control of that screen.~~
 
 ~~**Why:** Small miss-taps on the most-used control of a brand-new screen. Clears WCAG 2.2 AA's 24px minimum, but not Apple's stricter 44px HIG recommendation.~~
@@ -176,13 +178,13 @@
 **Priority:** P4
 **Depends on:** None
 
-### Decide what tap-to-cycle should do when it orphans a training day
+### Decide what the day-type picker should do when it orphans a training day
 
-**What:** In the split-review screen, tapping the day pill (formerly: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) cycles its assignment through every unique day label plus Rest. Nothing stops a user from cycling every day to Rest, or cycling away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`.
+**What:** In the split-review screen, tapping the day pill (formerly: cycled its assignment one tap at a time, before the day-type picker menu of 2026-08-13; before that: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) now opens a menu and reassigns the day directly to whichever label or Rest is picked. Nothing stops a user from reassigning every day to Rest, or picking away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`. The underlying risk is unchanged by the interaction-model swap; only how a user reaches that state changed (now one direct tap instead of N cycling taps).
 
 **Why:** This is a product decision, not a confirmed bug -- a user might legitimately decide they don't want a given training day this week. But it's currently silent either way: no warning, no indication a day type has become unscheduled.
 
-**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s "cycles through every unique label then Rest, then wraps back" test pins that normal cycling doesn't crash, but (unlike the pre-carousel test this replaced) doesn't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being cycled away.
+**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s picker-menu tests pin that normal reassignment doesn't crash, but don't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being picked away.
 
 **Effort:** S (once the desired behavior is decided)
 **Priority:** P3
@@ -302,41 +304,79 @@
 
 ## Hyrox
 
-### PB card's div[role="button"] trigger wraps a real nested `<button>`
+### History rows are a div[role="button"] wrapping a real nested `<button>`
 
-**What:** The new "Your personal bests" card's per-format section trigger (`renderMyBestsCard()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="pb-time-btn">` (the hero time). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
+**What:** Each history row (`renderHistory()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="hx-history-remove">` (the "x"). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
 
 **Why:** Real accessibility gap on a brand-new, genuinely keyboard-operable widget (this PR also added the first working keydown handler in this file). Not blocking because the underlying HTML5 constraint that caused this shape is real and the current implementation does correctly avoid double-firing (see `handleKeydown`'s `event.target !== target` guard), but the ARIA pattern itself should be revisited.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. A real fix likely means moving the expand affordance to a dedicated control adjacent to, not wrapping, the hero time (e.g. a separate chevron button next to the time button, both siblings under a non-interactive row container) -- a layout change, not a one-line fix.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`, where the instance was the "Your personal bests" card's section trigger. That card was removed in v0.1.2.0, but the identical shape survives in the history rows, so the issue moved rather than closed -- repointed there. A real fix likely means making the row container non-interactive and giving the open action its own control adjacent to (not wrapping) the remove button -- a layout change, not a one-line fix. `handleKeydown`'s `event.target !== target` guard still correctly prevents double-firing in the meantime (see `tests/test_hyrox_keyboard_activation.py`).
 
 **Effort:** M
 **Priority:** P3
 **Depends on:** None
 
-### PB card's keyboard toggle drops focus back to `<body>` on expand/collapse
+### Keyboard activation drops focus back to `<body>` on every re-render
 
-**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. `togglePbFormat()` calls `render()`, so a keyboard user who presses Enter/Space to expand a PB section loses focus back to `<body>` and must re-tab from the top to continue.
+**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. Any keyboard activation routed through `handleKeydown` therefore drops focus to `<body>`: pressing Enter on a history row or a personal-best board row opens the detail modal, and dismissing it leaves the user re-tabbing from the top.
 
-**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to this PR, but this PR is the first to attach a newly-working custom keyboard handler (`handleKeydown`) to a disclosure control, making the gap freshly user-facing rather than theoretical.
+**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to any one feature, but `handleKeydown` makes it reachable by keyboard on two live surfaces, so the gap is user-facing rather than theoretical.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-format`) around the `render()` call in `togglePbFormat()` specifically -- the narrower, more tractable option if only this toggle is fixed rather than the pattern app-wide.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. The original instance was the PB card's expand toggle, removed in v0.1.2.0; the pattern outlived it, so this is repointed at the surviving keyboard-activated rows. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-id`) around the `render()` calls reached from `handleKeydown` -- the narrower, more tractable option.
 
-**Effort:** S (narrow fix, just this toggle) / L (app-wide)
+**Effort:** S (narrow fix, just the keyboard-reachable rows) / L (app-wide)
+**Priority:** P3
+**Depends on:** None
+
+### History rows render comboLabel() unescaped (pre-existing, self-XSS only)
+
+**What:** `renderHistory()` and `renderRaceDetailModal()` (`static/hyrox.js`) both emit `<span class="hx-history-tag">${comboLabel(r.gender, r.category, r.format)}</span>` into a template literal assigned via `innerHTML`. `comboLabel()` builds that string through `RepCheckI18n.t("hyrox.finishLabel", {...})`, which substitutes its vars with split/join and does not escape them, and it passes `category`/`format` straight through whenever they are not one of the fixed ids. `setCategory(value)` stores whatever `data-value` it is handed without validating against `CATEGORY_IDS`, and history records also arrive through account sync.
+
+**Why:** Verified, not theoretical: rendering a history record whose `category`, `format`, or `gender` contains `"><img src=x onerror=alert(1)>` produces a live `<img>` in the row, confirmed against the real English dictionary. Self-XSS only -- the data is the user's own -- which is why it is P3 and not P0. Same class as the workout-log entry above.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-pb-leaderboard`. That branch closed the instance it introduced (`pbBoardLabel()` now goes through `escapeHtml`, and the board's `data-key` through a new `escapeAttr`), and deliberately left these two pre-existing call sites alone. The systemic fix is making `RepCheckI18n.t()` escape its vars by default, which would close all of the remaining sinks at once; the narrow fix is wrapping these two call sites in the `escapeHtml` that already exists in the file.
+
+**Effort:** S (two call sites) / M (systemic t() escaping + audit of every intentional-markup caller)
 **Priority:** P3
 **Depends on:** None
 
 ### "No detail available" toast always blames "another device" even when the real cause is local-history eviction
 
-**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.
+**Fixed on `fix/never-evict-race-history`, 2026-08-14** -- resolved at the root cause. `MAX_HISTORY` (the count-based `saveHistory()` trim this TODO was about) is gone entirely; local Hyrox history is never truncated by count or age. The toast's "set on another device" copy is no longer a false-attribution risk, since local-history eviction is no longer a thing that can happen.
 
-**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.
+~~**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.~~
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.
+~~**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.~~
+
+~~**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.~~
 
 **Effort:** S
+**Priority:** P4 (resolved)
+**Depends on:** None
+
+### Unbounded Hyrox history re-uploads the full blob on every single save
+
+**What:** `repcheck_hyrox_history_v1` is one of `account_sync.js`'s `SYNC_KEYS`, so every `saveHistory()` write (finishing a race, deleting one, or caching an AI analysis result) already re-uploads the entire history array via the wrapped `localStorage.setItem` -- this was true even before `fix/never-evict-race-history`. What that fix changes is the *size ceiling*: the array can no longer be capped at ~200 entries, so a long-lived account's full-blob re-upload grows without bound on every single write, including ones that only touch one record (e.g. caching one race's AI analysis text).
+
+**Why:** Not a correctness bug -- `account_sync.js`'s `pushToServer()` already has documented fallback handling for oversized payloads (sendBeacon queue-full retries via fetch, keepalive-quota-exceeded retries without keepalive), so this degrades gracefully rather than failing outright. But it's a standing efficiency cost that scales with account age: JSON.stringify of the whole array plus a full network re-transmission, repeated on every write, for the life of the account, when most writes only change one record.
+
+**Context:** Found by the security and performance specialists during `/ship` on `fix/never-evict-race-history` (both independently flagged the same root cause). A real fix means either delta/batched sync for this key specifically (only the changed record, not the whole array) or restructuring the synced value's shape (e.g. per-race rows instead of one array blob) -- the same "one JSON blob per user, whole-blob read-modify-write" architectural pattern already tracked for workout/nutrition/weight logs elsewhere in this file, now also true of Hyrox history now that it's unbounded. Out of scope for a bugfix branch whose actual mandate was "never evict race data."
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** None
+
+### No recovery path once a device's localStorage quota is hit for Hyrox history
+
+**What:** `saveHistory()`'s catch (added on `fix/never-evict-race-history`) surfaces a toast when `localStorage.setItem` throws `QuotaExceededError`, but `this.history` only ever grows and a failed save is never retried. Every future write on that device -- finishing a race, deleting one, caching an AI analysis -- re-triggers the same failure until the array shrinks. The only shrink path is `removeHistory()`, one entry at a time; there's no bulk-clear UI, and the toast copy just says "try another device."
+
+**Why:** Product/UX gap, not a code defect -- the underlying data is safe (server-authoritative, never lost), but a device that hits this has a genuinely degraded experience with no clear way out short of manually deleting races one by one or switching devices.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `fix/never-evict-race-history`, as a follow-on to the QuotaExceededError catch it also verified. Needs a product decision: a bulk "free up space" flow (e.g. clear local cache for races already confirmed synced server-side, since they're recoverable via hydration), or accept the one-at-a-time deletion path as sufficient given how rare hitting the quota actually is.
+
+**Effort:** M (once the desired recovery UX is decided)
 **Priority:** P4
-**Depends on:** A product decision on the intended wording
+**Depends on:** A product decision on the intended recovery flow
 
 ### Add-a-station category tabs don't implement the full ARIA APG tabs keyboard pattern
 
@@ -583,6 +623,20 @@
 **Depends on:** None
 
 ## Design
+
+### 46 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
+
+**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 46 tinted glows remain, mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus one in `templates/home.html`.
+
+**Why:** The doc and the code now disagree, which is the same failure mode that produced the repeated one-off removals in the first place: a new badge gets built from whichever source the author happened to read. Finishing the sweep is what makes the rule self-enforcing.
+
+**How to find them:** `grep -rEn "box-shadow: 0 [0-9]+px [0-9]+px rgba\((31, 169, 113|185, 131, 42|47, 102, 232|124, 79, 224|232, 131, 47)" --include=*.css --include=*.html static/ templates/`
+
+**Context:** Counted during `/ship` on `feat/hyrox-pb-leaderboard`, which removed the glow from `.pb-trophy` and corrected DESIGN.md but deliberately did not touch the other 45 — an app-wide visual change does not belong in a PR about a leaderboard. Worth doing as one sweep with a before/after screenshot pass, not incrementally.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
 
 ### Two competing empty-state treatments ship side by side
 
