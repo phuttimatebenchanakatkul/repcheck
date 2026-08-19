@@ -35,14 +35,23 @@ from pathlib import Path
 
 import markdown as markdown_lib
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyze_chat import get_analysis_chat_reply
 from analyze_food_gemini import FoodAnalysisError, analyze_food_photo
 from auth import auth_bp, current_user
 from hyrox_coach import get_hyrox_race_analysis
-from barcode_scanner import BarcodeScanError, lookup_by_barcode, scan_and_lookup, search_open_food_facts
+from barcode_scanner import (
+    BarcodeScanError,
+    ProductNotFoundError,
+    decode_barcode,
+    digits_only,
+    lookup_by_barcode,
+    search_open_food_facts,
+)
 from coach_chat import get_coach_reply
+from workout_chat import get_workout_chat_reply
 from checkin_analyzer import CheckinAnalysisError, analyze_checkin
 from coaching_engine import (
     FEMALE_BODY_FAT_RANGES,
@@ -61,6 +70,7 @@ from coaching_engine import (
 from database import (
     DB_PATH,
     add_friendship,
+    analyze_chat_key_result_id,
     append_hyrox_history_entry,
     append_nutrition_log_entry,
     create_challenge,
@@ -72,9 +82,11 @@ from database import (
     delete_custom_food,
     delete_progress_photo,
     delete_user_data,
+    get_activity_dates,
     get_all_user_data,
     get_challenge,
     get_custom_exercises,
+    get_custom_food_by_barcode,
     get_custom_foods,
     get_exercise_leaderboard,
     get_analyze_result,
@@ -93,6 +105,7 @@ from database import (
     get_visible_challenges,
     has_submitted_today,
     init_db,
+    is_analyze_chat_key,
     list_users,
     mark_onboarding_completed,
     prune_analyze_results,
@@ -143,6 +156,7 @@ ANALYZE_HISTORY_KEEP = 20
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
 ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_CONTENT_LENGTH = 300 * 1024 * 1024  # 300 MB
+ISO_DATE_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z", re.ASCII)
 
 # Any exercise name from this library can be picked and analyzed — see
 # analyze_form_gemini.resolve_exercise for how curated vs. generic
@@ -219,6 +233,23 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=3650)
 # the production/local switch instead of a value this app controls.
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
+
+# Render terminates TLS at its edge and forwards to gunicorn over plain
+# HTTP, so Flask sees scheme "http" and url_for(..., _external=True) builds
+# http://repcheck-q0m4.onrender.com/... . Google OAuth compares the
+# redirect_uri byte-for-byte against the authorized list in the Cloud
+# Console (which can only hold https:// for a non-localhost host), so
+# without this every production Google sign-in dies on redirect_uri_mismatch
+# before the user ever gets back here. ProxyFix makes request.scheme/host
+# read X-Forwarded-Proto/-Host, which Render always sets.
+#
+# Trusting those headers is only safe behind a proxy that overwrites them --
+# a client can otherwise just send X-Forwarded-Proto itself -- so this is
+# gated on RENDER, the same production switch used for the Secure cookie
+# flag above. Locally the app is reached directly over http://localhost and
+# url_for already builds the right thing.
+if os.environ.get("RENDER"):
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.register_blueprint(auth_bp)
 init_db()
@@ -309,10 +340,11 @@ ADMIN_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
 # Applied to EVERY account. (A first version grandfathered accounts that
 # existed before the limits shipped via database.py's `rate_limited` column,
 # but that just made the limits look broken when testing with an existing
-# account -- the column is now vestigial and ignored.) Both chatbots (Coach
-# page + analysis follow-ups) share the one "ai_chat" bucket. The AI routes
-# all require login (the app is fully login-gated anyway), so there's no
-# anonymous path that could dodge the per-user counter.
+# account -- the column is now vestigial and ignored.) All three chatbots
+# (Coach page, analysis follow-ups, and the workout-log chat) share the one
+# "ai_chat" bucket. The AI routes all require login (the app is fully
+# login-gated anyway), so there's no anonymous path that could dodge the
+# per-user counter.
 RATE_LIMITS = {
     "workout_analysis": (1, 24 * 60 * 60),  # 1 per day
     "food_analysis": (3, 24 * 60 * 60),     # 3 per day
@@ -432,6 +464,7 @@ SYNCED_DATA_KEYS = {
     "repcheck_nutrition_favorites_v1",
     "repcheck_analyze_log_v1",
     "repcheck_coach_chat_v1",
+    "repcheck_workout_chat_v1",
     "repcheck_coaching_profile_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
@@ -442,7 +475,28 @@ SYNCED_DATA_KEYS = {
     "repcheck_coaching_goal_achieved_handled_v1",
     "repcheck_hyrox_history_v1",
     "repcheck_hyrox_history_synced_v1",
+    "repcheck_activity_log_v1",
+    # Favourited exercises (the heart toggle in the exercise picker) --
+    # same shape and same "user-curated set" semantics as
+    # repcheck_nutrition_favorites_v1 above, and it was the last curated
+    # list still stranded per-browser.
+    "repcheck_exercise_favorites_v1",
+    # Which of the four global HYROX leaderboards the user counts as
+    # theirs, and the lane length of the gym they train in. hyrox.js calls
+    # the first "a standing identity" and asks for the second exactly once
+    # -- both are answers the user gave, so both belong on the account
+    # rather than on whichever browser happened to be open that day.
+    "repcheck_hyrox_leaderboard_gender_v1",
+    "repcheck_hyrox_facility_lane_v1",
 }
+
+
+def is_synced_data_key(key):
+    """Whether /api/sync accepts writes for this key. Everything in
+    SYNCED_DATA_KEYS, plus the per-analysis chat threads, which are keyed by
+    analyze_results row id and so can't be listed by name (see
+    database.is_analyze_chat_key)."""
+    return key in SYNCED_DATA_KEYS or is_analyze_chat_key(key)
 
 
 @app.route("/api/sync", methods=["GET"])
@@ -525,7 +579,18 @@ def api_sync_put(key):
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
-    if key not in SYNCED_DATA_KEYS:
+    if not is_synced_data_key(key):
+        return jsonify({"ok": False, "error": "Unknown sync key."}), 400
+    # A chat-thread key's digit suffix is otherwise just a client-supplied
+    # number -- confirm it actually names one of this user's own
+    # analyze_results rows before accepting a write. Without this, the key
+    # family has no bound (a client can invent any id, indefinitely growing
+    # user_data) and a stale/replayed write for an id that was just pruned
+    # (see prune_analyze_results) would silently resurrect the orphaned row
+    # that pruning exists to remove. Same 400/message as an unknown key so
+    # this doesn't reveal whether a specific id exists.
+    chat_result_id = analyze_chat_key_result_id(key)
+    if chat_result_id is not None and not get_analyze_result(user["id"], chat_result_id):
         return jsonify({"ok": False, "error": "Unknown sync key."}), 400
     payload = request.get_json(silent=True) or {}
     if "value" not in payload:
@@ -542,7 +607,7 @@ def api_sync_delete(key):
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
-    if key not in SYNCED_DATA_KEYS:
+    if not is_synced_data_key(key):
         return jsonify({"ok": False, "error": "Unknown sync key."}), 400
     delete_user_data(user["id"], key)
     return jsonify({"ok": True})
@@ -680,6 +745,27 @@ def api_checkin_photo_upload():
         return jsonify({"ok": False, "error": "angle must be 'front' or 'back'."}), 400
     date_iso = str(request.form.get("date") or "").strip()
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    try:
+        photo_date = date.fromisoformat(date_iso)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    # Bound the date to a sane window -- this field is now load-bearing for
+    # the streak's server-side back-fill (get_activity_dates() in
+    # database.py treats every distinct progress_photos.date as an active
+    # day), so an unbounded value here would let a user fabricate arbitrary
+    # streak history by uploading one photo with a forged date. A day of
+    # slack on the future side covers the client's local "today" running
+    # ahead of the server's clock; the account's own creation date is the
+    # natural floor since no check-in could have happened before it existed.
+    if photo_date > date.today() + timedelta(days=1):
+        return jsonify({"ok": False, "error": "Invalid date."}), 400
+    account_created_raw = str(user.get("created_at") or "")[:10]
+    try:
+        account_created = date.fromisoformat(account_created_raw)
+    except ValueError:
+        account_created = None
+    if account_created and photo_date < account_created:
         return jsonify({"ok": False, "error": "Invalid date."}), 400
 
     file = request.files.get("photo")
@@ -856,7 +942,7 @@ def onboarding_page():
         return redirect(url_for("auth.login_page"))
     if user["onboarding_completed"]:
         return redirect(url_for("home"))
-    return render_template("onboarding.html", exercise_icons=EXERCISE_ICONS)
+    return render_template("onboarding.html")
 
 
 @app.route("/api/onboarding/complete", methods=["POST"])
@@ -877,6 +963,9 @@ def analyze_page():
         i18n_page="analyze",
         exercise_icons=EXERCISE_ICONS,
         exercise_videos=EXERCISE_VIDEOS,
+        # Feeds the picker's "Suggested" tab when the user has no split
+        # plan yet -- see getDefaultSuggestions() in index.html.
+        exercise_categories=EXERCISE_CATEGORIES,
     )
 
 
@@ -951,19 +1040,98 @@ def api_analyze_food():
         return jsonify({"ok": False, "error": "Couldn't analyze that photo. Please try again."}), 502
 
 
+def _custom_food_to_scan_result(food):
+    """Reshapes a row from get_custom_food_by_barcode()/create_custom_food()
+    into the same {food_name, confidence, note, ingredients, calories/
+    protein/fat/carbs} shape barcode_scanner.py's _validate() produces, so
+    a barcode that matches a user's own saved food renders through the
+    exact same result screen as a fresh Open Food Facts/FatSecret lookup.
+    ingredients[0].grams is the food's own defined serving size (not a
+    hardcoded 100g), and "servings" carries every serving size option
+    (the base one plus any extra named ones) for the amount editor's
+    serving-size picker."""
+    servings = [{"label": food["serving_label"], "grams": food["serving_grams"]}]
+    servings.extend(food.get("servings") or [])
+    return {
+        "food_name": food["name"],
+        "confidence": "custom",
+        "note": "Your own saved food entry.",
+        "custom_food_id": food["id"],
+        "ingredients": [{
+            "name": food["name"], "grams": food["serving_grams"],
+            "calories": food["calories"], "protein": food["protein"],
+            "fat": food["fat"], "carbs": food["carbs"],
+        }],
+        "calories": food["calories"], "protein": food["protein"],
+        "fat": food["fat"], "carbs": food["carbs"],
+        "servings": servings,
+    }
+
+
+def _custom_food_to_json(food):
+    """Reshapes a database.py custom_foods row (snake_case, as stored) into
+    the camelCase shape nutrition.html's JS expects (matches what
+    api_create_custom_food() below returns) -- used by both the GET list
+    and the POST create response so a food looks identical whether it just
+    got created or was loaded from GET /api/custom-foods."""
+    return {
+        "id": food["id"], "name": food["name"], "emoji": food["emoji"],
+        "calories": food["calories"], "protein": food["protein"],
+        "fat": food["fat"], "carbs": food["carbs"],
+        "barcode": food.get("barcode"),
+        "servingLabel": food["serving_label"], "servingGrams": food["serving_grams"],
+        "servings": food.get("servings") or [],
+    }
+
+
+def _resolve_barcode(user, barcode):
+    """Shared by /api/scan-barcode and /api/lookup-barcode: a logged-in
+    user's own custom food for this exact barcode always wins over an
+    external lookup (it's their verified data for their product), checked
+    before ever calling out to Open Food Facts/FatSecret. Falls through to
+    lookup_by_barcode() otherwise, which raises ProductNotFoundError (a
+    BarcodeScanError subclass) when nothing matches anywhere -- callers
+    catch that specifically to offer the "create this food yourself" flow."""
+    if user:
+        custom_food = get_custom_food_by_barcode(user["id"], barcode)
+        if custom_food:
+            return _custom_food_to_scan_result(custom_food)
+    return lookup_by_barcode(barcode)
+
+
 @app.route("/api/scan-barcode", methods=["POST"])
 def api_scan_barcode():
     image_file = request.files.get("image")
     if not image_file or image_file.filename == "":
         return jsonify({"ok": False, "error": "Please provide a photo of the barcode."}), 400
 
+    user = current_user()
+    # Live-camera frames (see runServerBarcodeLoop in nutrition.html) post
+    # several times a second and expect most of them to miss, so a failed
+    # decode there is routine rather than notable -- logging every one would
+    # bury the real failures from deliberate single-photo scans.
+    live_frame = request.form.get("live") == "1"
     try:
-        result = scan_and_lookup(image_file.read())
+        barcode = decode_barcode(image_file.read())
+    except BarcodeScanError as exc:
+        if not live_frame:
+            app.logger.warning("Barcode decode failed: %s", exc)
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+    try:
+        result = _resolve_barcode(user, barcode)
         _track_feature("barcode_scan")
         return jsonify({"ok": True, **result})
+    except ProductNotFoundError as exc:
+        return jsonify({"ok": False, "not_found": True, "barcode": barcode, "error": str(exc)})
     except BarcodeScanError as exc:
         app.logger.warning("Barcode scan failed: %s", exc)
-        return jsonify({"ok": False, "error": str(exc)}), 502
+        # Carry the barcode even though this failed: the read itself worked
+        # and only the lookup behind it didn't, which the live scanner needs
+        # to tell apart from "this frame had no barcode in it". Without it a
+        # transient outage looks identical to a miss and the camera loop
+        # would keep scanning forever over a code it had already read.
+        return jsonify({"ok": False, "barcode": barcode, "error": str(exc)}), 502
 
 
 @app.route("/api/lookup-barcode", methods=["POST"])
@@ -973,13 +1141,23 @@ def api_lookup_barcode():
     # camera feed (see nutrition.html) -- no photo upload needed, just the
     # decoded value to look up.
     payload = request.get_json(silent=True) or {}
-    barcode = str(payload.get("barcode") or "").strip()
+    # Normalize before _resolve_barcode(), not just inside lookup_by_barcode():
+    # the user's-own-custom-food fast path does an exact string match, so a
+    # dirty value would skip past their saved food and hit the external API.
+    barcode = digits_only(str(payload.get("barcode") or ""))
     if not barcode:
         return jsonify({"ok": False, "error": "No barcode value given."}), 400
 
+    user = current_user()
     try:
-        result = lookup_by_barcode(barcode)
+        result = _resolve_barcode(user, barcode)
         return jsonify({"ok": True, **result})
+    except ProductNotFoundError as exc:
+        # Not a hard error -- a normal, expected outcome the frontend
+        # handles by offering to create this barcode as a custom food (see
+        # renderAfCreateForm(false, barcode) in nutrition.html), so this
+        # stays a 200 rather than the 502 a genuine lookup failure gets.
+        return jsonify({"ok": False, "not_found": True, "barcode": barcode, "error": str(exc)})
     except BarcodeScanError as exc:
         app.logger.warning("Barcode lookup failed: %s", exc)
         return jsonify({"ok": False, "error": str(exc)}), 502
@@ -1005,7 +1183,8 @@ def api_get_custom_foods():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
-    return jsonify({"ok": True, "foods": get_custom_foods(user["id"])})
+    foods = [_custom_food_to_json(f) for f in get_custom_foods(user["id"])]
+    return jsonify({"ok": True, "foods": foods})
 
 
 @app.route("/api/custom-foods", methods=["POST"])
@@ -1039,20 +1218,76 @@ def api_create_custom_food():
     # erroring.
     name = name or "Custom food"
     emoji = emoji or "\U0001F37D️"
-    if protein == 0 and fat == 0 and carbs == 0:
-        return jsonify({"ok": False, "error": "Enter at least one macro (protein, fat, or carbs)."}), 400
+    # Macros are optional too. A food with none is a legitimate thing to
+    # store -- someone cataloguing a product from its barcode may not have
+    # the label to hand, and saving it now beats losing the scan. It logs as
+    # 0 kcal until filled in, which is what an unknown food honestly is.
+    # The "Log macros" quick form, whose entire purpose is entering them,
+    # still requires at least one client-side (see submitCustomFood).
+
+    # Set only when this food is being created from the barcode-scan
+    # "not found" flow (see renderAfCreateForm(false, barcode) in
+    # nutrition.html) -- lets a future scan of the same code resolve
+    # straight to this food (see _resolve_barcode() above) instead of
+    # failing again. Optional otherwise: a food created via the plain
+    # "Create food" tile has no barcode.
+    # Digits only, same as every other barcode path -- the client already
+    # does this, but a direct API call doesn't, and a dirty value stored
+    # here would never match the clean value a real scan produces (and
+    # would slip past the duplicate check just below).
+    barcode = digits_only(str(payload.get("barcode") or ""))[:20] or None
+    if barcode and get_custom_food_by_barcode(user["id"], barcode):
+        return jsonify({
+            "ok": False,
+            "error": "You already have a custom food saved for this barcode.",
+        }), 409
+
+    # What the entered calories/protein/fat/carbs above are FOR -- e.g.
+    # "1 bar" = 45g. Defaults to the same "100g" assumption every other
+    # custom food used to hardcode, so old behavior is unchanged when a
+    # caller doesn't specify one.
+    serving_label = str(payload.get("servingLabel") or "").strip()[:40] or "1 serving"
+    try:
+        serving_grams = float(payload.get("servingGrams") or 100)
+    except (TypeError, ValueError):
+        serving_grams = 100
+    if serving_grams <= 0:
+        serving_grams = 100
+
+    # Extra named serving sizes beyond the base one above (e.g. base "1
+    # bar" = 45g, plus "1 box" = 270g) -- each just needs a label and a
+    # gram weight; the macros for it are derived client-side/at log time
+    # by scaling from the base serving, so nothing else is stored per size.
+    extra_servings = []
+    for raw in (payload.get("servings") or [])[:20]:
+        if not isinstance(raw, dict):
+            continue
+        label = str(raw.get("label") or "").strip()[:40]
+        try:
+            grams = float(raw.get("grams") or 0)
+        except (TypeError, ValueError):
+            grams = 0
+        if label and grams > 0:
+            extra_servings.append({"label": label, "grams": grams})
 
     # Always derived server-side from the macros, never trusted from the
     # client -- protein and carbs are 4 kcal/g, fat is 9 kcal/g, so the
     # calories shown always genuinely match the entered macros.
     calories = round(protein * 4 + carbs * 4 + fat * 9)
 
-    food_id = create_custom_food(user["id"], name[:60], emoji, calories, protein, fat, carbs)
+    name = name[:60]
+    food_id = create_custom_food(
+        user["id"], name, emoji, calories, protein, fat, carbs,
+        barcode=barcode, serving_label=serving_label, serving_grams=serving_grams,
+        extra_servings=extra_servings,
+    )
     return jsonify({
         "ok": True,
         "food": {
-            "id": food_id, "name": name[:60], "emoji": emoji,
+            "id": food_id, "name": name, "emoji": emoji,
             "calories": calories, "protein": protein, "fat": fat, "carbs": carbs,
+            "barcode": barcode, "servingLabel": serving_label, "servingGrams": serving_grams,
+            "servings": extra_servings,
         },
     })
 
@@ -1222,6 +1457,7 @@ ADMIN_PAGE_LABELS = {
 ADMIN_FEATURE_LABELS = {
     "workout_analysis": "Workout analyses (AI)", "food_scan": "Food photo scans (AI)",
     "coach_chat_message": "Coach chat messages", "analyze_chat_message": "Analysis chat messages",
+    "workout_chat_message": "Workout chat messages",
     "hyrox_ai_analysis": "HYROX race analyses (AI)", "challenge_submission": "Challenge submissions",
     "food_logged": "Foods logged", "weight_logged": "Weigh-ins logged", "barcode_scan": "Barcode scans",
 }
@@ -1447,6 +1683,24 @@ def api_friends_add():
         return jsonify({"ok": False, "error": "That's your own code."}), 400
     add_friendship(user["id"], other["id"])
     return jsonify({"ok": True, "friend": {"id": other["id"], "name": other["name"]}})
+
+
+# ---------- Streak activity ----------
+@app.route("/api/activity/dates", methods=["GET"])
+def api_activity_dates():
+    """Days this account did something that's only recorded server-side --
+    challenge attempts above all, plus form analyses, HYROX races and
+    check-in photos. static/streak.js merges these into its local activity
+    log once per session, which is what lets a streak survive switching
+    devices and lets history from before the local log existed still count.
+
+    Read-only and per-user; tz_offset_minutes just buckets UTC timestamps
+    into the caller's own calendar days (see get_activity_dates)."""
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    dates = get_activity_dates(user["id"], request.args.get("tz_offset_minutes", 0))
+    return jsonify({"ok": True, "dates": dates})
 
 
 # ---------- Challenges ----------
@@ -1777,6 +2031,40 @@ def api_analyze_chat():
     })
 
 
+@app.route("/api/workout-chat", methods=["POST"])
+def api_workout_chat():
+    # Same reasoning as /api/analyze-food: every message must count against
+    # an account, so no anonymous access.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message", "")).strip()
+    history = payload.get("history") or []
+    context = payload.get("context") or {}
+
+    if not message:
+        return jsonify({"ok": False, "error": "Message can't be empty."}), 400
+    if not isinstance(history, list):
+        return jsonify({"ok": False, "error": "Invalid history."}), 400
+    if not isinstance(context, dict):
+        return jsonify({"ok": False, "error": "Invalid context."}), 400
+
+    blocked, retry = _rate_limit_blocked("ai_chat")
+    if blocked:
+        return jsonify({"ok": True, **_chat_limit_response(retry)})
+
+    result = get_workout_chat_reply(message, history, context)
+    _rate_limit_record("ai_chat")
+    _track_feature("workout_chat_message")
+    return jsonify({
+        "ok": True,
+        "reply": result["reply"],
+        "limited": result["limited"],
+        "retry_after_seconds": result["retry_after_seconds"],
+    })
+
+
 @app.route("/api/hyrox/analyze", methods=["POST"])
 def api_hyrox_analyze():
     payload = request.get_json(silent=True) or {}
@@ -2002,6 +2290,18 @@ def api_coaching_calculate():
     return jsonify({"ok": True, "targets": targets, "distribution": distribution})
 
 
+def _filter_iso_date_list(raw, limit=31):
+    """Used for high_carb_days/bloating_days below -- these get "".join()-ed
+    straight into the Gemini prompt in checkin_analyzer.py, and unlike every
+    other value reaching that prompt (all numeric), they're client-supplied
+    strings. Slices to `limit` BEFORE filtering so a client can't pad the
+    array to force wasted regex work; `limit` defaults to 31 (a generous
+    month -- a check-in week only ever has 7 dates)."""
+    if not isinstance(raw, list):
+        return []
+    return [d for d in raw[:limit] if isinstance(d, str) and ISO_DATE_RE.match(d)]
+
+
 @app.route("/api/coaching/weekly-adjustment", methods=["POST"])
 def api_coaching_weekly_adjustment():
     payload = request.get_json(silent=True) or {}
@@ -2014,6 +2314,11 @@ def api_coaching_weekly_adjustment():
     week_calorie_days = payload.get("week_calorie_days") or []
     if not isinstance(current_targets, dict) or "calories" not in current_targets:
         return jsonify({"ok": False, "error": "Missing current_targets."}), 400
+
+    # Optional self-reported context (see checkin_analyzer.py's
+    # _build_context_flags_line() and _filter_iso_date_list() above).
+    high_carb_days = _filter_iso_date_list(payload.get("high_carb_days"))
+    bloating_days = _filter_iso_date_list(payload.get("bloating_days"))
 
     # The deterministic trend calculation always runs first, both as the
     # anchor/fallback for the Gemini call below and as the answer on its
@@ -2038,7 +2343,7 @@ def api_coaching_weekly_adjustment():
             photo_files.append((path.read_bytes(), mime_type))
 
     try:
-        ai_result = analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files)
+        ai_result = analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days, bloating_days)
         adjustment = apply_calorie_delta(profile, current_targets, ai_result["delta"], ai_result["reason"])
     except CheckinAnalysisError:
         # Gemini call failed (no API key, hiccup, bad response) -- fall
@@ -2058,7 +2363,7 @@ def analyze():
             return jsonify({"ok": False, "error": message}), 400
         return render_template(
             "index.html", exercise_library=EXERCISE_LIBRARY, active_nav="analyze", i18n_page="analyze",
-            exercise_videos=EXERCISE_VIDEOS, error=message
+            exercise_videos=EXERCISE_VIDEOS, exercise_categories=EXERCISE_CATEGORIES, error=message
         )
 
     video_file = request.files.get("video")

@@ -28,6 +28,13 @@
  *      avoids having to convert every page's initial render to be async.
  *
  * Must load before any other page script that reads/writes these keys.
+ *
+ * Dispatches "repcheck:sync-hydrated" on `document` once the load-time
+ * /api/sync pull has settled (success or failure) -- static/streak.js
+ * waits for this before running its own once-per-session server pull, so
+ * it can never read this device's local data before the account-switch
+ * wipe above has had a chance to clear it out. See streak.js's own
+ * comment on that wait for the full failure mode this closes.
  */
 (function () {
   "use strict";
@@ -46,6 +53,7 @@
     "repcheck_nutrition_favorites_v1",
     "repcheck_analyze_log_v1",
     "repcheck_coach_chat_v1",
+    "repcheck_workout_chat_v1",
     "repcheck_coaching_profile_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
@@ -56,7 +64,44 @@
     "repcheck_coaching_goal_achieved_handled_v1",
     "repcheck_hyrox_history_v1",
     "repcheck_hyrox_history_synced_v1",
+    "repcheck_activity_log_v1",
+    "repcheck_exercise_favorites_v1",
+    "repcheck_hyrox_leaderboard_gender_v1",
+    "repcheck_hyrox_facility_lane_v1",
   ]);
+
+  // Per-analysis AI chat threads (static/analyze_chat_widget.js) are one
+  // key PER analyze_results row, so they can't go in the fixed set above --
+  // they're matched by prefix instead, everywhere SYNC_KEYS is consulted.
+  // Keep the pattern identical to database.py's ANALYZE_CHAT_KEY_RE, which
+  // is what the server validates writes against.
+  var ANALYZE_CHAT_PREFIX = "repcheck_analyze_chat_v1_";
+  // Built from ANALYZE_CHAT_PREFIX rather than a second literal, so the
+  // prefix can't drift out of sync with the regex that validates it. No
+  // leading zero on the id, matching database.py's ANALYZE_CHAT_KEY_RE --
+  // the server is the real authority (it also checks the id names a row
+  // this user actually owns), but keeping the shape identical here means
+  // this device never even tries to push/adopt a key the server will
+  // reject anyway.
+  var ANALYZE_CHAT_KEY_RE = new RegExp("^" + ANALYZE_CHAT_PREFIX + "(0|[1-9]\\d*)$");
+  function isAnalyzeChatKey(key) {
+    return ANALYZE_CHAT_KEY_RE.test(key);
+  }
+  function isSyncKey(key) {
+    return SYNC_KEYS.has(key) || isAnalyzeChatKey(key);
+  }
+  // Every analyze-chat key this browser currently holds. Needed because,
+  // unlike SYNC_KEYS, there's no fixed list to iterate -- the threads that
+  // exist are whichever ones the user has actually chatted on.
+  function localAnalyzeChatKeys() {
+    var out = [];
+    try {
+      Object.keys(localStorage).forEach(function (key) {
+        if (key.indexOf(ANALYZE_CHAT_PREFIX) === 0 && isAnalyzeChatKey(key)) out.push(key);
+      });
+    } catch (err) {}
+    return out;
+  }
 
   var nativeSetItem = Storage.prototype.setItem.bind(localStorage);
   var nativeRemoveItem = Storage.prototype.removeItem.bind(localStorage);
@@ -103,6 +148,17 @@
   }
   function encodeForStorage(value) {
     return typeof value === "string" ? value : JSON.stringify(value);
+  }
+
+  // Shared by every "a recent local write is authoritative" branch below
+  // (union-merge keys, log-merge keys, analyze-chat threads): re-push the
+  // local value as-is when it differs from what the server has, and do
+  // nothing otherwise. Pulled out so the three call sites can't drift from
+  // each other on a future change to this trust-window logic.
+  function pushIfChangedFromLocal(key, localRaw, hasServer, serverValues) {
+    if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
+      pushToServer(key, localRaw);
+    }
   }
 
   function pushToServer(key, rawValue) {
@@ -156,16 +212,27 @@
     }
   }
 
+  // static/streak.js back-fills the account's server-side activity
+  // (challenge attempts above all) once per browser session, remembering
+  // that it did via this sessionStorage flag. Both places below that wipe
+  // one account's local data have to drop it too: a session survives the
+  // reload into a DIFFERENT account, so leaving the flag set would mean
+  // the account now logged in never gets its own history back-filled, and
+  // it would be shown a zero streak for the rest of the session.
+  function clearStreakSeedFlag() {
+    try { sessionStorage.removeItem("repcheck_activity_seeded"); } catch (err) {}
+  }
+
   localStorage.setItem = function (key, value) {
     nativeSetItem(key, value);
-    if (SYNC_KEYS.has(key)) {
+    if (isSyncKey(key)) {
       recordWriteTime(key);
       pushToServer(key, value);
     }
   };
   localStorage.removeItem = function (key) {
     nativeRemoveItem(key);
-    if (SYNC_KEYS.has(key)) {
+    if (isSyncKey(key)) {
       recordWriteTime(key);
       pushToServer(key, null);
     }
@@ -200,7 +267,12 @@
   // dropped can briefly reappear, which is far less alarming than losing
   // every favorite; a fresh removal is still honored because a recent
   // local write is trusted outright (see the merge branch below).
-  var MERGE_UNION_KEYS = new Set(["repcheck_nutrition_favorites_v1"]);
+  var MERGE_UNION_KEYS = new Set([
+    "repcheck_nutrition_favorites_v1",
+    // Favourited exercises: same curated-set shape (a JSON array of names)
+    // and the same failure mode if it were merged last-write-wins.
+    "repcheck_exercise_favorites_v1",
+  ]);
 
   // Append-only LOG keys: collections of dated user entries (workouts,
   // meals, races, analyses, weigh-ins, day statuses). These had the same
@@ -224,6 +296,13 @@
     "repcheck_analyze_log_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
+    "repcheck_workout_chat_v1",
+    // The streak's activity log (date -> [action names], see
+    // static/streak.js). Same stakes as the logs above: it's the ONLY
+    // record that a daily challenge, check-in or coach chat ever
+    // happened, so a stale/empty server copy overwriting it would break
+    // a streak the user has actually earned.
+    "repcheck_activity_log_v1",
   ]);
 
   // Of those, these two are a flat ARRAY of entries; the rest are
@@ -283,6 +362,31 @@
     return v !== null && typeof v === "object" && !Array.isArray(v);
   }
 
+  // Analyze-chat threads are {createdAtMs, history: [{role, text}, ...]}
+  // and analyze_chat_widget.js only ever pushes onto history, so the longer
+  // transcript is always a superset of the shorter one -- taking it means a
+  // stale copy (another tab left open on the same analysis, a device that
+  // missed a push) can never truncate the conversation. Mirrors
+  // database.py's _merge_chat_thread.
+  function mergeChatThread(localVal, serverVal) {
+    if (!isPlainObject(serverVal)) return localVal;
+    if (!isPlainObject(localVal)) return serverVal;
+    var localHist = Array.isArray(localVal.history) ? localVal.history : [];
+    var serverHist = Array.isArray(serverVal.history) ? serverVal.history : [];
+    var winner = localHist.length >= serverHist.length ? localVal : serverVal;
+    var merged = {};
+    Object.keys(winner).forEach(function (k) { merged[k] = winner[k]; });
+    merged.history = localHist.length >= serverHist.length ? localHist : serverHist;
+    // createdAtMs is the analysis's own timestamp, so both sides should
+    // already agree; keep the earliest if they don't, since the widget's
+    // 24h lock and its retention sweep are both anchored to it.
+    var stamps = [localVal.createdAtMs, serverVal.createdAtMs].filter(function (v) {
+      return typeof v === "number";
+    });
+    if (stamps.length) merged.createdAtMs = Math.min.apply(Math, stamps);
+    return merged;
+  }
+
   function mergeLog(key, localVal, serverVal) {
     if (ARRAY_LOG_KEYS.has(key)) {
       return mergeById(Array.isArray(localVal) ? localVal : [], Array.isArray(serverVal) ? serverVal : []);
@@ -327,14 +431,23 @@
   // up with — while making sure nothing survives an actual account
   // switch. Theme/language are left alone since those are genuinely
   // per-device, not account data (see PER_DEVICE_KEYS above).
-  document.addEventListener("submit", function (event) {
-    var form = event.target;
-    if (form.tagName !== "FORM" || !form.action || form.action.indexOf("/logout") === -1) return;
+  function clearAccountOwnedKeys() {
     SYNC_KEYS.forEach(function (key) {
       if (!PER_DEVICE_KEYS.has(key)) nativeRemoveItem(key);
     });
+    // Chat threads are account data too -- leaving them behind would let
+    // the next account signed into this browser adopt (and re-push) the
+    // previous user's conversations, exactly what this clear exists to stop.
+    localAnalyzeChatKeys().forEach(nativeRemoveItem);
+  }
+
+  document.addEventListener("submit", function (event) {
+    var form = event.target;
+    if (form.tagName !== "FORM" || !form.action || form.action.indexOf("/logout") === -1) return;
+    clearAccountOwnedKeys();
     nativeRemoveItem(WRITE_TIMES_KEY);
     try { sessionStorage.removeItem("repcheck_hydrated_reload"); } catch (err) {}
+    clearStreakSeedFlag();
   });
 
   // ---------- Hydrate from the account on load ----------
@@ -355,10 +468,9 @@
       var lastOwnerId = localStorage.getItem(OWNER_KEY);
       var currentOwnerId = String(data.user_id);
       if (lastOwnerId !== null && lastOwnerId !== currentOwnerId) {
-        SYNC_KEYS.forEach(function (key) {
-          if (!PER_DEVICE_KEYS.has(key)) nativeRemoveItem(key);
-        });
+        clearAccountOwnedKeys();
         nativeRemoveItem(WRITE_TIMES_KEY);
+        clearStreakSeedFlag();
       }
       nativeSetItem(OWNER_KEY, currentOwnerId);
 
@@ -367,7 +479,24 @@
       var writeTimes = loadWriteTimes();
       var now = Date.now();
 
-      SYNC_KEYS.forEach(function (key) {
+      // The fixed keys, plus every analyze-chat thread that exists on
+      // either side (this device's, and any this account chatted on from
+      // another device). Order doesn't matter -- each key is reconciled
+      // independently below.
+      var keysToHydrate = [];
+      var queued = {};
+      function queueKey(key) {
+        if (Object.prototype.hasOwnProperty.call(queued, key)) return;
+        queued[key] = true;
+        keysToHydrate.push(key);
+      }
+      SYNC_KEYS.forEach(queueKey);
+      localAnalyzeChatKeys().forEach(queueKey);
+      Object.keys(serverValues).forEach(function (key) {
+        if (isAnalyzeChatKey(key)) queueKey(key);
+      });
+
+      keysToHydrate.forEach(function (key) {
         // Reconciling one key must not abort every OTHER key's sync for
         // this page load if it throws (e.g. QuotaExceededError from
         // nativeSetItem below -- now reachable for MERGE_LOG_KEYS entries
@@ -423,11 +552,35 @@
         // stick), so trust and push it as-is. Otherwise merge local ∪ server
         // so nothing is ever lost, and push the union up if it added
         // anything the server didn't have.
+        // Analyze-chat threads: append-only, so reconcile by keeping the
+        // longer transcript rather than letting either side overwrite the
+        // other (see mergeChatThread).
+        if (isAnalyzeChatKey(key)) {
+          if (recentlyWrittenLocally) {
+            pushIfChangedFromLocal(key, localRaw, hasServer, serverValues);
+            return;
+          }
+          var localThread = null;
+          try { localThread = localRaw !== null ? JSON.parse(localRaw) : null; } catch (e) { localThread = null; }
+          var mergedThread = mergeChatThread(localThread, hasServer ? serverValues[key] : null);
+          if (!isPlainObject(mergedThread)) return; // nothing on either side
+          var mergedThreadRaw = JSON.stringify(mergedThread);
+          if (mergedThreadRaw !== localRaw) {
+            nativeSetItem(key, mergedThreadRaw);
+            // Only worth a reload if the merge actually surfaced turns this
+            // device didn't have -- the widget renders from localStorage at
+            // init, so an unchanged/empty thread has nothing to re-render.
+            if (Array.isArray(mergedThread.history) && mergedThread.history.length) needsReload = true;
+          }
+          if (!hasServer || encodeForStorage(serverValues[key]) !== mergedThreadRaw) {
+            pushToServer(key, mergedThreadRaw);
+          }
+          return;
+        }
+
         if (MERGE_UNION_KEYS.has(key)) {
           if (recentlyWrittenLocally) {
-            if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
-              pushToServer(key, localRaw);
-            }
+            pushIfChangedFromLocal(key, localRaw, hasServer, serverValues);
             return;
           }
           var localArr = [];
@@ -465,9 +618,7 @@
           if (recentlyWrittenLocally) {
             // A just-made change (including a deletion) is authoritative;
             // make sure the server has it, don't merge the old copy back in.
-            if (localRaw !== null && (!hasServer || encodeForStorage(serverValues[key]) !== localRaw)) {
-              pushToServer(key, localRaw);
-            }
+            pushIfChangedFromLocal(key, localRaw, hasServer, serverValues);
             return;
           }
           var localLog = null, serverLog = null;
@@ -553,5 +704,12 @@
         location.reload();
       }
     })
-    .catch(function () {});
+    .catch(function () {})
+    // Chained AFTER the catch (not just inside .then), so this fires
+    // whether the pull above succeeded, hydrated something, reloaded, or
+    // failed outright -- streak.js is waiting on this signal and must
+    // never be left hanging because /api/sync errored.
+    .then(function () {
+      document.dispatchEvent(new CustomEvent("repcheck:sync-hydrated"));
+    });
 })();

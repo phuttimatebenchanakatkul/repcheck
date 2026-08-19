@@ -362,11 +362,63 @@
   width: 100%; padding: 11px 13px; border: 1px solid var(--border);
   background: var(--bg); color: var(--text); border-radius: 10px; font-size: 15px; font-family: inherit;
 }
-.pc-field input[type="range"] {
-  width: 100%; padding: 0; border: none; background: none;
-  accent-color: var(--blue); height: 20px; cursor: pointer;
-}
 .pc-field-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; min-height: 14px; }
+
+/* ---------- Rate-of-change slider (custom, replaces native
+   <input type="range">) -- see renderRateSlider() in coaching.js. Mirrors
+   onboarding.html's .ob-rate-* rules exactly (same .pc-*/.ob-* class-
+   duplication reasoning as the JS constants at the top of coaching.js).
+   "Standard" zone highlighting/badge only ever applies to the loss
+   direction; the gain slider renders the same track/thumb/readouts with
+   no zone and no badge. ---------- */
+.pc-rate-field label { margin-bottom: 4px; }
+.pc-rate-badge {
+  display: flex; justify-content: center; margin: 10px 0 18px;
+  font-size: 12px; font-weight: 800; color: var(--text-secondary);
+}
+.pc-rate-badge:not(:empty) {
+  padding: 7px 14px; border-radius: 999px; background: var(--border); width: fit-content; margin-left: auto; margin-right: auto;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.pc-rate-badge.is-standard { background: var(--green-bg); color: var(--green); }
+.pc-rate-slider {
+  position: relative; height: 32px; margin: 0 4px 20px; cursor: pointer;
+  touch-action: none; /* dragging is handled entirely via pointer events */
+}
+.pc-rate-slider-track {
+  position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px;
+  background: var(--border); border-radius: 999px;
+}
+.pc-rate-slider-zone {
+  position: absolute; top: 0; bottom: 0; background: var(--green); border-radius: 999px; opacity: 0.5;
+}
+.pc-rate-slider-thumb {
+  /* left is static (0) and never rewritten -- JS positions the thumb
+     entirely via the inline `transform` it sets on every redraw (see
+     renderRateSlider() in coaching.js), which is compositor-only and
+     doesn't trigger layout the way rewriting `left` on every drag pixel
+     would. The drag-scale effect is folded into that same inline
+     transform string rather than a separate class rule, since an inline
+     transform would otherwise silently win over (not combine with) a
+     stylesheet transform on the same property. */
+  position: absolute; top: 50%; left: 0; width: 26px; height: 26px; margin-top: -13px;
+  border-radius: 50%; background: var(--text-secondary); border: 3px solid var(--card-bg);
+  box-shadow: 0 2px 8px rgba(16, 17, 20, 0.25);
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+.pc-rate-slider-thumb.is-standard { background: #fff; border-color: var(--green); }
+.pc-rate-slider:focus-visible { outline: none; }
+.pc-rate-slider:focus-visible .pc-rate-slider-thumb { outline: 3px solid var(--blue); outline-offset: 2px; }
+.pc-rate-readout-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pc-rate-readout-sign { color: var(--text-secondary); font-size: 13px; font-weight: 700; width: 10px; flex-shrink: 0; }
+.pc-rate-readout-box {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between;
+  padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--bg);
+  font-size: 16px; font-weight: 700; color: var(--text);
+}
+.pc-rate-readout-box-pct { color: var(--text-secondary); font-weight: 600; font-size: 14px; }
+.pc-rate-readout-unit { color: var(--text-secondary); font-size: 12px; font-weight: 600; margin-left: 6px; }
+.pc-rate-readout-freq { flex-shrink: 0; width: 64px; text-align: right; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
 /* Row holding the goal-date estimate card and, for an existing user with a
    current budget, the current-budget card beside it (left). flex:1 on each
    card means a lone ETA card (no budget yet) still fills the row exactly
@@ -415,6 +467,50 @@
 .pc-height-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
 .pc-height-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
 
+/* ---------- Goal-weight ruler: the same flick-through wheel as the
+   current-weight/height rulers above, laid out horizontally so it reads
+   as a slide bar sitting above the rate-of-change slider on this same
+   step. Twin of onboarding.html's .ob-goal-ruler-* (that page keeps its
+   own inline stylesheet rather than loading this one), same tick
+   language: whole kg, every 5th taller, every 10th labelled. ---------- */
+.pc-goal-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
+.pc-goal-ruler-value { font-size: 30px; font-weight: 800; margin-bottom: 2px; }
+.pc-goal-ruler-delta { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; min-height: 16px; }
+.pc-goal-ruler-window {
+  position: relative;
+  width: 100%;
+  height: 62px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+}
+.pc-goal-ruler-indicator {
+  position: absolute; top: 6px; bottom: 6px; left: 50%; width: 14px; margin-left: -7px;
+  border-left: 2px solid var(--blue); border-right: 2px solid var(--blue);
+  background: var(--blue-bg); border-radius: 7px;
+  pointer-events: none; z-index: 2;
+}
+.pc-goal-ruler-scroll {
+  height: 100%; overflow-x: scroll; scroll-snap-type: x mandatory;
+  display: flex; align-items: flex-end;
+  scrollbar-width: none; touch-action: pan-x;
+}
+.pc-goal-ruler-scroll::-webkit-scrollbar { display: none; }
+.pc-goal-ruler-pad { flex: 0 0 auto; }
+.pc-goal-ruler-col {
+  flex: 0 0 14px; width: 14px; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 6px; scroll-snap-align: center;
+}
+.pc-goal-ruler-collabel { font-size: 11px; font-weight: 700; color: var(--text-secondary); height: 14px; white-space: nowrap; }
+.pc-goal-ruler-tick { width: 2px; height: 14px; background: var(--border); border-radius: 1px; }
+.pc-goal-ruler-tick.is-mid { height: 20px; background: var(--text-secondary); }
+.pc-goal-ruler-tick.is-major { height: 26px; background: var(--text-secondary); }
+.pc-goal-ruler-bounds {
+  display: flex; justify-content: space-between; width: 100%;
+  font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-top: 6px;
+}
+
 .pc-result-calories { font-size: 40px; font-weight: 700; text-align: center; margin: 6px 0 2px; }
 .pc-result-label { text-align: center; color: var(--text-secondary); font-size: 12px; margin-bottom: 18px; }
 .pc-result-detail { font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: -10px; margin-bottom: 18px; }
@@ -449,6 +545,7 @@
 .pc-ck-chip-green { background: linear-gradient(135deg, #29b87e, var(--green)); box-shadow: 0 5px 12px rgba(31, 169, 113, 0.35); }
 .pc-ck-chip-blue { background: linear-gradient(135deg, #4d7ff5, var(--blue)); box-shadow: 0 5px 12px rgba(47, 102, 232, 0.35); }
 .pc-ck-chip-purple { background: linear-gradient(135deg, #9b7bef, var(--purple)); box-shadow: 0 5px 12px rgba(124, 79, 224, 0.35); }
+.pc-ck-chip-amber { background: linear-gradient(135deg, #d9a441, var(--amber)); box-shadow: 0 5px 12px rgba(185, 131, 42, 0.35); }
 .pc-ck-section-text { min-width: 0; }
 .pc-ck-section-title { display: block; font-size: 13.5px; font-weight: 700; padding-top: 1px; }
 .pc-ck-section-sub { display: block; font-size: 11.5px; color: var(--text-secondary); line-height: 1.45; margin-top: 2px; }
@@ -467,6 +564,14 @@
 .pc-ck-day[data-status="logged"] { background: var(--green); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.35); }
 .pc-ck-day[data-status="fasting"] { background: var(--amber); color: #fff; box-shadow: 0 4px 10px rgba(185, 131, 42, 0.35); }
 .pc-ck-day[data-status="incomplete"] { background: var(--text-secondary); color: var(--bg); }
+
+/* Flag pills (high-carb / bloated days): same pill, a plain on/off look
+   instead of the 4-way status color coding above. */
+.pc-ck-context-row { margin-bottom: 12px; }
+.pc-ck-context-row:last-child { margin-bottom: 0; }
+.pc-ck-context-label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.pc-ck-flag-day[data-active="true"] { background: var(--amber); color: #fff; box-shadow: 0 4px 10px rgba(185, 131, 42, 0.35); }
+
 .pc-checkin-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .pc-checkin-legend-item {
   display: flex; align-items: center; gap: 5px;

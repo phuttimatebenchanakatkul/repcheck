@@ -8,10 +8,10 @@
   Reached only via the "day streak" tile on Home (templates/home.html) --
   deliberately not linked from any nav/menu, same "its own page, tucked
   behind one specific tile" pattern as weight_history.html and
-  logging_history.html. Reads repcheck_workout_log_v2 and
-  repcheck_nutrition_log_v1 directly, same "has activity on this day"
-  logic as computeStreak() on the home page, so the current-streak number
-  here always matches what's shown on Home.
+  logging_history.html. Every number and circle here comes from
+  RepCheckStreak (static/streak.js) -- the same module the home hero uses
+  -- so the current-streak count always matches the flame that was tapped
+  to get here, and "what counts as a day" is defined in exactly one place.
 -->
 <style>
   .st-card {
@@ -24,7 +24,10 @@
 
   .st-stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .st-stat { background: var(--bg); border-radius: 12px; padding: 16px 12px; text-align: center; }
-  .st-stat-icon { font-size: 22px; line-height: 1; margin-bottom: 6px; }
+  /* font-size still drives the icon size -- .rc-icon is sized in em -- but the
+     flex centering is needed now that the child is an <svg> block rather than
+     an inline emoji glyph. */
+  .st-stat-icon { font-size: 22px; line-height: 1; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; }
   .st-stat-value { font-size: 22px; font-weight: 700; }
   .st-stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
 
@@ -77,12 +80,12 @@
 <div class="st-card">
   <div class="st-stats-row">
     <div class="st-stat">
-      <div class="st-stat-icon">🔥</div>
+      <div class="st-stat-icon"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg></div>
       <div class="st-stat-value" id="st-current-value">0</div>
       <div class="st-stat-label" data-i18n="streaks.current">Current streak</div>
     </div>
     <div class="st-stat">
-      <div class="st-stat-icon">🏆</div>
+      <div class="st-stat-icon"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-trophy"/></svg></div>
       <div class="st-stat-value" id="st-longest-value">0</div>
       <div class="st-stat-label" data-i18n="streaks.longest">Longest streak ever</div>
     </div>
@@ -110,75 +113,24 @@
   (function () {
     "use strict";
 
-    const WORKOUT_LOG_KEY = "repcheck_workout_log_v2";
-    const NUTRITION_LOG_KEY = "repcheck_nutrition_log_v1";
-
-    function loadJson(key) {
-      try { return JSON.parse(localStorage.getItem(key)) || {}; }
-      catch (err) { return {}; }
-    }
-    function toIsoDate(date) {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    }
     function daysInMonth(year, month) {
       return new Date(year, month + 1, 0).getDate();
     }
 
-    const workoutLog = loadJson(WORKOUT_LOG_KEY);
-    const nutritionLog = loadJson(NUTRITION_LOG_KEY);
-
-    // Same activity rule as computeStreak() on the home page -- a day
-    // counts if it has at least one logged workout or nutrition entry.
-    function hasActivityOn(iso) {
-      const w = workoutLog[iso];
-      const n = nutritionLog[iso];
-      return (Array.isArray(w) && w.length > 0) || (Array.isArray(n) && n.length > 0);
-    }
-
-    function computeCurrentStreak() {
-      const today = new Date();
-      let cursor = new Date(today);
-      // If today has nothing logged yet, check from yesterday instead so
-      // an ongoing streak isn't zeroed out before the day is even over --
-      // mirrors home.html's computeStreak() exactly.
-      if (!hasActivityOn(toIsoDate(cursor))) {
-        cursor.setDate(cursor.getDate() - 1);
-      }
-      let streak = 0;
-      while (hasActivityOn(toIsoDate(cursor))) {
-        streak++;
-        cursor.setDate(cursor.getDate() - 1);
-      }
-      return streak;
-    }
-
-    function computeLongestStreak() {
-      const allIsoDates = new Set([...Object.keys(workoutLog), ...Object.keys(nutritionLog)]);
-      const activeDates = [...allIsoDates].filter(hasActivityOn).sort();
-      let longest = 0;
-      let run = 0;
-      let prevDate = null;
-      activeDates.forEach((iso) => {
-        const d = new Date(iso + "T00:00:00");
-        if (prevDate && Math.round((d - prevDate) / 86400000) === 1) {
-          run++;
-        } else {
-          run = 1;
-        }
-        longest = Math.max(longest, run);
-        prevDate = d;
-      });
-      return longest;
-    }
+    // The activity rule, the current streak, the longest streak, and the
+    // date formatter all come from static/streak.js -- the same module the
+    // home and challenges heroes read, so both the numbers and the day
+    // boundaries here can't drift from what sent the user to this page.
+    const hasActivityOn = RepCheckStreak.hasActivityOn;
+    const toIsoDate = RepCheckStreak.toIsoDate;
 
     const t = RepCheckI18n.t;
     function monthName(i) { return t(`common.month.${i}`); }
 
-    document.getElementById("st-current-value").textContent = computeCurrentStreak();
-    document.getElementById("st-longest-value").textContent = computeLongestStreak();
+    function renderStats() {
+      document.getElementById("st-current-value").textContent = RepCheckStreak.current();
+      document.getElementById("st-longest-value").textContent = RepCheckStreak.longest();
+    }
 
     const today = new Date();
     const todayIso = toIsoDate(today);
@@ -227,6 +179,7 @@
     }
 
     function render() {
+      renderStats();
       renderNavLabel();
       renderGrid();
     }
@@ -245,6 +198,10 @@
 
     render();
     document.addEventListener("repcheck:language-changed", render);
+    // Server-side activity (challenge attempts, analyses) is back-filled
+    // asynchronously on the session's first page load, so both the totals
+    // and the calendar need a redraw once it lands.
+    document.addEventListener(RepCheckStreak.UPDATED_EVENT, render);
   })();
 </script>
 {% endblock %}

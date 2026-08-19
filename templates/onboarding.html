@@ -16,7 +16,6 @@
     // wire up its localStorage<->server sync (see that file's header).
     window.REPCHECK_LOGGED_IN = true;
     window.REPCHECK_USER_NAME = {{ (current_user.name.split(" ")[0] if current_user else "") | tojson }};
-    window.EXERCISE_ICONS = {{ exercise_icons | tojson }};
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -25,6 +24,11 @@
   <script src="{{ asset_url('account_sync.js') }}"></script>
   <script src="{{ asset_url('units.js') }}"></script>
   <script src="{{ asset_url('i18n.js') }}"></script>
+  <script src="{{ asset_url('numeric_fields.js') }}"></script>
+  <!-- This page doesn't extend base.html, so RepCheckStreak has to be
+       pulled in by hand -- onboarding.js marks finishing setup as the
+       first day of the new account's streak. -->
+  <script src="{{ asset_url('streak.js') }}"></script>
   <style>
     body.ob-body {
       margin: 0;
@@ -137,11 +141,61 @@
       transition: border-color 0.15s ease;
     }
     .ob-field input:focus { outline: none; border-color: var(--blue); }
-    .ob-field input[type="range"] {
-      width: 100%; padding: 0; border: none; background: none;
-      accent-color: var(--blue); height: 22px; cursor: pointer;
-    }
     .ob-field-hint { font-size: 12px; color: var(--text-secondary); margin-top: 8px; min-height: 14px; }
+
+    /* ---------- Rate-of-change slider (custom, replaces native
+       <input type="range">) -- see renderRateSlider() in onboarding.js.
+       "Standard" zone highlighting/badge only ever applies to the loss
+       direction; the gain slider renders the same track/thumb/readouts
+       with no zone and no badge. ---------- */
+    .ob-rate-field label { margin-bottom: 4px; }
+    .ob-rate-badge {
+      display: flex; justify-content: center; margin: 10px 0 18px;
+      font-size: 12px; font-weight: 800; color: var(--text-secondary);
+    }
+    .ob-rate-badge:not(:empty) {
+      padding: 7px 14px; border-radius: 999px; background: var(--border); width: fit-content; margin-left: auto; margin-right: auto;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .ob-rate-badge.is-standard { background: var(--green-bg); color: var(--green); }
+    .ob-rate-slider {
+      position: relative; height: 32px; margin: 0 4px 20px; cursor: pointer;
+      touch-action: none; /* dragging is handled entirely via pointer events */
+    }
+    .ob-rate-slider-track {
+      position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px;
+      background: var(--border); border-radius: 999px;
+    }
+    .ob-rate-slider-zone {
+      position: absolute; top: 0; bottom: 0; background: var(--green); border-radius: 999px; opacity: 0.5;
+    }
+    .ob-rate-slider-thumb {
+      /* left is static (0) and never rewritten -- JS positions the thumb
+         entirely via the inline `transform` it sets on every redraw (see
+         renderRateSlider() in onboarding.js), which is compositor-only and
+         doesn't trigger layout the way rewriting `left` on every drag
+         pixel would. The drag-scale effect below is folded into that same
+         inline transform string rather than a separate class rule, since
+         an inline transform would otherwise silently win over (not
+         combine with) a stylesheet transform on the same property. */
+      position: absolute; top: 50%; left: 0; width: 26px; height: 26px; margin-top: -13px;
+      border-radius: 50%; background: var(--text-secondary); border: 3px solid var(--card-bg);
+      box-shadow: 0 2px 8px rgba(16, 17, 20, 0.25);
+      transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+    }
+    .ob-rate-slider-thumb.is-standard { background: #fff; border-color: var(--green); }
+    .ob-rate-slider:focus-visible { outline: none; }
+    .ob-rate-slider:focus-visible .ob-rate-slider-thumb { outline: 3px solid var(--blue); outline-offset: 2px; }
+    .ob-rate-readout-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .ob-rate-readout-sign { color: var(--text-secondary); font-size: 13px; font-weight: 700; width: 10px; flex-shrink: 0; }
+    .ob-rate-readout-box {
+      flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between;
+      padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--bg);
+      font-size: 16px; font-weight: 700; color: var(--text);
+    }
+    .ob-rate-readout-box-pct { color: var(--text-secondary); font-weight: 600; font-size: 14px; }
+    .ob-rate-readout-unit { color: var(--text-secondary); font-size: 12px; font-weight: 600; margin-left: 6px; }
+    .ob-rate-readout-freq { flex-shrink: 0; width: 64px; text-align: right; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
     /* Card treatment for the goal-date estimate -- collapses to nothing via
        :empty when there's no estimate yet, so the JS side only ever sets or
        clears textContent, same as every other hint in this step. */
@@ -150,12 +204,6 @@
       font-size: 16px; font-weight: 800; color: var(--green); letter-spacing: -0.01em;
     }
     .ob-eta-card:not(:empty)::after { content: attr(data-label); display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); margin-top: 3px; }
-    .ob-goal-textarea {
-      width: 100%; min-height: 120px; padding: 13px 15px; border: 1.5px solid var(--border);
-      background: var(--bg); color: var(--text); border-radius: 14px; font-size: 14px; font-family: inherit;
-      line-height: 1.5; resize: vertical; transition: border-color 0.15s ease;
-    }
-    .ob-goal-textarea:focus { outline: none; border-color: var(--blue); }
 
     /* ---------- Vertical height ruler (scroll-snap through 1cm ticks) ---------- */
     .ob-height-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
@@ -222,66 +270,55 @@
     .ob-weight-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
     .ob-weight-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
 
-    /* ---------- Split-type / location cards -- same icon-left, text-right
-       list layout as .ob-choice-card so every question in the wizard
-       shares one modern visual language. ---------- */
-    .ob-type-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
-    .ob-type-card {
-      display: flex; align-items: center; gap: 14px;
-      border: 1.5px solid var(--border); border-radius: 18px; padding: 14px 16px; cursor: pointer;
-      background: var(--card-bg);
-      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    /* ---------- Goal-weight ruler: the same flick-through wheel as the
+       current-weight step above, laid out horizontally. Same tick
+       language (whole kg, every 5th taller, every 10th labelled) so the
+       two weight questions in this wizard are answered with one gesture
+       vocabulary -- only the axis differs, because this one sits above a
+       horizontal rate slider and reads as a slide bar alongside it.
+       Ticks are whole kg regardless of display unit, exactly as the
+       vertical ruler does. ---------- */
+    .ob-goal-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
+    .ob-goal-ruler-value { font-size: 34px; font-weight: 800; margin-bottom: 2px; letter-spacing: -0.01em; }
+    .ob-goal-ruler-delta { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; min-height: 16px; }
+    .ob-goal-ruler-window {
+      position: relative;
+      width: 100%;
+      height: 62px;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+      mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
     }
-    .ob-type-card:hover { border-color: var(--blue); transform: translateY(-1px); }
-    .ob-type-card.is-selected {
-      border-color: var(--blue);
-      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
-      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
+    .ob-goal-ruler-indicator {
+      position: absolute; top: 6px; bottom: 6px; left: 50%; width: 14px; margin-left: -7px;
+      border-left: 2.5px solid var(--blue); border-right: 2.5px solid var(--blue);
+      background: var(--blue-bg); border-radius: 7px;
+      pointer-events: none; z-index: 2;
     }
-    .ob-type-card-icon {
-      flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--bg); color: var(--text-secondary);
+    .ob-goal-ruler-scroll {
+      height: 100%; overflow-x: scroll; scroll-snap-type: x mandatory;
+      display: flex; align-items: flex-end;
+      scrollbar-width: none; touch-action: pan-x;
     }
-    .ob-type-card-icon svg { width: 22px; height: 22px; }
-    .ob-type-card.is-selected .ob-type-card-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
-    .ob-type-card-text { flex: 1; min-width: 0; }
-    .ob-type-card-title { font-size: 16px; font-weight: 700; color: var(--text); }
-    .ob-type-card.is-selected .ob-type-card-title { color: var(--blue); }
-    .ob-type-card-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
-
-    .ob-custom-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
-    .ob-custom-input-row input {
-      flex: 1; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 14px;
-      background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit;
+    .ob-goal-ruler-scroll::-webkit-scrollbar { display: none; }
+    /* Half the window's width on each end so the first and last ticks can
+       still reach the centre indicator. Set inline from the measured
+       window width rather than hardcoded, since the window is fluid. */
+    .ob-goal-ruler-pad { flex: 0 0 auto; }
+    .ob-goal-ruler-col {
+      flex: 0 0 14px; width: 14px; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      gap: 6px; scroll-snap-align: center;
     }
-    .ob-custom-input-row input:focus { outline: none; border-color: var(--blue); }
-    .ob-custom-add-btn {
-      min-height: 44px; box-sizing: border-box;
-      padding: 12px 18px; border: none; border-radius: 14px;
-      background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
-      font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .ob-custom-days { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-    .ob-custom-day-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      background: var(--bg); border-radius: 14px; padding: 11px 14px; font-size: 14px; font-weight: 600;
-    }
-    .ob-custom-day-remove {
-      background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px; line-height: 1;
-      min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-
-    .ob-days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 22px; }
-    .ob-day-btn {
-      padding: 13px 0; border: 1.5px solid var(--border); border-radius: 14px; background: var(--card-bg); color: var(--text);
-      font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
-      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-    }
-    .ob-day-btn:hover { border-color: var(--blue); }
-    .ob-day-btn.is-selected {
-      border-color: var(--blue); background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
-      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.28);
+    .ob-goal-ruler-collabel { font-size: 11px; font-weight: 700; color: var(--text-secondary); height: 14px; white-space: nowrap; }
+    .ob-goal-ruler-tick { width: 2px; height: 14px; background: var(--border); border-radius: 1px; }
+    .ob-goal-ruler-tick.is-mid { height: 20px; background: var(--text-secondary); }
+    .ob-goal-ruler-tick.is-major { height: 26px; background: var(--text-secondary); }
+    /* The bounds are stated, not just felt: without this the wheel simply
+       refuses to travel past your current weight and looks broken. */
+    .ob-goal-ruler-bounds {
+      display: flex; justify-content: space-between; width: 100%;
+      font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-top: 6px;
     }
 
     /* ---------- Result screen -- reuses the same icon-chip/gradient/pill
@@ -299,7 +336,7 @@
 
     /* Grouped by whitespace + the .ob-section-label pill, not its own
        boxed container -- avoids stacking a 3rd nested card inside
-       .ob-card around .ob-macro-chip/.ob-review-day below. */
+       .ob-card around .ob-macro-chip below. */
     .ob-result-section { margin-bottom: 26px; }
     .ob-result-calorie-icon {
       width: 44px; height: 44px; margin: 10px auto 8px; border-radius: 13px;
@@ -323,52 +360,6 @@
     .ob-macro-chip-value { font-size: 16px; font-weight: 800; }
     .ob-macro-chip-label { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
 
-    .ob-review-day {
-      background: var(--bg); border: 1.5px solid var(--border); border-radius: 18px;
-      padding: 16px; margin-bottom: 12px;
-    }
-    .ob-review-day-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .ob-review-day-icon {
-      width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px;
-      background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .ob-review-day-icon svg { width: 16px; height: 16px; }
-    .ob-review-day-title { font-size: 14px; font-weight: 700; }
-    .ob-review-exercise-chips { display: flex; flex-wrap: wrap; gap: 7px; }
-    .ob-review-exercise-chip {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 12px; padding: 5px 12px 5px 5px; border-radius: 999px;
-      background: var(--card-bg); border: 1px solid var(--border); color: var(--text-secondary);
-    }
-    .ob-review-exercise-chip-icon {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px; border-radius: 999px; overflow: hidden; flex-shrink: 0; background: var(--card-bg);
-    }
-    .ob-rationale {
-      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg)); color: var(--text); border-radius: 16px; padding: 14px 16px;
-      margin: 6px 0 20px;
-    }
-    .ob-rationale-label {
-      display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--blue);
-      text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px;
-    }
-    .ob-rationale-label svg { width: 14px; height: 14px; flex-shrink: 0; }
-    .ob-rationale-text { font-size: 13px; line-height: 1.55; }
-    .ob-weekday-row {
-      display: flex; align-items: center; gap: 12px; background: var(--card-bg);
-      border: 1.5px solid var(--border); border-radius: 14px; padding: 8px 12px; margin-bottom: 8px;
-    }
-    .ob-weekday-row label {
-      width: 42px; flex-shrink: 0; text-align: center; font-size: 11px; font-weight: 800;
-      color: var(--blue); background: var(--blue-bg); border-radius: 10px; padding: 7px 0;
-    }
-    .ob-weekday-row select {
-      flex: 1; padding: 8px 4px; border: none; background: none; color: var(--text);
-      font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
-    }
-    .ob-weekday-row select:focus { outline: none; }
-
     /* ---------- Wizard nav buttons ---------- */
     .ob-wizard-actions { display: flex; gap: 10px; margin-top: 4px; }
     .ob-btn-primary, .ob-btn-secondary {
@@ -388,7 +379,7 @@
 
     @media (max-width: 480px) {
       .ob-body-type-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      .ob-field input, .ob-custom-input-row input, .ob-goal-textarea { font-size: 16px; } /* prevents iOS auto-zoom */
+      .ob-field input { font-size: 16px; } /* prevents iOS auto-zoom */
     }
 
     /* Fixed, not inside .ob-wrap -- stays put in the corner across every

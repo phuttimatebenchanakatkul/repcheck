@@ -80,13 +80,23 @@ ASPIRATION_ADJUSTMENT = {
 }
 
 # User-facing slider range for "how fast do you want to lose weight",
-# expressed as % of bodyweight per week — a widely-used, sustainable
-# range in sports nutrition guidance (roughly 0.5-1%/week is conservative,
-# up to ~1%/week is standard, and 2%/week is an aggressive-but-still-safe
-# upper bound for people with more to lose).
-LOSS_RATE_MIN_PCT = 1.0
+# expressed as % of bodyweight per week. The slider itself is always driven
+# by percent (so the deficit-fraction math below scales correctly with any
+# bodyweight), but the min/max/default are chosen here by converting a
+# kg/week target at one reference bodyweight -- not because % stops
+# mattering, but because "0.2-0.8 kg/week" is the actual product target
+# (roughly CDC-style general weight-loss guidance) and this keeps that
+# target legible in the constant definitions instead of being a magic %
+# nobody can trace back to a kg/week number. RATE_REFERENCE_WEIGHT_KG is
+# only a calibration anchor -- the ACTUAL highlighted "standard" zone shown
+# to any given user is computed from their real bodyweight, not this
+# reference (see onboarding.js's renderRateSlider()).
+RATE_REFERENCE_WEIGHT_KG = 75
+LOSS_STANDARD_MIN_KG_PER_WEEK = 0.2  # lower edge of the highlighted "standard" zone
+LOSS_STANDARD_MAX_KG_PER_WEEK = 0.8  # upper edge of the highlighted "standard" zone
+LOSS_RATE_MIN_PCT = 0.1
 LOSS_RATE_MAX_PCT = 2.0
-LOSS_RATE_DEFAULT_PCT = 1.5
+LOSS_RATE_DEFAULT_PCT = (LOSS_STANDARD_MIN_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100
 
 # The naive "% bodyweight/week x 7700 kcal/kg" conversion produces a daily
 # deficit that scales with total bodyweight, not with the person's actual
@@ -101,13 +111,15 @@ LOSS_RATE_DEFAULT_PCT = 1.5
 LOSS_RATE_DEFICIT_FRACTION_MIN = 0.12  # at LOSS_RATE_MIN_PCT (gentler cut)
 LOSS_RATE_DEFICIT_FRACTION_MAX = 0.28  # at LOSS_RATE_MAX_PCT (aggressive but still sane)
 
-# Same rate-slider idea as LOSS_RATE_* above, mirrored for "gain". Range is
-# narrower and lower than the loss side on purpose: a lean bulk (minimizing
-# fat gain while still building muscle) is typically targeted at roughly
-# 0.25-0.5% of bodyweight per week in sports nutrition guidance, well below
-# what's sustainable/sane on the loss side.
+# Same rate-slider idea as LOSS_RATE_* above, mirrored for "gain". The
+# minimum is unchanged (a lean bulk is typically targeted at ~0.25% of
+# bodyweight per week in sports nutrition guidance); the maximum is raised
+# to reach a 0.6 kg/week ceiling at the same reference bodyweight used
+# above, matching the widened loss-side range instead of staying pinned to
+# the old, noticeably narrower 0.5% ceiling.
 GAIN_RATE_MIN_PCT = 0.25
-GAIN_RATE_MAX_PCT = 0.5
+GAIN_STANDARD_MAX_KG_PER_WEEK = 0.6  # slider ceiling, no highlighted "standard" zone on this side
+GAIN_RATE_MAX_PCT = (GAIN_STANDARD_MAX_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100
 GAIN_RATE_DEFAULT_PCT = 0.35
 
 # Same reasoning as LOSS_RATE_DEFICIT_FRACTION_*, mirrored for a surplus:

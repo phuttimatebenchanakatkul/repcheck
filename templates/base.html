@@ -33,7 +33,23 @@
   <script src="{{ asset_url('account_sync.js') }}"></script>
   <script src="{{ asset_url('units.js') }}"></script>
   <script src="{{ asset_url('i18n.js') }}"></script>
+  <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
+  <!-- Shared mascot + empty-state block (RepCheckMascot), used by the
+       Hyrox leaderboard, both exercise pickers, the food search sheet,
+       and challenges. Race history and the workout log still use their
+       own emoji-circle empty states.
+       Deferred: nothing reads window.RepCheckMascot at parse time, only
+       inside render functions and event handlers, so it has no business
+       blocking first paint on a phone. Ordering against i18n.js is still
+       safe -- deferred scripts run in document order, and every call site
+       resolves its copy through RepCheckI18n.t() at render time. -->
+  <script src="{{ asset_url('mascot.js') }}" defer></script>
+  <!-- Shared streak rule + activity log (RepCheckStreak). Loaded on every
+       page, not just the ones showing a flame: any page can record that a
+       feature was used, and account_sync.js must already be in place so
+       those writes get pushed to the account. -->
+  <script src="{{ asset_url('streak.js') }}"></script>
   <!-- First-run guided tour: a multi-page walkthrough that navigates into
        each page. Loaded on every page but no-ops unless a tour is active
        (repcheck_pending_tour) -- see static/tour.js. -->
@@ -41,6 +57,30 @@
   <script src="{{ asset_url('tour.js') }}" defer></script>
 </head>
 <body>
+  <!--
+    Streak icon sprite. Defined here rather than per-template because the same
+    flame is needed by three templates AND by static/coaching.js, which builds
+    its badge as a JS string and so can't reach a Jinja macro. <use> inherits
+    currentColor, so both icons follow --text and flip with the theme toggle
+    with no second asset. Sized by CSS (.rc-icon is 1.05em) so each call site
+    keeps its own scale from the font-size it already sets.
+  -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="rc-flame" viewBox="0 0 24 24">
+      <!-- Solid flame with the core punched through (evenodd). The leaning tip
+           and the inner tongue are what make it read as fire -- smoothing
+           either one out turns the silhouette into a water drop. -->
+      <path fill-rule="evenodd" fill="currentColor" d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z M12.4 12.4C12.4 14.6 14.6 15.4 14.6 17.6C14.6 19.6 13.2 20.9 11.5 20.9C9.8 20.9 8.6 19.6 8.6 17.9C8.6 15.8 11.3 15 12.4 12.4Z"/>
+    </symbol>
+    <symbol id="rc-trophy" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M6 2.8H18V8.6C18 11.9 15.3 14.2 12 14.2C8.7 14.2 6 11.9 6 8.6V2.8Z"/>
+      <path fill="currentColor" d="M6 4.4H4.4C3.2 4.4 2.4 5.3 2.4 6.5V7.4C2.4 9.8 4 11.6 6.2 12.1V10.3C5 9.9 4.1 8.8 4.1 7.4V6.5C4.1 6.2 4.2 6.1 4.5 6.1H6V4.4Z"/>
+      <path fill="currentColor" d="M18 4.4H19.6C20.8 4.4 21.6 5.3 21.6 6.5V7.4C21.6 9.8 20 11.6 17.8 12.1V10.3C19 9.9 19.9 8.8 19.9 7.4V6.5C19.9 6.2 19.8 6.1 19.5 6.1H18V4.4Z"/>
+      <path fill="currentColor" d="M10.9 14.3V17.4H13.1V14.3H10.9Z"/>
+      <path fill="currentColor" d="M7.4 17.4H16.6C17 17.4 17.3 17.7 17.3 18.1V20.4C17.3 20.8 17 21.1 16.6 21.1H7.4C7 21.1 6.7 20.8 6.7 20.4V18.1C6.7 17.7 7 17.4 7.4 17.4Z"/>
+    </symbol>
+  </svg>
+
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
@@ -455,42 +495,58 @@
   <div class="mt-sheet-overlay" id="mt-fab-overlay">
     <div class="mt-sheet qa-sheet" id="mt-fab-sheet">
       <div class="mt-sheet-handle"></div>
-      <div class="qa-head">
-        <div class="qa-head-title" data-i18n="mobile.quickActions">Quick actions</div>
-        <div class="qa-head-sub" data-i18n="mobile.quickActionsSub">What do you want to do?</div>
-      </div>
-      <div class="qa-grid">
-        <a href="{{ url_for('nutrition') }}?quick=scan" class="qa-tile qa-green">
-          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
-          <span class="qa-tile-title" data-i18n="mobile.scanMeal">Scan a meal</span>
-        </a>
-        <a href="{{ url_for('analyze_page') }}?quick=1" class="qa-tile qa-blue">
-          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg></span>
-          <span class="qa-tile-title" data-i18n="mobile.analyzeLift">Analyze a lift</span>
-        </a>
-        <a href="{{ url_for('workouts') }}?quick=log" class="qa-tile qa-amber">
-          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM6 10v4M18 10v4M8 8h8v8H8z"/></svg></span>
-          <span class="qa-tile-title" data-i18n="mobile.logWorkout">Log a workout</span>
-        </a>
-        <button type="button" class="qa-tile qa-red" id="mt-fab-log-weight">
-          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
-          <span class="qa-tile-title" data-i18n="mobile.logWeight">Log today's weight</span>
-        </button>
-        <button type="button" class="qa-tile qa-purple" id="mt-fab-scan-barcode" data-nutrition-href="{{ url_for('nutrition') }}?quick=barcode">
-          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
-          <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
-        </button>
-        <a href="{{ url_for('challenges') }}" class="qa-tile qa-pink">
-          <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg></span>
-          <span class="qa-tile-title" data-i18n="mobile.challenges">Challenges</span>
-        </a>
-      </div>
 
-      <!-- "Explore" — the pages that used to live behind the bar's "More"
-           tab. Folded in here so the bottom bar stays uncluttered and the
-           "+" is the single entry point to everything off the main pill. -->
-      <div class="qa-section-label" data-i18n="mobile.more">More</div>
-      <div class="qa-links">
+      <!-- Two panes that slide over each other. Pane 1 is the five action
+           tiles; pane 2 is the "More" pages (Coach/Friends/Settings/...).
+           Only one is ever mounted, so the sheet never grows tall enough to
+           scroll -- the old design stacked both and overflowed on short
+           phones. .qa-panes animates its own height between the two. -->
+      <div class="qa-panes" id="qa-panes">
+        <section class="qa-pane" id="qa-pane-actions">
+          <div class="qa-head">
+            <div class="qa-head-title" data-i18n="mobile.quickActions">Quick actions</div>
+          </div>
+          <div class="qa-grid">
+            <a href="{{ url_for('nutrition') }}?quick=scan" class="qa-tile qa-green">
+              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+              <span class="qa-tile-title" data-i18n="mobile.scanMeal">Scan a meal</span>
+            </a>
+            <a href="{{ url_for('analyze_page') }}?quick=1" class="qa-tile qa-blue">
+              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg></span>
+              <span class="qa-tile-title" data-i18n="mobile.analyzeLift">Analyze a lift</span>
+            </a>
+            <button type="button" class="qa-tile qa-red" id="mt-fab-log-weight">
+              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
+              <span class="qa-tile-title" data-i18n="mobile.logWeight">Log today's weight</span>
+            </button>
+            <button type="button" class="qa-tile qa-purple" id="mt-fab-scan-barcode" data-nutrition-href="{{ url_for('nutrition') }}?quick=barcode">
+              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
+              <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
+            </button>
+            <a href="{{ url_for('challenges') }}" class="qa-tile qa-pink qa-tile-wide">
+              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg></span>
+              <span class="qa-tile-title" data-i18n="mobile.challenges">Challenges</span>
+            </a>
+          </div>
+
+          <!-- Deliberately quiet: a text row, not a tile, so it never
+               competes with the five coloured actions above it. The right
+               chevron (not a caret) says it opens a page rather than
+               expanding in place. -->
+          <button type="button" class="qa-more-link" id="qa-more-open" aria-controls="qa-pane-more" aria-expanded="false">
+            <span data-i18n="mobile.moreOptions">More options</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </section>
+
+        <section class="qa-pane" id="qa-pane-more" hidden>
+          <div class="qa-pane-head">
+            <button type="button" class="qa-back" id="qa-more-back" aria-label="Back to quick actions">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <span class="qa-pane-title" data-i18n="mobile.more">More</span>
+          </div>
+          <div class="qa-links">
         <a href="{{ url_for('coach') }}" class="mt-sheet-action">
           <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
           <span><span class="mt-sheet-action-title" data-i18n="nav.coach">Coach</span></span>
@@ -522,6 +578,8 @@
           <span><span class="mt-sheet-action-title" data-i18n="sidebar.login">Log in</span></span>
         </a>
         {% endif %}
+          </div>
+        </section>
       </div>
 
       <button type="button" class="qa-cancel" id="mt-fab-cancel" data-i18n="mobile.cancel">Cancel</button>
@@ -540,7 +598,7 @@
         <button type="button" class="lw-modal-close" id="lw-modal-close" aria-label="Close">&times;</button>
       </div>
       <div class="lw-modal-body">
-        <input type="number" id="lw-weight-input" class="lw-weight-input" min="1" step="0.1" inputmode="decimal">
+        <input type="number" id="lw-weight-input" class="lw-weight-input" min="1" step="0.1" inputmode="decimal" data-clear-on-focus>
         <button type="button" class="lw-save-btn" id="lw-save-btn" data-i18n="common.save">Save</button>
         <div class="lw-modal-msg" id="lw-modal-msg"></div>
         <!-- Populated by open()'s renderRecent() -- last few weigh-ins,
@@ -645,6 +703,92 @@
         window.bindSheetDrag(overlay, ".mt-sheet", ".mt-sheet-handle", close, { strict: true });
       }
       wireSheet("mt-fab-btn", "mt-fab-overlay", "mt-fab-cancel");
+    })();
+    // ---------- Quick-actions: sliding "More" pane ----------
+    // Tapping "More options" slides a second pane in over the tiles instead
+    // of expanding a list underneath them. Only one pane is in flow at rest,
+    // so the sheet is never tall enough to scroll; .qa-panes animates its
+    // own height so the sheet morphs between the two rather than jumping.
+    (function () {
+      const wrap = document.getElementById("qa-panes");
+      const actions = document.getElementById("qa-pane-actions");
+      const more = document.getElementById("qa-pane-more");
+      const openBtn = document.getElementById("qa-more-open");
+      const backBtn = document.getElementById("qa-more-back");
+      const overlay = document.getElementById("mt-fab-overlay");
+      if (!wrap || !actions || !more || !openBtn || !backBtn) return;
+
+      const DURATION = 300;
+      let busy = false;
+      // Handle for the in-flight slide's cleanup. reset() MUST cancel it:
+      // that cleanup hides the pane the slide moved away from, so if the
+      // sheet is dismissed mid-slide it would land afterwards and hide the
+      // actions pane reset() just restored -- next open showed an empty sheet.
+      let slideTimer = null;
+
+      function go(from, to, forward) {
+        if (busy || from === to) return;
+        busy = true;
+
+        // Lock the current height, then stack both panes so the outgoing one
+        // stops contributing height while it slides away.
+        wrap.style.height = from.offsetHeight + "px";
+        to.hidden = false;
+        to.classList.add(forward ? "is-pre-right" : "is-pre-left");
+        wrap.classList.add("is-animating");
+        const target = to.offsetHeight; // measured stacked, full sheet width
+        void wrap.offsetWidth;          // flush styles so the next frame animates
+
+        from.classList.add(forward ? "is-out-left" : "is-out-right");
+        to.classList.remove("is-pre-right", "is-pre-left");
+        wrap.style.height = target + "px";
+
+        slideTimer = window.setTimeout(function () {
+          slideTimer = null;
+          wrap.classList.remove("is-animating");
+          from.hidden = true;
+          from.classList.remove("is-out-left", "is-out-right");
+          wrap.style.height = ""; // hand sizing back to the live pane
+          openBtn.setAttribute("aria-expanded", to === more ? "true" : "false");
+          if (to === more) backBtn.focus();
+          else openBtn.focus();
+          busy = false;
+        }, DURATION);
+      }
+
+      openBtn.addEventListener("click", function () { go(actions, more, true); });
+      backBtn.addEventListener("click", function () { go(more, actions, false); });
+
+      // Always reopen on the actions pane. Reset without animating, and only
+      // once the sheet is fully closed so the swap is never visible.
+      function reset() {
+        if (slideTimer !== null) {
+          window.clearTimeout(slideTimer);
+          slideTimer = null;
+        }
+        more.hidden = true;
+        actions.hidden = false;
+        more.classList.remove("is-out-left", "is-out-right", "is-pre-left", "is-pre-right");
+        actions.classList.remove("is-out-left", "is-out-right", "is-pre-left", "is-pre-right");
+        wrap.classList.remove("is-animating");
+        wrap.style.height = "";
+        openBtn.setAttribute("aria-expanded", "false");
+        busy = false;
+      }
+      // Resetting on OPEN is the reliable hook: it does not care how the
+      // sheet was dismissed last time, and it runs before the sheet slides
+      // up, so the swap is never on screen. (Resetting only on close is not
+      // enough -- openBottomSheet flips .is-open inside a double rAF, which
+      // never fires while the tab is backgrounded, so a close-watcher can
+      // silently miss.) The observer below still catches the close path
+      // early, so the pane is already correct if anything reads it between.
+      const fabBtn = document.getElementById("mt-fab-btn");
+      if (fabBtn) fabBtn.addEventListener("click", reset);
+      if (overlay) {
+        new MutationObserver(function () {
+          if (!overlay.classList.contains("is-open") && !overlay.classList.contains("is-in")) reset();
+        }).observe(overlay, { attributes: true, attributeFilter: ["class"] });
+      }
     })();
 
     // Closes the "+" quick-actions sheet AND resets the FAB's aria-expanded
@@ -927,25 +1071,28 @@
     })();
 
     // ---------- "Scan barcode" quick action ----------
-    // Browsers don't carry "user activation" across a full page
-    // navigation, so a hidden camera <input>'s .click() triggered from a
-    // page-load handler (after navigating here from another page) is
-    // silently blocked -- no camera opens, no error. When we're already
-    // on the Nutrition page, click the camera input directly, right here
-    // in this real click handler, so the gesture is never lost. Only
-    // when a navigation is unavoidable (coming from another page) do we
-    // fall back to nutrition.html's own single-tap "Open camera" prompt.
+    // Opens the live scanner when we're already on the Nutrition page (the
+    // gesture is still ours here, so the camera is allowed to start), and
+    // only navigates when coming from another page -- browsers don't carry
+    // "user activation" across a navigation, so nutrition.html shows its own
+    // single-tap "Open camera" prompt on the other side.
+    //
+    // This used to click nutrition.html's hidden af-barcode-input directly,
+    // which took a single still photo with no retry. That is exactly the
+    // failure the live scanner exists to fix, and because this handler lives
+    // in base.html it silently bypassed every fix made in nutrition.html --
+    // scanning from this button stayed broken while the in-page buttons
+    // worked. Go through the scanner's own entry point instead.
     (function () {
       const btn = document.getElementById("mt-fab-scan-barcode");
       if (!btn) return;
       btn.addEventListener("click", () => {
         if (window.closeFabSheet) window.closeFabSheet();
-        const barcodeInput = document.getElementById("af-barcode-input");
-        if (barcodeInput) {
-          barcodeInput.click();
-        } else {
-          location.href = btn.dataset.nutritionHref;
+        if (window.repcheckOpenBarcodeScanner) {
+          window.repcheckOpenBarcodeScanner();
+          return;
         }
+        location.href = btn.dataset.nutritionHref;
       });
     })();
   </script>

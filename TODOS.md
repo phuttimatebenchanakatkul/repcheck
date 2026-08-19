@@ -1,17 +1,103 @@
 # TODOS
 
+## Streaks
+
+### Four streak back-fill queries in get_activity_dates() have no covering index
+
+**What:** `get_activity_dates()` (`database.py`) runs one `WHERE user_id = ?` query per entry in `ACTIVITY_DATE_SOURCES` (`challenge_submissions`, `analyze_results`, `hyrox_results`, `progress_photos`). None of the four tables has an index usable for a bare `user_id` predicate -- `challenge_submissions`'s only key is `PRIMARY KEY (challenge_id, user_id)`, which can't serve it, and the other three have no secondary index at all.
+
+**Why:** This route is called once per browser session for essentially every logged-in user (via `static/streak.js`'s `seedFromServer()`), so it's four full table scans per session start, across tables that only grow. Invisible at current scale; becomes a real bottleneck as the user base and each table's row count grow.
+
+**Context:** Flagged by the performance specialist during `/ship`'s pre-landing review for the "streak counts any app use" feature. Deferred (user chose "ship as-is" over fixing inline) to keep that PR scoped to the streak-rule change itself; not urgent given the current data volume.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### static/streak.js's refresh() fully rebuilds its activity-day Set on every call instead of updating incrementally
+
+**What:** `refresh()` (`static/streak.js`) does a full `JSON.parse` + iterate over all 7 tracked localStorage logs (workout, nutrition, weight, workout chat, activity log, analyze log, HYROX history) every time it's called -- once unconditionally at module load, and again inside `mark()`/`seedFromServer()` whenever a new day is recorded. Since `templates/base.html` now loads `streak.js` on every page (not just pages that show a streak), this scan happens on every navigation regardless of whether the page uses the result.
+
+**Why:** Avoidable work: an incremental update (add just the new day to the existing `Set`) would suffice for `mark()`/`seedFromServer()`'s cases. Unlikely to be felt at realistic localStorage sizes for a long time (a few KB at most for any real user today), so this is a "before it becomes noticeable" cleanup, not an active problem.
+
+**Context:** Flagged by the performance specialist during `/ship`'s pre-landing review for the "streak counts any app use" feature. Deferred (user chose "ship as-is" over reworking the accounting logic) -- a real fix is a design change (incremental Set maintenance) with more risk of a subtle accounting bug than the current full-rebuild-every-time approach.
+
+**Effort:** M
+**Priority:** P4
+**Depends on:** None
+
 ## Workouts
+
+### Workout chat's `describeSet()` duplicates the weight/reps formatting logic already in `renderEntry()`/`renderEntryDetail()`
+
+**What:** The new "last 7 days" AI chat widget (`templates/workouts.html`, `describeSet()` in the workout-chat IIFE) re-implements weight/reps/unilateral formatting that already exists in `renderEntry()`/`renderEntryDetail()` -- the same logic that renders each exercise card. The two implementations aren't shared by a common helper.
+
+**Why:** Two copies of "how to read a set's weight/reps out of an entry" can drift silently -- a future fix to one (e.g. a new set shape, a bodyweight-detection tweak) might not get applied to the other, and the AI chat would then describe a workout differently than what's actually shown on the card above it.
+
+**Context:** Flagged by the maintainability specialist during `/ship`'s pre-landing review for the workout-chat feature. Not fixed inline because extracting a shared `formatSetForDisplay(entry, set)` helper means touching `renderEntry()`/`renderEntryDetail()`, pre-existing, well-tested rendering code that this PR doesn't otherwise touch -- a larger, separately-reviewable change rather than a mechanical one-file fix.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### No server-side message-length cap on any of the three AI chatbots
+
+**What:** `/api/workout-chat`, `/api/coach-chat`, and `/api/analyze-chat` (`app.py`) all accept `message` with only a client-side `maxlength="600"` on the `<input>` -- nothing bounds it server-side before it's forwarded into a Gemini `Content` part.
+
+**Why:** Low risk in practice (Gemini has its own token limits, and all three routes already require login + share the 3-messages/day `ai_chat` rate limit, so abuse is both authenticated and heavily throttled), but a malicious or buggy client could send an arbitrarily large `message` and this app never validates it.
+
+**Context:** Flagged by the testing specialist during `/ship`'s pre-landing review for the workout-chat feature. Not fixed inline because it's a pre-existing characteristic shared identically by all three chatbots, not something this PR introduced -- fixing it for just the new route would leave the other two inconsistent, so a real fix should add one shared cap (e.g. a `MAX_MESSAGE_CHARS` constant) across all three routes together.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
 
 ### Edited sets/reps in the review step's exercise editor are a write-only round-trip
 
-**What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `openEditSplitModal()` (re-opening "Edit split" on an existing plan) rehydrates `splitWizard` from the saved plan's `days`/`goal`/etc. but never reads `exercisePrescriptions` back into the in-memory map, and `renderSplitStepReview()` unconditionally resets it to `{}` on every entry regardless of whether the plan already had customizations.
+**What:** The new per-exercise sets/reps editor (`templates/workouts.html`, `renderSplitStepReview()`'s carousel) saves `exercisePrescriptions` into the plan's localStorage blob on Save, but nothing in the app ever reads it back. `renderTodaysPlanCard()` and `renderWholeSplitBody()` (the "Today's Plan" card and the saved-split view) compute displayed sets/reps purely via `getSetsRepsText(name)` -- the generic movement-pattern bucket -- never consulting `plan.exercisePrescriptions`. `renderSplitStepReview()` also unconditionally resets `exercisePrescriptions` to `{}` on every entry, regardless of whether the plan already had customizations -- so any prior prescription is silently discarded the next time the AI-suggest path is used to rebuild the split.
 
-**Why:** A user can tap an exercise, edit sets/reps, watch the box turn amber ("edited"), tap Save -- and that customization is never shown anywhere again. Re-opening "Edit split" silently discards it with no warning. The amber-highlight/reset-to-standard UI strongly implies the intent was for this to be the plan's real, persisted sets/reps, not a value that's saved but functionally inert.
+**Why:** A user can tap an exercise, edit sets/reps, watch the box turn amber ("edited"), tap Save -- and that customization is never shown anywhere in the app afterward, and is silently discarded the next time a split gets regenerated. The amber-highlight/reset-to-standard UI strongly implies the intent was for this to be the plan's real, persisted sets/reps, not a value that's saved but functionally inert.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Not fixed in that branch because closing the loop is a product decision, not a one-line fix: does `getSetsRepsText`'s "N sets • X-Y reps" range-display format even make sense to replace with a specific `sets×reps` once customized? Does `openEditSplitModal()` need to seed `exercisePrescriptions` from the saved plan, and does the exact-match `prescriptionKey(label, name)` lookup still make sense once a plan has been edited and re-saved (label reuse across regenerations)?
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/assign-week-carousel`. Not fixed in that branch because closing the loop is a product decision, not a one-line fix: does `getSetsRepsText`'s "N sets • X-Y reps" range-display format even make sense to replace with a specific `sets×reps` once customized? Does the exact-match `prescriptionKey(label, name)` lookup still make sense once a plan has been rebuilt (label reuse across regenerations)? Note (2026-08-14, `edit-split-flow-redesign` branch): the "edit an existing split" entry point no longer rehydrates the wizard from the saved plan at all (see the removed `openEditSplitModal()` -- editing a split now always starts blank, same as building one from scratch), which removes one specific place this gap used to bite but doesn't touch the core problem described above.
 
 **Effort:** M
 **Priority:** P2
+**Depends on:** None
+
+### The week view's inline exercise add/remove has no real-execution test coverage
+
+**What:** `renderWholeSplitBody()`'s inline exercise remove button, the "Pick exercises" button, and `persistSplitPlan()` (all added in `edit-split-flow-redesign`) are only covered by Python source-level regex assertions against the rendered Jinja template (`tests/test_split_modal_bottom_sheet_and_edit.py`) -- nothing actually executes this code in a JS runtime. The sibling wizard step (`renderSplitStepReview()`) already has a real jsdom extraction harness (`tests-js/support/loadReviewStep.js`, used by `tests-js/reviewStep.test.js`) that runs the real function and asserts on actual DOM/state changes, but no equivalent harness exists for `renderWholeSplitBody`/`renderExercisePickerStep`.
+
+**Why:** A regex match against the template string can only catch structural regressions (a line got deleted, a call site changed), not runtime bugs in the actual logic -- index-based splice correctness, the closure-captured `getSelected`/`onDone` callbacks actually firing in the right order, or `persistSplitPlan`'s side effects actually running. This isn't theoretical: both real bugs found during this branch's development (the "Today's Plan" card going stale after an inline edit, and the modal title getting stuck on "Pick exercises — {day}") were runtime behavior issues caught only by manual browser testing -- neither would have been caught by a regex test, and neither was anticipated until observed. A real jsdom harness would have plausibly caught at least the stale-card bug directly (assert `calls.replanned` after a remove, same pattern the wizard's save test already uses successfully).
+
+**Context:** Flagged by the testing specialist during this branch's `/ship` pre-landing review (confidence 58/10, not certain but empirically supported by the finding above). Deferred rather than built inline because a proper extraction harness for `renderWholeSplitBody`/`renderExercisePickerStep` is comparable in size to `loadReviewStep.js` itself (~150-200 lines) -- real new infrastructure, not a quick addition to this PR.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Duplicate day labels now have write-path exposure, not just display-path
+
+**What:** `renderWholeSplitBody()`'s inline edit controls (added in `edit-split-flow-redesign`) resolve which `plan.days` entry to mutate via `plan.days.find((d) => d.label === activeLabel)` -- the same label-keyed lookup the existing "A custom day literally named 'Rest' hides its own workout" TODO already flags as a display-path collision risk. If `plan.days` ever contains two entries with the same label (nothing in the custom-split builder enforces uniqueness), `.find()` silently returns only the first match. Before this branch, that collision only affected which day's content got *displayed*; now the inline remove-exercise and pick-exercises buttons write through that same lookup, so an edit intended for the second same-labeled day would silently mutate the first one's exercise list instead.
+
+**Why:** Previously a confusing-but-harmless display quirk; now a genuine data-corruption path -- a user editing what they believe is one day's exercises could silently corrupt a different day's data, with no error or indication anything went wrong.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same root cause and same fix options as the existing "custom day literally named 'Rest'" TODO above (day-label uniqueness isn't enforced anywhere in the custom-split builder) -- properly fixing either finding likely fixes both, since both stem from `plan.days` entries being addressed by label instead of a stable id. Deferred as an architectural change (adding a real per-day id touches the saved-plan schema and every place that currently keys off `label`), not a one-line fix, and this branch's own scope is the edit-entry-flow redesign, not the underlying data model.
+
+**Effort:** M (touches the saved-plan schema if done properly)
+**Priority:** P3
+**Depends on:** None
+
+### Inline split-plan edits increase repcheck_split_plan_v1's sync write frequency with no ordering guarantee
+
+**What:** `repcheck_split_plan_v1` is synced by `static/account_sync.js` as a plain last-write-wins key (not in `MERGE_LOG_KEYS`), pushed via independent fire-and-forget `sendBeacon`/`fetch` PUTs with no version or ordering guarantee -- the same architecture already flagged for `repcheck_workout_log_v2` below ("account_sync.js's generic merge push can still resurrect a deleted workout entry if delivered late"). Before `edit-split-flow-redesign`, `persistSplitPlan()` (then inline in the wizard's save handler) only fired once per completed wizard flow. This branch calls it on every inline exercise add/remove tap in the week view too, so a single editing session can now fire many more of these unordered writes in quick succession.
+
+**Why:** More frequent unordered writes to the same key widens the window for a stale write (a backgrounded tab, a delayed beacon, a flaky connection retried later) to land after a newer one and silently revert exercise additions/removals a user already made and saw persist -- the exact failure mode already documented for the workout log, now applicable to split plans too because the write pattern changed from occasional to frequent.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `edit-split-flow-redesign`. Same fix shape as the workout-log entry below: `account_sync.js` would need per-key version/ordering guarantees (or a dedicated CRUD endpoint instead of whole-blob last-write-wins), which is shared sync infrastructure touching every key in `SYNC_KEYS`, not something this branch's scope (the edit-entry-flow redesign) should take on.
+
+**Effort:** M
+**Priority:** P3
 **Depends on:** None
 
 ### Same exercise appearing twice in one generated day would share one prescription
@@ -54,6 +140,8 @@
 
 **Fixed by /qa on feat/assign-week-carousel, 2026-08-13** -- resolved by removal, not a direct fix. The "Assign your week" screen no longer has a weekday grid at all: `renderSplitStepReview()` was redesigned into a one-day-at-a-time carousel, and `.split-week-cell` no longer exists in `templates/workouts.html`. The carousel's own controls have a different (better, though not perfect) sizing profile: `.split-carousel-arrow` is 34px, and day-to-day jumps have two paths -- the arrows, or the new 8px `.split-carousel-dot` row (a secondary/supplementary way to jump directly to a day, not the primary interaction). The dots are below the 44px guideline too, but as optional pagination affordances behind a same-purpose 34px primary control, this is a materially smaller gap than the old grid being users' *only* way to assign a day. Not re-opened as a fresh TODO since it's a common, accepted mobile pattern (photo-gallery-style pagination dots) rather than the primary control missing a target size.
 
+**Addendum (feat/assign-week-day-picker, 2026-08-13):** The day pill's tap-to-cycle gesture was replaced with a tap-to-open `.split-carousel-pill-menu` (see the "day-type picker" entry below). Its `.split-carousel-pill-menu-item` options are `padding: 8px 10px` at 13px font, an effective height under 44px -- and unlike the dots, this IS the primary control for reassigning a day (there's no other path). Flagged as [LOW] confidence by the design review (code-only, not visually measured) and not blocking ship, but worth a closer look if this screen gets another pass -- padding the tappable area without growing the visible menu row would close most of the gap.
+
 ~~**What:** The 7-cell weekday grid in the split-review "Assign your week" screen (`.split-week-cell` in `templates/workouts.html`) renders at roughly 28-36px square on real phone widths (320-375px) -- the primary interactive control of that screen.~~
 
 ~~**Why:** Small miss-taps on the most-used control of a brand-new screen. Clears WCAG 2.2 AA's 24px minimum, but not Apple's stricter 44px HIG recommendation.~~
@@ -90,13 +178,13 @@
 **Priority:** P4
 **Depends on:** None
 
-### Decide what tap-to-cycle should do when it orphans a training day
+### Decide what the day-type picker should do when it orphans a training day
 
-**What:** In the split-review screen, tapping the day pill (formerly: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) cycles its assignment through every unique day label plus Rest. Nothing stops a user from cycling every day to Rest, or cycling away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`.
+**What:** In the split-review screen, tapping the day pill (formerly: cycled its assignment one tap at a time, before the day-type picker menu of 2026-08-13; before that: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) now opens a menu and reassigns the day directly to whichever label or Rest is picked. Nothing stops a user from reassigning every day to Rest, or picking away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`. The underlying risk is unchanged by the interaction-model swap; only how a user reaches that state changed (now one direct tap instead of N cycling taps).
 
 **Why:** This is a product decision, not a confirmed bug -- a user might legitimately decide they don't want a given training day this week. But it's currently silent either way: no warning, no indication a day type has become unscheduled.
 
-**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s "cycles through every unique label then Rest, then wraps back" test pins that normal cycling doesn't crash, but (unlike the pre-carousel test this replaced) doesn't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being cycled away.
+**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s picker-menu tests pin that normal reassignment doesn't crash, but don't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being picked away.
 
 **Effort:** S (once the desired behavior is decided)
 **Priority:** P3
@@ -186,6 +274,20 @@
 **Priority:** P3
 **Depends on:** None
 
+## Analyze
+
+### Per-analysis chat thread merge can silently drop a message on a length tie
+
+**What:** `repcheck_analyze_chat_v1_<id>` (the AI chat thread attached to each form analysis) is reconciled across devices by `database.py`'s `_merge_chat_thread()` and `static/account_sync.js`'s `mergeChatThread()` picking whichever side's `history` array is *longer* -- not a true per-message union merge like every other `MERGE_LOG_KEYS` family in this file (see `_merge_by_id`/`_merge_date_keyed` and their JS mirrors). "Longer wins" only preserves every message if one side's history is always a strict prefix of the other's.
+
+**Why:** If two devices append *different* messages to the same thread and both end up the same length, whichever side is "incoming" wins the tie and its history entirely replaces the other's -- one real message is silently and permanently dropped, with no error surfaced to either device.
+
+**Context:** Found by Claude's adversarial review during `/ship` for the stranded-keys sync fix (`feat/sync-remaining-local-keys`), which introduced server-side sync for this key. Flagged INVESTIGATE rather than fixed inline: a proper fix needs a real per-message merge (e.g. tagging each history entry with a stable id/ordinal at send time, then unioning by that id the way `_merge_by_id` already does for every other array-shaped log), which is a design decision, not a mechanical one-line fix.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
 ## i18n
 
 ### Thai translation missing for the wizard's location step
@@ -202,27 +304,39 @@
 
 ## Hyrox
 
-### PB card's div[role="button"] trigger wraps a real nested `<button>`
+### History rows are a div[role="button"] wrapping a real nested `<button>`
 
-**What:** The new "Your personal bests" card's per-format section trigger (`renderMyBestsCard()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="pb-time-btn">` (the hero time). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
+**What:** Each history row (`renderHistory()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="hx-history-remove">` (the "x"). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
 
 **Why:** Real accessibility gap on a brand-new, genuinely keyboard-operable widget (this PR also added the first working keydown handler in this file). Not blocking because the underlying HTML5 constraint that caused this shape is real and the current implementation does correctly avoid double-firing (see `handleKeydown`'s `event.target !== target` guard), but the ARIA pattern itself should be revisited.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. A real fix likely means moving the expand affordance to a dedicated control adjacent to, not wrapping, the hero time (e.g. a separate chevron button next to the time button, both siblings under a non-interactive row container) -- a layout change, not a one-line fix.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`, where the instance was the "Your personal bests" card's section trigger. That card was removed in v0.1.2.0, but the identical shape survives in the history rows, so the issue moved rather than closed -- repointed there. A real fix likely means making the row container non-interactive and giving the open action its own control adjacent to (not wrapping) the remove button -- a layout change, not a one-line fix. `handleKeydown`'s `event.target !== target` guard still correctly prevents double-firing in the meantime (see `tests/test_hyrox_keyboard_activation.py`).
 
 **Effort:** M
 **Priority:** P3
 **Depends on:** None
 
-### PB card's keyboard toggle drops focus back to `<body>` on expand/collapse
+### Keyboard activation drops focus back to `<body>` on every re-render
 
-**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. `togglePbFormat()` calls `render()`, so a keyboard user who presses Enter/Space to expand a PB section loses focus back to `<body>` and must re-tab from the top to continue.
+**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. Any keyboard activation routed through `handleKeydown` therefore drops focus to `<body>`: pressing Enter on a history row or a personal-best board row opens the detail modal, and dismissing it leaves the user re-tabbing from the top.
 
-**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to this PR, but this PR is the first to attach a newly-working custom keyboard handler (`handleKeydown`) to a disclosure control, making the gap freshly user-facing rather than theoretical.
+**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to any one feature, but `handleKeydown` makes it reachable by keyboard on two live surfaces, so the gap is user-facing rather than theoretical.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-format`) around the `render()` call in `togglePbFormat()` specifically -- the narrower, more tractable option if only this toggle is fixed rather than the pattern app-wide.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. The original instance was the PB card's expand toggle, removed in v0.1.2.0; the pattern outlived it, so this is repointed at the surviving keyboard-activated rows. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-id`) around the `render()` calls reached from `handleKeydown` -- the narrower, more tractable option.
 
-**Effort:** S (narrow fix, just this toggle) / L (app-wide)
+**Effort:** S (narrow fix, just the keyboard-reachable rows) / L (app-wide)
+**Priority:** P3
+**Depends on:** None
+
+### History rows render comboLabel() unescaped (pre-existing, self-XSS only)
+
+**What:** `renderHistory()` and `renderRaceDetailModal()` (`static/hyrox.js`) both emit `<span class="hx-history-tag">${comboLabel(r.gender, r.category, r.format)}</span>` into a template literal assigned via `innerHTML`. `comboLabel()` builds that string through `RepCheckI18n.t("hyrox.finishLabel", {...})`, which substitutes its vars with split/join and does not escape them, and it passes `category`/`format` straight through whenever they are not one of the fixed ids. `setCategory(value)` stores whatever `data-value` it is handed without validating against `CATEGORY_IDS`, and history records also arrive through account sync.
+
+**Why:** Verified, not theoretical: rendering a history record whose `category`, `format`, or `gender` contains `"><img src=x onerror=alert(1)>` produces a live `<img>` in the row, confirmed against the real English dictionary. Self-XSS only -- the data is the user's own -- which is why it is P3 and not P0. Same class as the workout-log entry above.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-pb-leaderboard`. That branch closed the instance it introduced (`pbBoardLabel()` now goes through `escapeHtml`, and the board's `data-key` through a new `escapeAttr`), and deliberately left these two pre-existing call sites alone. The systemic fix is making `RepCheckI18n.t()` escape its vars by default, which would close all of the remaining sinks at once; the narrow fix is wrapping these two call sites in the `escapeHtml` that already exists in the file.
+
+**Effort:** S (two call sites) / M (systemic t() escaping + audit of every intentional-markup caller)
 **Priority:** P3
 **Depends on:** None
 
@@ -264,6 +378,30 @@
 **Priority:** P4
 **Depends on:** A product decision on the intended recovery flow
 
+### Add-a-station category tabs don't implement the full ARIA APG tabs keyboard pattern
+
+**What:** The new category tab bar (`buildStationPickerSheetContent()`, `static/hyrox.js`) has `role="tablist"` / `role="tab"` / `aria-selected` (added during this branch's pre-landing review), but not the rest of the ARIA Authoring Practices tabs pattern: no arrow-key navigation between tabs, and the tiles grid below isn't wired up as a `role="tabpanel"` linked via `aria-controls`/`aria-labelledby`.
+
+**Why:** Screen reader and keyboard users get correct "this is a tab, this one's selected" semantics (the part that matters most), but not the expected arrow-key-to-switch-tabs interaction a screen reader user familiar with the ARIA pattern would expect -- they're still limited to Tab-and-Enter through each button.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-station-picker-grid-tabs`. Deferred because full APG conformance (arrow-key roving tabindex + tabpanel linkage) is a small but real behavioral addition, not part of the redesign itself, and the current partial semantics are still a net improvement over the plain buttons this branch replaced.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Add-a-station tile grid looks visually unbalanced for 2-station categories
+
+**What:** `.hx-station-picker-grid` (`static/hyrox.css`) is a fixed `repeat(3, 1fr)` grid. Cardio has 3 stations and fills the row; Sled Work, Carry & Lunge, and Explosive each have only 2, so their row renders as 2 tiles left-aligned with an empty gap where a 3rd tile would be.
+
+**Why:** Purely cosmetic -- no broken functionality, just an asymmetric look on 3 of the 4 tabs. Noticeable but low-severity.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-station-picker-grid-tabs`. A real fix is a design decision (e.g. center 2-tile rows, or switch to a flex-wrap layout that doesn't reserve a 3rd column when unused), not a mechanical one-line fix.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
 ## Nutrition
 
 ### Nutrition log entries aren't validated for numeric shape server-side
@@ -277,3 +415,145 @@
 **Effort:** S
 **Priority:** P2
 **Depends on:** None
+
+### Onboarding rate-of-change slider's thumb is below the 44px touch guideline
+
+**What:** `.ob-rate-slider-thumb` (`templates/onboarding.html`, the custom rate-of-weight-change slider added on `weight-loss-rate-slider-redesign`) is 26x26px, and the slider's overall hit area (`.ob-rate-slider`, which captures pointerdown across its full width) is 32px tall -- both below Apple's 44px HIG touch-target guideline.
+
+**Why:** Same class of finding already resolved elsewhere in this app (see the now-resolved "Weekday grid tap targets" entry above) -- small miss-taps on a control users interact with directly. Low severity: the slider is draggable across its full width, not a discrete tap target, and the visible thumb is only the drag handle, not the sole interactive surface.
+
+**Context:** Flagged by the design specialist during `/ship` on `weight-loss-rate-slider-redesign` (LOW confidence -- code-level detection only, not verified visually). Deferred as a minor visual-density tradeoff: increasing the slider's height to 44px would need matching adjustments to the badge/readout spacing above and below it to avoid the step feeling oversized.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+### Widening the onboarding rate range changed the null-rate fallback for the separate coaching.js wizard too
+
+**What:** `coaching_engine.py`'s `LOSS_RATE_DEFAULT_PCT`/`GAIN_RATE_MAX_PCT` are shared server-side constants used by `_validate_coaching_profile()` (`app.py`) for TWO independent wizards: the new onboarding flow (`static/onboarding.js`, this branch's scope) and the separate "Personalized Coaching" wizard (`static/coaching.js`, deliberately left untouched -- its own slider still shows the old 1.0-2.0% / 0.25-0.5% ranges). `_validate_coaching_profile()` substitutes `LOSS_RATE_DEFAULT_PCT` whenever a caller sends an explicit `null` for `loss_rate_pct` (a real, previously-tested path -- see `tests/test_coaching_rate_null.py`), not just when the key is missing. Since that default changed from 1.5% to ~0.267% as part of recalibrating onboarding's range to a 0.2-0.8 kg/week target, a `coaching.js` user who happens to hit this null-fallback path now gets a rate value well below what `coaching.js`'s own slider UI would ever let them select (it never goes below 1.0%) -- their saved profile would disagree with what their own wizard shows as the valid range.
+
+**Why:** Narrow (requires a `coaching.js` user's client to send an explicit `null` rate rather than omitting the key or a real value, which per that test file's own docstring is a real, previously-fixed reachable path, not purely theoretical) but a genuine behavioral bleed-through across a boundary this branch intentionally tried to keep clean (onboarding-only scope, confirmed via explicit user decision before implementation).
+
+**Context:** Found while implementing the onboarding rate-slider redesign (`weight-loss-rate-slider-redesign` branch) -- widening `coaching_engine.py`'s shared MIN/MAX/DEFAULT constants was an explicit, confirmed decision for this branch (needed so the new 0.2-0.8 kg/week loss zone and 0.6 kg/week gain ceiling are even reachable), but the null-fallback DEFAULT bleeding into the other wizard's users is a side effect of that shared file, not something this branch's own scope covers fixing. A real fix means giving each wizard its own default (e.g. a `default_pct` argument threaded through `_validate_coaching_profile()` instead of a bare module constant), which touches the validation function's signature and every caller, not just the onboarding flow this branch actually changed.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Check-in context flags aren't cross-checked against the actual check-in week
+
+**What:** `api_coaching_weekly_adjustment()` (`app.py`) validates `high_carb_days`/`bloating_days` for shape (ISO date string, ASCII digits, capped at 31 entries) but never checks that a flagged date actually falls within `week_weight_entries`/the check-in week being scored. The client UI (`renderCheckinFlagGrid()`, `static/coaching.js`) only ever lets a user toggle dates from `checkin.weekDates`, so this is unreachable through the app itself -- only a client calling the API directly could submit an out-of-range or nonsensical date (month/day aren't range-checked beyond `\d{2}`, so `"2026-13-45"` passes format validation).
+
+**Why:** A flagged date with no relationship to the week actually being reviewed still reaches `checkin_analyzer.py`'s Gemini prompt as "the user flagged this about their own week: they ate notably more carbs...", letting a user (or direct API caller) retroactively attach a water-retention excuse to any weigh-in. Low severity: this is self-directed (same account, same trust boundary as every other self-reported check-in field -- weight entries and calorie logs are equally unvalidated against reality), and the numeric outcome stays clamped to the existing +/-150 kcal/day `WEEKLY_ADJUSTMENT_LIMIT` regardless of what the AI reads in the prompt.
+
+**Context:** Found by the red-team specialist during `/ship` on `checkin-context-prompts` (confidence 6/10). Deferred because it doesn't cross the app's existing trust model (all check-in inputs are self-reported and already unvalidated against ground truth) and a real fix means determining "the check-in week" server-side (timezone-aware, likely needs to intersect against `week_weight_entries`' own date set) -- more scope than this branch's stated intent.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Silent AI-fallback on check-in loses the user's flagged days with no signal
+
+**What:** When `analyze_checkin()` (`checkin_analyzer.py`) raises `CheckinAnalysisError` for any reason (Gemini timeout, malformed response, transient API error), `app.py`'s except-block falls back to `coaching_engine.weekly_adjustment()` -- which never receives `high_carb_days`/`bloating_days` at all -- and still returns `{"ok": true}` with no indication the flags were ignored. This isn't specific to the context-flags feature: the same silent fallback already existed for progress photos before this branch (a text-only check-in and a check-in with photos that hits an AI hiccup both silently degrade to the deterministic-only reasoning), and is the intentional, documented design (see `checkin_analyzer.py`'s module docstring: deterministic math is the safety floor/fallback, AI is the judgment layer).
+
+**Why:** A user who took the extra step of flagging high-carb/bloated days gets a normal-looking successful check-in with zero indication those flags never factored into the number they received -- the exact outlier-weigh-in-triggers-too-big-a-cut scenario this feature exists to prevent can still happen silently on any AI-call hiccup.
+
+**Context:** Found by the red-team specialist during `/ship` on `checkin-context-prompts` (confidence 5/10). Deferred: this is a pre-existing property of the whole check-in AI-fallback architecture (already true for photos), not a regression introduced by this diff, and surfacing "AI reviewed this vs. deterministic fallback used" to the user is a result-screen/API-contract change bigger than this branch's scope.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+### submitCheckin()'s payload construction has no direct JS test
+
+**What:** `submitCheckin()` (`static/coaching.js`) builds the `/api/coaching/weekly-adjustment` POST body including `high_carb_days: Object.keys(c.highCarbDays)` and `bloating_days: Object.keys(c.bloatedDays)`, but `submitCheckin()` itself has zero test coverage in `tests-js/` (confirmed: no test file references it). `tests-js/checkinContextFlags.test.js` covers `toggleCheckinFlag()`/`renderCheckinFlagGrid()` (the state mutation and rendering), and `tests/test_checkin_context_flags.py` proves the server correctly forwards a `high_carb_days`/`bloating_days` payload shaped exactly like what `submitCheckin()` sends -- but nothing exercises the actual `Object.keys(...)` transformation that turns the UI's flag-map state into that payload.
+
+**Why:** A bug in that one line (e.g. sending the flag map itself instead of its keys, or swapping which map feeds which field) would not be caught by any existing test. Low risk in practice: `Object.keys()` is a builtin with no room for the kind of logic bug the rest of this feature's tests already guard against.
+
+**Context:** Flagged by the testing specialist during `/ship` on `checkin-context-prompts` (confidence 5.5/10). Deferred rather than fixed inline because `submitCheckin()` is a large async method (fetch, photo-file handling, localStorage) -- isolating just its payload-construction logic for a test is a bigger extraction than the two simple methods already covered, comparable in scope to building a new harness rather than reusing the existing `loadCheckinFlags.js` pattern.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### AI-generated `reason` text is rendered via unescaped innerHTML with no sanitization
+
+**What:** `renderCoachingCard()`'s adjustment banner (`static/coaching.js`, `${this.lastAdjustment.reason}`) and the check-in result screen (`${adj.reason}`) both splice the AI-generated `reason` string from `analyze_checkin()`/`weekly_adjustment()` directly into a template string that's assigned via `el()`'s `wrap.innerHTML = html.trim()` -- no `escapeHtml()`/sanitize helper exists anywhere in `coaching.js`. `reason` is capped at 400 chars server-side (`checkin_analyzer.py`) but never HTML-escaped.
+
+**Why:** `reason` is Gemini-generated text built from a prompt that includes multiple free-text-adjacent inputs (this branch's `high_carb_days`/`bloating_days` are locked to ASCII digits/dashes and can't reach this, but the prompt also includes the user's profile fields and other check-in context). If the model ever returns markup-like text in its `reason` response -- via a prompt-injection attempt through some other input, or simply an unlucky generation -- it would render unescaped in the user's own browser. Self-XSS in practice (own account, own data), but a real gap: no output encoding exists on this path at all.
+
+**Context:** Found by the Claude adversarial review during `/ship` on `checkin-context-prompts` (INVESTIGATE, not introduced by this diff -- pre-existing across all of `coaching.js`'s AI-reason rendering, not specific to the new check-in flags). Deferred because a real fix means adding an `escapeHtml()` helper (or switching these two call sites to `textContent`) across the whole file's AI-output rendering, not a change scoped to this branch's own diff.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### Check-in flag pills reuse the day-status pill's shape with no toggle-vs-cycle distinction
+
+**What:** `renderCheckinFlagGrid()` (`static/coaching.js`) reuses the exact `.pc-ck-day` circular pill component (same size/shape) as `renderCheckinDayGrid()` directly above it in the same check-in sheet, differentiated only by an added `.pc-ck-flag-day` modifier class for color. The first grid cycles each day through statuses on tap; the two new grids are independent on/off toggles -- three visually-identical rows of round pills with no shape/icon distinction between the "cycle" and "toggle" affordances.
+
+**Why:** A user could reasonably assume all three pill rows behave the same way (cycling through states) rather than two of them being simple flags. Purely a visual/interaction-design polish item, not a functional bug -- the pills are labeled with section headers (`coaching.checkin.highCarbLabel`/`bloatedLabel`) directly above each row.
+
+**Context:** Flagged by the design specialist during `/ship` on `checkin-context-prompts` (confidence 5/10). Deferred as a subjective design-polish call -- picking a distinct shape/icon treatment (e.g. rounded-square/checkbox look) is a visual decision better made deliberately than folded into a review-fix pass.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+### No server-side length cap on a custom food's emoji
+
+**What:** `api_create_custom_food()` (`app.py`) takes `emoji` as `str(payload.get("emoji") or "").strip()` and only defaults it when empty -- nothing bounds its length before it goes into the `custom_foods.emoji` column. The custom-*exercise* route directly below it does cap its own emoji field (`emoji = emoji[:8]`), so the two sibling routes disagree.
+
+**Why:** Low risk (the route requires login, and the picker UI only ever sends one glyph), but a hand-rolled request could store an arbitrarily large string in that column and it would then be rendered as the food's icon in the log list on every page load. The inconsistency with the exercise route is the real smell -- one of the two is wrong.
+
+**Context:** Noticed during `/ship`'s pre-landing review on `feat/food-emoji-picker` while tracing every consumer of `CUSTOM_FOOD_EMOJIS`. Not fixed inline: pre-existing, on a line that branch doesn't touch, and the right fix is to make both routes agree on one shared cap rather than patch the food route alone.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+## Security
+
+### RepCheckI18n.t() does not escape its vars, and ~8 innerHTML sinks rely on it
+
+**What:** `t(key, vars)` (`static/i18n.js`) substitutes with `text = text.split("{"+k+"}").join(vars[k])` -- no escaping. Nearly every list row in the app is a template literal assigned via `innerHTML`, so any `t()` call carrying a user-controlled var inside one is an injection sink. Remaining unescaped sinks are the user's OWN custom exercise and food names: `templates/workouts.html` (`exerciseRowHtml`'s `data-name`/`${name}`/`data-fav-toggle`, and `renderList`'s `data-exercise`), plus the food equivalents in `templates/nutrition.html`. Names are stored raw (`create_custom_exercise` caps length at 60 but does not sanitize).
+
+**Why:** Self-XSS only -- these strings never leave the account that typed them, and `SESSION_COOKIE_SAMESITE = "Lax"` (`app.py`) blocks the drive-by CSRF path. That is why it was not fixed inline. But the pattern is one shared-list feature away from becoming cross-user, and the current state is inconsistent: the same file now escapes some interpolations and not others.
+
+**Context:** Found by the adversarial pass during `/ship` on `feat/mascot-empty-states`, alongside a genuinely cross-user stored XSS on the leaderboards and friends list -- that one WAS fixed on that branch (see `tests/test_cross_user_name_escaping.py`). The right fix here is systemic: make `t()` escape its vars by default and give the handful of call sites that intentionally pass markup an explicit opt-out, rather than adding more call-site `escapeHtml()` calls. Note there is no shared escape helper -- `workouts.html`, `nutrition.html`, `index.html`, `hyrox.js`, `challenges.html` and `friends.html` each define their own.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+## Design
+
+### 46 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
+
+**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 46 tinted glows remain, mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus one in `templates/home.html`.
+
+**Why:** The doc and the code now disagree, which is the same failure mode that produced the repeated one-off removals in the first place: a new badge gets built from whichever source the author happened to read. Finishing the sweep is what makes the rule self-enforcing.
+
+**How to find them:** `grep -rEn "box-shadow: 0 [0-9]+px [0-9]+px rgba\((31, 169, 113|185, 131, 42|47, 102, 232|124, 79, 224|232, 131, 47)" --include=*.css --include=*.html static/ templates/`
+
+**Context:** Counted during `/ship` on `feat/hyrox-pb-leaderboard`, which removed the glow from `.pb-trophy` and corrected DESIGN.md but deliberately did not touch the other 45 — an app-wide visual change does not belong in a PR about a leaderboard. Worth doing as one sweep with a before/after screenshot pass, not incrementally.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+### Two competing empty-state treatments ship side by side
+
+**What:** `static/mascot.js` covers four screens (Hyrox leaderboard, food search, both exercise pickers, challenges). Race history (`.hx-history-empty-rich`, a stopwatch emoji in an `--amber-bg` circle, `static/hyrox.js`) and the workout log (`.wl-empty`, a sprout emoji, `templates/workouts.html`) still use their own treatment. On the Hyrox page the two sit one tab apart.
+
+**Why:** The point of the mascot was one empty-state language; the app currently has two systematised-but-mutually-inconsistent ones. Converting the remaining pair needs one new pose each (a timer-flavoured pose and a ready-to-start pose) plus deleting `.hx-history-empty-icon` / `.wl-empty-icon`.
+
+**Context:** Flagged by the design specialist during `/ship` on `feat/mascot-empty-states`. Left out to keep that PR scoped; the comments in `static/mascot.js` and `templates/base.html` were narrowed so they no longer claim a consolidation that hasn't happened.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+## Completed
+
+<!-- Shipped items move here, newest first, with the version or date they landed. -->

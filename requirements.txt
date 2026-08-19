@@ -4,6 +4,7 @@ gunicorn==23.0.0
 python-dotenv==1.2.2
 google-genai==2.2.0
 Pillow==12.3.0
+pillow-heif==1.5.0
 opencv-python-headless==4.11.0.86
 pyzbar==0.1.9
 qrcode==8.2
