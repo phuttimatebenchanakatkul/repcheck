@@ -141,18 +141,18 @@ def test_storage_full_error_i18n_key_exists_in_both_locales():
     )
 
 
-def test_pb_time_button_html_scans_the_full_array(hyrox_js):
-    """pbTimeButtonHtml() (the Personal Bests card's tap-time-to-open-report
-    wiring, and the exact code path the 'set on another device' toast this
-    file's TODO entry is about depends on) resolves a server-reported PB to
-    a local race record via this.history.filter(...). It must scan the
-    full array, not a truncated copy -- a future slice() here would
-    reproduce the original eviction bug on this specific surface without
-    any of the other tests in this file catching it."""
-    start = hyrox_js.index("pbTimeButtonHtml(r, cls) {")
+def test_pb_board_scans_the_full_history_array(hyrox_js):
+    """getPbBoards() builds the Personal bests board -- the surface that
+    replaced the old setup-screen PB card, whose pbTimeButtonHtml() this
+    test used to guard until #171 deleted it. It must scan the full
+    this.history, not a truncated copy: a slice() here would reproduce the
+    original eviction bug on the one screen whose entire job is showing
+    times from arbitrarily far back, and no other test in this file would
+    catch it."""
+    start = hyrox_js.index("getPbBoards() {")
     end = hyrox_js.index("\n    }\n", start)
     body = hyrox_js[start:end]
-    assert "this.history.filter(" in body
+    assert "this.history.forEach(" in body
     assert not re.search(r"this\.history\.(slice|splice|pop|shift)\(", body), (
-        "pbTimeButtonHtml() must scan the full this.history, not a truncated copy"
+        "getPbBoards() must scan the full this.history, not a truncated copy"
     )

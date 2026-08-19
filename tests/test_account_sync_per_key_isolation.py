@@ -38,9 +38,13 @@ def reconcile_fn_body():
 
 def forEach_wrapper_body():
     src = account_sync_js()
-    start = src.index("SYNC_KEYS.forEach(function (key) {", src.index("var now = Date.now();"))
+    # keysToHydrate, not SYNC_KEYS: the loop drives the fixed keys PLUS every
+    # analyze-chat thread present on either side (see the queueKey() block
+    # above it). The isolation this guards is unchanged -- only what the
+    # loop iterates over grew.
+    start = src.index("keysToHydrate.forEach(function (key) {", src.index("var now = Date.now();"))
     end = src.index("function reconcileOneSyncKey(key) {")
-    assert end > start, "SYNC_KEYS.forEach wrapper extraction markers moved -- update this test"
+    assert end > start, "keysToHydrate.forEach wrapper extraction markers moved -- update this test"
     return src[start:end]
 
 
@@ -50,7 +54,7 @@ def test_per_key_reconciliation_is_isolated_in_a_try_catch():
     thrown error aborts iteration of every key after it."""
     wrapper = forEach_wrapper_body()
     assert re.search(r"try\s*\{\s*reconcileOneSyncKey\(key\);\s*\}\s*catch", wrapper), (
-        "SYNC_KEYS.forEach must call reconcileOneSyncKey(key) inside a try/catch"
+        "the hydration loop must call reconcileOneSyncKey(key) inside a try/catch"
     )
 
 
