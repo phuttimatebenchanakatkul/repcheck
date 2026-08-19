@@ -23,39 +23,27 @@
 /* Shared intro-paragraph style (used by the training-space section). */
 .hx-guide-intro { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: -6px 0 16px; }
 
-/* ---------- Hero (same design language as the home page's hm-hero:
-   one dark gradient surface with a soft blue glow, leading with your
-   fastest time, the 8 stations as tappable icon chips, and one CTA) */
+/* ---------- Hero (same var(--card-bg)/var(--text) theme-following
+   surface as .hx-card above, leading with your fastest time, the 8
+   stations as tappable icon chips, and one CTA) */
 .hx-hero {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(145deg, #263356 0%, #17181d 62%);
-  color: #fff;
+  background: var(--card-bg);
+  color: var(--text);
   border-radius: 22px;
   box-shadow: var(--shadow);
   padding: 22px;
   margin-bottom: 16px;
 }
-.hx-hero::before {
-  content: "";
-  position: absolute;
-  top: -70px; right: -50px;
-  width: 220px; height: 220px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(77, 127, 245, 0.4), transparent);
-  pointer-events: none;
-}
-.hx-hero > * { position: relative; }
 .hx-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.hx-hero-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55); }
+.hx-hero-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
 .hx-hero-chip {
   display: inline-flex; align-items: center; gap: 5px;
-  background: rgba(255, 255, 255, 0.1); color: #fff;
+  background: var(--bg); color: var(--text-secondary);
   border-radius: 999px; padding: 6px 13px;
   font-size: 13px; font-weight: 800;
 }
 .hx-hero-title { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.hx-hero-sub { font-size: 13.5px; color: rgba(255, 255, 255, 0.6); margin-top: 5px; }
+.hx-hero-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 5px; }
 .hx-hero-stations { display: flex; justify-content: space-between; gap: 5px; margin-top: 18px; }
 .hx-hero-station {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -65,21 +53,20 @@
   transition: transform 0.1s ease;
 }
 .hx-hero-station:active { transform: scale(0.9); }
-.hx-hero-station-num { font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.45); }
+.hx-hero-station-num { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
 .hx-hero-station-icon {
   width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.85);
+  background: var(--border); color: var(--text-secondary);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-.hx-hero-station:hover .hx-hero-station-icon { background: rgba(77, 127, 245, 0.5); color: #fff; }
-.hx-hero-hint { font-size: 11px; color: rgba(255, 255, 255, 0.45); text-align: center; margin-top: 10px; }
+.hx-hero-station:hover .hx-hero-station-icon { background: var(--blue-bg); color: var(--blue); }
+.hx-hero-hint { font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 10px; }
 .hx-hero-cta {
   display: block; width: 100%; text-align: center; margin-top: 16px;
   background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
   border: none; border-radius: 999px; padding: 13px;
   font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;
-  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.35);
   transition: opacity 0.15s ease, transform 0.1s ease;
 }
 .hx-hero-cta:hover { opacity: 0.92; }
@@ -92,10 +79,10 @@
   display: block; width: 100%; min-height: 44px; box-sizing: border-box;
   text-align: center; margin-top: 6px; padding: 8px;
   background: none; border: none;
-  color: rgba(255, 255, 255, 0.72); font-size: 13px; font-weight: 700;
+  color: var(--text-secondary); font-size: 13px; font-weight: 700;
   font-family: inherit; cursor: pointer;
 }
-.hx-hero-history-link:hover { color: #fff; }
+.hx-hero-history-link:hover { color: var(--text); }
 .hx-hero-history-link:active { opacity: 0.7; }
 
 /* ---------- Race-setup page header, and the add-station picker sheet's
@@ -295,37 +282,81 @@
 .hx-custom-add-btn.is-open { transform: rotate(45deg); }
 .hx-custom-add-btn.is-open:active { transform: rotate(45deg) scale(0.92); }
 
-/* The picker sheet's own body content -- every station as a full-width row
-   (icon left, name right). The sheet itself already slides up (see
-   base.html's shared bottom-sheet system), so this is just a plain list,
-   no entrance animation of its own needed. */
-.hx-station-picker-list {
+/* The add-station picker: a category tab bar (only one movement-pattern
+   group visible at a time -- Cardio, Sled Work, Carry & Lunge, Explosive)
+   above a grid of icon tiles for that category, same visual language as
+   the race-type/category choice cards earlier in setup. Each category
+   tops out at 3 stations, so the grid never wraps past one row. */
+.hx-station-picker-tabbar {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  /* Overflow-x is a safety net for narrow screens where the 4 tab labels
+     don't quite fit -- not meant to be a visible scroll affordance (the
+     tabs are meant to read as a fixed segmented control, not a carousel),
+     so the scrollbar itself is hidden the same way .app/.auth-wrap already
+     do elsewhere in style.css. */
+  scrollbar-width: none;
+}
+.hx-station-picker-tabbar::-webkit-scrollbar { display: none; }
+.hx-station-picker-tab {
+  flex: 1 0 auto;
+  border: none;
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.hx-station-picker-tab.is-active {
+  background: var(--card-bg);
+  color: var(--blue);
+  box-shadow: 0 1px 3px rgba(16, 17, 20, 0.08);
+}
+.hx-station-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.hx-station-picker-tile {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-.hx-custom-palette-row {
-  display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
+  gap: 8px;
   border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 8px 10px;
+  border-radius: 14px;
+  padding: 14px 6px 12px;
   background: var(--bg);
   cursor: pointer;
   font-family: inherit;
-  text-align: left;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
-.hx-custom-palette-row:hover { border-color: var(--blue); background: var(--blue-bg); }
-.hx-custom-palette-row:active { transform: scale(0.99); }
-.hx-custom-palette-row-icon {
-  width: 28px; height: 28px; flex-shrink: 0; border-radius: 9px;
+.hx-station-picker-tile:hover {
+  border-color: var(--blue);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(20, 20, 20, 0.08);
+}
+.hx-station-picker-tile:active { transform: scale(0.97); }
+.hx-station-picker-tile-icon {
+  width: 40px; height: 40px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--blue-bg); color: var(--blue);
+  background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
 }
-.hx-custom-palette-row-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.hx-station-picker-tile-name {
+  font-size: 11.5px; font-weight: 700; color: var(--text);
+  line-height: 1.25;
+}
 .hx-custom-list { margin-bottom: 4px; }
 .hx-custom-row .hx-agenda-row-main { flex-wrap: wrap; row-gap: 6px; }
 .hx-custom-row .hx-agenda-name { flex-basis: 100%; order: -1; margin-left: 38px; }
@@ -781,8 +812,13 @@
 }
 .hx-space-weight-value { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
 .hx-space-weight-label { font-size: 9px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 3px; }
+/* A bare <input type=number> with no width falls back to the browser's
+   default intrinsic width (historically ~20 characters) -- `ch` sizes it
+   to the digit count these station weights actually use (up to 3 digits,
+   e.g. "202"), same fix already applied to this input's other use in
+   .hx-custom-row (see the comment there). */
 .hx-space-weight-input {
-  width: 100%; min-width: 0; padding: 0; margin: 0;
+  width: 3.5ch; min-width: 0; padding: 0; margin: 0;
   background: none; border: none;
   border-bottom: 1px dashed var(--text-secondary);
   border-radius: 0;
@@ -958,26 +994,80 @@
 .hx-pb-banner-time { font-size: 24px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .hx-pb-banner-date { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-left: 10px; }
 
-.hx-pb-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  background: var(--blue-bg);
-  border-radius: 14px;
-  margin-bottom: 8px;
+/* ---------- Personal-best board (renderPbBoard(), history screen) ----------
+   Same row anatomy as the Challenges leaderboard (.ch-lb-row in
+   templates/challenges.html): rank numeral, a body carrying label + value,
+   and a meta column on the right. Kept visually in step with it on purpose
+   -- the two boards rank different things, but reading one should teach you
+   how to read the other. The big numeral stays scarce (podium only): if
+   all five rows shouted, none of them would read. */
+.hx-pb-lb-list { display: flex; flex-direction: column; gap: 6px; }
+.hx-pb-lb-solo {
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-secondary); margin: 0 2px 10px;
 }
-.hx-pb-row-time { font-size: 18px; font-weight: 700; min-width: 76px; color: var(--blue); font-variant-numeric: tabular-nums; }
+.hx-pb-lb-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 14px; border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--bg);
+  cursor: pointer;
+}
+.hx-pb-lb-row:hover { box-shadow: 0 6px 16px rgba(20, 20, 20, 0.08); transform: translateY(-1px); }
+.hx-pb-lb-row:active { transform: scale(0.99); }
+.hx-pb-lb-rank { width: 48px; flex-shrink: 0; line-height: 1; }
+.hx-pb-lb-body { flex: 1; min-width: 0; }
+.hx-pb-lb-label {
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hx-pb-lb-time { font-weight: 800; line-height: 1.15; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.hx-pb-lb-meta {
+  font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+  flex-shrink: 0; align-self: flex-start; font-variant-numeric: tabular-nums;
+}
 
-/* Singles/Doubles grouping on the setup screen's "your bests" card. */
-.hx-pb-format-section { margin-bottom: 18px; }
-.hx-pb-format-section:last-child { margin-bottom: 0; }
-.hx-pb-section-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
+.hx-pb-lb-row.is-podium .hx-pb-lb-rank { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--text-secondary); }
+.hx-pb-lb-row.is-podium .hx-pb-lb-time { font-size: 20px; }
+/* Rank 1 is the PB itself -- the one row worth tinting, and flat amber on
+   the numeral rather than a gradient badge: one accent, no glow. The date
+   label deliberately does NOT go blue with it the way the Challenges
+   board's own row does: that board's blue text is the word "YOU" (an
+   identity marker), whereas this one is a real date, and blue-on-blue-tint
+   is the weakest contrast pairing on the card. */
+.hx-pb-lb-row[data-rank="1"] { background: var(--blue-bg); border-color: rgba(52, 104, 224, 0.28); }
+.hx-pb-lb-row[data-rank="1"] .hx-pb-lb-rank { color: #e8a33f; }
+/* The one meta in full text colour instead of grey -- that contrast
+   alone marks the PB row, and unlike an accent colour it holds up in
+   both themes against the tinted background it sits on. */
+.hx-pb-lb-row[data-rank="1"] .hx-pb-lb-meta { color: var(--text); font-weight: 800; }
+
+.hx-pb-lb-row.is-rest .hx-pb-lb-rank { font-size: 15px; font-weight: 800; color: var(--text-secondary); }
+.hx-pb-lb-row.is-rest .hx-pb-lb-time { font-size: 17px; }
+
+.hx-pb-lb-foot {
+  font-size: 11.5px; color: var(--text-secondary); text-align: center;
+  padding-top: 12px; line-height: 1.55;
 }
+
+@media (max-width: 380px) {
+  .hx-pb-lb-row { padding: 12px; gap: 10px; }
+  .hx-pb-lb-rank { width: 40px; }
+  .hx-pb-lb-row.is-podium .hx-pb-lb-rank { font-size: 26px; }
+}
+
+/* ---------- Personal-bests card header (renderMyBestsCard(), renderPbBoard()) ----
+   Trophy-badge header matches the Leaderboard card's own .hx-lb-trophy
+   treatment (same gradient) so the cards read as one family -- but flat,
+   with no tinted glow behind the badge. */
+.pb-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.pb-trophy {
+  width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #e8a33f, var(--amber)); color: #fff;
+}
+.pb-trophy svg { width: 15px; height: 15px; }
+.pb-header .hx-step-label { margin-bottom: 0; }
 
 /* ---------- History ---------- */
 .hx-history-row {
@@ -1311,7 +1401,6 @@
   left: 50%;
   bottom: 90px;
   transform: translateX(-50%);
-  background: var(--red);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -1322,6 +1411,9 @@
   max-width: 90vw;
   text-align: center;
   animation: hx-toast-fade-in 0.15s ease;
+}
+.hx-save-error-toast {
+  background: var(--red);
 }
 @keyframes hx-toast-fade-in {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }

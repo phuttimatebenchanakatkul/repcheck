@@ -391,28 +391,20 @@ describe("renderSplitStepReview — save", () => {
     expect(calls.replanned).toBe(true);
   });
 
-  it("labels the primary button 'Save plan' normally, 'Save changes' when editing an existing plan", () => {
-    // Regression: the type-selection step already switches its own primary
-    // button between "Generate my plan" / "Save changes" off
-    // splitWizard.isEditingExistingPlan; the review step's Save button
-    // picked up the same branch later and needs the same coverage, or an
-    // edit session reads as "Save changes" -> ... -> "Save plan", which
-    // looks like two different actions instead of one continuous edit.
+  it("always labels the primary button 'Save plan'", () => {
+    // The AI-suggest path is only ever reached via openSplitModal() now --
+    // "edit an existing split" no longer skips straight into a pre-filled
+    // wizard step (see templates/workouts.html's renderWholeSplitBody(),
+    // whose own "Edit split" button opens the same blank openSplitModal()
+    // entry point). splitWizard.isEditingExistingPlan was the only thing
+    // that ever switched this label to "Save changes", and nothing sets it
+    // anymore, so this is the one reachable label.
     const fresh = loadReviewStep({
       generatedDays: PPL_DAYS,
       generatedSchedule: PPL_SCHEDULE,
-      isEditingExistingPlan: false,
     });
     fresh.renderSplitStepReview();
     expect(fresh.splitModalBody.querySelector("#split-save-btn").textContent.trim()).toBe("Save plan");
-
-    const editing = loadReviewStep({
-      generatedDays: PPL_DAYS,
-      generatedSchedule: PPL_SCHEDULE,
-      isEditingExistingPlan: true,
-    });
-    editing.renderSplitStepReview();
-    expect(editing.splitModalBody.querySelector("#split-save-btn").textContent.trim()).toBe("Save changes");
   });
 
   it("never mutates splitWizard.generatedSchedule -- only the saved copy changes", () => {
