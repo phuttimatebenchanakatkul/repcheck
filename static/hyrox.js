@@ -614,29 +614,16 @@
     return escapeHtml(text).replace(/"/g, "&quot;");
   }
 
-  // Both toast variants share the same fixed bottom-center slot, so only
-  // one can be legible at a time -- clear any toast of EITHER class, not
-  // just this one's own, before inserting (a delayed save-error toast
-  // landing on top of a freshly-tapped info toast would otherwise stack
-  // both, unreadable).
+  // Toasts share one fixed bottom-center slot, so only one can be legible
+  // at a time -- clear any existing toast before inserting, or a delayed
+  // save-error toast landing on top of another would stack both, unreadable.
   function clearExistingToasts() {
-    document.querySelectorAll(".hx-save-error-toast, .hx-info-toast").forEach((t) => t.remove());
+    document.querySelectorAll(".hx-save-error-toast").forEach((t) => t.remove());
   }
 
   function showHistorySaveError(message) {
     clearExistingToasts();
     const toast = el(`<div class="hx-save-error-toast">${message}</div>`);
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 6000);
-  }
-
-  // Same toast shell as showHistorySaveError(), but neutral-styled -- for
-  // states that are expected/benign (e.g. "no detail available"), not
-  // failures. Reusing the red error toast for those would tell the user
-  // something went wrong when nothing did.
-  function showInfoToast(message) {
-    clearExistingToasts();
-    const toast = el(`<div class="hx-info-toast">${message}</div>`);
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);
   }
@@ -1071,10 +1058,11 @@
     }
 
     // Enter/Space activation for div[role=button] triggers (see the
-    // pb-section-trigger comment in the constructor for why those aren't
-    // real <button> elements). Ignored for any element that IS a real
-    // button/input/etc. -- those already get free keyboard activation from
-    // the browser, and replaying a synthetic click on top would double-fire.
+    // keydown listener in the constructor for why the PB-board and
+    // history rows aren't real <button> elements). Ignored for any element
+    // that IS a real button/input/etc. -- those already get free keyboard
+    // activation from the browser, and replaying a synthetic click on top
+    // would double-fire.
     handleKeydown(event) {
       if (event.key !== "Enter" && event.key !== " ") return;
       const target = event.target.closest('[data-action][role="button"]');
