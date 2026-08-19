@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.2.3.0] - 2026-08-19
+
+### Removed
+
+- The "Continue with Apple" / "Sign up with Apple" buttons are gone from the login
+  and signup screens, along with the /auth/apple route and the APPLE_* env vars.
+  Apple Sign In was never implemented past the redirect (it needs a paid Apple
+  Developer account), so the button only ever showed a "setup needed" badge and a
+  dead end. Google sign-in and email/password are unchanged.
+
 ## [0.2.2.0] - 2026-08-19
 
 ### Changed
