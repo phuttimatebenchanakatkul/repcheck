@@ -2,6 +2,34 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.2.0.0] - 2026-08-19
+
+### Added
+
+- HYROX: the landing card's second link now reads "Personal bests" and opens a ranked
+  board of your five fastest times in one category, instead of a flat list of everything
+  you have logged. Your best sits at the top with the gap to it on every row below, so
+  the screen answers "am I getting faster" rather than only "what have I run". Tap any
+  time to open its full breakdown, the same one the history rows open. Categories you
+  have raced more than once get tabs, and the board opens on whichever one you have run
+  the most.
+
+### Changed
+
+- HYROX: the saved-times list moved under that board and is now called History. It still
+  lists every race, including the custom and flagged ones the board cannot rank — a
+  custom race is its own mix of stations, so no two of them share a standard to be
+  ranked against. Half races get their own board rather than beating every full-distance
+  time on half the distance.
+- The personal-bests trophy badge lost the colored glow behind it, and DESIGN.md no
+  longer asks for that glow on new icon badges. The rest of the app still has it in
+  about 45 places; that sweep is tracked separately.
+
+### Fixed
+
+- HYROX: a race stored with an unexpected category, format, or gender can no longer
+  inject markup into the new board through the unescaped translation layer.
+
 ## [0.1.1.0] - 2026-08-18
 
 ### Fixed
