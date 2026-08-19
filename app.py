@@ -942,7 +942,7 @@ def onboarding_page():
         return redirect(url_for("auth.login_page"))
     if user["onboarding_completed"]:
         return redirect(url_for("home"))
-    return render_template("onboarding.html", exercise_icons=EXERCISE_ICONS)
+    return render_template("onboarding.html")
 
 
 @app.route("/api/onboarding/complete", methods=["POST"])
