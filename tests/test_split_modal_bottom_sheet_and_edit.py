@@ -659,3 +659,45 @@ def test_staged_reveal_is_disabled_under_reduced_motion(picker_expand_css):
     block = picker_expand_css[picker_expand_css.index("@media (prefers-reduced-motion: reduce)"):]
     assert ".wl-plan-picker-expand { transition: none; }" in block
     assert "transition-delay: 0s;" in block
+
+
+def _duration_ms(value):
+    value = value.strip()
+    return float(value[:-2]) if value.endswith("ms") else float(value[:-1]) * 1000
+
+
+def test_opening_is_slower_than_collapsing(picker_expand_css):
+    """The growth is the part the eye follows, so it has to be unhurried
+    enough to read as expanding rather than as a jump -- while dismissing
+    stays quick. A single shared duration can't do both, so the two
+    directions carry their own timing (openPicker adds .is-open before
+    writing the target height, closePicker removes it before writing 0)."""
+    close = re.search(r"\.wl-plan-picker-expand \{[^}]*transition: max-height ([\d.]+m?s)", picker_expand_css)
+    open_ = re.search(r"\.wl-plan-picker-expand\.is-open \{\s*transition-duration: ([\d.]+m?s);", picker_expand_css)
+    assert close and open_, picker_expand_css[:400]
+    assert _duration_ms(open_.group(1)) > _duration_ms(close.group(1))
+    # Slow enough to actually read as motion rather than a snap.
+    assert _duration_ms(open_.group(1)) >= 500
+
+
+def test_staged_fade_is_also_longer_on_the_way_in(picker_expand_css):
+    """A quick fade under a slow growth reads as the content popping in
+    before the panel has finished opening -- the stagger has to be paced to
+    the growth, and likewise shortened again on the way out."""
+    base = picker_expand_css[picker_expand_css.index(".wl-plan-picker-stage {"):]
+    base = base[: base.index("}")]
+    close = re.search(r"transition: opacity ([\d.]+m?s)", base)
+    open_ = re.search(
+        r"\.wl-plan-picker-expand\.is-open \.wl-plan-picker-stage \{[^}]*transition-duration: ([\d.]+m?s);",
+        picker_expand_css,
+    )
+    assert close and open_
+    assert _duration_ms(open_.group(1)) > _duration_ms(close.group(1))
+
+
+def test_panel_grows_with_the_sheets_own_easing_curve(workouts_html, picker_expand_css):
+    """Reusing .split-modal's presentation curve keeps the panel from
+    reading as a second, unrelated motion layered on the sheet."""
+    sheet = re.search(r"\.split-modal \{[^}]*transition: transform [\d.]+m?s (cubic-bezier\([^)]*\))", workouts_html)
+    assert sheet, "couldn't find .split-modal's transition"
+    assert sheet.group(1) in picker_expand_css

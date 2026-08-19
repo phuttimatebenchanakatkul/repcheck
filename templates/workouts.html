@@ -406,25 +406,38 @@
   .wl-plan-picker-expand {
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+    /* Same curve .split-modal uses to present itself, so the panel grows
+       with the sheet's own feel rather than a second, unrelated motion. */
+    transition: max-height 0.34s cubic-bezier(0.32, 0.72, 0, 1);
   }
+  /* Opening is the direction the eye actually follows, so it runs close to
+     twice the collapse's length -- long enough to read as growing rather
+     than as a jump. The durations are split across the two rules (not one
+     shared value) because openPicker() adds .is-open before writing the
+     target height and closePicker() removes it before writing 0, so each
+     direction picks up its own timing: unhurried out, snappy back. */
+  .wl-plan-picker-expand.is-open { transition-duration: 0.62s; }
   .wl-plan-picker-expand-inner { padding-top: 12px; }
 
   /* The staged reveal. The panel's contents are rendered *before* it opens
      (so the growth animates over real content rather than an empty box),
      each wrapped element carrying --stage in top-to-bottom order: the
      search field first, then the categorised list, then everything after
-     it. Delays apply only while opening -- on close everything fades
-     together as the panel collapses, so dismissing stays snappy. */
+     it. The delays (and the longer fade) apply only while opening -- on
+     close everything drops out together as the panel collapses, so
+     dismissing stays snappy. The last stage lands ~720ms in, just after
+     the panel itself stops growing, so the cascade reads as filling the
+     space the panel just opened rather than racing it. */
   .wl-plan-picker-stage {
     opacity: 0;
-    transform: translateY(-6px);
-    transition: opacity 0.24s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateY(-10px);
+    transition: opacity 0.24s ease, transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
   }
   .wl-plan-picker-expand.is-open .wl-plan-picker-stage {
     opacity: 1;
     transform: none;
-    transition-delay: calc(var(--stage, 0) * 70ms);
+    transition-duration: 0.42s;
+    transition-delay: calc(var(--stage, 0) * 100ms);
   }
   @media (prefers-reduced-motion: reduce) {
     .wl-plan-picker-expand { transition: none; }
