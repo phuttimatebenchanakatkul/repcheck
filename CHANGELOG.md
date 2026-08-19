@@ -2,6 +2,36 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.2.1.0] - 2026-08-19
+
+### Added
+
+- "Continue with Google" on the login and signup screens is live. The OAuth flow itself
+  was already written; what was missing was a Google Cloud OAuth client, so the button
+  rendered with a "setup needed" badge and went nowhere. Set GOOGLE_CLIENT_ID and
+  GOOGLE_CLIENT_SECRET and it signs people in for real, pulling their name and profile
+  picture from Google. A new .env.example documents both those keys and every other
+  variable the app needs, including the exact redirect URIs the Cloud Console has to
+  hold or Google refuses the callback.
+
+### Fixed
+
+- Google sign-in would have failed on every production attempt with
+  redirect_uri_mismatch. Render terminates TLS at its edge and forwards to gunicorn over
+  plain HTTP, so Flask built the callback URL as http:// while the Cloud Console can
+  only hold https:// for a real host, and Google compares the two byte for byte. The app
+  now reads X-Forwarded-Proto behind Render's proxy, so the URL it hands Google matches
+  what is registered. Local dev over http://localhost is unaffected.
+- A Google login for an email address that already had a password account adopted that
+  account on an email match alone. Google does not always report an address as verified,
+  and an unverified one there means anyone able to attach that address to a Google
+  account walks into the RepCheck account registered under it. Verified addresses still
+  merge into the existing account; unverified ones now get their own account keyed on
+  the Google user id instead.
+- The page you were headed to before logging in survives signing in with Google. Google's
+  callback carries only its own code and state, so a /login?next=/nutrition dropped the
+  destination and landed everyone on home.
+
 ## [0.2.0.0] - 2026-08-19
 
 ### Added
