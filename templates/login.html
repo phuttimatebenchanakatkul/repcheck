@@ -34,11 +34,6 @@
         Continue with Google
         {% if not google_enabled %}<span class="auth-oauth-badge">setup needed</span>{% endif %}
       </a>
-      <a class="auth-oauth-btn auth-apple-btn" href="{{ url_for('auth.apple_login') }}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.462 2.15-1.219 2.94-.845.87-2.244 1.55-3.35 1.46-.14-1.11.42-2.28 1.16-3.02.85-.87 2.29-1.5 3.39-1.5.01.04.02.08.02.12zM20.28 17.6c-.53 1.22-1.18 2.42-2.13 3.6-.87 1.08-1.83 2.14-3.16 2.16-1.32.02-1.74-.79-3.24-.79-1.5 0-1.97.77-3.23.81-1.28.05-2.26-1.16-3.14-2.24-1.9-2.32-3.36-6.57-1.41-9.44 1-1.44 2.6-2.28 4.09-2.28 1.32 0 2.15.86 3.24.86 1.06 0 1.7-.86 3.24-.86 1.36 0 2.79.73 3.79 2 .34.43.63.9.85 1.4-2.53 1.38-2.99 5.03-.7 6.78-.07.09-.13.18-.2.27z"/></svg>
-        Continue with Apple
-        {% if not apple_enabled %}<span class="auth-oauth-badge">setup needed</span>{% endif %}
-      </a>
 
       <div class="auth-divider"><span>or</span></div>
 

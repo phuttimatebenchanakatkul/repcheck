@@ -277,7 +277,6 @@ _PUBLIC_ENDPOINTS = frozenset({
     "auth.signup_page", "auth.signup",
     "auth.logout",
     "auth.google_login", "auth.google_callback",
-    "auth.apple_login",
 })
 
 
