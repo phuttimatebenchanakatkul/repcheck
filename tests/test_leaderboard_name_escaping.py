@@ -50,23 +50,26 @@ def hyrox_js():
         return f.read()
 
 
-def test_leaderboard_entry_row_escapes_other_users_names(challenges_html):
-    """row.name is every entrant's name, not the viewer's own."""
-    match = re.search(r'ch-lb-entry-name">(.*?)</div>', challenges_html)
-    assert match, "could not find the leaderboard entry name element"
-    assert "escapeHtml(row.name)" in match.group(1), (
-        "the leaderboard row renders another user's display name "
-        "unescaped -- this executes in every viewer's browser, not just "
-        "the name's owner"
+def test_leaderboard_row_escapes_other_users_names(challenges_html):
+    """Every entrant's name, not just the viewer's own, and the board is
+    global -- an unescaped name here runs in every viewer's browser.
+
+    The board was rebuilt around a single row component (lbRow), so the
+    separate entry-row and pinned-own-row guards this file used to carry
+    now collapse into one: your row is that same markup with `is-me`, and
+    both feed it through `label`."""
+    match = re.search(r'ch-lb-label">(.*?)</div>', challenges_html)
+    assert match, "could not find the leaderboard row label element"
+    assert match.group(1) == "${escapeHtml(label)}", (
+        "the leaderboard row renders a display name unescaped"
     )
-
-
-def test_leaderboard_own_row_escapes_the_name(challenges_html):
-    """The pinned 'your rank' row uses a different field than the list."""
-    match = re.search(r'ch-lb-me-name">(.*?)</div>', challenges_html)
-    assert match, "could not find the pinned own-rank name element"
-    assert match.group(1) == "${escapeHtml(myRank.name)}", (
-        "the pinned own-rank row renders the name unescaped"
+    # Pin that it really is the only row template -- a second, unescaped
+    # one reintroduces the bug without touching the line above.
+    assert challenges_html.count('class="ch-lb-label"') == 1, (
+        "more than one leaderboard row template -- each needs its own guard"
+    )
+    assert re.search(r'label:\s*row\.name', challenges_html), (
+        "the list must feed other users' names through lbRow's escaped label"
     )
 
 

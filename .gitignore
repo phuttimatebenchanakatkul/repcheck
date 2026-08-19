@@ -19,3 +19,8 @@ repcheck.db*
 # Diagnostic logs. Public repo -- these capture live request payloads
 # (profile fields, weights) and must never be committed.
 *.log
+
+# JS test runtime (vitest + jsdom) added to test inline template scripts.
+# package.json/package-lock.json ARE committed -- this repo has no build
+# step and node_modules is the only generated artifact.
+node_modules/

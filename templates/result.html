@@ -81,11 +81,11 @@
 
     {% if overall_score is not none %}
       {% if overall_score < 50 %}
-        <div class="an-verdict" data-i18n="analyze.verdictBad">The issues outweighed what went well — start with the fixes below.</div>
+        <div class="an-verdict" data-i18n="analyze.verdictBad">Faults outweighed strengths — start with the fixes.</div>
       {% elif overall_score >= 80 %}
-        <div class="an-verdict" data-i18n="analyze.verdictGood">Strong set — keep it up and push a little further.</div>
+        <div class="an-verdict" data-i18n="analyze.verdictGood">Strong set — ready to push further.</div>
       {% else %}
-        <div class="an-verdict" data-i18n="analyze.verdictOk">A mixed set — what worked and what to tighten up.</div>
+        <div class="an-verdict" data-i18n="analyze.verdictOk">Mixed set — a few things to tighten up.</div>
       {% endif %}
     {% endif %}
 

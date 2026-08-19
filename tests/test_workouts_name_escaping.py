@@ -131,14 +131,18 @@ def test_plan_exercise_rows_escape_name_in_both_copies(workouts_html):
 
 def test_quick_add_button_escapes_name_in_both_attributes(workouts_html):
     """The aria-label interpolates the name mid-attribute, not just alone."""
-    match = re.search(r'data-quick-add="(.*?)" aria-label="Log (.*?) now"', workouts_html)
+    match = re.search(r'data-quick-add="(.*?)" aria-label="(.*?)" title=', workouts_html)
     assert match, "could not find the quick-add button"
     assert match.group(1) == "${escapeAttr(name)}", (
         "data-quick-add is a quoted attribute and needs escapeAttr"
     )
-    assert match.group(2) == "${escapeAttr(name)}", (
-        "the aria-label embeds the name inside a quoted attribute -- a raw "
-        'quote there ends aria-label and the rest parses as attributes'
+    # The label has two branches now (already-logged vs not); the name is
+    # embedded mid-attribute in both, and a raw quote in either one ends
+    # aria-label and turns the rest into attributes.
+    label = match.group(2)
+    assert "${name}" not in label, "the aria-label embeds the name raw in one of its branches"
+    assert label.count("${escapeAttr(name)}") == 2, (
+        f"both aria-label branches must escape the name, got: {label}"
     )
 
 
@@ -165,38 +169,38 @@ def test_split_goal_textarea_uses_the_shared_helper(workouts_html):
     )
 
 
-def test_split_review_day_title_escapes_the_label(workouts_html):
-    match = re.search(r'split-review-day-title">(.*?)</div>', workouts_html)
-    assert match, "could not find the split review day title"
-    assert "escapeHtml(day.label)" in match.group(1), (
-        "the split review day title renders the label unescaped"
+def test_carousel_day_heading_escapes_weekday_and_label(workouts_html):
+    """The flat review step this used to guard (split-review-day-title) was
+    replaced by the day carousel in #105/#110. Same free-text day label,
+    new markup -- the heading and its pill both render it."""
+    assert '<div class="split-carousel-day">${escapeHtml(weekdayName)}</div>' in workouts_html, (
+        "the carousel weekday heading renders its label unescaped"
+    )
+    assert '<span class="split-carousel-pill-text">${escapeHtml(rest ? restLabel : label)}</span>' in workouts_html, (
+        "the carousel day pill renders the free-text day label unescaped"
     )
 
 
-def test_split_review_chip_escapes_name_in_text_and_attribute(workouts_html):
-    match = re.search(
-        r'split-review-exercise-chip" data-exercise-detail="(.*?)">', workouts_html
+def test_carousel_pill_menu_escapes_label_in_value_and_text(workouts_html):
+    """Replaces the weekday <option> guard: the picker menu #110 introduced
+    is where a day label now lands in both an attribute and a text node."""
+    match = re.search(r'data-select-day="(\$\{[^"]*?)"', workouts_html)
+    assert match, "could not find the carousel pill menu item"
+    assert match.group(1) == "${escapeAttr(opt)}", (
+        "data-select-day is a quoted attribute and needs escapeAttr -- "
+        "escapeHtml leaves the quote that would break out of it"
     )
-    assert match, "could not find the split review exercise chip"
-    assert match.group(1) == "${escapeAttr(e)}", (
-        "data-exercise-detail is a quoted attribute and needs escapeAttr"
-    )
-    assert "</span>${escapeHtml(e)}" in workouts_html, (
-        "the split review chip renders the exercise name unescaped as text"
+    assert '<span class="split-carousel-pill-menu-label">${escapeHtml(optRest ? restLabel : opt)}</span>' in workouts_html, (
+        "the pill menu renders the day label unescaped as text"
     )
 
 
-def test_split_review_weekday_option_escapes_value_and_text(workouts_html):
-    match = re.search(
-        r'<option value="(\$\{[^"]*?)" \$\{defaultSchedule', workouts_html
-    )
-    assert match, "could not find the weekday option"
-    assert match.group(1) == "${escapeAttr(label)}", (
-        "the weekday option value must use escapeAttr -- escapeHtml does "
-        "not escape the quote that would break out of the attribute"
-    )
-    assert ">${escapeHtml(label)}</option>" in workouts_html, (
-        "the weekday option renders the label unescaped as text"
+def test_day_plan_editor_escapes_exercise_name_and_label(workouts_html):
+    """Replaces the review-chip guard: the whole-split editor the carousel
+    opens is where exercise names and the composed day label now render."""
+    assert '<div class="split-day-plan-label">${escapeHtml(planLabel)}</div>' in workouts_html, (
+        "planLabel is built through RepCheckI18n.t(), which does NOT escape "
+        "its vars, and it carries a free-text day label"
     )
 
 

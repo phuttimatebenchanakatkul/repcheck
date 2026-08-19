@@ -29,6 +29,32 @@
   <div class="wl-day" id="wl-day"></div>
 </div>
 
+<!-- AI chat scoped to the last 7 days of logged workouts -- lives as its
+     own sibling section (not inside #wl-day, which renderTimeline()
+     fully overwrites on every render) so it survives date navigation and
+     set edits untouched. See the wlc- styles/script below. -->
+<div class="wlc-chat" id="wlc-chat" hidden>
+  <div class="wlc-header">
+    <div class="wlc-header-icon">🤖</div>
+    <div class="wlc-header-text">
+      <div class="wlc-title" data-i18n="workoutChat.title">Workout AI Chat</div>
+      <div class="wlc-subtitle" data-i18n="workoutChat.subtitle">Ask about your last 7 days of training</div>
+    </div>
+    <button type="button" class="wlc-clear-btn" id="wlc-clear-btn" data-i18n-aria-label="coach.newChat" aria-label="New chat" data-i18n-title="coach.newChat" title="New chat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+  </div>
+  <div class="wlc-messages" id="wlc-messages"></div>
+  <div class="wlc-suggestions" id="wlc-suggestions"></div>
+  <div class="wlc-status" id="wlc-status" hidden></div>
+  <form class="wlc-input-pill" id="wlc-form">
+    <input type="text" id="wlc-input" data-i18n-placeholder="workoutChat.inputPlaceholder" placeholder="Ask about your recent workouts..." autocomplete="off" maxlength="600">
+    <button type="submit" class="wlc-send-btn" id="wlc-send-btn" aria-label="Send message">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+    </button>
+  </form>
+</div>
+
 <!-- Exercise picker -- the shared Apple-style logging bottom sheet (see
      .log-sheet-* in style.css). Search settles in first, then today's
      suggested exercises + recent. IDs are unchanged so the picker JS
@@ -49,6 +75,7 @@
 
 <div class="split-modal-overlay" id="split-modal-overlay" style="display:none;">
   <div class="split-modal">
+    <div class="split-modal-handle"></div>
     <div class="split-modal-header">
       <div class="split-modal-title" id="split-modal-title" data-i18n="workouts.wizard.title">Plan your split</div>
       <button type="button" class="ex-modal-close" id="split-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
@@ -67,8 +94,9 @@
   "<exercise name> proper form tutorial", so it's always a real, current,
   relevant result instead of a guess.
 -->
-<div class="exd-modal-overlay" id="exd-modal-overlay" style="display:none;">
+<div class="exd-modal-overlay" id="exd-modal-overlay">
   <div class="exd-modal">
+    <div class="exd-modal-handle"></div>
     <div class="exd-modal-header">
       <div class="exd-modal-title-row">
         <span class="exd-modal-emoji" id="exd-modal-emoji"></span>
@@ -77,22 +105,49 @@
       <button type="button" class="ex-modal-close" id="exd-modal-close" aria-label="Close">&times;</button>
     </div>
     <div class="exd-modal-body">
-      <!--
-        YouTube blocks embedding its search-results page in an iframe (and
-        there's no way to safely hardcode a specific video id per exercise
-        from here without risking a wrong, deleted, or unrelated video) —
-        so this links out to a real, live YouTube search instead of
-        showing a broken/empty player.
-      -->
+      <div id="exd-video-container"></div>
+      <div class="exd-desc-head">
+        <span class="exd-desc-label">How to perform it correctly</span>
+      </div>
+      <ol class="exd-desc-list" id="exd-modal-desc"></ol>
       <a class="exd-video-card" id="exd-video-link" target="_blank" rel="noopener noreferrer">
         <span class="exd-video-card-play">▶</span>
         <span class="exd-video-card-text">
-          <span class="exd-video-card-title">Watch a demonstration</span>
-          <span class="exd-video-card-sub">Opens real YouTube results for this exercise in a new tab</span>
+          <span class="exd-video-card-title">Watch on YouTube</span>
+          <span class="exd-video-card-sub">Open full search results on YouTube</span>
         </span>
       </a>
-      <div class="exd-desc-label">How to perform it</div>
-      <p class="exd-desc-text" id="exd-modal-desc"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Split wizard review step: tap an exercise to edit its sets/reps for
+     this generated day. Same big-number-as-input pattern as the Hyrox
+     weight/rounds editor (static/hyrox.css .hx-pro-weight-stat). -->
+<div class="split-ex-editor-overlay" id="split-ex-editor-overlay">
+  <div class="split-ex-editor-modal">
+    <div class="split-ex-editor-head">
+      <div class="split-ex-editor-title-row">
+        <span class="split-ex-editor-icon" id="split-ex-editor-icon"></span>
+        <span class="split-ex-editor-title" id="split-ex-editor-title"></span>
+      </div>
+      <button type="button" class="split-ex-editor-close" id="split-ex-editor-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="split-ex-editor-body">
+      <div class="split-ex-editor-stats">
+        <div class="split-ex-editor-stat" id="split-ex-editor-sets-box">
+          <input type="number" class="split-ex-editor-input" id="split-ex-editor-sets-input" min="1" max="20" data-clear-on-focus>
+          <div class="split-ex-editor-label" id="split-ex-editor-sets-label"></div>
+          <div class="split-ex-editor-base" id="split-ex-editor-sets-base"></div>
+        </div>
+        <div class="split-ex-editor-stat" id="split-ex-editor-reps-box">
+          <input type="number" class="split-ex-editor-input" id="split-ex-editor-reps-input" min="1" max="50" data-clear-on-focus>
+          <div class="split-ex-editor-label" id="split-ex-editor-reps-label"></div>
+          <div class="split-ex-editor-base" id="split-ex-editor-reps-base"></div>
+        </div>
+      </div>
+      <button type="button" class="split-ex-editor-reset" id="split-ex-editor-reset"></button>
+      <button type="button" class="split-ex-editor-howto" id="split-ex-editor-howto"></button>
     </div>
   </div>
 </div>
@@ -294,7 +349,17 @@
     flex-shrink: 0;
   }
   .wl-plan-quick-add:hover { background: var(--sidebar-active); }
-  .wl-plan-quick-add.is-added { color: var(--green); }
+  .wl-plan-quick-add svg { width: 13px; height: 13px; }
+  /* White-on-green, same pairing as .wl-entry-check's proven badge below --
+     color-mix(green 45%, white) here read as a near-invisible checkmark
+     against the identical-hue green background. */
+  .wl-plan-quick-add.is-added {
+    background: var(--green);
+    color: #fff;
+    cursor: default;
+    pointer-events: none;
+  }
+  .wl-plan-quick-add.is-added:hover { background: var(--green); }
   .wl-plan-exercise-grip {
     width: 22px;
     height: 22px;
@@ -321,16 +386,51 @@
   .wl-plan-more svg { transition: transform 0.15s ease; }
   .wl-plan-more.is-expanded svg { transform: rotate(180deg); }
 
-  .split-rationale {
-    background: var(--blue-bg);
-    color: var(--text);
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 12px;
-    line-height: 1.5;
-    margin: 4px 0 18px;
+  /* max-height 0 -> the panel's own measured scrollHeight (set inline by
+     openPicker() in renderWholeSplitBody()) is what makes the inline "Pick
+     exercises" picker (see renderInlineExercisePicker()) grow the
+     weekly-split view in place, instead of swapping the whole sheet to a
+     new step. .split-modal is height:auto up to 86vh, so the sheet itself
+     follows this panel frame by frame and grows with it.
+
+     Measured rather than a fixed cap: a cap generous enough for a full
+     exercise list is far taller than a filtered one, and max-height
+     transitions run to the *cap*, so a short panel would finish its growth
+     early and sit still for the rest of the duration. openPicker() also
+     drops the cap to `none` once the growth ends, so the list resizing
+     under a search query doesn't get clipped by a stale measurement.
+
+     Deliberately not the grid-template-rows 0fr->1fr trick: it needs the
+     row's track to size itself to the item's max-content contribution, and
+     an overflow circularity there stuck this content at ~padding height. */
+  .wl-plan-picker-expand {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.36s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .split-rationale strong { color: var(--blue); }
+  .wl-plan-picker-expand-inner { padding-top: 12px; }
+
+  /* The staged reveal. The panel's contents are rendered *before* it opens
+     (so the growth animates over real content rather than an empty box),
+     each wrapped element carrying --stage in top-to-bottom order: the
+     search field first, then the categorised list, then everything after
+     it. Delays apply only while opening -- on close everything fades
+     together as the panel collapses, so dismissing stays snappy. */
+  .wl-plan-picker-stage {
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.24s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .wl-plan-picker-expand.is-open .wl-plan-picker-stage {
+    opacity: 1;
+    transform: none;
+    transition-delay: calc(var(--stage, 0) * 70ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wl-plan-picker-expand { transition: none; }
+    .wl-plan-picker-stage { transition: none; transform: none; }
+    .wl-plan-picker-expand.is-open .wl-plan-picker-stage { transition-delay: 0s; }
+  }
 
   /* Names the split the AI chose on the "Let AI build it" path, where the
      user never picked one themselves. */
@@ -415,35 +515,9 @@
   }
   .ex-modal-close:hover { color: var(--text); }
   .ex-modal-body { overflow-y: auto; padding: 16px; }
-  /* iOS-style segmented control replacing the stacked FAVORITES / CUSTOM /
-     SUGGESTED / RECENT headers -- one filtered list instead of up to four
-     concatenated ones. Grey track + light sliding capsule for the selected
-     segment, matching UISegmentedControl rather than a Material tab bar. */
-  .ex-scope-seg {
-    display: flex; gap: 2px;
-    background: var(--sidebar-active);
-    border-radius: 9px;
-    padding: 2px;
-    margin: 0 0 12px;
-  }
-  .ex-scope-seg button {
-    flex: 1;
-    padding: 6px 4px;
-    border: none;
-    border-radius: 7px;
-    background: none;
-    color: var(--text-secondary);
-    font-size: 13px;
-    font-weight: 500;
-    font-family: inherit;
-    cursor: pointer;
-  }
-  .ex-scope-seg button.is-active {
-    background: var(--card-bg);
-    color: var(--text);
-    font-weight: 700;
-    box-shadow: var(--shadow);
-  }
+  /* The segmented control (.ex-scope-seg) and the favorite heart
+     (.ex-modal-result-fav) are shared with the analyze page's picker and
+     live in style.css. */
 
   /* iOS grouped/inset list: one rounded card, hairline dividers between
      rows, no per-row floating radius. */
@@ -466,20 +540,6 @@
   .ex-modal-result-item:hover { background: var(--bg); }
   .ex-modal-result-item:active { background: var(--sidebar-active); }
   .ex-modal-result-item span:nth-child(2) { flex: 1; }
-  .ex-modal-result-fav {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    opacity: 0.5;
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
-  .ex-modal-result-fav:hover { opacity: 1; color: var(--red); }
-  .ex-modal-result-fav:active { transform: scale(0.85); }
-  .ex-modal-result-fav.is-fav { color: var(--red); opacity: 1; }
   .ex-modal-empty { padding: 12px 10px; font-size: 13px; color: var(--text-secondary); }
 
   /* ---------- Create-a-custom-exercise button + form (in the log sheet) ---------- */
@@ -605,27 +665,55 @@
   .ex-create-save:disabled { opacity: 0.6; cursor: default; }
   .ex-create-error { margin-top: 10px; font-size: 13px; color: var(--red); text-align: center; min-height: 18px; }
 
-  /* ---------- Split planner wizard modal ---------- */
+  /* ---------- Split planner wizard modal ----------
+     A real bottom sheet now, matching .log-sheet-overlay's pattern exactly
+     (see static/style.css) rather than the centered pop-in dialog this used
+     to be. No own backdrop scrim -- the page behind (.app) dims and recedes
+     on its own via the pc-sheet-active rule, same as every other sheet.
+     top/height track --pc-vvt/--pc-vvh (the real visible viewport, set in
+     base.html) rather than `inset: 0`, so an open keyboard doesn't push the
+     sheet's top edge off-screen. */
   .split-modal-overlay {
     position: fixed;
-    inset: 0;
-    background: rgba(15, 15, 20, 0.5);
+    left: 0;
+    right: 0;
+    top: var(--pc-vvt, 0px);
+    height: var(--pc-vvh, 100vh);
+    z-index: 400;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    z-index: 100;
-    padding: 16px;
-    animation: wl-pop-in 0.15s ease;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.46s ease;
   }
+  .split-modal-overlay.is-open,
+  .split-modal-overlay.is-in { opacity: 1; pointer-events: auto; }
   .split-modal {
+    pointer-events: auto;
     width: 100%;
     max-width: 480px;
-    max-height: 86vh;
+    max-height: calc(var(--pc-vvh, 100vh) * 0.86);
     background: var(--card-bg);
-    border-radius: var(--radius-lg);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.42);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transform: translateY(100%);
+    transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .split-modal-overlay.is-open .split-modal,
+  .split-modal-overlay.is-in .split-modal { transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .split-modal { transition: none; }
+  }
+  .split-modal-handle {
+    width: 38px; height: 5px;
+    border-radius: 999px;
+    background: var(--border);
+    margin: 9px auto 3px;
+    flex-shrink: 0;
   }
   .split-modal-header {
     display: flex;
@@ -637,7 +725,15 @@
     flex-shrink: 0;
   }
   .split-modal-title { font-size: 16px; font-weight: 700; }
-  .split-modal-body { overflow-y: auto; padding: 18px; }
+  /* min-height: 0 overrides the flex default (min-height: auto), which
+     otherwise refuses to let this flex child shrink below its content's
+     natural height -- without it, overflow-y: auto never actually engages
+     (there's nothing to scroll within), and content taller than the modal
+     just gets clipped by .split-modal's own overflow: hidden with no way
+     to reach it. Latent on every step; the review step's carousel + a full
+     exercise list + the rationale callout was the first one tall enough to
+     hit it, cutting off the Save button entirely on 4+ exercise days. */
+  .split-modal-body { overflow-y: auto; padding: 18px; min-height: 0; }
   .split-step-label {
     font-size: 12px;
     font-weight: 700;
@@ -656,7 +752,6 @@
   }
   .split-type-card.is-selected { border-color: var(--blue); background: var(--blue-bg); }
   .split-type-card-title { font-size: 13px; font-weight: 700; color: var(--text); }
-  .split-type-card-sub { font-size: 11px; color: var(--text-secondary); margin-top: 3px; line-height: 1.3; }
 
   .split-custom-input-row { display: flex; gap: 8px; margin-bottom: 10px; }
   .split-custom-input-row input {
@@ -813,7 +908,6 @@
   .split-ex-add-prompt p { font-size: 13px; margin: 0 0 12px; color: var(--text); }
   .split-ex-add-prompt-actions { display: flex; gap: 8px; }
 
-  .split-goal-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.4; }
   .split-goal-textarea {
     width: 100%;
     min-height: 90px;
@@ -860,57 +954,214 @@
 
   .split-loading { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 13px; }
 
-  .split-review-day { margin-bottom: 18px; }
-  .split-review-day-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
-  /* 2-column grid of tappable, emoji-led exercise chips — every one opens
-     a demo video + description, so this doubles as a quick "what does
-     this even look like?" reference while reviewing the generated split. */
-  .split-review-exercise-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .split-review-exercise-chip {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: var(--bg);
+  /* ---------- Review step: one day at a time, carousel-style ----------
+     Replaced the whole-week grid + colour legend + separate day drawer
+     (three things a first-time user had to cross-reference) with a single
+     focused card: one day's name, its split-type pill, and that day's
+     exercises, with prev/next arrows and a row of dots for the rest of the
+     week. --day-accent / --day-accent-bg are set inline per element,
+     because day labels are arbitrary text and can't have static classes. */
+  .split-carousel {
+    background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 6px 14px 6px 6px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text);
-    text-align: left;
-    cursor: pointer;
-    font-family: inherit;
-    min-width: 0;
+    border-radius: var(--radius-lg);
+    padding: 16px;
   }
-  .split-review-exercise-chip span:last-child {
+  .split-carousel-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .split-carousel-arrow {
+    width: 34px; height: 34px; border-radius: 50%; border: none; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text-secondary); cursor: pointer;
+  }
+  .split-carousel-arrow:hover { color: var(--text); }
+  .split-carousel-arrow:active { transform: scale(0.92); }
+  .split-carousel-heading { flex: 1; min-width: 0; text-align: center; position: relative; }
+  .split-carousel-day { font-size: 16px; font-weight: 700; }
+  .split-carousel-pill {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+    max-width: 100%; font-size: 11px; font-weight: 700; padding: 3px 9px 3px 10px; border-radius: 999px;
+    border: none; cursor: pointer; font-family: inherit;
+    background: var(--day-accent-bg, var(--sidebar-active));
+    /* --text, not the accent: accent-on-accent-bg is only ~3.2:1 in dark theme. */
+    color: var(--text);
+  }
+  .split-carousel-pill:hover { filter: brightness(0.96); }
+  :root[data-theme="dark"] .split-carousel-pill:hover { filter: brightness(1.2); }
+  /* Day labels are free text on the custom path -- truncate instead of
+     letting a long one push past the modal's edge (regression caught by
+     /qa: a long custom label ran clean off the card with no ellipsis). */
+  .split-carousel-pill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .split-carousel-pill svg { flex-shrink: 0; opacity: 0.6; transition: transform 0.15s; }
+  .split-carousel-pill.is-open svg { transform: rotate(180deg); }
+
+  /* position:absolute anchored to the heading's position:relative -- not a
+     transform, so it doesn't create the fixed-descendant stacking trap the
+     bottom-sheet's .app scale transform causes elsewhere in this file. */
+  .split-carousel-pill-menu {
+    position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    min-width: 168px; max-width: 240px; z-index: 2;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+    text-align: left;
+  }
+  .split-carousel-pill-menu-item {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+    background: none; border: none; border-radius: 8px; padding: 8px 10px;
+    font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; font-family: inherit;
+  }
+  .split-carousel-pill-menu-item:hover { background: var(--bg); }
+  .split-carousel-pill-menu-item.is-selected { background: var(--day-accent-bg, var(--sidebar-active)); }
+  .split-carousel-pill-menu-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--day-accent, var(--text-secondary));
+  }
+  .split-carousel-pill-menu-dot.is-rest { background: var(--text-secondary); }
+  .split-carousel-pill-menu-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .split-carousel-pill-menu-check { flex-shrink: 0; margin-left: auto; opacity: 0.8; }
+
+  .split-carousel-dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 2px; }
+  .split-carousel-dot {
+    width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+    background: var(--day-accent, var(--border));
+  }
+  .split-carousel-dot.is-active { width: 18px; border-radius: 4px; }
+
+  .split-day-rest-note { font-size: 12.5px; color: var(--text-secondary); padding: 20px 0 8px; text-align: center; }
+
+  .split-ex-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .split-ex-row {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    background: var(--bg); border: none; border-radius: var(--radius-md);
+    padding: 9px 11px; cursor: pointer; font-family: inherit; text-align: left; color: var(--text);
+  }
+  .split-ex-row:hover { filter: brightness(0.98); }
+  :root[data-theme="dark"] .split-ex-row:hover { filter: brightness(1.12); }
+  .split-ex-emoji {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; overflow: hidden;
+    background: var(--card-bg); font-size: 16px;
+  }
+  .split-ex-name {
+    flex: 1; min-width: 0; font-size: 13px; font-weight: 600;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .split-review-exercise-chip:hover { border-color: var(--blue); color: var(--blue); }
-  .split-review-exercise-chip:active { transform: scale(0.96); }
-  .split-review-exercise-chip-emoji {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-    background: var(--card-bg); font-size: 15px; overflow: hidden;
+  .split-ex-meta { flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); }
+  .split-ex-chevron { flex-shrink: 0; color: var(--text-secondary); font-size: 13px; }
+
+  .split-rationale { margin-top: 12px; background: var(--blue-bg); border-radius: 12px; padding: 10px 12px; }
+  .split-rationale p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--blue); }
+
+  /* ---------- Exercise editor (sets/reps) ----------
+     Same big-number-as-input pattern as the Hyrox weight/rounds editor
+     (.hx-pro-weight-stat in static/hyrox.css): the number IS the field, a
+     dotted underline is the only "editable" cue at rest, and a box turns
+     amber the moment its value stops matching the derived standard. */
+  .split-ex-editor-overlay {
+    /* 410, not 205: this overlay is a sibling of .split-modal-overlay under
+       <body> (not nested inside it), and it's only ever opened from within
+       the split wizard, whose own backdrop sits at z-index 400 -- 205 put
+       the editor fully BEHIND the wizard, rendered but completely
+       inaccessible (caught by /ship's adversarial review, confirmed with a
+       real coordinate click + screenshot: the editor never appeared,
+       through row clicks kept "succeeding" against its DOM state because a
+       synthetic .click() call doesn't respect visual stacking at all). */
+    position: fixed; inset: 0; z-index: 410;
+    background: rgba(0, 0, 0, 0.5);
+    display: none; align-items: center; justify-content: center; padding: 16px;
   }
-  @media (max-width: 400px) {
-    .split-review-exercise-chips { grid-template-columns: 1fr; }
+  .split-ex-editor-overlay.is-open { display: flex; }
+  .split-ex-editor-modal {
+    background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    width: 100%; max-width: 400px; overflow: hidden;
   }
+  .split-ex-editor-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid var(--border);
+  }
+  .split-ex-editor-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .split-ex-editor-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 11px; background: var(--blue-bg);
+    font-size: 17px; flex-shrink: 0; overflow: hidden;
+  }
+  .split-ex-editor-title { font-size: 15.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .split-ex-editor-close {
+    width: 34px; height: 34px; border-radius: 50%; border: none; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text-secondary); font-size: 16px; cursor: pointer;
+  }
+  .split-ex-editor-close:hover { background: var(--sidebar-active); color: var(--text); }
+  .split-ex-editor-body { padding: 18px; }
+  .split-ex-editor-stats { display: flex; gap: 12px; }
+  .split-ex-editor-stat {
+    flex: 1; text-align: center; background: var(--bg);
+    border-radius: 14px; padding: 12px 8px 10px;
+  }
+  .split-ex-editor-stat.is-edited { background: var(--amber-bg); }
+  .split-ex-editor-input {
+    width: 100%; max-width: 66px; border: none;
+    border-bottom: 1.5px dotted var(--text-secondary);
+    background: none; color: var(--text); font-family: inherit;
+    font-size: 26px; font-weight: 800; line-height: 1; text-align: center;
+    padding: 0 0 4px; -moz-appearance: textfield; font-variant-numeric: tabular-nums;
+  }
+  .split-ex-editor-input::-webkit-inner-spin-button,
+  .split-ex-editor-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .split-ex-editor-input:focus { outline: none; color: var(--blue); border-bottom-color: var(--blue); border-bottom-style: solid; }
+  .split-ex-editor-stat.is-edited .split-ex-editor-input { color: var(--amber); border-bottom-color: var(--amber); }
+  .split-ex-editor-label {
+    font-size: 10px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px;
+  }
+  .split-ex-editor-base { font-size: 10px; color: var(--text-secondary); margin-top: 3px; }
+  .split-ex-editor-reset {
+    display: block; margin: 12px auto 0; border: none; background: none;
+    color: var(--blue); font-size: 12px; font-weight: 700; cursor: pointer;
+    font-family: inherit; padding: 4px 0;
+  }
+  .split-ex-editor-reset:hover { text-decoration: underline; }
+  .split-ex-editor-howto {
+    display: block; margin-top: 14px; text-align: center;
+    font-size: 12px; font-weight: 700; color: var(--blue);
+    background: none; border: none; cursor: pointer; font-family: inherit; padding: 4px 0;
+  }
+  .split-ex-editor-howto:hover { text-decoration: underline; }
 
   /* ---------- Exercise detail modal (video + description) ---------- */
   .exd-modal-overlay {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 210; padding: 16px;
+    position: fixed; inset: 0; z-index: 420;
+    display: flex; align-items: flex-end; justify-content: center;
+    pointer-events: none; opacity: 0;
+    background: rgba(0, 0, 0, 0.4);
+    transition: opacity 0.46s ease;
+  }
+  .exd-modal-overlay.is-in, .exd-modal-overlay.is-open {
+    pointer-events: auto; opacity: 1;
   }
   .exd-modal {
+    pointer-events: auto;
+    width: 100%; max-width: 560px; max-height: 92vh;
+    display: flex; flex-direction: column;
     background: var(--card-bg); color: var(--text);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow);
-    width: 100%; max-width: 480px; max-height: 88vh;
-    display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 48px rgba(0,0,0,0.42);
+    transform: translateY(100%);
+    transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1);
+    overflow: hidden;
   }
+  .exd-modal-overlay.is-in .exd-modal, .exd-modal-overlay.is-open .exd-modal {
+    transform: translateY(0);
+  }
+  .exd-modal-handle {
+    width: 38px; height: 5px; border-radius: 999px;
+    background: var(--border); margin: 9px auto 2px; flex-shrink: 0;
+    cursor: grab;
+  }
+  .exd-modal-handle:active { cursor: grabbing; }
   .exd-modal-header {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    padding: 12px 20px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
   }
   .exd-modal-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .exd-modal-emoji {
@@ -919,40 +1170,52 @@
     font-size: 18px; flex-shrink: 0; overflow: hidden;
   }
   .exd-modal-title { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .exd-modal-body { padding: 18px; overflow-y: auto; }
+  .exd-modal-body { padding: 16px 20px 24px; overflow-y: auto; flex: 1; min-height: 0; }
+
+  .exd-video-wrap {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    margin-bottom: 16px;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  }
+  .exd-video-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
   .exd-video-card {
     display: flex; align-items: center; gap: 14px;
-    border-radius: 14px; background: var(--blue-bg); padding: 16px;
-    margin-bottom: 16px; text-decoration: none; color: var(--text);
+    border-radius: 14px; background: var(--blue-bg); padding: 14px 16px;
+    margin-top: 16px; text-decoration: none; color: var(--text);
   }
   .exd-video-card:hover { opacity: 0.9; }
   .exd-video-card-play {
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    width: 44px; height: 44px; border-radius: 50%; background: var(--blue); color: #fff;
-    font-size: 15px; padding-left: 3px; /* optically center the triangle */
+    width: 36px; height: 36px; border-radius: 50%; background: var(--blue); color: #fff;
+    font-size: 13px; padding-left: 2px;
   }
   .exd-video-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .exd-video-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .exd-video-card-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
   .exd-video-card-sub { font-size: 11px; color: var(--text-secondary); }
-  .exd-desc-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
-  .exd-desc-text { font-size: 13px; line-height: 1.6; color: var(--text); margin: 0; }
 
-  .split-weekday-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
+  .exd-desc-head { margin-bottom: 10px; margin-top: 4px; }
+  .exd-desc-label { font-size: 11.5px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .exd-desc-list { margin: 0; padding: 0; list-style: none; counter-reset: exd-step; display: flex; flex-direction: column; gap: 10px; }
+  .exd-desc-list li {
+    counter-increment: exd-step; position: relative; padding-left: 32px;
+    font-size: 13.5px; line-height: 1.5; color: var(--text);
   }
-  .split-weekday-row label { width: 44px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
-  .split-weekday-row select {
-    flex: 1;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    border-radius: 10px;
-    font-size: 13px;
-    font-family: inherit;
+  .exd-desc-list li::before {
+    content: counter(exd-step); position: absolute; left: 0; top: 1px;
+    width: 22px; height: 22px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--blue-bg); color: var(--blue); font-size: 12px; font-weight: 800;
   }
 
   .split-week-tabs { display: flex; gap: 5px; margin-bottom: 16px; }
@@ -1008,10 +1271,8 @@
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.25);
-    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    transition: transform 0.1s ease;
   }
-  .wl-log-btn:hover { box-shadow: 0 10px 24px rgba(47, 102, 232, 0.32); }
   .wl-log-btn:active { transform: scale(0.98); }
   .wl-log-btn svg { flex-shrink: 0; }
 
@@ -1162,7 +1423,11 @@
     position: relative;
     flex-shrink: 0;
     line-height: 0;
+    cursor: pointer;
+    transition: transform 0.16s ease;
   }
+  .wl-entry-iconwrap:hover { transform: scale(1.06); }
+  .wl-entry-iconwrap:active { transform: scale(0.92); }
   .wl-entry-icon {
     width: 44px;
     height: 44px;
@@ -1382,11 +1647,232 @@
     from { opacity: 0; transform: translateY(-6px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* ---------- AI chat beneath the workout list (scoped to last 7 days) ---------- */
+  .wlc-chat[hidden] { display: none; }
+  .wlc-chat {
+    margin-top: 16px;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .wlc-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .wlc-header-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .wlc-header-text { flex: 1; min-width: 0; }
+  .wlc-title { font-size: 14.5px; font-weight: 800; color: var(--text); }
+  .wlc-subtitle { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+  .wlc-clear-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .wlc-clear-btn:hover { color: var(--blue); border-color: var(--blue); }
+  .wlc-clear-btn:active { transform: scale(0.92); }
+
+  .wlc-messages {
+    max-height: 360px;
+    min-height: 120px;
+    overflow-y: auto;
+    padding: 16px 16px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .wlc-messages::-webkit-scrollbar { width: 8px; }
+  .wlc-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+  .wlc-bubble {
+    max-width: 88%;
+    padding: 11px 15px;
+    border-radius: 18px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    word-break: break-word;
+    animation: wlc-pop-in 0.18s ease;
+  }
+  .wlc-bubble-bot {
+    align-self: flex-start;
+    background: var(--bg);
+    color: var(--text);
+    border-bottom-left-radius: 6px;
+  }
+  .wlc-bubble-user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+  .wlc-bubble strong { font-weight: 700; }
+  .wlc-bubble p { margin: 0 0 6px; }
+  .wlc-bubble p:last-child { margin-bottom: 0; }
+  .wlc-bullet-list { margin: 4px 0 6px; padding-left: 18px; }
+  .wlc-bullet-list:last-child { margin-bottom: 0; }
+  .wlc-bullet-list li { margin-bottom: 3px; }
+  .wlc-bullet-list li:last-child { margin-bottom: 0; }
+
+  .wlc-empty {
+    text-align: center;
+    padding: 18px 12px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: auto 0;
+  }
+
+  .wlc-typing-dots {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 13px 16px;
+    background: var(--bg);
+    border-radius: 18px;
+    border-bottom-left-radius: 6px;
+  }
+  .wlc-typing-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    animation: wlc-bounce 1.2s ease-in-out infinite;
+  }
+  .wlc-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .wlc-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  .wlc-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 0 16px 10px;
+    flex-shrink: 0;
+  }
+  .wlc-suggestion-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  }
+  .wlc-suggestion-row:hover { border-color: var(--blue); color: var(--blue); }
+  .wlc-suggestion-row:active { transform: scale(0.98); }
+  .wlc-suggestion-row span { flex: 1; }
+
+  .wlc-status {
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--amber);
+    padding: 0 16px 8px;
+    flex-shrink: 0;
+  }
+
+  .wlc-input-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 14px 14px;
+    padding: 5px 5px 5px 16px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    flex-shrink: 0;
+    transition: border-color 0.15s ease;
+  }
+  .wlc-input-pill:focus-within { border-color: var(--blue); }
+  .wlc-input-pill input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 12px 0;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .wlc-input-pill input::placeholder { color: var(--text-secondary); }
+  .wlc-input-pill input:disabled { cursor: not-allowed; }
+  .wlc-input-pill:has(input:disabled) { opacity: 0.6; }
+  .wlc-send-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #4d7ff5, var(--blue));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.1s ease, opacity 0.15s ease;
+  }
+  .wlc-send-btn:hover { opacity: 0.92; }
+  .wlc-send-btn:active { transform: scale(0.92); }
+  .wlc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  @keyframes wlc-pop-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes wlc-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  @media (max-width: 480px) {
+    .wlc-messages { max-height: 300px; padding: 12px 12px 4px; }
+    .wlc-bubble { max-width: 92%; font-size: 14px; }
+    .wlc-suggestions { padding: 0 12px 8px; }
+    .wlc-input-pill { margin: 0 10px 12px; }
+    .wlc-input-pill input { font-size: 16px; } /* prevents iOS auto-zoom on focus */
+  }
 </style>
 
 <script>
   const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
   const EXERCISE_DETAILS = {{ exercise_details | tojson }};
+  const EXERCISE_VIDEOS = {{ exercise_videos | tojson }};
   const EXERCISE_CATEGORIES = {{ exercise_categories | tojson }};
   const EXERCISE_ICONS = {{ exercise_icons | tojson }};
   // Exercises that can be logged one side at a time (see UNILATERAL_EXERCISES
@@ -1429,13 +1915,31 @@
   const PLUS_ICON = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
   const TRASH_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
 
+  // .app gets a scale-down transform whenever a bottom sheet is open
+  // (html.pc-sheet-active .app -- the "page recedes behind me" effect).
+  // A CSS transform creates a new stacking context AND a new containing
+  // block for position: fixed descendants, so any fixed-position overlay
+  // that's still nested inside .app in the DOM gets trapped inside that
+  // context -- no z-index value, however high, lets it escape to render
+  // above a sibling overlay that already lives at the body level (like
+  // .split-modal-overlay, which openBottomSheet re-parents to <body> the
+  // moment it opens). Modals that can be opened while a sheet is already
+  // open (the sets/reps editor and the exercise-detail modal, both
+  // reachable from inside the split wizard) need this same move, or they
+  // render "open" (right DOM state, right z-index) but fully invisible --
+  // caught by /ship's adversarial review with a real coordinate click +
+  // screenshot, since a synthetic .click() call doesn't hit-test at all
+  // and so never surfaces a pure stacking-context bug like this one.
+  function moveOverlayToBody(el) {
+    if (el && el.parentElement !== document.body) document.body.appendChild(el);
+  }
+
   // Exercise names are not all library-controlled: a user can create a
-  // custom exercise (POST /api/custom-exercises, which only trims and caps
-  // the name at 60 chars) and pick it into a split, and split day labels
-  // are free text on the custom path. Both end up interpolated into
-  // innerHTML below, which is the same sink that made food names an
-  // injection vector in nutrition.html -- so they go through these on the
-  // way in, exactly like that template and static/onboarding.js do.
+  // custom exercise (POST /api/custom-exercises) and pick it into a split,
+  // and split day labels are free text on the custom path. Both end up
+  // interpolated into innerHTML below, which is the same sink that made
+  // food names a stored-XSS vector in nutrition.html -- so they go through
+  // these on the way in, exactly like that template does.
   function escapeHtml(text) {
     const div = document.createElement("div");
     div.textContent = text;
@@ -1444,9 +1948,7 @@
   // escapeHtml() round-trips through textContent, which escapes < > and &
   // but deliberately leaves quotes alone -- correct for a text node, unsafe
   // the moment the value lands inside a quoted attribute, where one " ends
-  // the attribute and everything after it parses as markup. The attribute
-  // sites read the value back via dataset, and the parser turns &quot;
-  // back into " on the way out, so escaping here costs nothing downstream.
+  // the attribute and everything after it parses as markup.
   function escapeAttr(text) {
     return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
@@ -1455,27 +1957,32 @@
   function exerciseDetail(name) {
     return EXERCISE_DETAILS[name] || {
       emoji: "🏋️",
-      description: "Move through a full, controlled range of motion with a steady tempo — avoid using momentum or swinging your body to move the weight, and stop a rep or two before your form breaks down.",
+      description: [
+        "Move through a full, controlled range of motion with a steady tempo.",
+        "Avoid using momentum or swinging your body to move the weight, and stop a rep or two before your form breaks down.",
+      ],
     };
   }
   function exerciseEmoji(name) {
     // A custom exercise shows the emoji the user picked for it; everything
     // else uses the library's per-exercise emoji.
-    // The picked emoji is whatever the user sent: POST /api/custom-exercises
-    // only caps it at 8 chars, and every caller of this drops the result
-    // straight into innerHTML via exerciseIconHtml(). Eight characters is
-    // too short for a working handler but long enough to open a tag and
-    // swallow the markup after it, so escape here rather than trust the cap.
     const meta = customExerciseMeta[name];
     if (meta && meta.emoji) return escapeHtml(meta.emoji);
     return exerciseDetail(name).emoji;
   }
   // Prefer the real per-exercise illustration from the icon pack; fall
-  // back to the emoji for any exercise the pack doesn't cover.
+  // back to the emoji for any exercise the pack doesn't cover. The <img>
+  // path is safe unescaped -- EXERCISE_ICONS is a fixed server dict, so
+  // `path` only exists for exact matches against library-known names, never
+  // attacker text. The emoji path is not: it's the literal string a user
+  // typed into "Create a custom exercise" (POST /api/custom-exercises),
+  // capped at 8 characters server-side but not sanitized -- "<script>" is
+  // exactly 8 characters -- so it goes through escapeHtml on the way into
+  // innerHTML, same as every other user-authored value in this file.
   function exerciseIconHtml(name) {
     const path = EXERCISE_ICONS[name];
     if (path) return `<img src="/static/${path}" alt="" class="ex-icon-img">`;
-    return exerciseEmoji(name);
+    return escapeHtml(exerciseEmoji(name));
   }
   // No specific video id is hardcoded per exercise — there's no way to
   // verify from here that a given id still exists or is actually a good,
@@ -1488,6 +1995,7 @@
   }
 
   const exdOverlay = document.getElementById("exd-modal-overlay");
+  moveOverlayToBody(exdOverlay);
   const exdEmojiEl = document.getElementById("exd-modal-emoji");
   const exdTitleEl = document.getElementById("exd-modal-title");
   const exdDescEl = document.getElementById("exd-modal-desc");
@@ -1496,24 +2004,173 @@
 
   function openExerciseDetailModal(name) {
     const detail = exerciseDetail(name);
+    const vidId = EXERCISE_VIDEOS ? EXERCISE_VIDEOS[name] : null;
+
     exdEmojiEl.innerHTML = exerciseIconHtml(name);
     exdTitleEl.textContent = name;
-    exdDescEl.textContent = detail.description;
+
+    const videoContainer = document.getElementById("exd-video-container");
+    if (videoContainer) {
+      if (vidId) {
+        videoContainer.innerHTML = `
+          <div class="exd-video-wrap">
+            <iframe class="exd-video-iframe" src="https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&rel=0&modestbranding=1" title="${escapeAttr(name)} Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+          </div>
+        `;
+      } else {
+        const query = encodeURIComponent(`${name} proper form tutorial`);
+        videoContainer.innerHTML = `
+          <div class="exd-video-wrap">
+            <iframe class="exd-video-iframe" src="https://www.youtube-nocookie.com/embed?listType=search&list=${query}" title="${escapeAttr(name)} Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+          </div>
+        `;
+      }
+    }
+
+    exdDescEl.innerHTML = "";
+    detail.description.forEach((step) => {
+      const li = document.createElement("li");
+      li.textContent = step;
+      exdDescEl.appendChild(li);
+    });
+
     exdVideoLink.href = youtubeSearchUrl(name);
-    exdOverlay.style.display = "flex";
+
+    if (window.openBottomSheet) {
+      window.openBottomSheet(exdOverlay, ".exd-modal");
+    } else {
+      exdOverlay.classList.add("is-open");
+    }
   }
+
   function closeExerciseDetailModal() {
-    exdOverlay.style.display = "none";
+    if (window.closeBottomSheet) {
+      window.closeBottomSheet(exdOverlay, ".exd-modal", () => {
+        const videoContainer = document.getElementById("exd-video-container");
+        if (videoContainer) videoContainer.innerHTML = "";
+      });
+    } else {
+      exdOverlay.classList.remove("is-open");
+      const videoContainer = document.getElementById("exd-video-container");
+      if (videoContainer) videoContainer.innerHTML = "";
+    }
   }
+
+  if (window.bindSheetDrag) {
+    window.bindSheetDrag(exdOverlay, ".exd-modal", ".exd-modal-handle", closeExerciseDetailModal);
+  }
+
   exdCloseBtn.addEventListener("click", closeExerciseDetailModal);
   exdOverlay.addEventListener("click", (event) => {
     if (event.target === exdOverlay) closeExerciseDetailModal();
   });
-  // Delegated on <body> so it works no matter which parent re-renders
-  // the chip (split wizard modal vs. the Today's plan card).
+
   document.body.addEventListener("click", (event) => {
-    const chip = event.target.closest("[data-exercise-detail]");
-    if (chip) openExerciseDetailModal(chip.dataset.exerciseDetail);
+    const chip = event.target.closest("[data-exercise-detail], [data-exercise-video]");
+    if (chip) {
+      event.stopPropagation();
+      const name = chip.dataset.exerciseDetail || chip.dataset.exerciseVideo;
+      if (name) openExerciseDetailModal(name);
+    }
+  });
+
+  // ---------- Split wizard review step: per-exercise sets/reps editor ----------
+  const exEditorOverlay = document.getElementById("split-ex-editor-overlay");
+  moveOverlayToBody(exEditorOverlay);
+  const exEditorIcon = document.getElementById("split-ex-editor-icon");
+  const exEditorTitle = document.getElementById("split-ex-editor-title");
+  const exEditorClose = document.getElementById("split-ex-editor-close");
+  const exEditorSetsBox = document.getElementById("split-ex-editor-sets-box");
+  const exEditorSetsInput = document.getElementById("split-ex-editor-sets-input");
+  const exEditorSetsLabel = document.getElementById("split-ex-editor-sets-label");
+  const exEditorSetsBase = document.getElementById("split-ex-editor-sets-base");
+  const exEditorRepsBox = document.getElementById("split-ex-editor-reps-box");
+  const exEditorRepsInput = document.getElementById("split-ex-editor-reps-input");
+  const exEditorRepsLabel = document.getElementById("split-ex-editor-reps-label");
+  const exEditorRepsBase = document.getElementById("split-ex-editor-reps-base");
+  const exEditorReset = document.getElementById("split-ex-editor-reset");
+  const exEditorHowto = document.getElementById("split-ex-editor-howto");
+  let exEditorCurrent = null; // { label, name } for the exercise the editor is currently open on
+
+  function refreshExEditorScaledState() {
+    if (!exEditorCurrent) return;
+    const p = getPrescription(exEditorCurrent.label, exEditorCurrent.name);
+    const std = getSetsRepsDefault(exEditorCurrent.name);
+    exEditorSetsBox.classList.toggle("is-edited", p.sets !== std.sets);
+    exEditorRepsBox.classList.toggle("is-edited", p.reps !== std.reps);
+  }
+
+  function openExercisePrescriptionEditor(label, name) {
+    const t = RepCheckI18n.t;
+    exEditorCurrent = { label, name };
+    const p = getPrescription(label, name);
+    const std = getSetsRepsDefault(name);
+    exEditorIcon.innerHTML = exerciseIconHtml(name);
+    exEditorTitle.textContent = name;
+    exEditorSetsInput.value = p.sets;
+    exEditorRepsInput.value = p.reps;
+    exEditorSetsLabel.textContent = t("workouts.wizard.sets");
+    exEditorRepsLabel.textContent = t("workouts.wizard.reps");
+    exEditorSetsBase.textContent = t("workouts.wizard.standardValue", { n: std.sets });
+    exEditorRepsBase.textContent = t("workouts.wizard.standardValue", { n: std.reps });
+    exEditorReset.textContent = t("workouts.wizard.resetToStandard");
+    exEditorHowto.textContent = t("workouts.wizard.howToPerform");
+    refreshExEditorScaledState();
+    exEditorOverlay.classList.add("is-open");
+    window.requestAnimationFrame(() => exEditorSetsInput.focus());
+  }
+  function closeExercisePrescriptionEditor() {
+    exEditorOverlay.classList.remove("is-open");
+    exEditorCurrent = null;
+    // The row behind the modal shows sets/reps in its collapsed state, so
+    // it needs to reflect whatever was just edited.
+    if (reviewRerenderCarousel) reviewRerenderCarousel();
+  }
+  // Shared between the sets and reps inputs -- identical besides which
+  // prescription property they write and which input's own min/max they
+  // enforce. Clamps the STORED value to the input's declared max (a typed
+  // value, unlike a spinner click, isn't clamped by the browser on its
+  // own) without fighting the user mid-keystroke: the visible field keeps
+  // showing whatever they typed until blur, when it snaps to the clamped
+  // stored value -- so typing "1", "10", "100" never gets a digit silently
+  // overwritten out from under them, but the number that ends up saved is
+  // always in range.
+  function wireEditorInput(inputEl, prop) {
+    const max = Number(inputEl.max) || Infinity;
+    inputEl.addEventListener("input", (event) => {
+      if (!exEditorCurrent) return;
+      const v = parseInt(event.target.value, 10);
+      if (Number.isFinite(v) && v > 0) {
+        getPrescription(exEditorCurrent.label, exEditorCurrent.name)[prop] = Math.min(v, max);
+        refreshExEditorScaledState();
+      }
+    });
+    inputEl.addEventListener("blur", () => {
+      if (!exEditorCurrent) return;
+      inputEl.value = getPrescription(exEditorCurrent.label, exEditorCurrent.name)[prop];
+    });
+  }
+  wireEditorInput(exEditorSetsInput, "sets");
+  wireEditorInput(exEditorRepsInput, "reps");
+  exEditorReset.addEventListener("click", () => {
+    if (!exEditorCurrent) return;
+    const std = getSetsRepsDefault(exEditorCurrent.name);
+    const p = getPrescription(exEditorCurrent.label, exEditorCurrent.name);
+    p.sets = std.sets;
+    p.reps = std.reps;
+    exEditorSetsInput.value = p.sets;
+    exEditorRepsInput.value = p.reps;
+    refreshExEditorScaledState();
+  });
+  exEditorHowto.addEventListener("click", () => {
+    if (exEditorCurrent) openExerciseDetailModal(exEditorCurrent.name);
+  });
+  exEditorClose.addEventListener("click", closeExercisePrescriptionEditor);
+  exEditorOverlay.addEventListener("click", (event) => {
+    if (event.target === exEditorOverlay) closeExercisePrescriptionEditor();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && exEditorOverlay.classList.contains("is-open")) closeExercisePrescriptionEditor();
   });
 
   function loadLog() {
@@ -1523,8 +2180,80 @@
       return {};
     }
   }
-  function saveLog() {
+  // Per-date debounce timers for pushWorkoutDay(), keyed by ISO date, so
+  // editing today doesn't cancel an in-flight sync of a different day
+  // (quickLogExerciseNow() below always targets *today*, independent of
+  // whichever date is currently selected in the strip).
+  const workoutDaySyncTimers = new Map();
+  const WORKOUT_SYNC_DEBOUNCE_MS = 400;
+  const WORKOUT_SYNC_RETRY_MS = 2000;
+  function pushWorkoutDay(dateIso, attempt = 0) {
+    const retry = () => {
+      if (attempt === 0) setTimeout(() => pushWorkoutDay(dateIso, 1), WORKOUT_SYNC_RETRY_MS);
+    };
+    fetch("{{ url_for('api_workout_log_day') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: dateIso, entries: log[dateIso] || [] }),
+    }).then((response) => {
+      // fetch() only REJECTS on a network-level failure -- an HTTP error
+      // response (401 session expired, 400 bad payload, 500) still
+      // RESOLVES, so response.ok must be checked explicitly or a
+      // mid-session auth expiry silently "succeeds" here with the write
+      // never actually landing and no retry ever firing: the exact class
+      // of silent data loss this endpoint exists to prevent, just moved
+      // from the generic sync's merge bug to this one's missed status check.
+      if (!response.ok) retry();
+    }).catch(() => {
+      // Best-effort retry once -- this is the authoritative write that
+      // fixes the merge-can-only-grow bug (see set_workout_log_day() in
+      // database.py), so it's worth one retry beyond the generic sync's
+      // own fire-and-forget beacon. Gives up silently after that; the next
+      // edit to this date schedules another attempt anyway.
+      retry();
+    });
+  }
+  function scheduleWorkoutDaySync(dateIso) {
+    if (workoutDaySyncTimers.has(dateIso)) clearTimeout(workoutDaySyncTimers.get(dateIso));
+    workoutDaySyncTimers.set(dateIso, setTimeout(() => {
+      workoutDaySyncTimers.delete(dateIso);
+      pushWorkoutDay(dateIso);
+    }, WORKOUT_SYNC_DEBOUNCE_MS));
+  }
+  // Flush any still-pending debounced syncs the instant the page starts
+  // unloading, via sendBeacon (survives navigation; a plain fetch() can be
+  // cancelled mid-flight when the page goes away). Without this, closing
+  // the tab right after a delete -- still inside the 400ms debounce
+  // window -- risks losing the authoritative overwrite while the OTHER
+  // sync path for this same key (account_sync.js's wrapped setItem, which
+  // already fired its own sendBeacon-based push synchronously at delete
+  // time) survives, meaning the write most likely to actually land in
+  // that exact moment is the one that can resurrect the deletion, not the
+  // one that can actually delete it.
+  window.addEventListener("pagehide", () => {
+    workoutDaySyncTimers.forEach((timerId, dateIso) => {
+      clearTimeout(timerId);
+      const blob = new Blob([JSON.stringify({ date: dateIso, entries: log[dateIso] || [] })], { type: "application/json" });
+      if (!navigator.sendBeacon || !navigator.sendBeacon("{{ url_for('api_workout_log_day') }}", blob)) {
+        // sendBeacon unavailable, or its queue is full -- best-effort
+        // fallback that at least has a chance on some browsers/timings.
+        fetch("{{ url_for('api_workout_log_day') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: dateIso, entries: log[dateIso] || [] }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    });
+    workoutDaySyncTimers.clear();
+  });
+  // dateIso defaults to selectedDate since nearly every mutation in this
+  // file operates on log[selectedDate] -- the one exception,
+  // quickLogExerciseNow(), passes its own target date explicitly since it
+  // always logs to *today* regardless of what's selected.
+  function saveLog(dateIso) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+    scheduleWorkoutDaySync(dateIso || selectedDate);
   }
 
   let log = loadLog();
@@ -1693,6 +2422,11 @@
     document.getElementById("wl-log-btn").addEventListener("click", openExerciseModal);
     wireTimelineEvents();
     renderDateStrip(); // keep the "logged that day" dots in sync
+    // The AI chat widget lives outside #wl-day (see its own comment above)
+    // so it doesn't get re-rendered by the innerHTML replacement above --
+    // tell it explicitly that `selectedDate` may have changed, so it can
+    // reload the right day's thread and re-apply its today-only lock state.
+    document.dispatchEvent(new CustomEvent("repcheck:workout-date-changed"));
   }
 
   function renderEntry(entry) {
@@ -1722,7 +2456,7 @@
         </button>
         <div class="wl-swipe-content">
           <div class="wl-entry-card ${complete ? "is-complete" : ""}" data-toggle-entry="${entry.id}">
-            <div class="wl-entry-iconwrap"><div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}</div><span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
+            <div class="wl-entry-iconwrap" data-exercise-video="${escapeAttr(entry.exercise)}" title="Watch video & tutorial"><div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}</div><span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
             <div class="wl-entry-info">
               <div class="wl-entry-name">${escapeHtml(entry.exercise)}</div>
               <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry)}</div>
@@ -1749,14 +2483,14 @@
       <span class="wl-set-field">
         <input type="number" min="0" step="0.5" inputmode="decimal" class="wl-set-input"
                value="${weightInputValue(kg)}" placeholder="0"
-               data-weight-entry="${entry.id}" data-weight-index="${i}" data-side="${side}">
+               data-weight-entry="${entry.id}" data-weight-index="${i}" data-side="${side}" data-clear-on-focus>
         <span class="wl-set-unit">${unit}</span>
       </span>`;
     const repsField = (reps, side, i) => `
       <span class="wl-set-field wl-set-field-reps">
         <input type="number" min="0" inputmode="numeric" class="wl-set-input"
                value="${isBlank(reps) ? "" : reps}" placeholder="0"
-               data-reps-entry="${entry.id}" data-reps-index="${i}" data-reps-side="${side}">
+               data-reps-entry="${entry.id}" data-reps-index="${i}" data-reps-side="${side}" data-clear-on-focus>
         <span class="wl-set-unit">${t("workouts.exercise.repsLabel")}</span>
       </span>`;
     const weightTimes = (kg, side, i) =>
@@ -1935,6 +2669,15 @@
   }
 
   function wireTimelineEvents() {
+    dayEl.querySelectorAll("[data-exercise-video]").forEach((iconWrap) => {
+      iconWrap.addEventListener("click", (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        const name = iconWrap.dataset.exerciseVideo;
+        if (name) openExerciseDetailModal(name);
+      });
+    });
+
     // Clicking anywhere on the card (except the inputs/buttons inside the
     // expanded detail) minimizes/expands that exercise.
     dayEl.querySelectorAll("[data-toggle-entry]").forEach((el) => {
@@ -2078,7 +2821,7 @@
       addedAt: Date.now(),
       sets: [{ reps: "" }],
     });
-    saveLog();
+    saveLog(todayIso);
     if (selectedDate === todayIso) {
       renderTimeline();
     }
@@ -2096,6 +2839,28 @@
 
   function loadSplitPlan() {
     try { return JSON.parse(localStorage.getItem(SPLIT_PLAN_KEY)); } catch (err) { return null; }
+  }
+
+  // The week view's inline exercise add/remove writes straight to the
+  // saved plan instead of going through the wizard's own explicit Save
+  // button -- renderTodaysPlanCard() (the "Today's Plan" card sitting
+  // behind the modal) must be refreshed alongside every such write, or it
+  // keeps showing the pre-edit exercise list until the next full page
+  // load.
+  function persistSplitPlan(plan) {
+    // plan is already the source of truth in memory (every caller mutates it
+    // before calling this) -- a quota-exceeded or private-browsing write
+    // failure here shouldn't stop the UI from reflecting that mutation, it
+    // just means the change won't survive a reload.
+    try {
+      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+    } catch (err) {}
+    // Building or editing a split is using the app, so the day counts
+    // toward the streak. Marked here rather than at each call site because
+    // this is the single funnel every plan write goes through -- and the
+    // plan itself stores no date, so it can't be read back after the fact.
+    if (window.RepCheckStreak) RepCheckStreak.mark("split_plan");
+    renderTodaysPlanCard();
   }
 
   function getTodaysSplitInfo() {
@@ -2266,8 +3031,22 @@
       // Nothing matched -- offer to create exactly what they typed.
       exModalBody.innerHTML = `
         <div class="ex-modal-section">
-          <div class="ex-modal-empty">${RepCheckI18n.t("workouts.search.noMatch", { query })}</div>
-          <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: query.trim() })}</span></button>
+          ${RepCheckMascot.emptyState({
+            pose: "lift",
+            // t() takes no vars here so {query} survives into
+            // emptyState(), which escapes it and gives the searched-for
+            // term its own weight.
+            title: RepCheckI18n.t("workouts.search.noMatchTitle"),
+            sub: RepCheckI18n.t("workouts.search.noMatchSub"),
+            query,
+          })}
+          <!-- escapeHtml on the way in: t() substitutes its vars with a
+               plain split/join and does NOT escape them, and this lands in
+               innerHTML. Same reason the search term beside it is escaped
+               -- this is the one branch a no-match query reaches, so an
+               unescaped name here is the exact sink the mascot block above
+               just closed. -->
+          <button type="button" class="ex-create-btn" id="ex-create-btn">${EX_CREATE_ICON}<span>${RepCheckI18n.t("workouts.create.buttonNamed", { name: escapeHtml(query.trim()) })}</span></button>
         </div>
       `;
       wireCreateButton(query.trim());
@@ -2420,13 +3199,34 @@
   // No prescribed set/rep data exists per exercise anywhere in the app --
   // this buckets by movement pattern the same way a coach would default
   // them, purely for the "N sets • X-Y reps" line under each name.
-  function getSetsRepsText(name) {
+  // Single source of truth for the sets/reps buckets -- getSetsRepsText()
+  // (the "N sets • X-Y reps" display string) and getSetsRepsDefault() (the
+  // review step's editable numeric starting point) used to hand-duplicate
+  // this same 4-branch regex chain, which could silently desync if only one
+  // copy was ever updated. First matching bucket wins; order matters.
+  const SETS_REPS_BUCKETS = [
+    { test: /lateral raise|rear delt|face pull|front raise/, sets: 3, repsLow: 12, repsHigh: 15 },
+    { test: /curl|extension|pushdown|crusher|kickback|fly|flye|shrug|calf raise/, sets: 3, repsLow: 10, repsHigh: 12 },
+    { test: /^(flat bench press|overhead press|barbell row|deadlift|back squat|front squat)$/, sets: 4, repsLow: 6, repsHigh: 8 },
+    { test: /press|squat|deadlift|row|pull-?up|lat pulldown|leg press/, sets: 4, repsLow: 8, repsHigh: 10 },
+  ];
+  const SETS_REPS_FALLBACK = { sets: 3, repsLow: 10, repsHigh: 12 };
+
+  function getSetsRepsBucket(name) {
     const lower = name.toLowerCase();
-    if (/lateral raise|rear delt|face pull|front raise/.test(lower)) return "3 sets • 12-15 reps";
-    if (/curl|extension|pushdown|crusher|kickback|fly|flye|shrug|calf raise/.test(lower)) return "3 sets • 10-12 reps";
-    if (/^(flat bench press|overhead press|barbell row|deadlift|back squat|front squat)$/.test(lower)) return "4 sets • 6-8 reps";
-    if (/press|squat|deadlift|row|pull-?up|lat pulldown|leg press/.test(lower)) return "4 sets • 8-10 reps";
-    return "3 sets • 10-12 reps";
+    return SETS_REPS_BUCKETS.find((bucket) => bucket.test.test(lower)) || SETS_REPS_FALLBACK;
+  }
+  function getSetsRepsText(name) {
+    const b = getSetsRepsBucket(name);
+    return `${b.sets} sets • ${b.repsLow}-${b.repsHigh} reps`;
+  }
+  // Numeric twin of getSetsRepsText() above, for the review step's editable
+  // sets/reps boxes -- same buckets, but a single starting rep count (the
+  // low end of the range) instead of a "X-Y" string, since an editable
+  // number field needs one value to start from.
+  function getSetsRepsDefault(name) {
+    const b = getSetsRepsBucket(name);
+    return { sets: b.sets, reps: b.repsLow };
   }
 
   function renderTodaysPlanCard() {
@@ -2448,13 +3248,24 @@
     const expanded = WORKOUTS_PLAN_EXPANDED.has(info.label);
     const shown = expanded ? info.exercises : info.exercises.slice(0, 3);
     const remaining = info.exercises.length - 3;
+    // Quick-add is per plan-row, not per exercise slot -- so "already
+    // added" is read straight off today's actual log entries (the only
+    // source of truth) rather than a separate tracked Set, the same way
+    // entryIsComplete() derives its state from entry.sets instead of a
+    // shadow flag. Re-logging the same exercise later some other way
+    // (the "Log an exercise" modal) still correctly flips this row's
+    // button to added on the next render.
+    const todayIso = toIsoDate(new Date());
+    const loggedToday = new Set((log[todayIso] || []).map((entry) => entry.exercise));
     planBodyEl.innerHTML = `
       <div class="wl-plan-day-label">
         <span class="wl-plan-day-icon">${PLAN_CALENDAR_SVG}</span>
         <span>${t("workouts.plan.dayLabel", { weekday: info.weekdayName, label: info.label })}</span>
       </div>
       <div class="wl-plan-exercise-list">
-        ${shown.map((name, i) => `
+        ${shown.map((name, i) => {
+          const isAdded = loggedToday.has(name);
+          return `
           <div class="wl-plan-exercise-row" data-exercise-detail="${escapeAttr(name)}" title="Tap to see how to perform this">
             <span class="wl-plan-exercise-num">${i + 1}</span>
             <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
@@ -2462,24 +3273,33 @@
               <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
               <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
             </span>
-            <button type="button" class="wl-plan-quick-add" data-quick-add="${escapeAttr(name)}" aria-label="Log ${escapeAttr(name)} now" title="Log now">+</button>
+            <button type="button" class="wl-plan-quick-add${isAdded ? " is-added" : ""}" data-quick-add="${escapeAttr(name)}" aria-label="${isAdded ? `${escapeAttr(name)} already logged today` : `Log ${escapeAttr(name)} now`}" title="${isAdded ? "Already logged today" : "Log now"}"${isAdded ? ' aria-disabled="true"' : ""}>${isAdded ? SMALL_CHECK_ICON : "+"}</button>
             <span class="wl-plan-exercise-grip">${PLAN_GRIP_SVG}</span>
           </div>
-        `).join("")}
+        `;
+        }).join("")}
       </div>
       ${remaining > 0 ? `<button type="button" class="wl-plan-more${expanded ? " is-expanded" : ""}" id="wl-plan-more-btn">${expanded ? t("common.minimize") : t("common.tapToSeeMore")}${PLAN_CHEVRON_SVG}</button>` : ""}
     `;
-    planBodyEl.querySelectorAll("[data-quick-add]").forEach((btn) => {
+    planBodyEl.querySelectorAll("[data-quick-add]:not(.is-added)").forEach((btn) => {
+      // aria-disabled + the .is-added class's own pointer-events: none,
+      // not the native disabled property -- setting .disabled = true in
+      // the same tick as the class change froze this button's
+      // background/color transition at its PRE-click colors (a real
+      // browser quirk: an element disabled mid-transition stops
+      // repainting), so the checkmark rendered dark-on-white instead of
+      // white-on-green until the next full page re-render. {once: true}
+      // is the actual re-click guard now that disabled isn't doing that
+      // job.
       btn.addEventListener("click", (event) => {
         event.stopPropagation(); // don't also trigger the row's exercise-detail modal
         quickLogExerciseNow(btn.dataset.quickAdd);
-        btn.textContent = "✓";
+        btn.innerHTML = SMALL_CHECK_ICON;
         btn.classList.add("is-added");
-        setTimeout(() => {
-          btn.textContent = "+";
-          btn.classList.remove("is-added");
-        }, 1200);
-      });
+        btn.setAttribute("aria-disabled", "true");
+        btn.setAttribute("aria-label", `${btn.dataset.quickAdd} already logged today`);
+        btn.title = "Already logged today";
+      }, { once: true });
     });
     const moreBtn = document.getElementById("wl-plan-more-btn");
     if (moreBtn) {
@@ -2510,6 +3330,15 @@
   const planBtnEl = document.getElementById("wl-plan-btn");
 
   let splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null, suggestedSplitType: null };
+
+  // Bumped by every function that replaces #split-modal-body's content.
+  // renderExercisePickerStep() is the one async step (it awaits
+  // loadCustomExercises() before rendering anything) -- if the user
+  // navigates elsewhere in that window (another weekday tab, "Edit
+  // split", a fresh wizard save), the resumed picker must detect it's no
+  // longer current and bail instead of overwriting whatever's now on
+  // screen with stale markup wired to a stale plan/activeDay closure.
+  let splitModalGeneration = 0;
 
   // The "Let AI build it" path, where the AI picks the split type too --
   // it has one step fewer than the self-build path (no "choose a split"),
@@ -2574,18 +3403,70 @@
     }
   }
 
+  // .split-modal-overlay and .mobile-tabbar are both z-index: 100 -- on a
+  // tie the tabbar wins (it's later in the DOM, part of base.html's outer
+  // shell), and it keeps its own pointer-events, so on mobile it sat on top
+  // of the modal's bottom edge and swallowed taps meant for whatever was
+  // under it there (the wizard's Next/Save/Done button, or the exercise
+  // picker's Done button). Every other sheet in the app hides the tabbar
+  // via window.openBottomSheet/closeBottomSheet, which also re-parents the
+  // overlay to <body> -- that re-parenting isn't optional decoration: the
+  // overlay lives inside .app in the DOM, and html.pc-sheet-active .app
+  // is the SAME rule that gives every other sheet its "page recedes
+  // behind me" motion (scale 0.92, dim to brightness(0.7)). An earlier
+  // version of this fix toggled pc-sheet-active without re-parenting,
+  // which shrank and greyed out the split modal itself, since it's a
+  // child of the very element that rule recedes.
+  function openSplitModalOverlay() {
+    // Guard against double-opening: "Edit split" transitions straight from
+    // the already-open "view saved split" screen into the wizard, without
+    // an intervening close. Calling openBottomSheet a second time here
+    // would double-increment its scroll-lock refcount, which then never
+    // reaches zero on close -- body scroll would stay locked forever.
+    if (splitModalOverlay.classList.contains("is-open")) return;
+    if (window.openBottomSheet) {
+      window.openBottomSheet(splitModalOverlay, ".split-modal");
+    } else {
+      splitModalOverlay.style.display = "flex";
+      document.documentElement.classList.add("pc-sheet-active");
+    }
+  }
+
   function openSplitModal() {
     splitWizard = { mode: null, type: null, location: null, customDays: [], customDayExercises: {}, goal: "", daysPerWeek: null, generatedDays: null, generatedSchedule: null, rationale: null };
     splitModalTitle.textContent = RepCheckI18n.t("workouts.wizard.title");
-    splitModalOverlay.style.display = "flex";
+    openSplitModalOverlay();
     renderSplitStepMode();
   }
 
   function closeSplitModal() {
-    splitModalOverlay.style.display = "none";
+    // Closing the modal (X button, overlay tap) bypasses the picker menu's
+    // own dismiss paths, which only fire on a click/Escape that's actually
+    // observed by those listeners -- so reset the same state here that
+    // renderSplitStepReview() resets on its own next run, rather than
+    // leaving a stale "menu open" flag and two live document listeners
+    // sitting around until the wizard happens to reach this step again.
+    reviewPillMenuOpen = false;
+    if (reviewDismissMenuOnOutsideClick) {
+      document.removeEventListener("click", reviewDismissMenuOnOutsideClick);
+      reviewDismissMenuOnOutsideClick = null;
+    }
+    if (reviewDismissMenuOnEscape) {
+      document.removeEventListener("keydown", reviewDismissMenuOnEscape);
+      reviewDismissMenuOnEscape = null;
+    }
+    if (window.closeBottomSheet) {
+      window.closeBottomSheet(splitModalOverlay, ".split-modal", () => {
+        splitModalOverlay.style.display = "none";
+      });
+    } else {
+      splitModalOverlay.style.display = "none";
+      document.documentElement.classList.remove("pc-sheet-active");
+    }
   }
 
   function renderSplitStepMode() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.title");
     splitModalBody.innerHTML = `
@@ -2593,11 +3474,9 @@
       <div class="split-type-grid">
         <div class="split-type-card ${splitWizard.mode === "ai" ? "is-selected" : ""}" data-split-mode="ai">
           <div class="split-type-card-title">${t("workouts.wizard.mode.ai.title")}</div>
-          <div class="split-type-card-sub">${t("workouts.wizard.mode.ai.sub")}</div>
         </div>
         <div class="split-type-card ${splitWizard.mode === "self" ? "is-selected" : ""}" data-split-mode="self">
           <div class="split-type-card-title">${t("workouts.wizard.mode.self.title")}</div>
-          <div class="split-type-card-sub">${t("workouts.wizard.mode.self.sub")}</div>
         </div>
       </div>
       <button type="button" class="split-primary-btn" id="split-mode-next-btn" ${splitWizard.mode ? "" : "disabled"}>${t("common.next")}</button>
@@ -2625,7 +3504,54 @@
     });
   }
 
+  // Sets how many day chips a self-build (or literal "custom" type) split
+  // has, growing or shrinking splitWizard.customDays to match rather than
+  // asking the day count as a separate independent field -- the server's
+  // custom-split path derives the plan's day count directly from
+  // len(custom_days) (see build_fallback_plan's "custom" branch in
+  // split_planner.py), so the two can never be allowed to disagree.
+  function applyDayCount(n) {
+    const current = splitWizard.customDays;
+    if (n === current.length) return;
+    if (n < current.length) {
+      // Trim from the end -- drop the extra days and whatever exercises
+      // were picked for them.
+      const removed = current.splice(n);
+      removed.forEach((name) => delete splitWizard.customDayExercises[name]);
+    } else {
+      const t = RepCheckI18n.t;
+      // Cycle through this split type's own day-name template to fill the
+      // new slots (e.g. PPL grown to 6 days repeats Push/Pull/Legs), or a
+      // generic "Custom" label when there's no template (the literal
+      // "custom" type, chosen without self-build). Positional, not
+      // template-relative, so it keeps making sense even if the user has
+      // already hand-edited the list away from a clean multiple of the
+      // template's length.
+      const baseLabels = SELF_BUILD_DAY_LABELS[splitWizard.type] || [t("workouts.split.custom")];
+      let cursor = current.length;
+      while (current.length < n) {
+        const base = baseLabels[cursor % baseLabels.length];
+        const cycle = Math.floor(cursor / baseLabels.length) + 1;
+        let label = cycle > 1 ? `${base} ${cycle}` : base;
+        // customDayExercises is keyed by name -- two identically-named days
+        // would silently share (and clobber) each other's picked exercises,
+        // so guard against colliding with a name the user already typed by
+        // hand, not just against the generated cycle itself.
+        let bump = cycle;
+        while (current.includes(label)) {
+          bump += 1;
+          label = `${base} ${bump}`;
+        }
+        current.push(label);
+        cursor += 1;
+      }
+    }
+    splitWizard.daysPerWeek = current.length;
+    renderSplitStepType();
+  }
+
   function renderSplitStepType() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     const selfBuild = splitWizard.mode === "self";
     splitModalTitle.textContent = t("workouts.wizard.title");
@@ -2639,6 +3565,12 @@
         `).join("")}
       </div>
       ${(splitWizard.type === "custom" || selfBuild) ? `
+        <div class="split-step-label">${t("workouts.wizard.chooseWeekTitle")}</div>
+        <div class="split-days-grid">
+          ${[1, 2, 3, 4, 5, 6, 7].map((n) => `
+            <button type="button" class="split-day-btn ${splitWizard.customDays.length === n ? "is-selected" : ""}" data-day-count="${n}">${n}</button>
+          `).join("")}
+        </div>
         <div class="split-custom-input-row">
           <input type="text" id="split-custom-input" data-i18n-placeholder="workouts.wizard.customPlaceholder" placeholder="e.g. Chest Day" autocomplete="off">
           <button type="button" class="split-custom-add-btn" id="split-custom-add-btn">${t("workouts.wizard.add")}</button>
@@ -2665,6 +3597,9 @@
     });
 
     if (splitWizard.type === "custom" || selfBuild) {
+      splitModalBody.querySelectorAll("[data-day-count]").forEach((btn) => {
+        btn.addEventListener("click", () => applyDayCount(parseInt(btn.dataset.dayCount, 10)));
+      });
       renderCustomDays();
       const addBtn = document.getElementById("split-custom-add-btn");
       const input = document.getElementById("split-custom-input");
@@ -2687,8 +3622,20 @@
       if (splitWizard.type === "custom" || selfBuild) {
         splitWizard.goal = "";
         splitWizard.daysPerWeek = Math.min(splitWizard.customDays.length, 7);
+        // A self-built split is already the user's own design end to end --
+        // their own day names, and every exercise they hand-picked in the
+        // picker. Location only ever matters as a last-resort top-up when a
+        // day comes up short of the minimum exercise count (see
+        // _pool_for_label / _top_up_exercises in split_planner.py), and
+        // leaving splitWizard.location at its initial null is safe there --
+        // _filter_by_location(pool, null) returns the pool unfiltered. So
+        // there is nothing left to ask; go straight to generating the plan
+        // instead of stopping for a location question the user already
+        // answered by hand-picking every exercise.
+        generatePlan();
+      } else {
+        renderSplitStepLocation();
       }
-      renderSplitStepLocation();
     });
   }
 
@@ -2707,6 +3654,7 @@
   // full equipment-heavy pool, and "hybrid" gets both plus a dedicated
   // strength-and-endurance/conditioning day blended into the split.
   function renderSplitStepLocation() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     const selfBuild = splitWizard.mode === "self";
     splitModalTitle.textContent = t("workouts.wizard.locationTitle");
@@ -2743,11 +3691,11 @@
   }
 
   function renderSplitStepGoal() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.goalTitle");
     splitModalBody.innerHTML = `
       <div class="split-step-label">${t(aiSuggest() ? "workouts.wizard.stepGoalAi" : "workouts.wizard.stepGoalEdit")}</div>
-      <div class="split-goal-hint">${t("workouts.wizard.goalHint")}</div>
       <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${escapeHtml(splitWizard.goal)}</textarea>
       <button type="button" class="split-primary-btn" id="split-goal-next-btn">${t("common.next")}</button>
     `;
@@ -2795,7 +3743,14 @@
     daysEl.querySelectorAll("[data-pick-exercises]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const dayName = splitWizard.customDays[parseInt(btn.dataset.pickExercises, 10)];
-        renderExercisePickerStep(dayName);
+        renderExercisePickerStep(dayName, {
+          getSelected: () => splitWizard.customDayExercises[dayName] || [],
+          onDone: (selected) => {
+            if (selected.length) splitWizard.customDayExercises[dayName] = selected;
+            else delete splitWizard.customDayExercises[dayName];
+            renderSplitStepType();
+          },
+        });
       });
     });
     document.getElementById("split-next-btn").disabled = !canProceedFromType();
@@ -2809,12 +3764,73 @@
   // Prenatal / Low-Impact) instead of only relying on the app's guess
   // from the day's typed name. Picking is optional -- skip it and the
   // backend still guesses a sensible pool for that day's name.
-  async function renderExercisePickerStep(dayName) {
+  // Pure HTML for the categorized exercise checklist (custom exercises
+  // first, then EXERCISE_CATEGORIES, filtered by `query`) -- shared by the
+  // wizard's full-step picker (renderExercisePickerStep) below and the
+  // inline "Pick exercises" expansion in the weekly-split view
+  // (renderInlineExercisePicker) so both list exercises identically.
+  function buildExercisePickerListHtml(query, selected) {
+    const t = RepCheckI18n.t;
+    const q = query.trim().toLowerCase();
+    const customNames = customExercises.map((e) => e.name);
+    const filteredCustom = q ? customExercises.filter((e) => e.name.toLowerCase().includes(q)) : customExercises;
+    const customHtml = filteredCustom.length ? `
+      <div class="split-ex-picker-category">
+        <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
+        ${filteredCustom.map((ex) => `
+          <label class="split-ex-picker-item">
+            <input type="checkbox" data-exercise="${escapeAttr(ex.name)}" ${selected.has(ex.name) ? "checked" : ""}>
+            <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
+            <span>${escapeHtml(ex.name)}</span>
+            <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
+          </label>
+        `).join("")}
+      </div>
+    ` : "";
+
+    const builtInHtml = Object.entries(EXERCISE_CATEGORIES).map(([category, names]) => {
+      const filtered = (q ? names.filter((n) => n.toLowerCase().includes(q)) : names).filter((n) => !customNames.includes(n));
+      if (!filtered.length) return "";
+      return `
+        <div class="split-ex-picker-category">
+          <div class="split-ex-picker-category-title">${category}</div>
+          ${filtered.map((name) => `
+            <label class="split-ex-picker-item">
+              <input type="checkbox" data-exercise="${escapeAttr(name)}" ${selected.has(name) ? "checked" : ""}>
+              <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
+              <span>${escapeHtml(name)}</span>
+            </label>
+          `).join("")}
+        </div>
+      `;
+    }).join("");
+
+    const html = customHtml + builtInHtml;
+    return html || RepCheckMascot.emptyState({
+      pose: "lift",
+      title: t("workouts.search.noMatchTitle"),
+      sub: t("workouts.search.noMatchSub"),
+      query,
+    });
+  }
+
+  async function renderExercisePickerStep(dayName, { getSelected, onDone }) {
+    const myGeneration = ++splitModalGeneration;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.pickExercisesTitle", { day: dayName });
-    const selected = new Set(splitWizard.customDayExercises[dayName] || []);
+    const selected = new Set(getSelected());
 
     await loadCustomExercises();
+
+    // Something else took over #split-modal-body while loadCustomExercises()
+    // was in flight (another weekday tab, "Edit split", a fresh wizard
+    // save) -- rendering now would silently overwrite whatever the user is
+    // looking at, and worse, wire a Done button whose onDone closure still
+    // points at the plan/activeDay from before that navigation, so tapping
+    // it later would write a stale plan back over whatever was saved since.
+    // Whatever ran during the gap already set its own title/body; just
+    // bail rather than undo it.
+    if (myGeneration !== splitModalGeneration) return;
 
     splitModalBody.innerHTML = `
       <input type="text" id="split-ex-picker-search" class="split-ex-picker-search" placeholder="${t("workouts.search.placeholder")}" autocomplete="off">
@@ -2829,42 +3845,7 @@
     const createSlot = document.getElementById("split-ex-create-slot");
 
     function renderList(query) {
-      const q = query.trim().toLowerCase();
-      const customNames = customExercises.map((e) => e.name);
-      const filteredCustom = q ? customExercises.filter((e) => e.name.toLowerCase().includes(q)) : customExercises;
-      const customHtml = filteredCustom.length ? `
-        <div class="split-ex-picker-category">
-          <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
-          ${filteredCustom.map((ex) => `
-            <label class="split-ex-picker-item">
-              <input type="checkbox" data-exercise="${escapeAttr(ex.name)}" ${selected.has(ex.name) ? "checked" : ""}>
-              <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
-              <span>${escapeHtml(ex.name)}</span>
-              <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
-            </label>
-          `).join("")}
-        </div>
-      ` : "";
-
-      const builtInHtml = Object.entries(EXERCISE_CATEGORIES).map(([category, names]) => {
-        const filtered = (q ? names.filter((n) => n.toLowerCase().includes(q)) : names).filter((n) => !customNames.includes(n));
-        if (!filtered.length) return "";
-        return `
-          <div class="split-ex-picker-category">
-            <div class="split-ex-picker-category-title">${category}</div>
-            ${filtered.map((name) => `
-              <label class="split-ex-picker-item">
-                <input type="checkbox" data-exercise="${escapeAttr(name)}" ${selected.has(name) ? "checked" : ""}>
-                <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-                <span>${escapeHtml(name)}</span>
-              </label>
-            `).join("")}
-          </div>
-        `;
-      }).join("");
-
-      const html = customHtml + builtInHtml;
-      listEl.innerHTML = html || `<div class="ex-modal-empty">${t("workouts.search.noMatch", { query })}</div>`;
+      listEl.innerHTML = buildExercisePickerListHtml(query, selected);
       listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) selected.add(checkbox.dataset.exercise);
@@ -2968,16 +3949,12 @@
     updateDoneLabel();
 
     document.getElementById("split-ex-picker-done-btn").addEventListener("click", () => {
-      if (selected.size) {
-        splitWizard.customDayExercises[dayName] = Array.from(selected);
-      } else {
-        delete splitWizard.customDayExercises[dayName];
-      }
-      renderSplitStepType();
+      onDone(Array.from(selected));
     });
   }
 
   function renderSplitStepDays() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.chooseWeekTitle");
     splitModalBody.innerHTML = `
@@ -3054,18 +4031,77 @@
     }
   }
 
+  // Accent tokens cycled across the split's unique day labels. Red is left
+  // out deliberately -- it reads as an error state everywhere else in the app.
+  // `ink` is the swatch's text colour, picked per accent so the abbreviation
+  // clears WCAG AA: white fails on --green (3.0:1) and --amber (3.4:1), both
+  // of which are light enough to need dark text instead. These are literals,
+  // not var(--text), because the accents don't flip between themes.
+  const DAY_ACCENTS = [
+    { name: "blue", ink: "#ffffff" },
+    { name: "green", ink: "#101114" },
+    { name: "amber", ink: "#101114" },
+    { name: "purple", ink: "#ffffff" },
+    { name: "pink", ink: "#ffffff" },
+  ];
+  const REVIEW_MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  // WEEKDAY_NAMES is Sunday-indexed (it mirrors Date#getDay), so a
+  // Monday-first column maps back through this.
+  const REVIEW_WEEKDAY_NAME_INDEX = [1, 2, 3, 4, 5, 6, 0];
+
+  let reviewSchedule = null;         // weekday key -> day label, or the literal "Rest"
+  let reviewSelectedIndex = 0;       // index into REVIEW_MONDAY_FIRST
+  let reviewPillMenuOpen = false;    // whether the day-type picker menu is open for the shown day
+  // `${label}::${exerciseName}` -> {sets, reps}. Keyed by day label (not by
+  // weekday) because the same generated day can land on more than one
+  // weekday (a 6-day PPL repeats Push/Pull/Legs) -- editing Monday's Push
+  // sets is meant to apply to Friday's Push too, since it's the same
+  // generated day template, not two independent copies of it.
+  let exercisePrescriptions = {};
+  let reviewRerenderCarousel = null; // set each time the step renders; lets the editor modal refresh the row it just closed
+  // Both re-bound each time renderSplitStepReview() runs (the wizard can be
+  // opened/closed/reopened many times in one page load); the old pair is
+  // removed first so document listeners don't pile up across reopens.
+  let reviewDismissMenuOnOutsideClick = null;
+  let reviewDismissMenuOnEscape = null;
+
+  // JSON.stringify, not a "${label}::${name}" template string: day labels
+  // are unrestricted free text on the custom-split path (no maxlength, no
+  // character filter on #split-custom-input), so a label of literally
+  // "Push::Legs" would collide with label="Push", name="Legs::Bench" -- two
+  // unrelated (day, exercise) pairs silently sharing one prescription,
+  // caught by /ship's adversarial review. JSON.stringify's array form
+  // can't collide this way: ["Push::Legs","Bench"] and ["Push","Legs::Bench"]
+  // are different JSON strings no matter what either field contains.
+  function prescriptionKey(label, name) { return JSON.stringify([label, name]); }
+  function getPrescription(label, name) {
+    const key = prescriptionKey(label, name);
+    if (!exercisePrescriptions[key]) exercisePrescriptions[key] = getSetsRepsDefault(name);
+    return exercisePrescriptions[key];
+  }
+
   function renderSplitStepReview() {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
     splitModalTitle.textContent = t("workouts.wizard.assignWeekTitle");
     const days = splitWizard.generatedDays;
     const uniqueLabels = [...new Set(days.map((d) => d.label))];
+    const restLabel = t("workouts.wizard.rest");
 
     // The AI already placed training days onto the week while it built the
     // split, applying the same rest/recovery cadence split_planner.py checks
     // server-side — that's the default here, not a naive Monday-first fill.
-    const defaultSchedule = splitWizard.generatedSchedule;
-    const mondayFirst = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-    const restLabel = t("workouts.wizard.rest");
+    // Copied rather than aliased so backing out of the step doesn't leave
+    // the generated schedule mutated by whatever was tapped here.
+    reviewSchedule = { ...splitWizard.generatedSchedule };
+    reviewPillMenuOpen = false; // never carry an open picker menu into a fresh render of this step
+    // Open on the first weekday that actually trains, so the carousel
+    // starts on a session instead of a rest day.
+    const firstTraining = REVIEW_MONDAY_FIRST.findIndex(
+      (key) => reviewSchedule[key] && reviewSchedule[key] !== "Rest"
+    );
+    reviewSelectedIndex = firstTraining === -1 ? 0 : firstTraining;
+    exercisePrescriptions = {};
 
     // On the suggest path the user never picked a split, so the plan is the
     // first time they learn which one they got -- name it explicitly rather
@@ -3074,40 +4110,182 @@
       ? (getSplitTypes().find((st) => st.id === splitWizard.suggestedSplitType) || {}).title
       : null;
 
+    // Inline custom properties: day labels are free text on the custom
+    // path, so there's no fixed set of classes to style them with.
+    function accentStyle(label) {
+      const index = uniqueLabels.indexOf(label);
+      if (index === -1) return "";
+      const accent = DAY_ACCENTS[index % DAY_ACCENTS.length];
+      return `--day-accent: var(--${accent.name}); --day-accent-bg: var(--${accent.name}-bg); --day-ink: ${accent.ink};`;
+    }
+    function isRestLabel(label) {
+      return !label || label === "Rest";
+    }
+
     splitModalBody.innerHTML = `
       ${suggestedTitle ? `<div class="split-suggested-banner">${t("workouts.wizard.aiChose", { split: suggestedTitle })}</div>` : ""}
-      <div class="split-step-label">${t("workouts.wizard.yourSplit", { n: days.length })}</div>
-      ${days.map((day, i) => `
-        <div class="split-review-day">
-          <div class="split-review-day-title">Day ${i + 1} · ${escapeHtml(day.label)}</div>
-          <div class="split-review-exercise-chips">
-            ${day.exercises.map((e) => `
-              <button type="button" class="split-review-exercise-chip" data-exercise-detail="${escapeAttr(e)}">
-                <span class="split-review-exercise-chip-emoji">${exerciseIconHtml(e)}</span>${escapeHtml(e)}
-              </button>
-            `).join("")}
-          </div>
-        </div>
-      `).join("")}
-      ${splitWizard.rationale ? `<div class="split-rationale"><strong>${t("workouts.wizard.whyThisSchedule")}</strong> ${escapeHtml(splitWizard.rationale)}</div>` : ""}
       <div class="split-step-label">${t("workouts.wizard.chooseWorkoutDays")}</div>
-      ${mondayFirst.map((key, i) => `
-        <div class="split-weekday-row">
-          <label>${WEEKDAY_NAMES[[1,2,3,4,5,6,0][i]].slice(0, 3)}</label>
-          <select data-weekday="${key}">
-            <option value="Rest" ${defaultSchedule[key] === "Rest" ? "selected" : ""}>${restLabel}</option>
-            ${uniqueLabels.map((label) => `<option value="${escapeAttr(label)}" ${defaultSchedule[key] === label ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
-          </select>
-        </div>
-      `).join("")}
+      <div class="split-carousel" id="split-carousel"></div>
+      ${splitWizard.rationale ? `<div class="split-rationale"><p>${escapeHtml(splitWizard.rationale)}</p></div>` : ""}
       <button type="button" class="split-primary-btn" id="split-save-btn" style="margin-top:16px;">${t("workouts.wizard.savePlan")}</button>
     `;
 
+    const carouselEl = document.getElementById("split-carousel");
+
+    function renderCarousel() {
+      const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+      const label = reviewSchedule[key];
+      const rest = isRestLabel(label);
+      const day = rest ? null : days.find((d) => d.label === label);
+      const exercises = day ? day.exercises : [];
+      const weekdayName = WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[reviewSelectedIndex]];
+
+      const pillMenuOptions = [...uniqueLabels, "Rest"];
+
+      carouselEl.setAttribute("style", rest ? "" : accentStyle(label));
+      carouselEl.innerHTML = `
+        <div class="split-carousel-nav">
+          <button type="button" class="split-carousel-arrow" data-carousel-dir="-1" aria-label="${t("common.back")}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="split-carousel-heading">
+            <div class="split-carousel-day">${escapeHtml(weekdayName)}</div>
+            <button type="button" class="split-carousel-pill${reviewPillMenuOpen ? " is-open" : ""}" data-pill-toggle
+                    title="${t("workouts.wizard.tapToChange")}" aria-haspopup="listbox" aria-expanded="${reviewPillMenuOpen}">
+              <span class="split-carousel-pill-text">${escapeHtml(rest ? restLabel : label)}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            ${reviewPillMenuOpen ? `
+              <div class="split-carousel-pill-menu" role="listbox">
+                ${pillMenuOptions.map((opt) => {
+                  const optRest = opt === "Rest";
+                  const selected = opt === (rest ? "Rest" : label);
+                  return `
+                    <button type="button" class="split-carousel-pill-menu-item${selected ? " is-selected" : ""}"
+                            data-select-day="${escapeAttr(opt)}" role="option" aria-selected="${selected}"
+                            style="${optRest ? "" : accentStyle(opt)}">
+                      <span class="split-carousel-pill-menu-dot${optRest ? " is-rest" : ""}"></span>
+                      <span class="split-carousel-pill-menu-label">${escapeHtml(optRest ? restLabel : opt)}</span>
+                      ${selected ? `<svg class="split-carousel-pill-menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ""}
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+            ` : ""}
+          </div>
+          <button type="button" class="split-carousel-arrow" data-carousel-dir="1" aria-label="${t("common.next")}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="split-carousel-dots">
+          ${REVIEW_MONDAY_FIRST.map((key2, i) => {
+            const l = reviewSchedule[key2];
+            const r = isRestLabel(l);
+            return `
+              <button type="button" class="split-carousel-dot${i === reviewSelectedIndex ? " is-active" : ""}"
+                      data-weekday-cell="${i}" style="${r ? "" : accentStyle(l)}"
+                      aria-label="${escapeAttr(WEEKDAY_NAMES[REVIEW_WEEKDAY_NAME_INDEX[i]])}"></button>
+            `;
+          }).join("")}
+        </div>
+        ${rest
+          ? `<div class="split-day-rest-note">${t("workouts.wizard.restDayNote")}</div>`
+          : `<ul class="split-ex-list">
+              ${exercises.map((name) => {
+                const p = getPrescription(label, name);
+                return `
+                  <li>
+                    <button type="button" class="split-ex-row" data-exercise-edit="${escapeAttr(name)}">
+                      <span class="split-ex-emoji">${exerciseIconHtml(name)}</span>
+                      <span class="split-ex-name">${escapeHtml(name)}</span>
+                      <span class="split-ex-meta">${p.sets}&times;${p.reps}</span>
+                      <span class="split-ex-chevron" aria-hidden="true">&#8250;</span>
+                    </button>
+                  </li>
+                `;
+              }).join("")}
+            </ul>`
+        }
+      `;
+    }
+
+    // Delegated once on the container, which outlives its own innerHTML.
+    // Tapping a dot just moves the carousel to that day; tapping the pill
+    // opens a menu of every split-type option (plus Rest) so the day can be
+    // reassigned directly, instead of cycling blindly one tap at a time.
+    carouselEl.addEventListener("click", (event) => {
+      const pillMenu = event.target.closest(".split-carousel-pill-menu");
+      const pillToggle = event.target.closest("[data-pill-toggle]");
+      if (reviewPillMenuOpen && !pillMenu && !pillToggle) {
+        // A tap anywhere else in the carousel while the menu is open just
+        // dismisses it -- matches how tapping away from any dropdown closes
+        // it without also triggering whatever's underneath.
+        reviewPillMenuOpen = false;
+        renderCarousel();
+        return;
+      }
+      if (pillToggle) {
+        reviewPillMenuOpen = !reviewPillMenuOpen;
+        renderCarousel();
+        return;
+      }
+      const option = event.target.closest("[data-select-day]");
+      if (option) {
+        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+        reviewSchedule[key] = option.dataset.selectDay;
+        reviewPillMenuOpen = false;
+        renderCarousel();
+        return;
+      }
+      const arrow = event.target.closest("[data-carousel-dir]");
+      if (arrow) {
+        reviewSelectedIndex = (reviewSelectedIndex + Number(arrow.dataset.carouselDir) + 7) % 7;
+        renderCarousel();
+        return;
+      }
+      const dot = event.target.closest("[data-weekday-cell]");
+      if (dot) {
+        reviewSelectedIndex = Number(dot.dataset.weekdayCell);
+        renderCarousel();
+        return;
+      }
+      const exRow = event.target.closest("[data-exercise-edit]");
+      if (exRow) {
+        const key = REVIEW_MONDAY_FIRST[reviewSelectedIndex];
+        openExercisePrescriptionEditor(reviewSchedule[key], exRow.dataset.exerciseEdit);
+      }
+    });
+
+    // Dismiss the menu on a tap outside the carousel entirely (e.g. the
+    // rationale text or the Save button), and on Escape.
+    if (reviewDismissMenuOnOutsideClick) document.removeEventListener("click", reviewDismissMenuOnOutsideClick);
+    if (reviewDismissMenuOnEscape) document.removeEventListener("keydown", reviewDismissMenuOnEscape);
+    reviewDismissMenuOnOutsideClick = (event) => {
+      if (!reviewPillMenuOpen) return;
+      // composedPath(), not carouselEl.contains(event.target): a click on the
+      // pill itself is handled by carouselEl's own listener first, which
+      // calls renderCarousel() and replaces carouselEl's children -- by the
+      // time this document-level listener runs in the same bubble phase,
+      // event.target may already be a detached node that .contains() would
+      // wrongly see as "outside". composedPath() is a snapshot taken before
+      // that mutation, so it still reflects the original click location.
+      if (event.composedPath().includes(carouselEl)) return;
+      reviewPillMenuOpen = false;
+      renderCarousel();
+    };
+    reviewDismissMenuOnEscape = (event) => {
+      if (event.key === "Escape" && reviewPillMenuOpen) {
+        reviewPillMenuOpen = false;
+        renderCarousel();
+      }
+    };
+    document.addEventListener("click", reviewDismissMenuOnOutsideClick);
+    document.addEventListener("keydown", reviewDismissMenuOnEscape);
+
+    renderCarousel();
+    reviewRerenderCarousel = renderCarousel;
+
     document.getElementById("split-save-btn").addEventListener("click", () => {
-      const schedule = {};
-      splitModalBody.querySelectorAll("[data-weekday]").forEach((select) => {
-        schedule[select.dataset.weekday] = select.value;
-      });
       const plan = {
         // Record the split the AI actually chose, not the "ai_suggest"
         // sentinel -- the saved plan should look like any other split to
@@ -3116,32 +4294,185 @@
         daysPerWeek: splitWizard.daysPerWeek,
         goal: splitWizard.goal,
         days,
-        schedule,
+        // Values here stay the literal "Rest" / raw day labels, never the
+        // translated ones -- everything downstream matches on those.
+        schedule: { ...reviewSchedule },
+        exercisePrescriptions: { ...exercisePrescriptions },
       };
-      localStorage.setItem(SPLIT_PLAN_KEY, JSON.stringify(plan));
+      persistSplitPlan(plan);
       closeSplitModal();
-      renderTodaysPlanCard();
     });
   }
 
   const SPLIT_VIEW_MONDAY_FIRST = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   let wholeSplitActiveDay = null; // weekday key (WEEKDAY_KEYS form) currently selected in the tab strip
 
+  // Same categorized search+pick UI as renderExercisePickerStep(), but
+  // mounted into a small container inside the already-open weekly-split
+  // view (see #wl-plan-picker-expand in renderWholeSplitBody() below)
+  // instead of replacing #split-modal-body wholesale -- tapping "Pick
+  // exercises" here grows the view in place rather than navigating to a
+  // different screen. Kept separate from renderExercisePickerStep() rather
+  // than sharing its wiring because that function's DOM lookups are
+  // scoped to the fixed #split-ex-picker-* ids on #split-modal-body, not
+  // reusable against an arbitrary container.
+  async function renderInlineExercisePicker(container, { getSelected, onDone }, isStale) {
+    const t = RepCheckI18n.t;
+    const selected = new Set(getSelected());
+
+    await loadCustomExercises();
+    if (isStale()) return;
+
+    // --stage numbers the top-to-bottom reveal the panel plays as it grows
+    // (see .wl-plan-picker-stage): the search field leads, the categorised
+    // list follows, then everything after it. The create slot is empty at
+    // reveal time and fills in later on demand, so it takes no stage.
+    container.innerHTML = `
+      <input type="text" class="split-ex-picker-search wl-plan-picker-stage" style="--stage:0;" placeholder="${t("workouts.search.placeholder")}" autocomplete="off">
+      <button type="button" class="split-ex-create-btn wl-plan-picker-stage" style="--stage:1;">+ ${t("workouts.wizard.createExercise")}</button>
+      <div class="split-ex-create-slot"></div>
+      <div class="split-ex-picker-list wl-plan-picker-stage" style="--stage:2;"></div>
+      <button type="button" class="split-primary-btn wl-plan-picker-stage" style="--stage:3; margin-top:12px;">${t("common.done")}</button>
+    `;
+
+    const searchInput = container.querySelector(".split-ex-picker-search");
+    const createBtn = container.querySelector(".split-ex-create-btn");
+    const createSlot = container.querySelector(".split-ex-create-slot");
+    const listEl = container.querySelector(".split-ex-picker-list");
+    const doneBtn = container.querySelector(".split-primary-btn");
+
+    function renderList(query) {
+      listEl.innerHTML = buildExercisePickerListHtml(query, selected);
+      listEl.querySelectorAll("[data-exercise]").forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) selected.add(checkbox.dataset.exercise);
+          else selected.delete(checkbox.dataset.exercise);
+          updateDoneLabel();
+        });
+      });
+      listEl.querySelectorAll("[data-remove-custom-exercise]").forEach((btn) => {
+        btn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          const id = parseInt(btn.dataset.removeCustomExercise, 10);
+          const removed = customExercises.find((e) => e.id === id);
+          customExercises = customExercises.filter((e) => e.id !== id);
+          if (removed) selected.delete(removed.name);
+          renderList(searchInput.value);
+          updateDoneLabel();
+          try {
+            await fetch(`/api/custom-exercises/${id}`, { method: "DELETE" });
+          } catch (err) {
+            // Already removed from the UI; a failed request just means it
+            // may reappear next time the picker loads fresh data.
+          }
+        });
+      });
+    }
+
+    function updateDoneLabel() {
+      doneBtn.textContent = selected.size ? t("workouts.wizard.doneWithCount", { n: selected.size }) : t("common.done");
+    }
+
+    function closeCreateForm() {
+      createSlot.innerHTML = "";
+    }
+
+    function openCreateForm() {
+      createSlot.innerHTML = `
+        <div class="split-ex-create-form">
+          <input type="text" class="split-ex-create-name" placeholder="${t("workouts.wizard.exerciseName")}" autocomplete="off" maxlength="60">
+          <div class="split-ex-create-form-actions">
+            <button type="button" class="split-secondary-btn split-ex-create-cancel-btn">${t("common.cancel")}</button>
+            <button type="button" class="split-primary-btn split-ex-create-save-btn">${t("common.save")}</button>
+          </div>
+        </div>
+      `;
+      const nameInput = createSlot.querySelector(".split-ex-create-name");
+      nameInput.focus();
+      createSlot.querySelector(".split-ex-create-cancel-btn").addEventListener("click", closeCreateForm);
+      createSlot.querySelector(".split-ex-create-save-btn").addEventListener("click", async () => {
+        const name = nameInput.value.trim();
+        if (!name) return;
+        try {
+          const response = await fetch("/api/custom-exercises", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          const data = await response.json();
+          if (!data.ok) return;
+          customExercises = [data.exercise, ...customExercises];
+          closeCreateForm();
+          openAddPrompt(data.exercise.name);
+        } catch (err) {
+          // Nothing to add to the picker if this fails -- the user can retry.
+        }
+      });
+    }
+
+    function openAddPrompt(name) {
+      createSlot.innerHTML = `
+        <div class="split-ex-add-prompt">
+          <p>${t("workouts.wizard.addExerciseNowQuestion", { name })}</p>
+          <div class="split-ex-add-prompt-actions">
+            <button type="button" class="split-secondary-btn split-ex-add-later-btn">${t("workouts.wizard.saveForLater")}</button>
+            <button type="button" class="split-primary-btn split-ex-add-now-btn">${t("workouts.wizard.addNow")}</button>
+          </div>
+        </div>
+      `;
+      createSlot.querySelector(".split-ex-add-later-btn").addEventListener("click", () => {
+        closeCreateForm();
+        renderList(searchInput.value);
+      });
+      createSlot.querySelector(".split-ex-add-now-btn").addEventListener("click", () => {
+        selected.add(name);
+        closeCreateForm();
+        renderList(searchInput.value);
+        updateDoneLabel();
+      });
+    }
+
+    createBtn.addEventListener("click", () => {
+      if (createSlot.innerHTML) closeCreateForm();
+      else openCreateForm();
+    });
+
+    searchInput.addEventListener("input", () => renderList(searchInput.value));
+    renderList("");
+    updateDoneLabel();
+
+    doneBtn.addEventListener("click", () => onDone(Array.from(selected)));
+  }
+
   function renderWholeSplitView() {
     const plan = loadSplitPlan();
     if (!plan) return;
     wholeSplitActiveDay = WEEKDAY_KEYS[new Date().getDay()];
-    splitModalTitle.textContent = RepCheckI18n.t("workouts.plan.wholeSplitTitle");
-    splitModalOverlay.style.display = "flex";
+    // Second, separate entry point into the same overlay (viewing an
+    // already-saved split, reached without going through the wizard) --
+    // see openSplitModalOverlay() above for what this actually does.
+    openSplitModalOverlay();
     renderWholeSplitBody(plan);
   }
 
   function renderWholeSplitBody(plan) {
+    splitModalGeneration++;
     const t = RepCheckI18n.t;
+    // Set on every render, not just the initial renderWholeSplitView()
+    // entry -- returning here from renderExercisePickerStep()'s "Done"
+    // (which sets its own title) would otherwise leave the modal's title
+    // bar stuck on "Pick exercises — {day}".
+    splitModalTitle.textContent = t("workouts.plan.wholeSplitTitle");
     const todayKey = WEEKDAY_KEYS[new Date().getDay()];
     const activeLabel = plan.schedule[wholeSplitActiveDay];
     const isRest = !activeLabel || activeLabel === "Rest";
     const activeDay = isRest ? null : plan.days.find((d) => d.label === activeLabel);
+    // schedule[wholeSplitActiveDay] can name a label that no longer has a
+    // matching entry in plan.days (e.g. the day was deleted by an edit that
+    // didn't clean up the schedule) -- mirrors getTodaysSplitInfo()'s
+    // `if (!day) return null;` by falling back to the same empty-state
+    // rendering as a rest day instead of letting activeDay.exercises throw.
+    const showExerciseList = !isRest && !!activeDay;
     const activeWeekdayName = WEEKDAY_NAMES[WEEKDAY_KEYS.indexOf(wholeSplitActiveDay)];
     const isToday = wholeSplitActiveDay === todayKey;
     const weekdayForLabel = isToday ? t("workouts.plan.today") : activeWeekdayName;
@@ -3162,8 +4493,8 @@
           `;
         }).join("")}
       </div>
-      <div class="split-day-plan-label">${planLabel}</div>
-      ${isRest
+      <div class="split-day-plan-label">${escapeHtml(planLabel)}</div>
+      ${!showExerciseList
         ? `<div class="wl-plan-rest">${t("workouts.plan.restText")}</div>`
         : `<div class="wl-plan-exercise-list">
             ${activeDay.exercises.map((name, i) => `
@@ -3174,8 +4505,14 @@
                   <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
                   <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
                 </span>
+                <button type="button" class="split-custom-remove-btn" data-remove-day-exercise="${i}" aria-label="${t("common.remove")}">&times;</button>
               </div>
             `).join("")}
+            ${!activeDay.exercises.length ? `<div class="wl-plan-rest">${t("workouts.plan.noExercisesText")}</div>` : ""}
+          </div>
+          <button type="button" class="split-secondary-btn" id="split-view-pick-exercises-btn" style="margin-top:12px;">${t("workouts.wizard.pickExercises")}</button>
+          <div class="wl-plan-picker-expand" id="wl-plan-picker-expand">
+            <div class="wl-plan-picker-expand-inner" id="wl-plan-picker-expand-inner"></div>
           </div>`
       }
       <button type="button" class="split-primary-btn" id="split-edit-from-view-btn" style="margin-top:18px;">${t("workouts.plan.editSplit")}</button>
@@ -3186,10 +4523,146 @@
         renderWholeSplitBody(plan);
       });
     });
+    if (showExerciseList) {
+      splitModalBody.querySelectorAll("[data-remove-day-exercise]").forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          // Nested inside a [data-exercise-detail] row -- without this, the
+          // click would also bubble to document.body's delegated listener
+          // (see openExerciseDetailModal wiring) and pop the how-to-perform
+          // modal on top of removing the exercise. Same pattern as
+          // renderTodaysPlanCard()'s data-quick-add button.
+          event.stopPropagation();
+          const i = parseInt(btn.dataset.removeDayExercise, 10);
+          activeDay.exercises.splice(i, 1);
+          persistSplitPlan(plan);
+          renderWholeSplitBody(plan);
+        });
+      });
+      const pickBtn = document.getElementById("split-view-pick-exercises-btn");
+      const pickerExpand = document.getElementById("wl-plan-picker-expand");
+      const pickerInner = document.getElementById("wl-plan-picker-expand-inner");
+      // Captured here (rather than once at the top of renderWholeSplitBody)
+      // is equivalent, since nothing async happens between the top of this
+      // synchronous function and here -- but keeping the increment's own
+      // line unaccompanied matches the shape every other render-generation
+      // entry point uses (see test_every_modal_body_render_function_bumps...).
+      const renderGeneration = splitModalGeneration;
+      let pickerToken = 0;
+
+      // max-height can't transition to or from `auto`/`none`, so both
+      // directions pin a concrete pixel height first, force a reflow so the
+      // browser takes that as the start of the animation rather than
+      // collapsing both writes into one style recalc, and only then set the
+      // end value.
+      function pinHeight(px) {
+        pickerExpand.style.maxHeight = px + "px";
+        void pickerExpand.offsetHeight;
+      }
+
+      // Fires for the panel's own max-height only: the staged children
+      // transition opacity/transform and those events bubble up here too.
+      function onPanelSettled(handler) {
+        function listener(ev) {
+          if (ev.target !== pickerExpand || ev.propertyName !== "max-height") return;
+          pickerExpand.removeEventListener("transitionend", listener);
+          handler();
+        }
+        pickerExpand.addEventListener("transitionend", listener);
+        return () => pickerExpand.removeEventListener("transitionend", listener);
+      }
+
+      let cancelPanelSettled = null;
+
+      // Under reduced motion the CSS above sets transition: none, so
+      // transitionend never fires and the settle steps that onPanelSettled
+      // defers (dropping the measured cap, emptying the panel) would never
+      // run -- leaving the list clipped at its opening height and stale
+      // content parked inside a collapsed panel. Run them inline instead.
+      function reducedMotion() {
+        return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      }
+
+      function openPicker() {
+        if (cancelPanelSettled) cancelPanelSettled();
+        if (reducedMotion()) {
+          pickerExpand.classList.add("is-open");
+          pickerExpand.style.maxHeight = "none";
+          return;
+        }
+        pinHeight(0);
+        pickerExpand.classList.add("is-open");
+        pickerExpand.style.maxHeight = pickerExpand.scrollHeight + "px";
+        // Once grown, drop the measured cap. The list re-renders on every
+        // keystroke and shrinks as the query narrows, so holding the
+        // opening measurement would clip (or strand blank space under) it.
+        cancelPanelSettled = onPanelSettled(() => {
+          cancelPanelSettled = null;
+          pickerExpand.style.maxHeight = "none";
+        });
+      }
+
+      function closePicker(myToken) {
+        if (cancelPanelSettled) cancelPanelSettled();
+        if (reducedMotion()) {
+          pickerExpand.classList.remove("is-open");
+          pickerExpand.style.maxHeight = "0px";
+          pickerInner.innerHTML = "";
+          return;
+        }
+        pinHeight(pickerExpand.scrollHeight);
+        pickerExpand.classList.remove("is-open");
+        pickerExpand.style.maxHeight = "0px";
+        // Emptied only once the collapse has actually played -- clearing it
+        // up front would drop the panel's height to zero instantly and
+        // there'd be nothing left to animate. Guarded on the token so a
+        // quick re-open in the meantime doesn't get wiped by this.
+        cancelPanelSettled = onPanelSettled(() => {
+          cancelPanelSettled = null;
+          if (myToken !== pickerToken) return;
+          pickerInner.innerHTML = "";
+        });
+      }
+
+      pickBtn.addEventListener("click", () => {
+        const opening = !pickerExpand.classList.contains("is-open");
+        pickBtn.textContent = opening ? t("common.cancel") : t("workouts.wizard.pickExercises");
+        pickerToken++;
+        const myToken = pickerToken;
+        if (!opening) {
+          closePicker(myToken);
+          return;
+        }
+        const isStale = () => myToken !== pickerToken || splitModalGeneration !== renderGeneration;
+        // Rendered while the panel is still collapsed, and opened only
+        // afterwards, so the growth is measured against the real content
+        // and plays over it -- opening first would animate an empty box and
+        // then pop the picker in once loadCustomExercises() resolved.
+        renderInlineExercisePicker(pickerInner, {
+          getSelected: () => activeDay.exercises,
+          onDone: (selected) => {
+            activeDay.exercises = selected;
+            persistSplitPlan(plan);
+            renderWholeSplitBody(plan);
+          },
+        }, isStale).then(() => {
+          if (isStale()) return;
+          openPicker();
+        });
+      });
+    }
     document.getElementById("split-edit-from-view-btn").addEventListener("click", openSplitModal);
   }
 
-  planBtnEl.addEventListener("click", openSplitModal);
+  // This button's own label already flips to "Edit split" once a plan
+  // exists (see renderTodaysPlanCard() above). When a plan exists, land on
+  // the same read-only week view as tapping the "Today's Plan" title --
+  // that's now the one entry point into editing an existing split (add or
+  // remove exercises inline there, or tap its own "Edit split" button to
+  // rebuild the whole thing via the AI-vs-customize wizard).
+  planBtnEl.addEventListener("click", () => {
+    if (loadSplitPlan()) renderWholeSplitView();
+    else openSplitModal();
+  });
   document.getElementById("wl-plan-title").addEventListener("click", renderWholeSplitView);
   splitModalClose.addEventListener("click", closeSplitModal);
   splitModalOverlay.addEventListener("click", (event) => {
@@ -3225,6 +4698,405 @@
     if (quick !== "log") return;
     history.replaceState(null, "", location.pathname);
     openExerciseModal();
+  })();
+
+  // ---------- AI chat grounded in the user's logged workouts ----------
+  // Chat is scoped to whichever date is selected in the date strip above:
+  // writable only on today (selectedDate === todayIso), read-only for any
+  // other day. History is stored per calendar day and kept permanently --
+  // navigating to an old day shows that day's frozen thread rather than
+  // wiping it, unlike the old single-rolling-array design.
+  (function () {
+    const STORAGE_KEY = "repcheck_workout_chat_v1";
+    const SUGGESTION_KEYS = ["workoutChat.suggestion1", "workoutChat.suggestion2"];
+
+    const chatEl = document.getElementById("wlc-chat");
+    const messagesEl = document.getElementById("wlc-messages");
+    const suggestionsEl = document.getElementById("wlc-suggestions");
+    const formEl = document.getElementById("wlc-form");
+    const inputEl = document.getElementById("wlc-input");
+    const sendBtn = document.getElementById("wlc-send-btn");
+    const clearBtn = document.getElementById("wlc-clear-btn");
+    const statusEl = document.getElementById("wlc-status");
+    if (!chatEl) return;
+
+    function isSelectedDateToday() {
+      return selectedDate === toIsoDate(new Date());
+    }
+
+    // Storage shape: { "<date-iso>": [...turns] } -- one thread per
+    // calendar day, all kept (never pruned by date rollover). Registered
+    // in database.py's LOG_MERGE_DATE_KEYED_KEYS / account_sync.js's
+    // MERGE_LOG_KEYS so a stale device can never wipe another device's
+    // days, same protection the workout log itself has.
+    function loadAllThreads() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        return (stored && typeof stored === "object" && !Array.isArray(stored)) ? stored : {};
+      } catch (err) { return {}; }
+    }
+    function loadHistory(dateIso) {
+      const threads = loadAllThreads();
+      const thread = threads[dateIso];
+      return Array.isArray(thread) ? thread : [];
+    }
+    function saveHistory(dateIso, hist) {
+      const threads = loadAllThreads();
+      threads[dateIso] = hist.slice(-60);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
+    }
+
+    let chatHistory = loadHistory(selectedDate);
+    let isSending = false;
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Same minimal, safe formatting as coach.html's formatBubble: escape
+    // everything first, then re-enable just "- " bullets and **bold**.
+    function formatBubble(text) {
+      const lines = escapeHtml(text).split("\n");
+      let html = "";
+      let inList = false;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        const isBullet = /^[-*]\s+/.test(line);
+        if (isBullet) {
+          if (!inList) { html += "<ul class=\"wlc-bullet-list\">"; inList = true; }
+          html += `<li>${line.replace(/^[-*]\s+/, "")}</li>`;
+        } else {
+          if (inList) { html += "</ul>"; inList = false; }
+          if (line) html += `<p>${line}</p>`;
+        }
+      }
+      if (inList) html += "</ul>";
+      return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    }
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // "Today" / "Yesterday" / a friendly localized date for any other day
+    // in the last 7 -- same rule dayTitle() (above) uses for the selected day.
+    function dayLabelFor(iso) {
+      const t = RepCheckI18n.t;
+      const todayIso = toIsoDate(new Date());
+      if (iso === todayIso) return t("workouts.plan.today");
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (iso === toIsoDate(yesterday)) return t("workouts.day.yesterday");
+      return new Date(iso + "T00:00:00").toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", day: "numeric", month: "short" });
+    }
+
+    // Mirrors renderEntry()/renderEntryDetail()'s weight/reps extraction so
+    // what the AI reads matches what's actually shown on the card.
+    function describeSet(entry, s) {
+      const unit = RepCheckUnits.weightUnitLabel();
+      if (entry.unilateral) {
+        if (isBlank(s.leftReps) && isBlank(s.rightReps)) return null;
+        const leftWeight = !isBlank(s.leftKg) ? `${RepCheckUnits.kgToDisplay(s.leftKg)}${unit} ` : "";
+        const rightWeight = !isBlank(s.rightKg) ? `${RepCheckUnits.kgToDisplay(s.rightKg)}${unit} ` : "";
+        const leftReps = isBlank(s.leftReps) ? "-" : s.leftReps;
+        const rightReps = isBlank(s.rightReps) ? "-" : s.rightReps;
+        return `L ${leftWeight}x ${leftReps} reps, R ${rightWeight}x ${rightReps} reps`;
+      }
+      if (isBlank(s.reps)) return null;
+      if (isBodyweight(entry.exercise)) return `${s.reps} reps (bodyweight)`;
+      const weightPart = !isBlank(s.weightKg) ? `${RepCheckUnits.kgToDisplay(s.weightKg)}${unit} ` : "";
+      return `${weightPart}x ${s.reps} reps`;
+    }
+
+    const RECENT_DAYS = 7;
+    // Per exercise, how many of its most recent sessions to recite --
+    // this is a COUNT of occurrences, not a calendar window, so an
+    // exercise trained only once every week or two still gets its real
+    // history instead of coming up empty inside a fixed 7-day cutoff.
+    const EXERCISE_HISTORY_SESSIONS = 4;
+    // Bounds the exercise-history section to whichever exercises were
+    // touched most recently, so a long-time user's full lifetime exercise
+    // catalog doesn't bloat every single request.
+    const MAX_EXERCISES_IN_HISTORY = 30;
+
+    // Lean day-by-day overview for the last 7 CALENDAR days -- entries
+    // only, no "no workout logged" filler (that wastes prompt space and
+    // isn't useful now that the exercise-history section below covers
+    // specific-exercise recall). Good for "am I training X enough this
+    // week"-style questions.
+    function buildRecentDaysOverview() {
+      const lines = [];
+      const base = new Date();
+      for (let i = RECENT_DAYS - 1; i >= 0; i--) {
+        const d = new Date(base);
+        d.setDate(d.getDate() - i);
+        const iso = toIsoDate(d);
+        const entries = (log[iso] || []).slice().sort((a, b) => a.addedAt - b.addedAt);
+        if (!entries.length) continue;
+        const names = entries.map((entry) => entry.exercise).join(", ");
+        lines.push(`${dayLabelFor(iso)} (${iso}): ${names}`);
+      }
+      return lines.length ? lines.join("\n") : "(No workouts logged in the last 7 days.)";
+    }
+
+    // For EVERY exercise ever logged (across the whole `log`, not just the
+    // last 7 days), its most recent EXERCISE_HISTORY_SESSIONS occurrences
+    // with exact sets/weight/reps -- this is the data the AI recites
+    // verbatim before giving progressive-overload advice, so "recite my
+    // last 4 tricep extension sessions" is answered from real grounded
+    // numbers, never guessed. Built fresh at send-time from the live `log`
+    // object (not cached) so it always reflects on-screen edits.
+    function buildExerciseHistorySection() {
+      const byExercise = new Map();
+      Object.keys(log).forEach((dateIso) => {
+        (log[dateIso] || []).forEach((entry) => {
+          if (!byExercise.has(entry.exercise)) byExercise.set(entry.exercise, []);
+          byExercise.get(entry.exercise).push({ dateIso, entry });
+        });
+      });
+      if (!byExercise.size) return "(No exercises logged yet.)";
+
+      const exercises = Array.from(byExercise.entries()).map(([exercise, occurrences]) => {
+        // Most recent first: date descending, then addedAt descending for
+        // same-day duplicates (e.g. two separate logged sets of the same
+        // exercise on one day).
+        occurrences.sort((a, b) => {
+          if (a.dateIso !== b.dateIso) return a.dateIso < b.dateIso ? 1 : -1;
+          return b.entry.addedAt - a.entry.addedAt;
+        });
+        return { exercise, occurrences, mostRecentDate: occurrences[0].dateIso };
+      });
+      exercises.sort((a, b) => (a.mostRecentDate < b.mostRecentDate ? 1 : -1));
+
+      const lines = [];
+      exercises.slice(0, MAX_EXERCISES_IN_HISTORY).forEach(({ exercise, occurrences }) => {
+        lines.push(`${exercise}:`);
+        occurrences.slice(0, EXERCISE_HISTORY_SESSIONS).forEach(({ dateIso, entry }) => {
+          const setDescs = entry.sets.map((s) => describeSet(entry, s)).filter(Boolean);
+          lines.push(`- ${dayLabelFor(dateIso)} (${dateIso}): ${setDescs.length ? setDescs.join("; ") : "no sets recorded"}`);
+        });
+      });
+      return lines.join("\n");
+    }
+
+    function buildRecentWorkoutSummary() {
+      return (
+        `Workouts logged in the last 7 days:\n${buildRecentDaysOverview()}\n\n` +
+        `Exercise history (last ${EXERCISE_HISTORY_SESSIONS} sessions each):\n${buildExerciseHistorySection()}`
+      );
+    }
+
+    function renderMessages() {
+      const t = RepCheckI18n.t;
+      if (!chatHistory.length) {
+        messagesEl.innerHTML = `<div class="wlc-empty">${t("workoutChat.empty")}</div>`;
+        renderSuggestions();
+        return;
+      }
+      suggestionsEl.innerHTML = "";
+      messagesEl.innerHTML = chatHistory.map((turn) => `
+        <div class="wlc-bubble ${turn.role === "user" ? "wlc-bubble-user" : "wlc-bubble-bot"}">${formatBubble(turn.text)}</div>
+      `).join("");
+      scrollToBottom();
+    }
+
+    function renderSuggestions() {
+      const suggestions = SUGGESTION_KEYS.map((key) => RepCheckI18n.t(key));
+      suggestionsEl.innerHTML = suggestions.map((q) => `
+        <button type="button" class="wlc-suggestion-row" data-suggestion="${escapeHtml(q)}"><span>${q}</span></button>
+      `).join("");
+      suggestionsEl.querySelectorAll("[data-suggestion]").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          inputEl.value = chip.dataset.suggestion;
+          sendMessage();
+        });
+      });
+    }
+
+    function showTyping() {
+      const dots = document.createElement("div");
+      dots.className = "wlc-typing-dots";
+      dots.id = "wlc-typing-row";
+      dots.innerHTML = "<span></span><span></span><span></span>";
+      messagesEl.appendChild(dots);
+      scrollToBottom();
+    }
+    function hideTyping() {
+      const row = document.getElementById("wlc-typing-row");
+      if (row) row.remove();
+    }
+
+    // ---------- Session message limit lockout ----------
+    let lockoutInterval = null;
+    let lockoutTimeout = null;
+
+    function formatCountdown(seconds) {
+      seconds = Math.max(seconds, 0);
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return hours ? `${hours}h ${minutes}m` : `${Math.max(minutes, 1)}m`;
+    }
+
+    function applyLimitLockout(retryAfterSeconds) {
+      let remaining = retryAfterSeconds;
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+      inputEl.placeholder = RepCheckI18n.t("workoutChat.limitReachedPlaceholder");
+
+      const updateStatus = () => {
+        statusEl.hidden = false;
+        statusEl.textContent = RepCheckI18n.t("workoutChat.limitReached", { time: formatCountdown(remaining) });
+      };
+      updateStatus();
+
+      clearInterval(lockoutInterval);
+      clearTimeout(lockoutTimeout);
+      lockoutInterval = setInterval(() => {
+        remaining = Math.max(remaining - 30, 0);
+        updateStatus();
+      }, 30000);
+      lockoutTimeout = setTimeout(() => {
+        clearInterval(lockoutInterval);
+        inputEl.disabled = false;
+        sendBtn.disabled = false;
+        inputEl.placeholder = RepCheckI18n.t("workoutChat.inputPlaceholder");
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+        inputEl.focus();
+      }, retryAfterSeconds * 1000);
+    }
+
+    function newTurnId() {
+      return (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    }
+
+    async function sendMessage() {
+      const message = inputEl.value.trim();
+      // Belt-and-suspenders: the input/send button are already disabled
+      // whenever the selected date isn't today (see applyDateLockState),
+      // but guard here too in case this is ever called programmatically
+      // (a suggestion chip click, a stray Enter-key event) while viewing
+      // a past/future day.
+      if (!message || isSending || !isSelectedDateToday()) return;
+
+      isSending = true;
+      sendBtn.disabled = true;
+      inputEl.value = "";
+
+      const todayIso = toIsoDate(new Date());
+      chatHistory.push({ id: newTurnId(), role: "user", text: message, date: todayIso });
+      saveHistory(todayIso, chatHistory);
+      renderMessages();
+      showTyping();
+
+      try {
+        const response = await fetch("{{ url_for('api_workout_chat') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            // chatHistory already has this turn appended (pushed above, so
+            // it renders optimistically) -- history is "prior turns", so
+            // the just-added one is excluded here or the server would send
+            // Gemini the same user turn twice (once via history, once via
+            // message).
+            history: chatHistory.slice(0, -1),
+            context: { workout_summary: buildRecentWorkoutSummary() },
+          }),
+        });
+        const data = await response.json();
+        hideTyping();
+        const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
+        chatHistory.push({ id: newTurnId(), role: "assistant", text: reply, date: todayIso });
+        saveHistory(todayIso, chatHistory);
+        renderMessages();
+        if (data.ok && data.limited) {
+          applyLimitLockout(data.retry_after_seconds);
+        }
+      } catch (err) {
+        hideTyping();
+        chatHistory.push({ id: newTurnId(), role: "assistant", text: RepCheckI18n.t("workoutChat.errorReaching"), date: todayIso });
+        saveHistory(todayIso, chatHistory);
+        renderMessages();
+      } finally {
+        isSending = false;
+        if (!inputEl.disabled) {
+          sendBtn.disabled = false;
+          inputEl.focus();
+        }
+      }
+    }
+
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sendMessage();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      if (!isSelectedDateToday()) return; // hidden on non-today, but guard anyway
+      chatHistory = [];
+      saveHistory(toIsoDate(new Date()), chatHistory);
+      renderMessages();
+      inputEl.focus();
+    });
+
+    // ---------- Today-only interactivity ----------
+    // Chat can only be WRITTEN on today's log; any other date shows that
+    // day's frozen thread (if any) read-only. Navigating dates never
+    // deletes history -- only sendMessage()/clearBtn (both gated to
+    // today) can change it.
+    function applyDateLockState() {
+      const isToday = isSelectedDateToday();
+      inputEl.disabled = !isToday;
+      sendBtn.disabled = !isToday;
+      clearBtn.hidden = !isToday;
+      inputEl.placeholder = isToday
+        ? RepCheckI18n.t("workoutChat.inputPlaceholder")
+        : RepCheckI18n.t("workoutChat.readOnlyDayPlaceholder");
+      if (isToday) {
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+      } else {
+        // A rate-limit countdown ticking from an earlier today-visit must
+        // not keep running and overwrite this message when its interval
+        // next fires -- if the user navigates back to today before it
+        // would have expired, their next send attempt simply hits the
+        // same server-side limit again and re-triggers a fresh countdown.
+        clearInterval(lockoutInterval);
+        clearTimeout(lockoutTimeout);
+        statusEl.hidden = false;
+        statusEl.textContent = RepCheckI18n.t("workoutChat.readOnlyDayStatus");
+      }
+    }
+
+    // Nothing logged, nothing to chat about -- the card would just sit
+    // dead under an empty first-run screen, so it stays hidden until the
+    // user has logged at least one exercise on any day. renderTimeline()
+    // fires repcheck:workout-date-changed after every log/delete, so this
+    // re-runs the moment that first exercise lands.
+    function hasAnyLoggedExercise() {
+      return Object.keys(log).some((dateIso) => (log[dateIso] || []).length > 0);
+    }
+
+    function applyChatVisibility() {
+      chatEl.hidden = !hasAnyLoggedExercise();
+    }
+
+    function refreshForSelectedDate() {
+      chatHistory = loadHistory(selectedDate);
+      applyChatVisibility();
+      applyDateLockState();
+      renderMessages();
+    }
+
+    document.addEventListener("repcheck:workout-date-changed", refreshForSelectedDate);
+
+    applyChatVisibility();
+    applyDateLockState();
+    renderMessages();
+    document.addEventListener("repcheck:language-changed", renderMessages);
   })();
 </script>
 {% endblock %}

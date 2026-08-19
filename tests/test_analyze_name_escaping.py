@@ -67,8 +67,11 @@ def test_analysis_result_header_escapes_the_exercise_label(index_html):
 
 
 def test_exercise_modal_row_escapes_name_in_text_and_attribute(index_html):
+    # re.S: main split this row across lines and put an icon span ahead of
+    # the name one, so the two sinks are no longer on a single line.
     match = re.search(
-        r'ex-modal-result-item" data-name="(.*?)">.*?<span>(.*?)</span>', index_html
+        r'ex-modal-result-item" data-name="(.*?)">.*?<span>(\$\{escape\w+\(name\)\}|\$\{name\})</span>',
+        index_html, re.S
     )
     assert match, "could not find the exercise modal result row"
     assert match.group(1) == "${escapeAttr(name)}", (

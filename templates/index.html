@@ -11,7 +11,7 @@
 
   <div class="an-hero">
     <div class="an-hero-icon">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
     </div>
     <div class="an-hero-title" data-i18n="analyze.heroTitle">See exactly what to fix</div>
   </div>
@@ -43,6 +43,7 @@
       <div class="selected-exercise-chip" id="selected-exercise-chip" style="display:none;">
         <div class="exercise-icon" id="selected-exercise-icon"></div>
         <span id="selected-exercise-label"></span>
+        <button type="button" class="change-exercise-btn" id="change-exercise-btn" data-i18n="analyze.changeExercise">Change</button>
         <button type="button" class="clear-exercise-btn" id="clear-exercise-btn" data-i18n-aria-label="analyze.clearExercise" aria-label="Clear selected exercise">&times;</button>
       </div>
     </div>
@@ -68,16 +69,23 @@
   </div>
 </div>
 
-<div class="ex-modal-overlay" id="ex-modal-overlay" style="display:none;">
-  <div class="ex-modal">
-    <div class="ex-modal-header">
-      <div class="ex-modal-search-wrap">
+{# Exercise picker -- the shared Apple-style logging bottom sheet
+   (.log-sheet-* in style.css), the same one the food and workout logs use
+   when you search for something. It slides up from the bottom edge instead
+   of appearing mid-screen out of nowhere, and its grabber handle can be
+   dragged down to dismiss. IDs are unchanged so the picker JS below keeps
+   driving it. #}
+<div class="log-sheet-overlay" id="ex-modal-overlay">
+  <div class="log-sheet">
+    <div class="log-sheet-handle"></div>
+    <div class="log-sheet-head">
+      <div class="log-sheet-search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" id="ex-modal-search" data-i18n-placeholder="analyze.searchPlaceholder" placeholder="Search for an exercise, e.g. squat, lat pulldown..." autocomplete="off">
       </div>
-      <button type="button" class="ex-modal-close" id="ex-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+      <button type="button" class="log-sheet-close" id="ex-modal-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
     </div>
-    <div class="ex-modal-body" id="ex-modal-body"></div>
+    <div class="log-sheet-body" id="ex-modal-body"></div>
   </div>
 </div>
 
@@ -96,14 +104,13 @@
 <div id="result-view" style="display:none;"></div>
 
 <style>
-  .an-hero { text-align: center; padding: 4px 4px 24px; }
+  .an-hero { text-align: center; padding: 2px 4px 16px; }
   .an-hero-icon {
-    width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%;
+    width: 44px; height: 44px; margin: 0 auto 10px; border-radius: 50%;
     background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
   }
-  .an-hero-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
+  .an-hero-title { font-size: 17px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
 
   .file-drop {
     position: relative;
@@ -194,11 +201,15 @@
   .an-recent-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0; }
   .an-recent-view-all { font-size: 12px; font-weight: 700; color: var(--blue); text-decoration: none; white-space: nowrap; }
   .an-recent-view-all:hover { text-decoration: underline; }
-  .an-recent-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .an-recent-strip { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; scrollbar-width: none; }
   .an-recent-strip::-webkit-scrollbar { display: none; }
   .an-recent-card {
     flex-shrink: 0;
-    width: 104px;
+    /* Exactly three fit inside the card at any width -- a fixed px width
+       clipped the third one on a 390px screen. Entries past the third
+       scroll, and snap so a half-card never rests mid-view. */
+    width: calc((100% - 20px) / 3);
+    scroll-snap-align: start;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -238,87 +249,26 @@
   }
   .an-recent-date { font-size: 10px; color: var(--text-secondary); }
 
-  .ex-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 15, 20, 0.5);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    z-index: 100;
-    animation: section-reveal 0.15s ease;
-  }
-  .ex-modal {
-    width: 100%;
-    max-width: 560px;
-    max-height: 82vh;
-    background: var(--card-bg);
-    border-radius: 20px 20px 0 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  @media (min-width: 560px) {
-    .ex-modal-overlay { align-items: center; }
-    .ex-modal { border-radius: var(--radius-lg); max-height: 76vh; }
-  }
-  .ex-modal-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 16px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .ex-modal-search-wrap {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 11px 14px;
-    color: var(--text-secondary);
-  }
-  .ex-modal-search-wrap input {
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-  }
-  .ex-modal-search-wrap input::placeholder { color: var(--text-secondary); }
-  .ex-modal-close {
-    background: var(--bg);
-    border: none;
-    color: var(--text-secondary);
-    width: 44px;
-    height: 44px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 50%;
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-  .ex-modal-close:hover { color: var(--text); }
-  .ex-modal-body {
-    overflow-y: auto;
-    padding: 16px;
-  }
+  /* ---------- Exercise picker sheet contents ----------
+     The sheet shell itself is the shared .log-sheet-* in style.css (same
+     one the food and workout logs use); only the list inside it is styled
+     here. iOS grouped/inset list: one rounded card per section, hairline
+     dividers between rows, no per-row floating radius. */
   .ex-modal-section { margin-bottom: 20px; }
   .ex-modal-section:last-child { margin-bottom: 0; }
+  .ex-modal-list {
+    background: var(--card-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
   .ex-modal-section-title {
     font-size: 12px;
     font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    margin-bottom: 10px;
+    /* Outside the inset card, like a UITableView grouped header. */
+    padding: 0 4px 8px;
   }
   .ex-modal-result-item {
     display: flex;
@@ -328,8 +278,9 @@
     font-size: 14px;
     color: var(--text);
     cursor: pointer;
-    border-radius: 12px;
+    border-bottom: 1px solid var(--border);
   }
+  .ex-modal-result-item:last-child { border-bottom: none; }
   .ex-modal-result-item:hover { background: var(--bg); }
   .ex-modal-result-item:active { background: var(--sidebar-active); }
   .ex-modal-empty {
@@ -353,6 +304,17 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
+  }
+  .change-exercise-btn {
+    background: none;
+    border: none;
+    font-family: inherit;
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 10px 2px;
+    min-height: 44px;
   }
   .clear-exercise-btn {
     background: none;
@@ -442,6 +404,7 @@
 
   const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
   const EXERCISE_ICONS = {{ exercise_icons | tojson }};
+  const EXERCISE_CATEGORIES = {{ exercise_categories | default({}, true) | tojson }};
   const EXERCISE_VIDEOS = {{ exercise_videos | tojson }};
   const ANALYZE_LOG_KEY = "repcheck_analyze_log_v1";
 
@@ -578,6 +541,7 @@
   const selectedExerciseIcon = document.getElementById("selected-exercise-icon");
   const selectedExerciseLabel = document.getElementById("selected-exercise-label");
   const clearExerciseBtn = document.getElementById("clear-exercise-btn");
+  const changeExerciseBtn = document.getElementById("change-exercise-btn");
   const exPickerBtn = document.getElementById("ex-picker-btn");
   const exModalOverlay = document.getElementById("ex-modal-overlay");
   const exModalSearch = document.getElementById("ex-modal-search");
@@ -602,7 +566,9 @@
   // only trims and caps the name at 60 chars) and then log and analyze it,
   // so the name arrives here as author-controlled text and lands in
   // innerHTML. Same sink, same fix as nutrition.html, workouts.html and
-  // static/onboarding.js.
+  // static/onboarding.js. Also covers the typed search query further down:
+  // RepCheckI18n.t() substitutes its vars with a plain split/join and does
+  // NOT escape them, and that result lands in innerHTML too.
   function escapeHtml(text) {
     const div = document.createElement("div");
     div.textContent = text;
@@ -767,57 +733,140 @@
     selectedExerciseLabel.textContent = name;
     selectedExerciseIcon.innerHTML = exerciseIconHtml(name);
     selectedExerciseChip.style.display = "flex";
+    exPickerBtn.style.display = "none";
   }
 
   function clearSelectedExercise() {
     exerciseInput.value = "";
     selectedExerciseChip.style.display = "none";
+    exPickerBtn.style.display = "flex";
   }
 
+  // The exercise you analyzed last is overwhelmingly the one you are
+  // about to analyze again, so pre-fill it -- that is two taps (open the
+  // picker, find the row) the common case no longer pays. "Change"
+  // reopens the picker, the x clears back to the empty picker button,
+  // and a first run with an empty log just shows that button as before.
+  function preselectLastExercise() {
+    clearSelectedExercise();
+    const last = getRecentAnalyzed(1)[0];
+    if (last) selectExercise(last);
+  }
+
+  // ---------- Exercise favorites ----------
+  // Same localStorage key the workouts picker writes, so hearting an
+  // exercise here shows it as a favorite there too, and vice versa.
+  const EXERCISE_FAVORITES_KEY = "repcheck_exercise_favorites_v1";
+  function loadExerciseFavorites() {
+    try { return new Set(JSON.parse(localStorage.getItem(EXERCISE_FAVORITES_KEY)) || []); }
+    catch (err) { return new Set(); }
+  }
+  let exerciseFavorites = loadExerciseFavorites();
+  function toggleExerciseFavorite(name) {
+    if (exerciseFavorites.has(name)) exerciseFavorites.delete(name); else exerciseFavorites.add(name);
+    localStorage.setItem(EXERCISE_FAVORITES_KEY, JSON.stringify(Array.from(exerciseFavorites)));
+  }
+
+  const EX_HEART_OUTLINE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+  const EX_HEART_FILLED = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.4 2 4.8 5.5 4c2-.4 4 .5 5.2 2.2C11.9 4.5 13.9 3.6 15.9 4c3.5.8 4.9 4.4 3.5 7.7C16.9 16.4 12 21 12 21Z"/></svg>`;
+
   function exerciseRowHtml(name) {
-    return `<div class="ex-modal-result-item" data-name="${escapeAttr(name)}"><span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span><span>${escapeHtml(name)}</span></div>`;
+    const isFav = exerciseFavorites.has(name);
+    const t = RepCheckI18n.t;
+    return `
+      <div class="ex-modal-result-item" data-name="${escapeAttr(name)}">
+        <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
+        <span>${escapeHtml(name)}</span>
+        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" aria-label="${isFav ? t("analyze.unfavorite") : t("analyze.favorite")}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
+      </div>
+    `;
+  }
+
+  function refreshExerciseModal() {
+    const query = exModalSearch.value.trim();
+    if (query) renderExerciseModalSearch(query);
+    else renderExerciseModalDefault();
   }
 
   function wireExerciseRows() {
     exModalBody.querySelectorAll("[data-name]").forEach((item) => {
-      item.addEventListener("click", () => {
+      item.addEventListener("click", (event) => {
+        // The heart is a control inside the row, not a way to pick the row.
+        if (event.target.closest("[data-fav-toggle]")) return;
         selectExercise(item.dataset.name);
         closeExerciseModal();
       });
     });
+    exModalBody.querySelectorAll("[data-fav-toggle]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleExerciseFavorite(btn.dataset.favToggle);
+        refreshExerciseModal();
+      });
+    });
+  }
+
+  // A quick, whole-body starter set for "Suggested" when the user has no
+  // split plan yet -- the first (most canonical) movement from each muscle
+  // group, so the picks span the body instead of clustering on chest the
+  // way the head of the library does. Same fallback the workouts picker uses.
+  function getDefaultSuggestions(limit) {
+    const picks = [];
+    for (const cat of Object.keys(EXERCISE_CATEGORIES)) {
+      const items = EXERCISE_CATEGORIES[cat];
+      if (items && items.length && EXERCISE_LIBRARY.includes(items[0])) picks.push(items[0]);
+      if (picks.length >= (limit || 6)) break;
+    }
+    // Categories are only ever missing if the page was rendered without
+    // them; fall back to the head of the library rather than an empty tab.
+    return picks.length ? picks : EXERCISE_LIBRARY.slice(0, limit || 6);
+  }
+
+  // Which of Suggested / Recent / Favorites the default (no-query) view is
+  // showing. Reset to "suggested" every time the sheet opens so it never
+  // reopens on whatever tab was last picked.
+  let exModalScope = "suggested";
+
+  function exScopeSegHtml() {
+    const t = RepCheckI18n.t;
+    const tabs = [
+      ["suggested", t("workouts.suggestedTitle")],
+      ["recent", t("analyze.recent")],
+      ["favorites", t("nutrition.favorites")],
+    ];
+    return `
+      <div class="ex-scope-seg">
+        ${tabs.map(([key, label]) => `<button type="button" data-ex-scope="${key}" class="${exModalScope === key ? "is-active" : ""}">${label}</button>`).join("")}
+      </div>
+    `;
+  }
+
+  function exerciseNamesForScope() {
+    if (exModalScope === "favorites") return Array.from(exerciseFavorites);
+    if (exModalScope === "recent") return getRecentAnalyzed(12);
+    const splitInfo = getTodaysSplitInfo();
+    return splitInfo && splitInfo.exercises.length ? splitInfo.exercises : getDefaultSuggestions(6);
   }
 
   function renderExerciseModalDefault() {
-    const t = RepCheckI18n.t;
-    const sections = [];
-    const splitInfo = getTodaysSplitInfo();
-    if (splitInfo) {
-      sections.push(`
-        <div class="ex-modal-section">
-          <div class="ex-modal-section-title">${t("analyze.topPicksFor", { weekday: splitInfo.weekdayName, label: splitInfo.label })}</div>
-          ${splitInfo.exercises.map(exerciseRowHtml).join("")}
-        </div>
-      `);
-    }
-    const recent = getRecentAnalyzed(6);
-    if (recent.length) {
-      sections.push(`
-        <div class="ex-modal-section">
-          <div class="ex-modal-section-title">${t("analyze.recent")}</div>
-          ${recent.map(exerciseRowHtml).join("")}
-        </div>
-      `);
-    }
-    if (!sections.length) {
-      sections.push(`
-        <div class="ex-modal-section">
-          <div class="ex-modal-section-title">${t("analyze.allExercises")}</div>
-          ${EXERCISE_LIBRARY.slice(0, 20).map(exerciseRowHtml).join("")}
-        </div>
-      `);
-    }
-    exModalBody.innerHTML = sections.join("");
+    const names = exerciseNamesForScope();
+    const emptyHtml = `<div class="ex-modal-empty">${RepCheckI18n.t("workouts.emptyScope")}</div>`;
+    exModalBody.innerHTML = exScopeSegHtml() + `
+      <div class="ex-modal-section">
+        <div class="ex-modal-list">${names.length ? names.map(exerciseRowHtml).join("") : emptyHtml}</div>
+      </div>
+    `;
+    wireScopeTabs();
     wireExerciseRows();
+  }
+
+  function wireScopeTabs() {
+    exModalBody.querySelectorAll("[data-ex-scope]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        exModalScope = btn.dataset.exScope;
+        renderExerciseModalDefault();
+      });
+    });
   }
 
   function renderExerciseModalSearch(query) {
@@ -826,23 +875,34 @@
       renderExerciseModalDefault();
       return;
     }
-    const matches = EXERCISE_LIBRARY.filter((name) => name.toLowerCase().includes(q)).slice(0, 30);
+    const matches = EXERCISE_LIBRARY.filter((name) => name.toLowerCase().includes(q))
+      .sort((a, b) => (exerciseFavorites.has(b) ? 1 : 0) - (exerciseFavorites.has(a) ? 1 : 0))
+      .slice(0, 30);
     exModalBody.innerHTML = matches.length
-      ? `<div class="ex-modal-section">${matches.map(exerciseRowHtml).join("")}</div>`
-      : `<div class="ex-modal-empty">${RepCheckI18n.t("analyze.noMatch", { query })}</div>`;
+      ? `<div class="ex-modal-section"><div class="ex-modal-list">${matches.map(exerciseRowHtml).join("")}</div></div>`
+      : `<div class="ex-modal-empty">${RepCheckI18n.t("analyze.noMatch", { query: escapeHtml(query) })}</div>`;
     wireExerciseRows();
   }
 
   function openExerciseModal() {
-    exModalOverlay.style.display = "flex";
     exModalSearch.value = "";
+    exModalScope = "suggested";
+    // Re-read in case the workouts picker changed favorites since load.
+    exerciseFavorites = loadExerciseFavorites();
     renderExerciseModalDefault();
-    setTimeout(() => exModalSearch.focus(), 0);
+    if (window.openBottomSheet) window.openBottomSheet(exModalOverlay, ".log-sheet");
+    else exModalOverlay.classList.add("is-open");
+    // Held off until the sheet has essentially finished sliding up -- focusing
+    // straight away opens the keyboard mid-slide and fights the animation.
+    setTimeout(() => exModalSearch.focus(), 340);
   }
 
   function closeExerciseModal() {
-    exModalOverlay.style.display = "none";
+    if (window.closeBottomSheet) window.closeBottomSheet(exModalOverlay, ".log-sheet");
+    else exModalOverlay.classList.remove("is-open", "is-entering");
   }
+
+  if (window.bindSheetDrag) window.bindSheetDrag(exModalOverlay, ".log-sheet", ".log-sheet-handle", closeExerciseModal);
 
   exPickerBtn.addEventListener("click", openExerciseModal);
   exModalClose.addEventListener("click", closeExerciseModal);
@@ -851,6 +911,7 @@
   });
   exModalSearch.addEventListener("input", () => renderExerciseModalSearch(exModalSearch.value));
   clearExerciseBtn.addEventListener("click", clearSelectedExercise);
+  changeExerciseBtn.addEventListener("click", openExerciseModal);
 
   // ---------- File dropzone ----------
   const fileDrop = document.getElementById("file-drop");
@@ -878,6 +939,7 @@
   document.addEventListener("repcheck:language-changed", updateFileDropDisplay);
 
   loadServerHistory();
+  preselectLastExercise();
   document.addEventListener("repcheck:language-changed", renderRecentAnalyses);
 
   videoInput.addEventListener("change", updateFileDropDisplay);
@@ -1143,7 +1205,7 @@
     uploadView.style.display = "block";
     form.reset();
     updateFileDropDisplay();
-    clearSelectedExercise();
+    preselectLastExercise();
     // Re-fetch so a just-finished analysis shows up in the strip (the
     // server saved it during the analyze request).
     loadServerHistory();

@@ -16,17 +16,26 @@ Usage:
     python barcode_scanner.py <image_path>
 
 Requires:
-    pip install pyzbar pillow requests
+    pip install pyzbar pillow pillow-heif requests
 """
 
 import io
 import re
 
+import pillow_heif
 import requests
 from PIL import Image
 from pyzbar.pyzbar import decode as zbar_decode
 
 import fatsecret_lookup
+
+# Pillow has no built-in HEIC/HEIF decoder, but that's the default photo
+# format iPhones save camera captures in (Settings > Camera > Formats >
+# High Efficiency) -- without this, every photo scanned straight from an
+# iPhone camera roll raises "Couldn't read that image." in decode_barcode()
+# before pyzbar ever sees a pixel, which reads to the user as "the barcode
+# scanner doesn't work" even though the barcode itself is perfectly clear.
+pillow_heif.register_heif_opener()
 
 OPEN_FOOD_FACTS_URL = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 # The legacy cgi/search.pl and /api/v2/search endpoints were returning 503s
@@ -40,6 +49,13 @@ class BarcodeScanError(Exception):
     """Raised for any failure the web app should show to the user —
     no barcode found in the photo, or no matching product on Open Food
     Facts."""
+
+
+class ProductNotFoundError(BarcodeScanError):
+    """A barcode was read fine, but no source (Open Food Facts or
+    FatSecret) has a product for it -- as opposed to a decode failure or a
+    network/API error. app.py's scan/lookup routes catch this specifically
+    to offer "create this as a custom food" instead of a generic retry."""
 
 
 def _shorten_name(name, max_len=40):
@@ -57,12 +73,35 @@ def _num(source, key):
         return 0.0
 
 
+def digits_only(value):
+    """Retail barcodes (EAN/UPC) are always numeric -- strip anything else
+    (whitespace, stray symbology noise) so every lookup keys on digits
+    only, regardless of which path produced the raw value: photo decode,
+    live BarcodeDetector, or a hand-edited value POSTed to the API.
+
+    Every barcode that gets stored or compared goes through here. Skipping
+    it anywhere means a dirty value ("123-456") never string-matches the
+    clean one a real scan produces, so the product silently stops
+    resolving -- see api_create_custom_food()/api_lookup_barcode()."""
+    return re.sub(r"\D", "", value)
+
+
 def decode_barcode(image_bytes):
     """Return the first barcode string found in the photo, or raise
     BarcodeScanError if none is detected."""
     try:
         image = Image.open(io.BytesIO(image_bytes))
         image.load()
+        # pyzbar picks its decode path with `'PIL.' in str(type(image))`,
+        # a literal check on the class's module name -- true for a plain
+        # PIL Image, but false for the pillow_heif HeifImageFile subclass
+        # (module "pillow_heif.as_plugin"), so an unconverted HEIC image
+        # falls through to pyzbar's "must be a (pixels, width, height)
+        # tuple" branch and crashes. .convert("L") always returns a base
+        # PIL.Image.Image regardless of the source plugin, which sidesteps
+        # that check -- and pyzbar converts to grayscale internally anyway,
+        # so this is a no-op for formats that already worked.
+        image = image.convert("L")
     except Exception as exc:
         raise BarcodeScanError("Couldn't read that image.") from exc
 
@@ -77,7 +116,7 @@ def decode_barcode(image_bytes):
     preferred_types = {"EAN13", "EAN8", "UPCA", "UPCE"}
     preferred = [r for r in results if r.type in preferred_types]
     chosen = preferred[0] if preferred else results[0]
-    return chosen.data.decode("utf-8").strip()
+    return digits_only(chosen.data.decode("utf-8"))
 
 
 def _parse_serving_grams(product):
@@ -149,7 +188,7 @@ def _lookup_product(barcode):
         raise BarcodeScanError("Got an unexpected response looking up that product.") from exc
 
     if data.get("status") != 1 or not data.get("product"):
-        raise BarcodeScanError(
+        raise ProductNotFoundError(
             f"No product found for barcode {barcode}. It may not be in the "
             "Open Food Facts database yet."
         )
@@ -223,13 +262,13 @@ def _validate(barcode, product, source="Open Food Facts"):
         "protein": _num(nutriments, "proteins_100g"),
         "fat": _num(nutriments, "fat_100g"),
         "carbs": _num(nutriments, "carbohydrates_100g"),
-        # Open Food Facts reports sodium in grams; the app shows it in mg
-        # (the standard unit on nutrition labels).
-        "sodium_mg": _num(nutriments, "sodium_100g") * 1000,
-        "sugar_g": _num(nutriments, "sugars_100g"),
     }
     if not any([per_100g["calories"], per_100g["protein"], per_100g["fat"], per_100g["carbs"]]):
-        raise BarcodeScanError(
+        # Treated the same as a total miss (ProductNotFoundError, not the
+        # base BarcodeScanError) -- the product exists on {source} but
+        # there's nothing usable to show, so the app's redirect into
+        # "create this food yourself" applies here too.
+        raise ProductNotFoundError(
             f"Found \"{food_name}\" but it has no nutrition data on {source}."
         )
     per_100g = _sanitize_per_100g(per_100g, food_name, source)
@@ -238,7 +277,6 @@ def _validate(barcode, product, source="Open Food Facts"):
     scale = grams / 100
     totals = {k: round(v * scale, 1) for k, v in per_100g.items()}
     totals["calories"] = round(totals["calories"])
-    totals["sodium_mg"] = round(totals["sodium_mg"])
 
     return {
         "food_name": food_name,
@@ -251,15 +289,11 @@ def _validate(barcode, product, source="Open Food Facts"):
             "protein": round(per_100g["protein"], 1),
             "fat": round(per_100g["fat"], 1),
             "carbs": round(per_100g["carbs"], 1),
-            "sodium_mg": round(per_100g["sodium_mg"]),
-            "sugar_g": round(per_100g["sugar_g"], 1),
         }],
         "calories": totals["calories"],
         "protein": totals["protein"],
         "fat": totals["fat"],
         "carbs": totals["carbs"],
-        "sodium_mg": totals["sodium_mg"],
-        "sugar_g": totals["sugar_g"],
     }
 
 
@@ -289,7 +323,11 @@ def lookup_by_barcode(barcode):
     has no match, falls back to FatSecret (see fatsecret_lookup.py) --
     silently a no-op if FATSECRET_CLIENT_ID/SECRET aren't configured, so
     this behaves exactly as before until those are set up."""
-    barcode = str(barcode).strip()
+    # Covers both the pyzbar photo path (already stripped in decode_barcode)
+    # and the client-side BarcodeDetector path (raw camera read, not yet
+    # sanitized), so this is always the single place a non-numeric barcode
+    # value gets cleaned up before searching.
+    barcode = digits_only(str(barcode).strip())
     if not barcode:
         raise BarcodeScanError("No barcode value given.")
     try:

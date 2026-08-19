@@ -102,7 +102,7 @@ def test_presentation_limits_cannot_soften_the_score(prompts):
     This is the guard proper. Adding a new brevity rule is fine; adding one
     without scoping it away from scoring is how this broke last time.
     """
-    limit_markers = ("at most 3 bullets", "no more than", "under about 18 words")
+    limit_markers = ("at most 3 bullets", "no more than", "under about 12 words")
     for name, prompt in prompts.items():
         if not any(marker in prompt for marker in limit_markers):
             continue  # no length limit in play, nothing to scope

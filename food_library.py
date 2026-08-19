@@ -3,18 +3,15 @@
 Every raw-ingredient entry is calories/carbs/fat/protein per 100g (or
 100mL for liquids), using standard, widely-cited approximate values
 (roughly USDA-level) -- not brand-specific or medical-grade figures.
-Sodium (mg) and sugar (g) per 100g are merged on below from
-micronutrient_data.py (generated separately, in bulk, rather than by
-hand -- see that file's docstring).
 
 Composite/prepared dishes (pizza, tacos, pad thai, etc.) don't have
 hand-typed macros. Instead each one carries an "ingredients" list --
 {"name": <raw ingredient>, "grams": <default amount>} -- and
 _compute_dish_macros() below derives the dish's own per-100g
-calories/carbs/fat/protein/sodium/sugar by summing those ingredients.
-That keeps the numbers internally consistent and means editing an
-ingredient's amount in the app always recalculates the whole dish
-correctly, instead of drifting from a separately-guessed total.
+calories/carbs/fat/protein by summing those ingredients. That keeps the
+numbers internally consistent and means editing an ingredient's amount in
+the app always recalculates the whole dish correctly, instead of
+drifting from a separately-guessed total.
 
 This is a large, representative set of dishes (30+ per cuisine for Thai,
 Mexican, Japanese, American, French, and Indian) -- not literally every
@@ -22,8 +19,6 @@ dish that exists in each cuisine, which isn't a bounded list. Recipes are
 simplified to their handful of defining ingredients rather than
 restaurant-exact recipes.
 """
-
-from micronutrient_data import MICRONUTRIENTS
 
 
 def _dish(name, ingredients):
@@ -1656,7 +1651,6 @@ DISHES = [
 def _compute_dish_macros(dishes, raw_by_name):
     for dish in dishes:
         total_g = total_cal = total_carb = total_fat = total_protein = 0.0
-        total_sodium = total_sugar = 0.0
         for ing in dish["ingredients"]:
             base = raw_by_name.get(ing["name"])
             if base is None:
@@ -1668,22 +1662,13 @@ def _compute_dish_macros(dishes, raw_by_name):
             total_carb += base["carbs"] * scale
             total_fat += base["fat"] * scale
             total_protein += base["protein"] * scale
-            total_sodium += base["sodium_mg"] * scale
-            total_sugar += base["sugar_g"] * scale
         if total_g <= 0:
             total_g = 100  # avoid div by zero for any zero-weight placeholder
         dish["calories"] = round(total_cal / total_g * 100)
         dish["carbs"] = round(total_carb / total_g * 100, 1)
         dish["fat"] = round(total_fat / total_g * 100, 1)
         dish["protein"] = round(total_protein / total_g * 100, 1)
-        dish["sodium_mg"] = round(total_sodium / total_g * 100)
-        dish["sugar_g"] = round(total_sugar / total_g * 100, 1)
 
-
-for _ingredient in RAW_INGREDIENTS:
-    _vals = MICRONUTRIENTS.get(_ingredient["name"], {"sodium_mg": 0, "sugar_g": 0})
-    _ingredient["sodium_mg"] = _vals["sodium_mg"]
-    _ingredient["sugar_g"] = _vals["sugar_g"]
 
 _raw_by_name = {item["name"]: item for item in RAW_INGREDIENTS}
 _compute_dish_macros(DISHES, _raw_by_name)

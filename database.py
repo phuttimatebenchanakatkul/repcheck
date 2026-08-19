@@ -14,6 +14,7 @@ it. See static/account_sync.js for the client side of this.
 
 import json
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -172,6 +173,43 @@ def init_db():
                 fat REAL NOT NULL,
                 carbs REAL NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        # barcode: links a custom food to a scanned product barcode, so a
+        # future scan of that same code (see get_custom_food_by_barcode in
+        # app.py's /api/scan-barcode and /api/lookup-barcode) resolves
+        # straight to this user's own saved nutrition instead of failing
+        # again. NULL for custom foods created without ever going through
+        # the barcode-not-found flow. serving_label/serving_grams describe
+        # what the entered calories/protein/fat/carbs are FOR (e.g. "1 bar"
+        # = 45g) -- previously implicitly "100g", now explicit and
+        # user-defined. Probe-then-ALTER, same reasoning as friend_code.
+        cf_cols = {row["name"] for row in conn.execute("PRAGMA table_info(custom_foods)")}
+        if "barcode" not in cf_cols:
+            conn.execute("ALTER TABLE custom_foods ADD COLUMN barcode TEXT")
+        if "serving_label" not in cf_cols:
+            conn.execute("ALTER TABLE custom_foods ADD COLUMN serving_label TEXT NOT NULL DEFAULT '1 serving'")
+        if "serving_grams" not in cf_cols:
+            conn.execute("ALTER TABLE custom_foods ADD COLUMN serving_grams REAL NOT NULL DEFAULT 100")
+        # One barcode maps to at most one custom food per user (SQLite
+        # allows multiple NULLs through a UNIQUE index, so foods without a
+        # barcode never collide with each other or with this constraint).
+        conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_foods_user_barcode
+            ON custom_foods (user_id, barcode) WHERE barcode IS NOT NULL
+        """)
+        # Additional named serving sizes beyond a custom food's base
+        # serving_label/serving_grams above (e.g. base "1 bar" = 45g, plus
+        # "1 box" = 270g) -- a separate table rather than a JSON column so
+        # each option stays a plain, queryable row, matching the rest of
+        # this file's style. Deleted alongside their parent food in
+        # delete_custom_food(); never queried on their own.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS custom_food_servings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                custom_food_id INTEGER NOT NULL REFERENCES custom_foods(id),
+                label TEXT NOT NULL,
+                grams REAL NOT NULL
             )
         """)
         # Exercises a user invented themselves (not in workout_library.py's
@@ -385,8 +423,48 @@ LOG_MERGE_DATE_KEYED_KEYS = {
     "repcheck_nutrition_log_v1",
     "repcheck_weight_log_v1",
     "repcheck_day_status_v1",
+    # Workout chat history is now date-keyed (one thread per calendar day,
+    # kept permanently so past days stay readable) rather than a single
+    # rolling array that self-cleared at midnight -- a plain overwrite
+    # could now silently wipe WEEKS of chat history from a stale device,
+    # not just today's few messages, so it needs the same merge protection
+    # as the workout log it's attached to.
+    "repcheck_workout_chat_v1",
+    # The streak's activity log (date -> [action names], see
+    # static/streak.js): for a daily challenge, weekly check-in or coach
+    # chat it is the only record the day was ever used, so an overwrite
+    # from a device with a stale copy would delete an earned streak.
+    "repcheck_activity_log_v1",
 }
 MERGE_LOG_KEYS = LOG_MERGE_ARRAY_KEYS | LOG_MERGE_DATE_KEYED_KEYS
+
+# Per-analysis AI chat threads. Unlike every other synced key these have no
+# fixed name -- there is one per analyze_results row
+# (repcheck_analyze_chat_v1_<id>, see static/analyze_chat_widget.js) -- so
+# the family is matched by pattern instead of allowlisted individually. The
+# trailing id is restricted to digits, with no leading zero (matching how
+# SQLite's AUTOINCREMENT ids are actually written), so "007" and "7" can't
+# become two different stored rows for what a client would treat as the
+# same analyze_results id -- prune_analyze_results() below only ever
+# targets the canonical (no-leading-zero) form, so a non-canonical
+# duplicate would live forever, immune to pruning.
+ANALYZE_CHAT_KEY_RE = re.compile(r"^repcheck_analyze_chat_v1_(0|[1-9]\d*)$")
+
+
+def is_analyze_chat_key(key):
+    return bool(ANALYZE_CHAT_KEY_RE.match(key or ""))
+
+
+def analyze_chat_key_result_id(key):
+    """The analyze_results id encoded in a repcheck_analyze_chat_v1_<id> key,
+    or None if `key` isn't one (see is_analyze_chat_key). Used to verify the
+    row actually exists -- and is this user's own -- before accepting a
+    write, so the key family can't outgrow analyze_results (which is
+    already bounded per user by prune_analyze_results) and so a stale or
+    replayed write can't resurrect a chat thread whose analysis was already
+    pruned."""
+    match = ANALYZE_CHAT_KEY_RE.match(key or "")
+    return int(match.group(1)) if match else None
 
 
 def _merge_by_id(incoming, existing):
@@ -425,17 +503,68 @@ def _merge_date_keyed(incoming, existing):
     return out
 
 
+def _merge_chat_thread(incoming, existing):
+    """Union a stored analyze-chat thread ({"createdAtMs", "history": [...]})
+    with what's already saved. The widget only ever APPENDS to history (see
+    analyze_chat_widget.js: history.push for each user turn and each reply),
+    so "the longer transcript wins" is a complete merge rule -- and it's what
+    stops a device holding an older copy of the thread (a tab left open on
+    the same analysis, a phone that missed a push) from overwriting turns the
+    server already has. Mirrors account_sync.js's mergeChatThread."""
+    if not isinstance(existing, dict):
+        return incoming
+    if not isinstance(incoming, dict):
+        return existing
+    inc_history = incoming.get("history")
+    exi_history = existing.get("history")
+    inc_history = inc_history if isinstance(inc_history, list) else []
+    exi_history = exi_history if isinstance(exi_history, list) else []
+    longer, longer_history = (
+        (incoming, inc_history) if len(inc_history) >= len(exi_history) else (existing, exi_history)
+    )
+    merged = dict(longer)
+    merged["history"] = longer_history
+    # createdAtMs identifies the ANALYSIS (it's the row's created_at), not
+    # the write, so the two sides should already agree -- keep the earliest
+    # if they somehow don't, since the 24h prompting lock and the client's
+    # retention sweep are both anchored to it.
+    stamps = [
+        v for v in (incoming.get("createdAtMs"), existing.get("createdAtMs"))
+        if isinstance(v, (int, float)) and not isinstance(v, bool)
+    ]
+    if stamps:
+        merged["createdAtMs"] = min(stamps)
+    return merged
+
+
 def set_user_data(user_id, key, value):
-    """Sets a synced key's value. For MERGE_LOG_KEYS, merges with whatever
-    is already stored instead of overwriting it outright -- see that
-    constant's comment above for why."""
+    """Sets a synced key's value. For MERGE_LOG_KEYS (and analyze-chat
+    threads), merges with whatever is already stored instead of overwriting
+    it outright -- see those constants' comments above for why.
+
+    BEGIN IMMEDIATE for the merge branch, same reasoning as
+    set_workout_log_day()'s: this key's dedicated authoritative endpoint
+    (e.g. POST /api/workout/log-day) and this generic merge route can both
+    be triggered by the same client action (static/account_sync.js's
+    wrapped localStorage.setItem fires this route synchronously on every
+    write, in parallel with the dedicated endpoint's own debounced call),
+    so their SELECTs can race the same way two calls to
+    set_workout_log_day() could. This doesn't fully close the gap -- a
+    sufficiently STALE merge push (delivered well after the authoritative
+    write already committed, not just concurrently with it) can still
+    reintroduce a deleted entry, since a union merge has no way to
+    represent "this was intentionally removed" -- but it does close the
+    same-instant race, which is the more common case in practice."""
     with get_db() as conn:
-        if key in MERGE_LOG_KEYS:
+        if key in MERGE_LOG_KEYS or is_analyze_chat_key(key):
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT value FROM user_data WHERE user_id = ? AND key = ?", (user_id, key)
             ).fetchone()
             existing = json.loads(row["value"]) if row else None
-            if key in LOG_MERGE_ARRAY_KEYS:
+            if is_analyze_chat_key(key):
+                value = _merge_chat_thread(value, existing)
+            elif key in LOG_MERGE_ARRAY_KEYS:
                 value = _merge_by_id(
                     value if isinstance(value, list) else [],
                     existing if isinstance(existing, list) else [],
@@ -526,6 +655,66 @@ def remove_nutrition_log_entry(user_id, date_iso, entry_id):
             (user_id, NUTRITION_LOG_KEY, payload),
         )
         return day_entries
+
+
+WORKOUT_LOG_KEY = "repcheck_workout_log_v2"
+
+
+def set_workout_log_day(user_id, date_iso, entries):
+    """Atomically replaces one date's entries in the workout log with
+    exactly what's given -- the authoritative write path for every
+    workout-log mutation (add an exercise, delete one, edit its sets/reps/
+    weight), entirely server-side (see POST /api/workout/log-day in
+    app.py). repcheck_workout_log_v2 is in database.py's MERGE_LOG_KEYS, so
+    the generic /api/sync/<key> route merges rather than overwrites it --
+    that route can therefore only ever GAIN entries back from an older
+    stored copy, never remove or change one, so a deleted or edited
+    exercise pushed through that route alone would resurrect or revert on
+    the next sync (this was the actual bug: a workout logged on one device
+    and deleted there would still show on another, because the merge
+    doesn't know the difference between "never existed" and "we removed
+    this"). This instead replaces the entry list for the ONE date given, so
+    additions, edits, and deletions are all represented correctly by a
+    single write, the same way set_weight_log_entry() above already does
+    for weigh-ins. Scoped to one date (not the whole log) so a write here
+    can't clobber a different date's entries even if this request lands
+    out of order relative to another device's edit on a different day.
+    Returns the full updated log so the caller can resync localStorage
+    without a second round trip.
+
+    BEGIN IMMEDIATE, not the connection's default deferred transaction:
+    this function is a read-modify-write against the user's WHOLE log
+    blob (every date lives in one row), and unlike the other log-entry
+    writers in this file, it's called on a 400ms debounce from every
+    single keystroke while editing a set's reps/weight -- so two
+    concurrent calls for two DIFFERENT dates (e.g. one tab actively
+    editing today while another backfills yesterday) are a realistic,
+    not just theoretical, scenario. Python's sqlite3 only auto-begins a
+    transaction before a DML statement, not before SELECT, so without an
+    explicit BEGIN IMMEDIATE here, two overlapping calls could each SELECT
+    the same pre-write blob before either commits, and the second commit
+    would silently discard whatever date the first one had just written --
+    the exact resurrection/lost-update bug class this function exists to
+    prevent, just moved from client-side merge to server-side race.
+    BEGIN IMMEDIATE acquires SQLite's write lock up front, so the second
+    call blocks until the first's SELECT+INSERT+COMMIT is fully done and
+    then reads the up-to-date blob."""
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT value FROM user_data WHERE user_id = ? AND key = ?",
+            (user_id, WORKOUT_LOG_KEY),
+        ).fetchone()
+        log = json.loads(row["value"]) if row else {}
+        log[date_iso] = entries
+        payload = json.dumps(log)
+        conn.execute(
+            """INSERT INTO user_data (user_id, key, value, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (user_id, WORKOUT_LOG_KEY, payload),
+        )
+        return log
 
 
 WEIGHT_LOG_KEY = "repcheck_weight_log_v1"
@@ -730,6 +919,60 @@ def get_user_activity_counts(user_id):
     }
     with get_db() as conn:
         return {name: conn.execute(sql, (user_id,)).fetchone()[0] for name, sql in queries.items()}
+
+
+# Server-recorded uses of the app, for the streak's back-fill (see
+# get_activity_dates below and static/streak.js). Action id -> the table
+# holding one row per use, and the column naming the day it happened.
+#
+# challenge_submissions is the important one: a daily challenge attempt
+# lives ONLY here, so without this the streak simply couldn't see it.
+# The rest already have a local mirror, but that mirror is capped to the
+# most recent N entries and only exists on the device that created it,
+# so reading the server's copy recovers days the client has forgotten.
+#
+# Table names are interpolated into SQL below, so this dict is the trust
+# boundary -- it is fixed, in-source, and must never take user input.
+ACTIVITY_DATE_SOURCES = {
+    "challenge": ("challenge_submissions", "created_at"),
+    "analysis": ("analyze_results", "created_at"),
+    "hyrox": ("hyrox_results", "created_at"),
+    # progress_photos.date is the check-in's own date, already recorded in
+    # the user's local calendar, so it needs no timezone shift.
+    "checkin_photo": ("progress_photos", "date"),
+}
+
+
+def get_activity_dates(user_id, tz_offset_minutes=0):
+    """Every local calendar day this user did something server-recorded,
+    as {"YYYY-MM-DD": ["challenge", ...]}.
+
+    created_at columns are UTC (datetime('now')), while a streak is counted
+    in the user's own days -- so the caller passes its UTC offset in minutes
+    (the conventional sign: UTC+7 is +420) and the timestamps are shifted
+    into local time before being reduced to a date. A bad or missing offset
+    degrades to UTC rather than failing the request; the range clamp keeps
+    the value inside real-world timezones."""
+    try:
+        offset = int(tz_offset_minutes)
+    except (TypeError, ValueError):
+        offset = 0
+    offset = max(-14 * 60, min(14 * 60, offset))
+    modifier = f"{offset:+d} minutes"
+
+    dates = {}
+    with get_db() as conn:
+        for action, (table, column) in ACTIVITY_DATE_SOURCES.items():
+            if column == "date":
+                sql = f"SELECT DISTINCT date({column}) AS day FROM {table} WHERE user_id = ?"
+                params = (user_id,)
+            else:
+                sql = f"SELECT DISTINCT date({column}, ?) AS day FROM {table} WHERE user_id = ?"
+                params = (modifier, user_id)
+            for row in conn.execute(sql, params).fetchall():
+                if row["day"]:
+                    dates.setdefault(row["day"], []).append(action)
+    return {day: sorted(actions) for day, actions in sorted(dates.items())}
 
 
 def get_or_create_friend_code(user_id):
@@ -986,7 +1229,15 @@ def get_analyze_result(user_id, result_id):
 def prune_analyze_results(user_id, keep=20):
     """Delete this user's oldest analyze results beyond the newest `keep`,
     returning the deleted rows' video filenames so the caller can remove
-    the clips from disk too (the DB doesn't own those files)."""
+    the clips from disk too (the DB doesn't own those files).
+
+    Also deletes each pruned row's repcheck_analyze_chat_v1_<id> entry from
+    user_data (see is_analyze_chat_key/set_user_data above) in the same
+    transaction. Without this, an analysis's chat thread outlives the
+    analysis itself -- analyze_results is bounded to `keep` rows per user,
+    but the chat-thread family in user_data has no bound of its own, so it
+    would grow by one row per analysis ever run, forever, and get returned
+    on every account's /api/sync hydration GET regardless of age."""
     with get_db() as conn:
         stale = conn.execute(
             """SELECT id, video_filename FROM analyze_results
@@ -998,6 +1249,10 @@ def prune_analyze_results(user_id, keep=20):
             conn.executemany(
                 "DELETE FROM analyze_results WHERE id = ?",
                 [(row["id"],) for row in stale],
+            )
+            conn.executemany(
+                "DELETE FROM user_data WHERE user_id = ? AND key = ?",
+                [(user_id, f"repcheck_analyze_chat_v1_{row['id']}") for row in stale],
             )
     return [row["video_filename"] for row in stale if row["video_filename"]]
 
@@ -1017,14 +1272,49 @@ def update_preferences(user_id, theme=None, language=None):
         conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
 
 
-def create_custom_food(user_id, name, emoji, calories, protein, fat, carbs):
+def create_custom_food(
+    user_id, name, emoji, calories, protein, fat, carbs,
+    barcode=None, serving_label="1 serving", serving_grams=100, extra_servings=None,
+):
+    """extra_servings, if given, is a list of {"label": str, "grams": float}
+    dicts for additional named serving sizes beyond serving_label/
+    serving_grams (see custom_food_servings above)."""
     with get_db() as conn:
         cursor = conn.execute(
-            """INSERT INTO custom_foods (user_id, name, emoji, calories, protein, fat, carbs)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, name, emoji, calories, protein, fat, carbs),
+            """INSERT INTO custom_foods
+               (user_id, name, emoji, calories, protein, fat, carbs, barcode, serving_label, serving_grams)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, name, emoji, calories, protein, fat, carbs, barcode, serving_label, serving_grams),
         )
-        return cursor.lastrowid
+        food_id = cursor.lastrowid
+        for serving in (extra_servings or []):
+            conn.execute(
+                "INSERT INTO custom_food_servings (custom_food_id, label, grams) VALUES (?, ?, ?)",
+                (food_id, serving["label"], serving["grams"]),
+            )
+        return food_id
+
+
+def _attach_custom_food_servings(conn, foods):
+    """Mutates each food dict in place, adding a "servings" list of this
+    food's extra named serving sizes (beyond its own serving_label/
+    serving_grams). One query for the whole batch rather than one per food."""
+    if not foods:
+        return foods
+    food_ids = [f["id"] for f in foods]
+    placeholders = ",".join("?" * len(food_ids))
+    rows = conn.execute(
+        f"SELECT * FROM custom_food_servings WHERE custom_food_id IN ({placeholders})",
+        food_ids,
+    ).fetchall()
+    servings_by_food = {}
+    for row in rows:
+        servings_by_food.setdefault(row["custom_food_id"], []).append(
+            {"label": row["label"], "grams": row["grams"]}
+        )
+    for food in foods:
+        food["servings"] = servings_by_food.get(food["id"], [])
+    return foods
 
 
 def get_custom_foods(user_id):
@@ -1032,11 +1322,32 @@ def get_custom_foods(user_id):
         rows = conn.execute(
             "SELECT * FROM custom_foods WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
         ).fetchall()
-    return [dict(r) for r in rows]
+        foods = [dict(r) for r in rows]
+        return _attach_custom_food_servings(conn, foods)
+
+
+def get_custom_food_by_barcode(user_id, barcode):
+    """This user's own saved custom food for a scanned barcode, or None --
+    checked by app.py's barcode-lookup routes before ever hitting Open Food
+    Facts/FatSecret, so a barcode a user has already created a food for
+    always resolves to that saved data instead of an external lookup."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM custom_foods WHERE user_id = ? AND barcode = ?", (user_id, barcode)
+        ).fetchone()
+        if not row:
+            return None
+        food = dict(row)
+        return _attach_custom_food_servings(conn, [food])[0]
 
 
 def delete_custom_food(user_id, food_id):
     with get_db() as conn:
+        conn.execute(
+            "DELETE FROM custom_food_servings WHERE custom_food_id IN "
+            "(SELECT id FROM custom_foods WHERE user_id = ? AND id = ?)",
+            (user_id, food_id),
+        )
         conn.execute("DELETE FROM custom_foods WHERE user_id = ? AND id = ?", (user_id, food_id))
 
 

@@ -135,15 +135,53 @@
   // Same bounds as onboarding.js's identical goal-weight step.
   const MIN_WEIGHT_KG = 35;
   const MAX_WEIGHT_KG = 400;
+
+  // The bounds a goal weight may take, given which way the user said they
+  // want to move -- identical to onboarding.js's goalWeightBounds. A typed
+  // number let you set a goal on the WRONG side of your current weight
+  // ("lose" with a goal above where you already are), which then drove a
+  // "Rate of weight loss" slider and a goal date for a gain. Deriving the
+  // range from aspiration makes that unreachable rather than merely
+  // discouraged. Whole kg, matching the ruler's tick unit, so the nearest
+  // legal value is always exactly on a tick.
+  function goalWeightBounds(aspiration, currentKg) {
+    const cur = parseFloat(currentKg) || 0;
+    if (aspiration === "lose") {
+      const max = Math.min(MAX_WEIGHT_KG, Math.ceil(cur) - 1);
+      return { min: MIN_WEIGHT_KG, max, valid: max >= MIN_WEIGHT_KG };
+    }
+    if (aspiration === "gain") {
+      const min = Math.max(MIN_WEIGHT_KG, Math.floor(cur) + 1);
+      return { min, max: MAX_WEIGHT_KG, valid: min <= MAX_WEIGHT_KG };
+    }
+    return { min: MIN_WEIGHT_KG, max: MAX_WEIGHT_KG, valid: true };
+  }
+  const GOAL_RULER_TICK_PX = 14;
+  // Column snap point sits at padStart + i*TICK + TICK/2 (scroll-snap-align:
+  // center), so this half-tick has to be added/subtracted everywhere a
+  // scrollLeft is translated to/from a kg value -- see the ruler wiring in
+  // renderGoalWeightStep for the concrete failure this fixes (landing at
+  // the true left bound read back one kg high without it).
+  const GOAL_RULER_HALF_TICK = GOAL_RULER_TICK_PX / 2;
   // Mirrors coaching_engine.py's LOSS_RATE_*/GAIN_RATE_* constants exactly
-  // -- keep these in sync if those ever change. Gain's range sits lower
-  // than loss's (see that file's GAIN_RATE_* comment for why).
-  const LOSS_RATE_MIN_PCT = 1.0;
+  // -- keep these in sync if those ever change, including the derivation
+  // (kg/week target at RATE_REFERENCE_WEIGHT_KG, not a bare %) so this file
+  // and onboarding.js's identical copy can't silently drift to different
+  // numbers for the same intent.
+  const RATE_REFERENCE_WEIGHT_KG = 75;
+  const LOSS_STANDARD_MIN_KG_PER_WEEK = 0.2;
+  const LOSS_STANDARD_MAX_KG_PER_WEEK = 0.8;
+  const LOSS_RATE_MIN_PCT = 0.1;
   const LOSS_RATE_MAX_PCT = 2.0;
-  const LOSS_RATE_DEFAULT_PCT = 1.5;
+  const LOSS_RATE_DEFAULT_PCT = (LOSS_STANDARD_MIN_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100;
   const GAIN_RATE_MIN_PCT = 0.25;
-  const GAIN_RATE_MAX_PCT = 0.5;
+  const GAIN_STANDARD_MAX_KG_PER_WEEK = 0.6;
+  const GAIN_RATE_MAX_PCT = (GAIN_STANDARD_MAX_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100;
   const GAIN_RATE_DEFAULT_PCT = 0.35;
+  // How many weeks a "per month" readout multiplies the weekly rate by --
+  // the precise average (365.25 / 7 / 12), not the common but slightly-off
+  // "4 weeks" shorthand. Mirrors onboarding.js's identical constant.
+  const WEEKS_PER_MONTH = 365.25 / 7 / 12;
 
   // ---------- Small local helpers ----------
   function toIsoDate(date) {
@@ -151,6 +189,249 @@
     const m = String(date.getMonth() + 1).padStart(2, "0");
     const d = String(date.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
+  }
+
+  // Rate is a % of bodyweight per week (see coaching_engine.py's
+  // LOSS_RATE_*/GAIN_RATE_* for where that number comes from). Projecting a
+  // target date from it is pure linear arithmetic, entirely independent of
+  // the server's BMR/TDEE/calorie math -- so unlike the calorie numbers
+  // themselves, this is safe and correct to compute client-side instead of
+  // round-tripping to the server for it. Mirrors onboarding.js's identical
+  // function (same reasoning as the constants duplicated at the top of
+  // this file -- see that comment).
+  function estimateGoalDate(weightKg, goalWeightKg, ratePct) {
+    const cur = parseFloat(weightKg) || 0;
+    const goal = parseFloat(goalWeightKg) || 0;
+    if (cur <= 0 || goal <= 0 || !ratePct) return null;
+    const weeklyChangeKg = cur * (ratePct / 100);
+    const weeksNeeded = weeklyChangeKg > 0 ? Math.abs(cur - goal) / weeklyChangeKg : 0;
+    if (!isFinite(weeksNeeded) || weeksNeeded <= 0) return null;
+    const eta = new Date();
+    eta.setDate(eta.getDate() + Math.round(weeksNeeded * 7));
+    return eta;
+  }
+
+  // Custom continuous slider for "how fast" (rate of weight loss/gain),
+  // replacing the old native <input type="range">. Mirrors onboarding.js's
+  // identical function (same .ob-*/.pc-* class-duplication reasoning as
+  // the constants above) -- two things a native range input can't do that
+  // this step needs: (1) a highlighted "standard" zone on the track whose
+  // position depends on the user's own bodyweight, not a fixed spot, and
+  // (2) genuinely continuous dragging (no discrete step "clicks") for a
+  // smoother feel than a coarse native step allows. Value is always % of
+  // bodyweight/week internally -- see the LOSS_RATE_*/GAIN_RATE_* comment
+  // above for why kg/week is only a display conversion, never the stored
+  // unit.
+  function renderRateSlider({ isLose, value, weightKg, onChange }) {
+    const min = isLose ? LOSS_RATE_MIN_PCT : GAIN_RATE_MIN_PCT;
+    const max = isLose ? LOSS_RATE_MAX_PCT : GAIN_RATE_MAX_PCT;
+    const wv = parseFloat(weightKg) || 0;
+    // Only the loss direction gets a highlighted "standard" zone -- gain
+    // just gets the same smooth continuous slider with a wider range, since
+    // that's the only thing asked for on the gain side.
+    let zoneMinPct = null;
+    let zoneMaxPct = null;
+    if (isLose && wv > 0) {
+      zoneMinPct = Math.max(min, Math.min(max, (LOSS_STANDARD_MIN_KG_PER_WEEK / wv) * 100));
+      zoneMaxPct = Math.max(min, Math.min(max, (LOSS_STANDARD_MAX_KG_PER_WEEK / wv) * 100));
+    }
+
+    const rateLabel = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
+    const unitLabel = RepCheckUnits.weightUnitLabel();
+    const pctUnitLabel = t("coaching.wizard.percentBodyweightUnit");
+    const wrap = el(`
+      <div class="pc-field pc-rate-field">
+        <label>${rateLabel} <span id="pc-rate-header-value"></span>${t("coaching.wizard.perWeek")}</label>
+        <div class="pc-rate-badge" id="pc-rate-badge"></div>
+        <div class="pc-rate-slider" id="pc-rate-slider" role="slider" tabindex="0"
+             aria-valuemin="${min}" aria-valuemax="${max}" aria-label="${rateLabel}">
+          <div class="pc-rate-slider-track">
+            ${zoneMinPct !== null ? `<div class="pc-rate-slider-zone" id="pc-rate-zone"></div>` : ""}
+          </div>
+          <div class="pc-rate-slider-thumb" id="pc-rate-thumb"></div>
+        </div>
+        <div class="pc-rate-readout-row">
+          <span class="pc-rate-readout-sign">+</span>
+          <div class="pc-rate-readout-box"><span id="pc-rate-kg-week"></span><span class="pc-rate-readout-unit">${unitLabel}</span></div>
+          <div class="pc-rate-readout-box pc-rate-readout-box-pct"><span id="pc-rate-pct-week"></span><span class="pc-rate-readout-unit">${pctUnitLabel}</span></div>
+          <span class="pc-rate-readout-freq">${t("coaching.wizard.perWeekLabel")}</span>
+        </div>
+        <div class="pc-rate-readout-row">
+          <span class="pc-rate-readout-sign">+</span>
+          <div class="pc-rate-readout-box"><span id="pc-rate-kg-month"></span><span class="pc-rate-readout-unit">${unitLabel}</span></div>
+          <div class="pc-rate-readout-box pc-rate-readout-box-pct"><span id="pc-rate-pct-month"></span><span class="pc-rate-readout-unit">${pctUnitLabel}</span></div>
+          <span class="pc-rate-readout-freq">${t("coaching.wizard.perMonthLabel")}</span>
+        </div>
+      </div>
+    `);
+
+    const sliderEl = wrap.querySelector("#pc-rate-slider");
+    const zoneEl = wrap.querySelector("#pc-rate-zone");
+    const thumbEl = wrap.querySelector("#pc-rate-thumb");
+    const badgeEl = wrap.querySelector("#pc-rate-badge");
+    const headerValueEl = wrap.querySelector("#pc-rate-header-value");
+    const kgWeekEl = wrap.querySelector("#pc-rate-kg-week");
+    const pctWeekEl = wrap.querySelector("#pc-rate-pct-week");
+    const kgMonthEl = wrap.querySelector("#pc-rate-kg-month");
+    const pctMonthEl = wrap.querySelector("#pc-rate-pct-month");
+
+    if (zoneEl && zoneMinPct !== null) {
+      const zoneLeft = ((zoneMinPct - min) / (max - min)) * 100;
+      const zoneWidth = ((zoneMaxPct - zoneMinPct) / (max - min)) * 100;
+      zoneEl.style.left = `${zoneLeft}%`;
+      zoneEl.style.width = `${zoneWidth}%`;
+    }
+
+    let current = Math.max(min, Math.min(max, value));
+
+    function inZone(val) {
+      return zoneMinPct !== null && val >= zoneMinPct && val <= zoneMaxPct;
+    }
+
+    function redraw() {
+      const t01 = (current - min) / (max - min);
+      // transform, not left -- this runs on every pointermove/keydown
+      // during a drag, and a `left` write is layout-triggering while a
+      // `transform` write is compositor-only (see .pc-rate-slider-thumb's
+      // `left: 0` in coaching.css; the -13px half-width centering now
+      // lives in this calc() instead of a static CSS margin-left). The
+      // drag-scale bump is folded into this same string -- an inline
+      // transform overrides a stylesheet transform.scale() rule on the
+      // same property rather than combining with it, so that effect can't
+      // live in a separate CSS class alongside this.
+      //
+      // The offset must be in px, not %: a CSS transform percentage
+      // resolves against the THUMB's own border box (26px), not the
+      // track it's positioned in, so `translateX(t01 * 100%)` only ever
+      // moved the thumb a few px regardless of value. Reuse the cached
+      // drag-gesture rect while dragging (same perf reasoning as
+      // dragRect elsewhere in this function); otherwise take one
+      // fresh measurement, which redraw() only needs for keydown/init,
+      // not on every pointermove.
+      const trackWidth = dragging && dragRect ? dragRect.width : sliderEl.getBoundingClientRect().width;
+      thumbEl.style.transform = `translateX(calc(${t01 * trackWidth}px - 13px))${dragging ? " scale(1.15)" : ""}`;
+      sliderEl.setAttribute("aria-valuenow", current.toFixed(3));
+
+      const standard = inZone(current);
+      thumbEl.classList.toggle("is-standard", standard);
+      headerValueEl.textContent = current.toFixed(2);
+
+      if (zoneMinPct !== null) {
+        // Small drag tolerance around the zone's lower edge -- the
+        // "Standard (Recommended)" label calls out the specific
+        // recommended entry point, not just "anywhere in the zone", but
+        // landing back on one exact float value via a continuous drag
+        // isn't a realistic target without some tolerance.
+        const tolerance = (max - min) * 0.02;
+        const atRecommended = Math.abs(current - zoneMinPct) <= tolerance;
+        let badgeKey = "coaching.wizard.rateStandard";
+        if (current < zoneMinPct) badgeKey = "coaching.wizard.rateSlower";
+        else if (current > zoneMaxPct) badgeKey = "coaching.wizard.rateFaster";
+        else if (atRecommended) badgeKey = "coaching.wizard.rateStandardRecommended";
+        badgeEl.textContent = t(badgeKey);
+        badgeEl.className = "pc-rate-badge" + (standard ? " is-standard" : "");
+      } else {
+        badgeEl.textContent = "";
+        badgeEl.className = "pc-rate-badge";
+      }
+
+      const weekKg = (current / 100) * wv;
+      kgWeekEl.textContent = RepCheckUnits.kgToDisplay(weekKg);
+      pctWeekEl.textContent = current.toFixed(2);
+      kgMonthEl.textContent = RepCheckUnits.kgToDisplay(weekKg * WEEKS_PER_MONTH);
+      pctMonthEl.textContent = (current * WEEKS_PER_MONTH).toFixed(2);
+    }
+
+    function setValue(next) {
+      current = Math.max(min, Math.min(max, next));
+      redraw();
+      onChange(current);
+    }
+
+    function valueFromClientX(clientX, rect) {
+      const ratio = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+      return min + Math.max(0, Math.min(1, ratio)) * (max - min);
+    }
+
+    let dragging = false;
+    // Cached once per drag gesture in onPointerDown, reused for every
+    // pointermove until pointerup -- re-querying getBoundingClientRect() on
+    // every pointermove (which can fire many times per animation frame)
+    // forces a synchronous layout flush each time, since the browser must
+    // resolve any pending layout before it can answer. The slider's own
+    // position never changes mid-drag, so one read per gesture is enough.
+    let dragRect = null;
+    function onPointerDown(e) {
+      dragging = true;
+      sliderEl.classList.add("is-dragging");
+      // This slider lives inside .pc-wizard-overlay's bottom-sheet dialog
+      // (see base.html's bindSheetDrag, bound to the overlay for swipe-to-
+      // dismiss) -- unlike onboarding.js's identical slider, which sits on
+      // a plain standalone page with no such wrapper. A touch-drag on this
+      // slider dispatches real touchstart/touchmove events alongside the
+      // pointer events this handler uses, and those touch events bubble to
+      // the overlay independently of this PointerEvent -- without stopping
+      // them here, dragging the rate slider while the wizard body happens
+      // to be scrolled to top could simultaneously arm the sheet's swipe-
+      // to-dismiss gesture and yank the whole wizard closed mid-drag.
+      e.stopPropagation();
+      // Capture is a nice-to-have (keeps the drag tracking correctly if the
+      // pointer strays outside the slider's own bounds mid-drag) but must
+      // never block the value update below -- a failed capture (seen on
+      // some browsers/input types) would otherwise silently break dragging
+      // entirely for that pointer, since every line after a thrown
+      // exception here would simply never run.
+      try { sliderEl.setPointerCapture(e.pointerId); } catch (err) {}
+      sliderEl.focus();
+      dragRect = sliderEl.getBoundingClientRect();
+      setValue(valueFromClientX(e.clientX, dragRect));
+      e.preventDefault();
+    }
+    function onPointerMove(e) {
+      if (!dragging) return;
+      e.stopPropagation();
+      setValue(valueFromClientX(e.clientX, dragRect));
+    }
+    function onPointerUp(e) {
+      if (!dragging) return;
+      dragging = false;
+      sliderEl.classList.remove("is-dragging");
+      try { sliderEl.releasePointerCapture(e.pointerId); } catch (err) {}
+      // redraw()'s transform string includes the drag-scale bump only
+      // while `dragging` is true (see redraw() above) -- without this
+      // call, the thumb would stay visually scaled up after release,
+      // since nothing else re-renders it once the drag ends.
+      redraw();
+    }
+    sliderEl.addEventListener("pointerdown", onPointerDown);
+    sliderEl.addEventListener("pointermove", onPointerMove);
+    sliderEl.addEventListener("pointerup", onPointerUp);
+    sliderEl.addEventListener("pointercancel", onPointerUp);
+    // Belt-and-suspenders alongside the pointerdown stopPropagation above:
+    // pointer events and legacy touch events are independent dispatches
+    // for the same physical gesture, so stopping one does not stop the
+    // other from bubbling to the overlay's bindSheetDrag listener.
+    sliderEl.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
+    sliderEl.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: true });
+
+    // Keyboard control -- a custom slider loses the native <input
+    // type="range">'s built-in arrow-key handling for free, so it has to
+    // be reimplemented explicitly here to not regress keyboard
+    // accessibility relative to what it's replacing.
+    sliderEl.addEventListener("keydown", (e) => {
+      const smallStep = (max - min) / 100;
+      const bigStep = (max - min) / 10;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") { setValue(current + smallStep); e.preventDefault(); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") { setValue(current - smallStep); e.preventDefault(); }
+      else if (e.key === "PageUp") { setValue(current + bigStep); e.preventDefault(); }
+      else if (e.key === "PageDown") { setValue(current - bigStep); e.preventDefault(); }
+      else if (e.key === "Home") { setValue(min); e.preventDefault(); }
+      else if (e.key === "End") { setValue(max); e.preventDefault(); }
+    });
+
+    redraw();
+
+    return { el: wrap };
   }
 
   function daysSince(dateIso) {
@@ -212,6 +493,15 @@
     return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="pc-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
   }
 
+  // Completing the weekly check-in is one of the app's real actions, so it
+  // counts toward the streak. It needs an explicit mark: the check-in
+  // itself only writes undated state (the coaching profile, macro goals),
+  // and its weigh-in is optional, so on a check-in without one there'd
+  // otherwise be nothing dated to prove the day was used.
+  function markCheckinActivity() {
+    if (window.RepCheckStreak) RepCheckStreak.mark("checkin");
+  }
+
   function loadWeightLog() { return loadJson(WEIGHT_LOG_KEY, {}); }
   function loadDayStatusMap() { return loadJson(DAY_STATUS_KEY, {}); }
   function loadNutritionLog() { return loadJson(NUTRITION_LOG_KEY, {}); }
@@ -224,23 +514,13 @@
     }, 0);
   }
 
-  // Same per-entry scaling as sumCaloriesForDay, but broken out by macro
-  // (grams, not calories) -- used to show "eaten so far today" against
-  // the coaching card's protein/fat/carb targets.
-  function sumMacrosForDay(entries) {
-    const totals = { protein: 0, fat: 0, carbs: 0 };
-    if (!Array.isArray(entries)) return totals;
-    entries.forEach((entry) => {
-      const items = (entry.ingredients && entry.ingredients.length) ? entry.ingredients : [entry];
-      items.forEach((item) => {
-        const scale = item.grams / 100;
-        totals.protein += item.baseProtein * scale;
-        totals.fat += item.baseFat * scale;
-        totals.carbs += item.baseCarbs * scale;
-      });
-    });
-    return totals;
-  }
+  // sumMacrosForDay() lives in static/nutrition_macros.js (loaded globally
+  // via base.html before this file) -- shared with home.html/full_stats.html
+  // so the week chart's calories can't independently drift from theirs (or
+  // from nutrition.html's own Today's Totals ring, rendered on this same
+  // page) the way it used to when this file had its own copy that derived
+  // calories from macro grams instead of summing each entry's baseCalories.
+  const sumMacrosForDay = RepCheckNutritionMacros.sumMacrosForDay;
 
   function hasEntries(dateIso, nutritionLog) {
     const entries = nutritionLog[dateIso];
@@ -354,6 +634,8 @@
       if (action === "dismiss-inactivity") return this.dismissInactivity();
       if (action === "open-checkin") return this.openCheckin();
       if (action === "cycle-checkin-day") return this.cycleCheckinDayStatus(target.dataset.date);
+      if (action === "toggle-checkin-high-carb-day") return this.toggleCheckinFlag("highCarbDays", target.dataset.date);
+      if (action === "toggle-checkin-bloated-day") return this.toggleCheckinFlag("bloatedDays", target.dataset.date);
       if (action === "checkin-submit") return this.submitCheckin();
       if (action === "checkin-done") return this.closeCheckin();
       if (action === "checkin-set-new-goals") return this.closeCheckin(() => this.openWizard());
@@ -481,6 +763,15 @@
         todayIso,
         weekDates,
         dayStatuses,
+        // Sparse maps -- only flagged dates are present as keys, same
+        // shape as dayStatusMap's own storage convention (see
+        // cycleCheckinDayStatus() below) -- rather than every weekDate
+        // defaulting to false. Sent to /api/coaching/weekly-adjustment so
+        // a high-carb or bloated day's weigh-in can be read as likely
+        // water weight, not real gain, instead of triggering a bigger
+        // calorie cut than the week's actual trend warrants.
+        highCarbDays: {},
+        bloatedDays: {},
         alreadyLoggedToday: !!todaysEntry,
         weightInput: todaysEntry ? String(RepCheckUnits.kgToDisplay(todaysEntry.kg)) : "",
         frontPhotoFile: null,
@@ -514,6 +805,18 @@
       }
       saveJson(DAY_STATUS_KEY, dayStatusMap);
       this.checkin.dayStatuses[dateIso] = getDayStatus(dateIso, nutritionLog, dayStatusMap);
+      this.render();
+    }
+
+    // Plain on/off toggle (unlike cycleCheckinDayStatus's 2-option cycle
+    // above) -- high-carb and bloating are independent yes/no flags per
+    // day, not mutually exclusive states, and aren't persisted outside
+    // this one check-in session (no localStorage key of their own),
+    // unlike dayStatuses.
+    toggleCheckinFlag(flagKey, dateIso) {
+      const flags = this.checkin[flagKey];
+      if (flags[dateIso]) delete flags[dateIso];
+      else flags[dateIso] = true;
       this.render();
     }
 
@@ -667,6 +970,7 @@
           }));
           this.profile.lastAdjustmentDate = c.todayIso;
           saveJson(PROFILE_KEY, this.profile);
+          markCheckinActivity();
           c.result = "goal-achieved";
           c.resultPrevious = null;
           c.step = "result";
@@ -743,6 +1047,8 @@
                 week_weight_entries: weekWeightEntries,
                 week_calorie_days: weekCalorieDays,
                 photo_ids: photoIds,
+                high_carb_days: Object.keys(c.highCarbDays),
+                bloating_days: Object.keys(c.bloatedDays),
               }),
             });
           } finally {
@@ -796,6 +1102,7 @@
         // weight saved inside the check-in itself doesn't dispatch
         // repcheck:weight-logged, so it never ran that check.)
         localStorage.removeItem(ACHIEVED_KEY);
+        markCheckinActivity();
 
         c.result = adjustment;
         c.resultPrevious = previousTargets;
@@ -1177,7 +1484,10 @@
           isToday: dateIso === todayIso,
           isSelected: dateIso === this.selectedChartDay,
           consumed: {
-            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
+            // eaten.calories comes from each entry's own baseCalories (see
+            // sumMacrosForDay() above), not a macro-derived formula -- must
+            // match nutrition.html's Today's Totals ring on this same page.
+            calories: Math.round(eaten.calories),
             protein: Math.round(eaten.protein),
             fat: Math.round(eaten.fat),
             carbs: Math.round(eaten.carbs),
@@ -1294,7 +1604,9 @@
           isToday: dateIso === todayIso,
           isSelected: dateIso === this.selectedChartDay,
           consumed: {
-            calories: Math.round(eaten.protein * 4 + eaten.fat * 9 + eaten.carbs * 4),
+            // See renderWeekChart() above -- must use eaten.calories, not
+            // a macro-derived formula.
+            calories: Math.round(eaten.calories),
             protein: Math.round(eaten.protein),
             fat: Math.round(eaten.fat),
             carbs: Math.round(eaten.carbs),
@@ -1424,7 +1736,7 @@
               </div>
               <div class="pc-card-title">${t("coaching.logging.title")}</div>
             </div>
-            <div class="pc-streak-badge ${streak > 0 ? "is-active" : ""}">🔥 ${t("coaching.streak", { n: streak, s: streak === 1 ? "" : "s" })}</div>
+            <div class="pc-streak-badge ${streak > 0 ? "is-active" : ""}"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg>${t("coaching.streak", { n: streak, s: streak === 1 ? "" : "s" })}</div>
           </div>
           <div class="pc-day-strip" id="pc-day-strip"></div>
           <div class="pc-day-legend">
@@ -1621,7 +1933,7 @@
           <div class="pc-wizard-step-label">${t("coaching.wizard.stepWeightGender")}</div>
           <div class="pc-field">
             <label for="pc-weight-kg">${t("coaching.wizard.currentWeight", { unit: weightUnit })}</label>
-            <input type="number" id="pc-weight-kg" min="1" step="0.1" value="${displayWeight}">
+            <input type="number" id="pc-weight-kg" min="1" step="0.1" value="${displayWeight}" data-clear-on-focus>
           </div>
         </div>
       `);
@@ -1654,33 +1966,88 @@
     // the next render() to happen to notice.
     renderGoalWeightStep() {
       const w = this.wizard;
-      const weightUnit = RepCheckUnits.weightUnitLabel();
-      const displayGoalWeight = w.goalWeightKg ? RepCheckUnits.kgToDisplay(parseFloat(w.goalWeightKg)) : "";
+      const bounds = goalWeightBounds(w.aspiration, w.weightKg);
+
+      // A goal carried in from a previous pass (or a previous aspiration)
+      // can sit outside the range this direction allows, so snap it in
+      // before drawing -- otherwise the wheel would open showing a value
+      // it cannot actually travel back to.
+      const seeded = parseFloat(w.goalWeightKg) || 0;
+      const startKg = bounds.valid
+        ? Math.max(bounds.min, Math.min(bounds.max, seeded > 0 ? Math.round(seeded) : (w.aspiration === "gain" ? bounds.min : bounds.max)))
+        : 0;
+      w.goalWeightKg = bounds.valid ? String(startKg) : "";
+
+      let cols = [];
+      if (bounds.valid) {
+        for (let kg = bounds.min; kg <= bounds.max; kg++) {
+          const isMajor = kg % 10 === 0;
+          const isMid = !isMajor && kg % 5 === 0;
+          cols.push(`
+            <div class="pc-goal-ruler-col">
+              <span class="pc-goal-ruler-collabel">${isMajor ? kg : ""}</span>
+              <span class="pc-goal-ruler-tick ${isMajor ? "is-major" : isMid ? "is-mid" : ""}"></span>
+            </div>
+          `);
+        }
+      }
+
+      // When there's no legal goal in this direction (current weight is
+      // already sitting on MIN_WEIGHT_KG/MAX_WEIGHT_KG), skip the ruler
+      // entirely rather than draw an empty, non-functional track -- just
+      // the blocked message below and a disabled Next (wizardCanProceed()
+      // reads w.goalWeightKg, which is "" in this branch, so Next disables
+      // itself with no extra wiring here).
       const wrap = el(`
         <div>
           <div class="pc-wizard-step-label">${t("coaching.wizard.stepGoalWeight")}</div>
-          <div class="pc-field">
-            <label for="pc-goal-weight-kg">${t("coaching.wizard.goalWeight", { unit: weightUnit })}</label>
-            <input type="number" id="pc-goal-weight-kg" min="1" step="0.1" value="${displayGoalWeight}">
-            <div class="pc-field-hint" id="pc-goal-weight-hint"></div>
+          ${bounds.valid ? `
+          <div class="pc-goal-ruler">
+            <div class="pc-goal-ruler-value" id="pc-goal-value"></div>
+            <div class="pc-goal-ruler-delta" id="pc-goal-weight-hint"></div>
+            <div class="pc-goal-ruler-window">
+              <div class="pc-goal-ruler-indicator"></div>
+              <div class="pc-goal-ruler-scroll" id="pc-goal-scroll" tabindex="0"
+                   role="slider" aria-valuemin="${bounds.min}" aria-valuemax="${bounds.max}"
+                   aria-label="${t("coaching.wizard.goalWeight", { unit: RepCheckUnits.weightUnitLabel() })}">
+                <div class="pc-goal-ruler-pad" id="pc-goal-pad-start"></div>
+                ${cols.join("")}
+                <div class="pc-goal-ruler-pad" id="pc-goal-pad-end"></div>
+              </div>
+            </div>
+            <div class="pc-goal-ruler-bounds">
+              <span>${RepCheckUnits.formatWeightKg(bounds.min)}</span>
+              <span>${RepCheckUnits.formatWeightKg(bounds.max)}</span>
+            </div>
           </div>
+          ` : `<div class="pc-field-hint" id="pc-goal-weight-hint"></div>`}
         </div>
       `);
-      const goalInput = wrap.querySelector("#pc-goal-weight-kg");
-      goalInput.addEventListener("click", (e) => e.stopPropagation());
+      const scrollEl = wrap.querySelector("#pc-goal-scroll");
+      const valueEl = wrap.querySelector("#pc-goal-value");
       const hintEl = wrap.querySelector("#pc-goal-weight-hint");
       const updateHint = () => {
         const cur = parseFloat(w.weightKg) || 0;
         const goal = parseFloat(w.goalWeightKg) || 0;
-        if (goal > 0 && goal < MIN_WEIGHT_KG) {
-          hintEl.textContent = t("coaching.wizard.minWeightHint", { min: RepCheckUnits.formatWeightKg(MIN_WEIGHT_KG) });
-          return;
-        }
         hintEl.textContent = cur > 0 && goal > 0
           ? t("coaching.wizard.goalWeightHint", { diff: RepCheckUnits.formatWeightKg(Math.abs(cur - goal)), weight: RepCheckUnits.formatWeightKg(cur) })
           : "";
       };
+
+      if (!bounds.valid) {
+        hintEl.textContent = t("coaching.wizard.goalNoRoomHint");
+        wrap.appendChild(this.renderWizardActions());
+        return wrap;
+      }
+
       updateHint();
+
+      // No-op unless the rate field below actually exists (aspiration is
+      // lose/gain) -- the ruler's own scroll listener further down calls
+      // this unconditionally so scrolling to a new goal weight keeps the
+      // ETA under the rate slider in sync, without the two listeners
+      // needing to know about each other's state.
+      let updateRateEta = () => {};
 
       // Rate-of-change slider: only meaningful when actually moving away
       // from the current weight, so it lives here (not the earlier
@@ -1691,47 +2058,126 @@
       if (w.aspiration === "lose" || w.aspiration === "gain") {
         const isLose = w.aspiration === "lose";
         const rateKey = isLose ? "lossRatePct" : "gainRatePct";
-        const min = isLose ? LOSS_RATE_MIN_PCT : GAIN_RATE_MIN_PCT;
-        const max = isLose ? LOSS_RATE_MAX_PCT : GAIN_RATE_MAX_PCT;
-        const step = isLose ? 0.1 : 0.05;
-        const decimals = isLose ? 1 : 2;
-        const label = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
-        const rateField = el(`
-          <div class="pc-field">
-            <label for="pc-rate-slider">${label} <span id="pc-rate-value">${w[rateKey].toFixed(decimals)}</span>${t("coaching.wizard.perWeek")}</label>
-            <input type="range" id="pc-rate-slider" min="${min}" max="${max}" step="${step}" value="${w[rateKey]}">
-            <div class="pc-field-hint" id="pc-rate-hint"></div>
+
+        // Live "what would this rate actually cost me" preview -- only for
+        // an existing, already-complete profile. Body-fat/activity/protein
+        // haven't been asked yet THIS wizard session (they're later steps),
+        // but openWizard() pre-seeds this.wizard from the saved profile
+        // (see there), so for a real existing user they're already present
+        // here even before those steps are visited. A brand-new/incomplete
+        // profile has nothing to seed them with, and asking the server to
+        // calculate against missing inputs would just 400 -- so the whole
+        // preview is skipped rather than shown against guessed values.
+        const canPreviewCalories = !!(this.profile && w.bodyFatRangeId && w.activityLevel && w.proteinPreference);
+
+        const etaRow = el(`
+          <div class="pc-eta-row">
+            ${canPreviewCalories ? `<div class="pc-eta-card" id="pc-rate-calorie-estimate" data-label="${t("coaching.wizard.calorieEstimateLabel")}"></div>` : ""}
+            <div class="pc-eta-card" id="pc-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
           </div>
         `);
-        const slider = rateField.querySelector("#pc-rate-slider");
-        const valueLabel = rateField.querySelector("#pc-rate-value");
-        const rateHintEl = rateField.querySelector("#pc-rate-hint");
-        const updateRateHint = () => {
-          const wv = parseFloat(w.weightKg) || 0;
-          rateHintEl.textContent = wv > 0
-            ? t("coaching.wizard.rateHint", {
-                rate: RepCheckUnits.formatWeightKg(w[rateKey] / 100 * wv),
-                weight: RepCheckUnits.formatWeightKg(wv),
-              })
+        const etaEl = etaRow.querySelector("#pc-rate-eta");
+        const estimateEl = canPreviewCalories ? etaRow.querySelector("#pc-rate-calorie-estimate") : null;
+        // Card treatment (see .pc-eta-card in coaching.css), same reasoning
+        // as onboarding.js's identical field -- hides itself via CSS's
+        // :empty selector, so this only ever sets/clears textContent.
+        updateRateEta = () => {
+          const eta = estimateGoalDate(w.weightKg, w.goalWeightKg, w[rateKey]);
+          etaEl.textContent = eta
+            ? eta.toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" })
             : "";
         };
-        slider.addEventListener("click", (e) => e.stopPropagation());
-        slider.addEventListener("input", (e) => {
-          w[rateKey] = parseFloat(e.target.value);
-          valueLabel.textContent = w[rateKey].toFixed(decimals);
-          updateRateHint();
+        // Debounced + sequence-guarded: a fast drag fires many onChange
+        // calls, and without this a slow early response could land AFTER
+        // a later one and show a stale number for the rate the slider
+        // isn't even on anymore. A steeper rate means a bigger deficit
+        // (fewer calories), so this card's number moves the OPPOSITE
+        // direction from the slider -- drag toward a faster rate and the
+        // budget drops, ease off and it climbs back up, same server math
+        // the final result screen uses.
+        let debounceTimer = null;
+        let requestSeq = 0;
+        const refreshCalorieEstimate = () => {
+          if (!estimateEl) return;
+          estimateEl.textContent = t("coaching.wizard.calculating");
+          clearTimeout(debounceTimer);
+          const mySeq = ++requestSeq;
+          debounceTimer = setTimeout(async () => {
+            try {
+              const response = await fetch("/api/coaching/calculate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  aspiration: w.aspiration,
+                  gender: w.gender,
+                  weight_kg: parseFloat(w.weightKg),
+                  height_cm: w.heightCm,
+                  body_fat_range_id: w.bodyFatRangeId,
+                  activity_level: w.activityLevel,
+                  protein_preference: w.proteinPreference,
+                  diet_preference: w.dietPreference,
+                  distribution: w.distribution,
+                  loss_rate_pct: isLose ? w[rateKey] : null,
+                  gain_rate_pct: !isLose ? w[rateKey] : null,
+                  training_days: getTrainingDaysFromSplitPlan(),
+                }),
+              });
+              const data = await response.json();
+              if (mySeq !== requestSeq) return;
+              estimateEl.textContent = data.ok ? `~${data.targets.calories} ${t("coaching.wizard.kcalPerDay")}` : "";
+            } catch (err) {
+              if (mySeq === requestSeq) estimateEl.textContent = "";
+            }
+          }, 300);
+        };
+
+        const rateSlider = renderRateSlider({
+          isLose,
+          value: w[rateKey],
+          weightKg: w.weightKg,
+          onChange: (next) => {
+            w[rateKey] = next;
+            updateRateEta();
+            refreshCalorieEstimate();
+          },
         });
-        updateRateHint();
-        wrap.appendChild(rateField);
+        rateSlider.el.appendChild(etaRow);
+        updateRateEta();
+        if (canPreviewCalories) refreshCalorieEstimate();
+        wrap.appendChild(rateSlider.el);
       }
 
       wrap.appendChild(this.renderWizardActions());
-      const nextBtn = wrap.querySelector('[data-action="wizard-next"]');
-      goalInput.addEventListener("input", (e) => {
-        w.goalWeightKg = String(RepCheckUnits.displayToKg(e.target.value) || 0);
+
+      // The ruler can never land on a value outside [bounds.min,
+      // bounds.max] by construction (every column is clamped), so
+      // wizardCanProceed() is already satisfied the moment this step
+      // draws -- nothing left to validate on scroll, same reasoning as
+      // the height ruler above.
+      valueEl.textContent = RepCheckUnits.formatWeightKg(startKg);
+      scrollEl.setAttribute("aria-valuenow", startKg);
+      scrollEl.addEventListener("scroll", () => {
+        const index = Math.round((scrollEl.scrollLeft - GOAL_RULER_HALF_TICK) / GOAL_RULER_TICK_PX);
+        const kg = Math.max(bounds.min, Math.min(bounds.max, bounds.min + index));
+        w.goalWeightKg = String(kg);
+        scrollEl.setAttribute("aria-valuenow", kg);
+        valueEl.textContent = RepCheckUnits.formatWeightKg(kg);
         updateHint();
-        if (nextBtn) nextBtn.disabled = !this.wizardCanProceed();
+        updateRateEta();
+      }, { passive: true });
+
+      // Pads have to be half the window's fluid width, computed after
+      // layout -- see onboarding.js's identical wiring for why this is
+      // rounded to a whole px (a fractional pad shifts the browser's true
+      // scrollLeft=0 off from where the tick math expects it).
+      setTimeout(() => {
+        const windowEl = wrap.querySelector(".pc-goal-ruler-window");
+        const halfWidth = windowEl ? Math.round(windowEl.getBoundingClientRect().width / 2) : 0;
+        wrap.querySelector("#pc-goal-pad-start").style.width = `${halfWidth}px`;
+        wrap.querySelector("#pc-goal-pad-end").style.width = `${halfWidth}px`;
+        scrollEl.scrollLeft = (startKg - bounds.min) * GOAL_RULER_TICK_PX + GOAL_RULER_HALF_TICK;
       });
+
       return wrap;
     }
 
@@ -1976,6 +2422,34 @@
       `;
     }
 
+    // Same day-pill idiom as renderCheckinDayGrid() above, but a plain
+    // on/off toggle instead of a status cycle -- data-active (not
+    // data-status) drives the highlighted look in CSS. Two of these
+    // (high-carb, bloated) let the user flag which specific weigh-in(s)
+    // this week had a plausible non-fat explanation for a jump, which
+    // feeds into the AI's read of the trend (see checkin_analyzer.py's
+    // _build_prompt()) rather than the deterministic baseline math --
+    // that math stays untouched as the safety anchor/fallback it already
+    // is; this is additional context for the layer whose job is judgment.
+    renderCheckinFlagGrid(flagKey, action, flagLabel) {
+      const c = this.checkin;
+      const days = c.weekDates.map((iso) => {
+        const active = !!c[flagKey][iso];
+        const dateObj = new Date(iso + "T00:00:00");
+        const weekdayLetter = dateObj.toLocaleDateString(RepCheckI18n.locale(), { weekday: "narrow" });
+        // Toggle state here is color-only in CSS (amber vs. default pill) --
+        // aria-pressed/aria-label carry the same on/off state for screen
+        // readers and don't rely on color perception.
+        const fullDateLabel = dateObj.toLocaleDateString(RepCheckI18n.locale(), { weekday: "long", month: "short", day: "numeric" });
+        return `
+          <button type="button" class="pc-ck-day pc-ck-flag-day" data-action="${action}" data-date="${iso}" data-active="${active}" aria-pressed="${active}" aria-label="${flagLabel} — ${fullDateLabel}">
+            ${weekdayLetter}
+          </button>
+        `;
+      }).join("");
+      return `<div class="pc-ck-day-grid">${days}</div>`;
+    }
+
     // Small helper for the check-in's sectioned layout: gradient icon
     // chip + title (+ optional sub) above whatever the section holds.
     ckSectionHead(chipClass, iconSvg, title, sub) {
@@ -1996,6 +2470,7 @@
       const CAL_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
       const SCALE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>`;
       const CAM_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
+      const DROPLET_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>`;
 
       const wrap = el(`
         <div class="pc-ck">
@@ -2014,12 +2489,24 @@
             </div>
 
             <div class="pc-ck-section">
+              ${this.ckSectionHead("pc-ck-chip-amber", DROPLET_SVG, t("coaching.checkin.contextLabel"), t("coaching.checkin.contextSub"))}
+              <div class="pc-ck-context-row">
+                <span class="pc-ck-context-label">${t("coaching.checkin.highCarbLabel")}</span>
+                ${this.renderCheckinFlagGrid("highCarbDays", "toggle-checkin-high-carb-day", t("coaching.checkin.highCarbLabel"))}
+              </div>
+              <div class="pc-ck-context-row">
+                <span class="pc-ck-context-label">${t("coaching.checkin.bloatedLabel")}</span>
+                ${this.renderCheckinFlagGrid("bloatedDays", "toggle-checkin-bloated-day", t("coaching.checkin.bloatedLabel"))}
+              </div>
+            </div>
+
+            <div class="pc-ck-section">
               ${this.ckSectionHead("pc-ck-chip-blue", SCALE_SVG, t("coaching.wizard.currentWeight", { unit: weightUnit }))}
               ${c.alreadyLoggedToday
                 ? `<div class="pc-checkin-logged-note">✓ ${t("coaching.checkin.weightAlreadyLogged")}</div>`
                 : `
                   <div class="pc-ck-weight-field">
-                    <input type="number" id="pc-checkin-weight" min="1" step="0.1" value="${c.weightInput}" placeholder="0.0">
+                    <input type="number" id="pc-checkin-weight" min="1" step="0.1" value="${c.weightInput}" placeholder="0.0" data-clear-on-focus>
                     <span class="pc-ck-weight-unit">${weightUnit}</span>
                   </div>
                 `}
