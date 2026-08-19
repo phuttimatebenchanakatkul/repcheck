@@ -35,6 +35,7 @@ from pathlib import Path
 
 import markdown as markdown_lib
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyze_chat import get_analysis_chat_reply
@@ -232,6 +233,23 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=3650)
 # the production/local switch instead of a value this app controls.
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
+
+# Render terminates TLS at its edge and forwards to gunicorn over plain
+# HTTP, so Flask sees scheme "http" and url_for(..., _external=True) builds
+# http://repcheck-q0m4.onrender.com/... . Google OAuth compares the
+# redirect_uri byte-for-byte against the authorized list in the Cloud
+# Console (which can only hold https:// for a non-localhost host), so
+# without this every production Google sign-in dies on redirect_uri_mismatch
+# before the user ever gets back here. ProxyFix makes request.scheme/host
+# read X-Forwarded-Proto/-Host, which Render always sets.
+#
+# Trusting those headers is only safe behind a proxy that overwrites them --
+# a client can otherwise just send X-Forwarded-Proto itself -- so this is
+# gated on RENDER, the same production switch used for the Secure cookie
+# flag above. Locally the app is reached directly over http://localhost and
+# url_for already builds the right thing.
+if os.environ.get("RENDER"):
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.register_blueprint(auth_bp)
 init_db()
