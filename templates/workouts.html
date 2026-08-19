@@ -5116,17 +5116,22 @@
       }
     }
 
-    // Nothing logged, nothing to chat about -- the card would just sit
-    // dead under an empty first-run screen, so it stays hidden until the
-    // user has logged at least one exercise on any day. renderTimeline()
-    // fires repcheck:workout-date-changed after every log/delete, so this
-    // re-runs the moment that first exercise lands.
-    function hasAnyLoggedExercise() {
-      return Object.keys(log).some((dateIso) => (log[dateIso] || []).length > 0);
+    // Nothing logged on the day you're looking at, nothing to chat about --
+    // so the card tracks the *selected* date, not "any day ever". Gating on
+    // any-day meant a single workout three days ago pinned the card open
+    // forever, leaving it stranded directly beneath the "Nothing logged yet"
+    // empty state every rest day: the screen simultaneously said there was
+    // nothing here and offered to discuss it.
+    //
+    // renderTimeline() fires repcheck:workout-date-changed after every
+    // log/edit/delete AND after every date-strip tap, so this re-runs both
+    // when the first exercise of a day lands and when you navigate away.
+    function hasLoggedExerciseOnSelectedDate() {
+      return (log[selectedDate] || []).length > 0;
     }
 
     function applyChatVisibility() {
-      chatEl.hidden = !hasAnyLoggedExercise();
+      chatEl.hidden = !hasLoggedExerciseOnSelectedDate();
     }
 
     function refreshForSelectedDate() {
