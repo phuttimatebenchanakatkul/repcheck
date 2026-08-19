@@ -29,26 +29,35 @@ Accent colors (same hex in both themes, only the `-bg` tint flips):
 | `--purple` | `#7c4fe0` | `#f3edfd` | `#2a1f45` |
 | `--pink` | `#c0398c` | `#fbeaf4` | `#3a1830` |
 
-Icon badges use a gradient of the accent, not the flat hex — e.g. green:
-`linear-gradient(135deg, #29b87e, var(--green))`. Follow this pattern for any
-new colored icon badge instead of a flat fill.
+Icon badges come in two treatments, and which one you use depends on where the
+badge sits, not on what it does. Neither treatment has a glow.
 
-The gradient is the whole treatment: no tinted `box-shadow` glow behind it.
-This doc used to prescribe one (`0 6px 14px rgba(31, 169, 113, 0.42)` for
-green) and it was removed everywhere it got applied — see
-`fix/remove-cta-glow-effect`, `fix/remove-af-icon-glow`, the HYROX
-add-a-station tiles, and the personal-bests trophy badge. A colored halo on
-every badge reads as decoration competing with the accent it is supposed to
-carry. Elevation still belongs on things that actually sit above the page
+**Entry-point badges** — the icon on a choice tile, a primary CTA, a quick
+action: a gradient of the accent, not the flat hex (green:
+`linear-gradient(135deg, #29b87e, var(--green))`). The gradient is the whole
+treatment: no tinted `box-shadow` behind it. This doc used to prescribe one
+(`0 6px 14px rgba(31, 169, 113, 0.42)` for green) and it was removed
+everywhere it got applied — see `fix/remove-cta-glow-effect`,
+`fix/remove-af-icon-glow`, `feat/quick-actions-five`, the HYROX add-a-station
+tiles, and the personal-bests trophy badge. A colored halo on every badge
+reads as decoration competing with the accent it is supposed to carry.
+Elevation still belongs on things that actually sit above the page
 (`--shadow` on cards, the hover lift on interactive rows — see Layout); it
-does not belong on a badge that is flush inside one.
+does not belong on a badge that is flush inside one. Ask before adding a glow
+back.
 
-Exception, and increasingly the default: the quick-actions sheet's tiles
-(`.qa-*` in `static/style.css`) use FLAT accent fills with no tinted
-box-shadow. The glow reads as a halo on the dark theme and has now been
-stripped on three separate branches (`fix/remove-cta-glow-effect`,
-`fix/remove-af-icon-glow`, `feat/quick-actions-five`). Prefer a flat fill
-on new icon badges and ask before adding the glow back.
+The quick-actions sheet's tiles (`.qa-*` in `static/style.css`) go further and
+use FLAT accent fills rather than a gradient — fine, and increasingly the
+default for a dense grid of them.
+
+**In-list badges** — the leading glyph on an inset-card row, or an empty
+state's icon: flat `var(--<accent>-bg)` fill with a `var(--<accent>)` glyph.
+A row is a list item, not a destination, and even a gradient on every row
+turns a scannable list into a field of lights. See `.af-icon-emoji` and
+`.nl-empty-icon` (`templates/nutrition.html`), and `.nl-create-food-icon`, the
+"Create a food" row on the food sheet's Custom tab. Use the `--<accent>-bg`
+token rather than an `rgba()` of the accent: the token is redefined per theme,
+so a fixed alpha over the dark card reads flat.
 
 Color is also an identifier: each entry point in a choice grid (take photo,
 upload, barcode, create, macros, etc.) keeps one accent consistently across

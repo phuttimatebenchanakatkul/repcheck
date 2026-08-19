@@ -80,7 +80,7 @@ def test_relog_confirm_screen_shows_macros_before_logging(nutrition_html):
     same helpers as a fresh scan result) rather than logging blind."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )
@@ -99,20 +99,59 @@ def test_relog_confirm_button_is_the_only_thing_that_logs(nutrition_html):
     relogEntry() -- cancelling must not log anything."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )
     assert fn_match, "renderRelogConfirm() is missing"
     body = fn_match.group(1)
-    assert re.search(
-        r'af-relog-confirm-btn"\)\.addEventListener\("click",\s*\(\)\s*=>\s*relogEntry\(original\)\)',
+    # The confirm button's handler is a block now (it one-shots itself against
+    # double-taps), so the assertion anchors to that handler's body rather than
+    # a one-liner arrow -- and checks that relogEntry is reachable from NOWHERE
+    # else in the function, which is what this test's name promises.
+    handler = re.search(
+        r'relogConfirmBtn\.addEventListener\("click",\s*\(\)\s*=>\s*\{(.*?)\n    \}\);',
         body,
-    ), "the confirm screen's Log again button should call relogEntry(original)"
-    assert re.search(
-        r'af-relog-cancel-btn"\)\.addEventListener\("click",\s*renderAfChoice\)',
-        body,
-    ), "Cancel should return to the choice screen, not log anything"
+        re.DOTALL,
+    )
+    assert handler, "the Log again button should wire up its own click handler"
+    assert re.search(r"relogEntry\(original(,\s*\w+)?\)", handler.group(1)), (
+        "the confirm screen's Log again button should call relogEntry(original)"
+    )
+    # Comment lines are stripped first: the source explains the double-tap fix
+    # by naming relogEntry() in prose, which is not a call site.
+    code_only = "\n".join(
+        line for line in body.splitlines() if not line.strip().startswith("//")
+    )
+    assert len(re.findall(r"\brelogEntry\(", code_only)) == 1, (
+        "relogEntry() should be called exactly once in renderRelogConfirm -- "
+        "from the Log again handler and nowhere else (not at render time, not "
+        "from the cancel path)"
+    )
+    # The one-shot guard is the double-tap fix: without it the button stays
+    # hit-testable through the ~300ms close animation and a second tap writes
+    # a second entry.
+    assert re.search(r"if \(relogConfirmBtn\.disabled\) return;", handler.group(1)), (
+        "the Log again handler should bail if it already fired"
+    )
+    assert handler.group(1).index("relogConfirmBtn.disabled = true") < handler.group(
+        1
+    ).index("relogEntry(original"), "the button should be disabled before logging"
+    # Cancel goes back to wherever the screen was opened from: renderAfChoice
+    # for the recent-scans list, or a caller-supplied handler for the
+    # food-search sheet, whose "back" is not the scan screen. Either way it
+    # must not log.
+    cancel_match = re.search(
+        r'af-relog-cancel-btn"\)\.addEventListener\("click",\s*([^)]+)\)', body
+    )
+    assert cancel_match, "Cancel should be wired to a handler"
+    assert "relogEntry" not in cancel_match.group(1), (
+        "Cancel must not log anything"
+    )
+    assert "renderAfChoice" in cancel_match.group(1), (
+        "Cancel should still fall back to the choice screen when no caller "
+        "supplies its own way out"
+    )
 
 
 def test_relog_confirm_shows_the_serving_amount(nutrition_html):
@@ -121,7 +160,7 @@ def test_relog_confirm_shows_the_serving_amount(nutrition_html):
     the entry actually represents."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )
@@ -141,7 +180,7 @@ def test_relog_confirm_lists_per_ingredient_amounts(nutrition_html):
     is only meaningful as 150g pork + 200g rice + 50g egg."""
     script = _script_block(nutrition_html)
     fn_match = re.search(
-        r"function renderRelogConfirm\(original\)\s*\{(.*?)\n  \}",
+        r"function renderRelogConfirm\(original[^)]*\)\s*\{(.*?)\n  \}",
         script,
         re.DOTALL,
     )
