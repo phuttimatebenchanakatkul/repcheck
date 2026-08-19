@@ -13,7 +13,7 @@ calls pinned below are the only thing standing between the two, and they
 are one careless "simplify this template" away from vanishing.
 
 Source-level regex assertions against the real files, matching the
-tradeoff test_hyrox_personal_best_section.py already makes: hyrox.js and
+tradeoff test_hyrox_keyboard_activation.py already makes: hyrox.js and
 these templates hold hand-rolled JS with no build step, and the property
 worth pinning here is textual (does this interpolation go through the
 escaper) rather than behavioural.

@@ -4,7 +4,7 @@ templates/index.html's inline module has no vitest extraction harness (the
 loaders in tests-js/support/ cover workouts.html, nutrition.html, hyrox.js
 and friends, not this one), and the script carries Jinja expressions that
 a JS parser chokes on. Source-level regex assertions against the real file
-are the same tradeoff test_hyrox_personal_best_section.py already makes.
+are the same tradeoff test_hyrox_keyboard_activation.py already makes.
 
 Two states, one invariant: #ex-picker-btn and #selected-exercise-chip are
 mutually exclusive. Before the fix, selectExercise() only showed the chip
