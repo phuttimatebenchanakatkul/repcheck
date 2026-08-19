@@ -612,11 +612,13 @@ def test_reduced_motion_runs_the_settle_steps_inline(whole_split_body_fn):
     pinned at the opening measurement (clipping the list) and a closed panel
     would keep its stale content forever."""
     assert 'window.matchMedia("(prefers-reduced-motion: reduce)").matches' in whole_split_body_fn
+    # The open branch's full shape (including the reveal scroll) is pinned by
+    # test_reveal_runs_only_after_the_growth_has_settled; here it's only the
+    # cap release that matters.
     assert re.search(
         r"if \(reducedMotion\(\)\) \{\s*"
         r'pickerExpand\.classList\.add\("is-open"\);\s*'
-        r'pickerExpand\.style\.maxHeight = "none";\s*'
-        r"return;\s*\}",
+        r'pickerExpand\.style\.maxHeight = "none";',
         whole_split_body_fn,
     )
     assert re.search(
@@ -701,3 +703,59 @@ def test_panel_grows_with_the_sheets_own_easing_curve(workouts_html, picker_expa
     sheet = re.search(r"\.split-modal \{[^}]*transition: transform [\d.]+m?s (cubic-bezier\([^)]*\))", workouts_html)
     assert sheet, "couldn't find .split-modal's transition"
     assert sheet.group(1) in picker_expand_css
+
+
+def test_grown_picker_is_scrolled_into_view(whole_split_body_fn):
+    """The grown panel is routinely taller than what's left of the sheet
+    (the list caps at 50vh, .split-modal at 86vh, and the day's tabs and
+    exercise rows are already above it), so the Done button finishes the
+    growth below the fold with nothing on screen to suggest it's there.
+    Measured on a 844px-tall phone: a 597px panel in a 655px scrollport."""
+    assert "function revealPicker(smooth) {" in whole_split_body_fn
+    assert "splitModalBody.scrollTo({ top, behavior: smooth ? \"smooth\" : \"auto\" });" in whole_split_body_fn
+
+
+def test_reveal_scrolls_the_sheet_body_not_the_page(whole_split_body_fn):
+    """scrollIntoView() would walk every scrollable ancestor including the
+    document, dragging the page behind the sheet. The scrollport is
+    .split-modal-body (the one element with overflow-y: auto) and it's the
+    only thing that should move."""
+    assert "scrollIntoView" not in whole_split_body_fn
+    assert re.search(
+        r"const top = splitModalBody\.scrollTop\s*"
+        r"\+ \(pickBtn\.getBoundingClientRect\(\)\.top - bodyRect\.top\)",
+        whole_split_body_fn,
+    )
+
+
+def test_reveal_is_a_no_op_when_the_panel_already_fits(whole_split_body_fn):
+    """A short list on a tall screen needs no scroll, and scrolling anyway
+    would shove the day's exercise list out of view for nothing. Verified
+    against a 215px panel: scrollTop stays at 0."""
+    assert re.search(
+        r"if \(pickerExpand\.getBoundingClientRect\(\)\.bottom <= bodyRect\.bottom\) return;",
+        whole_split_body_fn,
+    )
+
+
+def test_reveal_runs_only_after_the_growth_has_settled(whole_split_body_fn):
+    """While the panel is still expanding, splitModalBody hasn't reached its
+    final scrollHeight, so scrollTo() would clamp short and land in the
+    wrong place. It has to follow the cap release in the settle handler --
+    and run inline (unanimated) on the reduced-motion path, which never
+    gets a transitionend."""
+    assert re.search(
+        r"cancelPanelSettled = onPanelSettled\(\(\) => \{\s*"
+        r"cancelPanelSettled = null;\s*"
+        r'pickerExpand\.style\.maxHeight = "none";\s*'
+        r"revealPicker\(true\);",
+        whole_split_body_fn,
+    )
+    assert re.search(
+        r"if \(reducedMotion\(\)\) \{\s*"
+        r'pickerExpand\.classList\.add\("is-open"\);\s*'
+        r'pickerExpand\.style\.maxHeight = "none";\s*'
+        r"revealPicker\(false\);\s*"
+        r"return;\s*\}",
+        whole_split_body_fn,
+    )
