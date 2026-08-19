@@ -159,6 +159,18 @@ def google_login():
 
     state = secrets.token_urlsafe(16)
     session["oauth_state"] = state
+    # Google's callback comes back with only ?code and ?state on it, so a
+    # "next" typed into /login?next=/nutrition would be lost across the
+    # round-trip and every Google user would land on home instead of the
+    # page that sent them to log in. Park it in the session (already
+    # validated by _safe_next, and the session is server-signed) rather
+    # than smuggling it through the state param, which has to stay an
+    # opaque CSRF nonce.
+    next_url = _safe_next(request.args.get("next", ""))
+    if next_url:
+        session["oauth_next"] = next_url
+    else:
+        session.pop("oauth_next", None)
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": url_for("auth.google_callback", _external=True),
@@ -202,15 +214,26 @@ def google_callback():
     if not user:
         # Same email already registered the normal way — sign them into
         # that existing account rather than creating a duplicate.
-        user = get_user_by_email(info.get("email", "")) if info.get("email") else None
+        #
+        # This is the one place an OAuth login can take over an account
+        # that was created with a password, so it needs Google to have
+        # actually verified the address. Google normally sets
+        # email_verified true, but not always (some Workspace/federated
+        # accounts come back false), and an unverified address here would
+        # mean anyone who can attach any email to a Google account gets
+        # straight into the RepCheck account registered under it. When
+        # it's unverified, fall through and create a separate account keyed
+        # on the Google subject id instead of merging.
+        email = info.get("email") if info.get("email_verified") else None
+        user = get_user_by_email(email) if email else None
         if not user:
             user_id = create_oauth_user(
-                info.get("email"), info.get("name", "Google User"), "google", info["sub"], info.get("picture")
+                email, info.get("name", "Google User"), "google", info["sub"], info.get("picture")
             )
             user = get_user_by_id(user_id)
 
     _login_session(user)
-    return redirect(url_for("home"))
+    return redirect(session.pop("oauth_next", None) or url_for("home"))
 
 
 # ---------- Apple Sign In ----------
