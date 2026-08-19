@@ -109,12 +109,17 @@ def test_exercise_row_attribute_uses_attribute_escaping(review_step):
 def test_day_label_is_escaped_in_the_pill(review_step):
     """Day labels are free text on the custom-split path.
 
-    The carousel only ever renders the label as text in one place -- the
-    heading pill (dots carry colour via a style attribute, not text).
+    The carousel renders the label as text in two places -- the heading
+    pill and, when its menu is open, each option's own label span (dots
+    carry colour via a style attribute, not text).
     """
-    pill = re.search(r'split-carousel-pill" data-cycle-day.*?>\s*(.*?)\n', review_step)
-    assert pill, "could not find the carousel pill"
+    pill = re.search(r'class="split-carousel-pill-text">(.*?)</span>', review_step)
+    assert pill, "could not find the carousel pill's label span"
     assert "escapeHtml(" in pill.group(1), "the carousel pill renders a day label unescaped"
+
+    option = re.search(r'class="split-carousel-pill-menu-label">(.*?)</span>', review_step)
+    assert option, "could not find the picker menu option's label span"
+    assert "escapeHtml(" in option.group(1), "the picker menu renders a day label unescaped"
 
 
 def test_escape_helpers_exist_in_this_template(workouts_html):
@@ -138,17 +143,18 @@ def test_escape_helpers_exist_in_this_template(workouts_html):
 def test_saved_schedule_uses_the_untranslated_rest_literal(review_step):
     """Downstream code compares against "Rest", never the translation.
 
-    The cycle list is what gets written into the saved schedule, so the
-    literal has to appear there rather than restLabel.
+    The picker menu's option list is what gets written into the saved
+    schedule when an option is selected, so the literal has to appear
+    there rather than restLabel.
     """
-    match = re.search(r"const options = \[(.*?)\];", review_step)
-    assert match, "could not find the day-cycle option list"
+    match = re.search(r"const pillMenuOptions = \[(.*?)\];", review_step)
+    assert match, "could not find the picker menu's option list"
     assert '"Rest"' in match.group(1), (
-        'the cycle list must append the literal "Rest" -- saving the translated '
+        'the option list must append the literal "Rest" -- saving the translated '
         "label would make every Thai user's rest day read as a training day"
     )
     assert "restLabel" not in match.group(1), (
-        "the cycle list must not use the translated rest label; it is written "
+        "the option list must not use the translated rest label; it is written "
         "straight into the saved plan"
     )
 
@@ -242,4 +248,37 @@ def test_exercise_icon_html_escapes_the_custom_exercise_emoji(workouts_html):
         "exerciseIconHtml's emoji fallback must escape exerciseEmoji(name) -- "
         "it is user-authored (the custom-exercise emoji field) and reaches "
         "innerHTML at every one of exerciseIconHtml's 8 call sites"
+    )
+
+
+def test_close_split_modal_resets_the_picker_menu_state(workouts_html):
+    """Closing the wizard (X button, overlay tap) bypasses the picker
+    menu's own dismiss paths -- those only fire on a click/Escape that the
+    menu's own document-level listeners actually observe. Without an
+    explicit reset here, closing the modal while the picker menu happens
+    to be open leaves reviewPillMenuOpen stuck true and both document
+    listeners (reviewDismissMenuOnOutsideClick, reviewDismissMenuOnEscape)
+    permanently registered -- they'd only ever get cleaned up if the
+    wizard reaches this exact step again in the same page session.
+    Flagged independently by both the testing specialist and the
+    adversarial review during /ship's pre-landing review; this is a
+    Python source-text test (not a JS unit test) because closeSplitModal()
+    lives outside renderSplitStepReview()'s extraction region -- the JS
+    test harness only mocks it, it can't exercise the real function body.
+    """
+    match = re.search(r"function closeSplitModal\(\)\s*\{(.*?)\n  \}", workouts_html, re.DOTALL)
+    assert match, "closeSplitModal() is missing"
+    body = match.group(1)
+    assert "reviewPillMenuOpen = false" in body, (
+        "closeSplitModal() must reset reviewPillMenuOpen, the same way "
+        "renderSplitStepReview() does on its own next run -- otherwise a "
+        "picker left open when the modal closes stays 'open' in memory"
+    )
+    assert 'removeEventListener("click", reviewDismissMenuOnOutsideClick)' in body, (
+        "closeSplitModal() must remove the outside-click dismiss listener, "
+        "or it stays registered on document indefinitely once the modal closes"
+    )
+    assert 'removeEventListener("keydown", reviewDismissMenuOnEscape)' in body, (
+        "closeSplitModal() must remove the Escape dismiss listener, "
+        "or it stays registered on document indefinitely once the modal closes"
     )
