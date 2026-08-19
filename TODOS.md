@@ -342,15 +342,41 @@
 
 ### "No detail available" toast always blames "another device" even when the real cause is local-history eviction
 
-**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.
+**Fixed on `fix/never-evict-race-history`, 2026-08-14** -- resolved at the root cause. `MAX_HISTORY` (the count-based `saveHistory()` trim this TODO was about) is gone entirely; local Hyrox history is never truncated by count or age. The toast's "set on another device" copy is no longer a false-attribution risk, since local-history eviction is no longer a thing that can happen.
 
-**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.
+~~**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.~~
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.
+~~**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.~~
+
+~~**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.~~
 
 **Effort:** S
+**Priority:** P4 (resolved)
+**Depends on:** None
+
+### Unbounded Hyrox history re-uploads the full blob on every single save
+
+**What:** `repcheck_hyrox_history_v1` is one of `account_sync.js`'s `SYNC_KEYS`, so every `saveHistory()` write (finishing a race, deleting one, or caching an AI analysis result) already re-uploads the entire history array via the wrapped `localStorage.setItem` -- this was true even before `fix/never-evict-race-history`. What that fix changes is the *size ceiling*: the array can no longer be capped at ~200 entries, so a long-lived account's full-blob re-upload grows without bound on every single write, including ones that only touch one record (e.g. caching one race's AI analysis text).
+
+**Why:** Not a correctness bug -- `account_sync.js`'s `pushToServer()` already has documented fallback handling for oversized payloads (sendBeacon queue-full retries via fetch, keepalive-quota-exceeded retries without keepalive), so this degrades gracefully rather than failing outright. But it's a standing efficiency cost that scales with account age: JSON.stringify of the whole array plus a full network re-transmission, repeated on every write, for the life of the account, when most writes only change one record.
+
+**Context:** Found by the security and performance specialists during `/ship` on `fix/never-evict-race-history` (both independently flagged the same root cause). A real fix means either delta/batched sync for this key specifically (only the changed record, not the whole array) or restructuring the synced value's shape (e.g. per-race rows instead of one array blob) -- the same "one JSON blob per user, whole-blob read-modify-write" architectural pattern already tracked for workout/nutrition/weight logs elsewhere in this file, now also true of Hyrox history now that it's unbounded. Out of scope for a bugfix branch whose actual mandate was "never evict race data."
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** None
+
+### No recovery path once a device's localStorage quota is hit for Hyrox history
+
+**What:** `saveHistory()`'s catch (added on `fix/never-evict-race-history`) surfaces a toast when `localStorage.setItem` throws `QuotaExceededError`, but `this.history` only ever grows and a failed save is never retried. Every future write on that device -- finishing a race, deleting one, caching an AI analysis -- re-triggers the same failure until the array shrinks. The only shrink path is `removeHistory()`, one entry at a time; there's no bulk-clear UI, and the toast copy just says "try another device."
+
+**Why:** Product/UX gap, not a code defect -- the underlying data is safe (server-authoritative, never lost), but a device that hits this has a genuinely degraded experience with no clear way out short of manually deleting races one by one or switching devices.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `fix/never-evict-race-history`, as a follow-on to the QuotaExceededError catch it also verified. Needs a product decision: a bulk "free up space" flow (e.g. clear local cache for races already confirmed synced server-side, since they're recoverable via hydration), or accept the one-at-a-time deletion path as sufficient given how rare hitting the quota actually is.
+
+**Effort:** M (once the desired recovery UX is decided)
 **Priority:** P4
-**Depends on:** A product decision on the intended wording
+**Depends on:** A product decision on the intended recovery flow
 
 ### Add-a-station category tabs don't implement the full ARIA APG tabs keyboard pattern
 

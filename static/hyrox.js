@@ -22,7 +22,6 @@
   const t = (key, vars) => RepCheckI18n.t(key, vars);
 
   const HISTORY_KEY = "repcheck_hyrox_history_v1";
-  const MAX_HISTORY = 200;
   // Which gender's leaderboard to show -- persisted separately from the
   // per-race setup gender (which resets every time via resetSetup()),
   // since "which of the 4 global leaderboards am I" is a standing
@@ -875,8 +874,28 @@
       this.closeStationPickerSheet();
     }
 
+    // Never truncates: a raced time must stay visible/openable no matter
+    // how long ago it happened. This used to slice(-200) here, which
+    // silently dropped a device's older races from localStorage on every
+    // save -- the server side was never affected (account_sync.js merges
+    // by id, purely additive), but renderHistory()/renderPersonalBests()/
+    // findRace() all read this array directly, so the drop was real on
+    // that device's own UI.
+    //
+    // Now unbounded, so a long-lived device can eventually hit the
+    // browser's localStorage quota (setItem throws QuotaExceededError
+    // synchronously). Every caller (finishRace/removeHistory/the
+    // analysis-cache write) does more work AFTER this call -- render(),
+    // persistHistoryEntry(), persistRemoveHistoryEntry() -- so an
+    // uncaught throw here would abort those too, which is a worse outcome
+    // than the eviction bug this replaced: the race wouldn't even reach
+    // the server-authoritative save. Caught and surfaced instead.
     saveHistory() {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(this.history.slice(-MAX_HISTORY)));
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(this.history));
+      } catch (err) {
+        showHistorySaveError(t("hyrox.history.storageFullError"));
+      }
     }
 
     // ---------- Derived state ----------
