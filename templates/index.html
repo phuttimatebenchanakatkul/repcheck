@@ -561,6 +561,29 @@
     if (n.includes("pull") || n.includes("row") || n.includes("chin-up")) return "\u{1F3CB}️";
     return "\u{1F3CB}️";
   }
+  // Exercise names reaching this page are not all library-controlled: a
+  // user can create a custom exercise (POST /api/custom-exercises, which
+  // only trims and caps the name at 60 chars) and then log and analyze it,
+  // so the name arrives here as author-controlled text and lands in
+  // innerHTML. Same sink, same fix as nutrition.html, workouts.html and
+  // static/onboarding.js. Also covers the typed search query further down:
+  // RepCheckI18n.t() substitutes its vars with a plain split/join and does
+  // NOT escape them, and that result lands in innerHTML too.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  // escapeHtml() round-trips through textContent, which escapes < > and &
+  // but deliberately leaves quotes alone -- correct for a text node, unsafe
+  // the moment the value lands inside a quoted attribute, where one " ends
+  // the attribute and everything after it parses as markup. data-name is
+  // read back via dataset, and the parser turns &quot; back into " on the
+  // way out, so escaping here costs the readers nothing.
+  function escapeAttr(text) {
+    return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   // Prefer the real per-exercise illustration from the icon pack; fall
   // back to the generic emoji heuristic above for anything not covered.
   function exerciseIconHtml(name) {
@@ -656,7 +679,7 @@
       strip.innerHTML = serverHistory.map((entry) => `
         <button type="button" class="an-recent-card" data-history-id="${entry.id}">
           <div class="an-recent-icon">${exerciseIconHtml(entry.exercise_label)}</div>
-          <div class="an-recent-name">${entry.exercise_label}</div>
+          <div class="an-recent-name">${escapeHtml(entry.exercise_label)}</div>
           <div class="an-recent-date">${relativeDateLabel(historyTimestamp(entry.created_at))}${entry.overall_score !== null && entry.overall_score !== undefined ? ` · ${entry.overall_score}/100` : ""}</div>
         </button>
       `).join("");
@@ -675,9 +698,9 @@
     wrap.style.display = "block";
     viewFullLogs.style.display = "none";
     strip.innerHTML = entries.map((entry) => `
-      <button type="button" class="an-recent-card" data-name="${entry.exercise}">
+      <button type="button" class="an-recent-card" data-name="${escapeAttr(entry.exercise)}">
         <div class="an-recent-icon">${exerciseIconHtml(entry.exercise)}</div>
-        <div class="an-recent-name">${entry.exercise}</div>
+        <div class="an-recent-name">${escapeHtml(entry.exercise)}</div>
         <div class="an-recent-date">${relativeDateLabel(entry.analyzedAt)}</div>
       </button>
     `).join("");
@@ -751,10 +774,10 @@
     const isFav = exerciseFavorites.has(name);
     const t = RepCheckI18n.t;
     return `
-      <div class="ex-modal-result-item" data-name="${name}">
+      <div class="ex-modal-result-item" data-name="${escapeAttr(name)}">
         <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-        <span>${name}</span>
-        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${name}" aria-label="${isFav ? t("analyze.unfavorite") : t("analyze.favorite")}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
+        <span>${escapeHtml(name)}</span>
+        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" aria-label="${isFav ? t("analyze.unfavorite") : t("analyze.favorite")}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
       </div>
     `;
   }
@@ -844,16 +867,6 @@
         renderExerciseModalDefault();
       });
     });
-  }
-
-  // RepCheckI18n.t() substitutes its vars with a plain split/join and does
-  // NOT escape them, and the result below lands in innerHTML -- so the
-  // typed query has to be escaped on the way in. Same round-trip helper
-  // workouts.html uses; this file had none of its own.
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
   }
 
   function renderExerciseModalSearch(query) {
@@ -1111,7 +1124,7 @@
           <button type="button" class="an-glass" id="an-back" aria-label="Back to Analyze">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h1 class="an-bar-title">${data.exercise_label}</h1>
+          <h1 class="an-bar-title">${escapeHtml(data.exercise_label)}</h1>
           <span class="an-glass an-glass-spacer" aria-hidden="true"></span>
         </div>
 

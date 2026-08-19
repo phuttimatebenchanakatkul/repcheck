@@ -1980,7 +1980,7 @@
     // A custom exercise shows the emoji the user picked for it; everything
     // else uses the library's per-exercise emoji.
     const meta = customExerciseMeta[name];
-    if (meta && meta.emoji) return meta.emoji;
+    if (meta && meta.emoji) return escapeHtml(meta.emoji);
     return exerciseDetail(name).emoji;
   }
   // Prefer the real per-exercise illustration from the icon pack; fall
@@ -2471,7 +2471,7 @@
           <div class="wl-entry-card ${complete ? "is-complete" : ""}" data-toggle-entry="${entry.id}">
             <div class="wl-entry-iconwrap" data-exercise-video="${escapeAttr(entry.exercise)}" title="Watch video & tutorial"><div class="wl-entry-icon">${exerciseIconHtml(entry.exercise)}</div><span class="wl-entry-check">${SMALL_CHECK_ICON}</span></div>
             <div class="wl-entry-info">
-              <div class="wl-entry-name">${entry.exercise}</div>
+              <div class="wl-entry-name">${escapeHtml(entry.exercise)}</div>
               <div class="wl-entry-sub">${formatTime(entry.addedAt)} • ${weightPart}${repsSummary(entry)}</div>
             </div>
             <button type="button" class="wl-entry-toggle ${expanded ? "is-expanded" : ""}" data-toggle-entry="${entry.id}" aria-label="${expanded ? t("common.minimize") : "Expand"}">
@@ -2920,10 +2920,10 @@
   function exerciseRowHtml(name) {
     const isFav = exerciseFavorites.has(name);
     return `
-      <div class="ex-modal-result-item" data-name="${name}">
+      <div class="ex-modal-result-item" data-name="${escapeAttr(name)}">
         <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-        <span>${name}</span>
-        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${name}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
+        <span>${escapeHtml(name)}</span>
+        <button type="button" class="ex-modal-result-fav ${isFav ? "is-fav" : ""}" data-fav-toggle="${escapeAttr(name)}" aria-label="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? EX_HEART_FILLED : EX_HEART_OUTLINE}</button>
       </div>
     `;
   }
@@ -3279,14 +3279,14 @@
         ${shown.map((name, i) => {
           const isAdded = loggedToday.has(name);
           return `
-          <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+          <div class="wl-plan-exercise-row" data-exercise-detail="${escapeAttr(name)}" title="Tap to see how to perform this">
             <span class="wl-plan-exercise-num">${i + 1}</span>
             <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
             <span class="wl-plan-exercise-info">
-              <span class="wl-plan-exercise-name">${name}</span>
-              <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+              <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
+              <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
             </span>
-            <button type="button" class="wl-plan-quick-add${isAdded ? " is-added" : ""}" data-quick-add="${name}" aria-label="${isAdded ? `${name} already logged today` : `Log ${name} now`}" title="${isAdded ? "Already logged today" : "Log now"}"${isAdded ? ' aria-disabled="true"' : ""}>${isAdded ? SMALL_CHECK_ICON : "+"}</button>
+            <button type="button" class="wl-plan-quick-add${isAdded ? " is-added" : ""}" data-quick-add="${escapeAttr(name)}" aria-label="${isAdded ? `${escapeAttr(name)} already logged today` : `Log ${escapeAttr(name)} now`}" title="${isAdded ? "Already logged today" : "Log now"}"${isAdded ? ' aria-disabled="true"' : ""}>${isAdded ? SMALL_CHECK_ICON : "+"}</button>
             <span class="wl-plan-exercise-grip">${PLAN_GRIP_SVG}</span>
           </div>
         `;
@@ -3709,7 +3709,7 @@
     splitModalTitle.textContent = t("workouts.wizard.goalTitle");
     splitModalBody.innerHTML = `
       <div class="split-step-label">${t(aiSuggest() ? "workouts.wizard.stepGoalAi" : "workouts.wizard.stepGoalEdit")}</div>
-      <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${splitWizard.goal.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
+      <textarea id="split-goal-input" class="split-goal-textarea" maxlength="300" placeholder="${t("workouts.wizard.goalPlaceholder")}">${escapeHtml(splitWizard.goal)}</textarea>
       <button type="button" class="split-primary-btn" id="split-goal-next-btn">${t("common.next")}</button>
     `;
     document.getElementById("split-goal-next-btn").addEventListener("click", () => {
@@ -3737,7 +3737,7 @@
       const pickedCount = (splitWizard.customDayExercises[name] || []).length;
       return `
         <div class="split-custom-day-row">
-          <span class="split-custom-day-name">${name}</span>
+          <span class="split-custom-day-name">${escapeHtml(name)}</span>
           <button type="button" class="split-custom-pick-btn" data-pick-exercises="${i}">
             ${pickedCount ? t("workouts.wizard.exercisesPicked", { n: pickedCount }) : t("workouts.wizard.pickExercises")}
           </button>
@@ -3792,9 +3792,9 @@
         <div class="split-ex-picker-category-title">${t("workouts.wizard.customExercises")}</div>
         ${filteredCustom.map((ex) => `
           <label class="split-ex-picker-item">
-            <input type="checkbox" data-exercise="${ex.name}" ${selected.has(ex.name) ? "checked" : ""}>
+            <input type="checkbox" data-exercise="${escapeAttr(ex.name)}" ${selected.has(ex.name) ? "checked" : ""}>
             <span class="ex-modal-result-icon">${exerciseIconHtml(ex.name)}</span>
-            <span>${ex.name}</span>
+            <span>${escapeHtml(ex.name)}</span>
             <button type="button" class="split-ex-picker-item-remove" data-remove-custom-exercise="${ex.id}" aria-label="${t("common.remove")}">&times;</button>
           </label>
         `).join("")}
@@ -3809,9 +3809,9 @@
           <div class="split-ex-picker-category-title">${category}</div>
           ${filtered.map((name) => `
             <label class="split-ex-picker-item">
-              <input type="checkbox" data-exercise="${name}" ${selected.has(name) ? "checked" : ""}>
+              <input type="checkbox" data-exercise="${escapeAttr(name)}" ${selected.has(name) ? "checked" : ""}>
               <span class="ex-modal-result-icon">${exerciseIconHtml(name)}</span>
-              <span>${name}</span>
+              <span>${escapeHtml(name)}</span>
             </label>
           `).join("")}
         </div>
@@ -4506,17 +4506,17 @@
           `;
         }).join("")}
       </div>
-      <div class="split-day-plan-label">${planLabel}</div>
+      <div class="split-day-plan-label">${escapeHtml(planLabel)}</div>
       ${!showExerciseList
         ? `<div class="wl-plan-rest">${t("workouts.plan.restText")}</div>`
         : `<div class="wl-plan-exercise-list">
             ${activeDay.exercises.map((name, i) => `
-              <div class="wl-plan-exercise-row" data-exercise-detail="${name}" title="Tap to see how to perform this">
+              <div class="wl-plan-exercise-row" data-exercise-detail="${escapeAttr(name)}" title="Tap to see how to perform this">
                 <span class="wl-plan-exercise-num">${i + 1}</span>
                 <span class="wl-plan-exercise-emoji">${exerciseIconHtml(name)}</span>
                 <span class="wl-plan-exercise-info">
-                  <span class="wl-plan-exercise-name">${name}</span>
-                  <span class="wl-plan-exercise-meta">${getSetsRepsText(name)}</span>
+                  <span class="wl-plan-exercise-name">${escapeHtml(name)}</span>
+                  <span class="wl-plan-exercise-meta">${escapeHtml(getSetsRepsText(name))}</span>
                 </span>
                 <button type="button" class="split-custom-remove-btn" data-remove-day-exercise="${i}" aria-label="${t("common.remove")}">&times;</button>
               </div>

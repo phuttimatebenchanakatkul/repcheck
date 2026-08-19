@@ -986,9 +986,20 @@
     }
   }
 
+  // w.error carries whatever the API put in `error` (or a thrown message)
+  // straight into innerHTML via el(). Not another user's text -- #178
+  // deleted the free-text onboarding steps that were -- but still a
+  // non-i18n string reaching a markup sink, which is the same shape as the
+  // bug this file's tests were written for. Cheap to close, so it is.
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text == null ? "" : text;
+    return div.innerHTML;
+  }
+
   function renderResult() {
     if (w.error) {
-      const wrap = el(`<div><div class="ob-error">${w.error}</div></div>`);
+      const wrap = el(`<div><div class="ob-error">${escapeHtml(w.error)}</div></div>`);
       wrap.appendChild(el(`
         <div class="ob-wizard-actions">
           <button type="button" class="ob-btn-secondary" data-action="back-to-days">${t("common.back")}</button>
