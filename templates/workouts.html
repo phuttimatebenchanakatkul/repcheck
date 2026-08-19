@@ -4595,11 +4595,35 @@
         return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
       }
 
+      // The grown panel is routinely taller than what's left of the sheet
+      // (.split-ex-picker-list alone caps at 50vh, and .split-modal stops
+      // at 86vh with the day's tabs, heading and exercise rows already
+      // above it), so its lower half -- the Done button included -- can
+      // finish the growth below the fold with nothing on screen to suggest
+      // it's there. Scroll the toggle button up to the top of the sheet's
+      // scrollport so the panel gets everything below it.
+      //
+      // Only when it actually overflows: a short list on a tall screen
+      // already fits, and scrolling then would shove the day's exercise
+      // list out of view for nothing. And only once the growth has settled
+      // -- while the panel is still expanding, splitModalBody hasn't
+      // reached its final scrollHeight, so the target would clamp short and
+      // land in the wrong place.
+      function revealPicker(smooth) {
+        const bodyRect = splitModalBody.getBoundingClientRect();
+        if (pickerExpand.getBoundingClientRect().bottom <= bodyRect.bottom) return;
+        const top = splitModalBody.scrollTop
+          + (pickBtn.getBoundingClientRect().top - bodyRect.top)
+          - 8; // a sliver of the row above, so the panel doesn't read as the whole sheet
+        splitModalBody.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
+      }
+
       function openPicker() {
         if (cancelPanelSettled) cancelPanelSettled();
         if (reducedMotion()) {
           pickerExpand.classList.add("is-open");
           pickerExpand.style.maxHeight = "none";
+          revealPicker(false);
           return;
         }
         pinHeight(0);
@@ -4611,6 +4635,7 @@
         cancelPanelSettled = onPanelSettled(() => {
           cancelPanelSettled = null;
           pickerExpand.style.maxHeight = "none";
+          revealPicker(true);
         });
       }
 
