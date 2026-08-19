@@ -717,7 +717,6 @@
       this.leaderboardGender = localStorage.getItem(LEADERBOARD_GENDER_KEY) || null;
       this.leaderboardTab = { category: "open", format: "singles" };
       this.leaderboardCache = null; // { key, loading, data|error } -- see loadLeaderboard()
-      this.myBestsCache = null; // { gender, loading, entries } -- see loadMyBests()
       // Transient modal state (not race data, so it lives outside
       // resetSetup): which station's how-to/video popup is open, and the
       // per-race AI analysis cache keyed by race id (see loadRaceAnalysis).
@@ -756,11 +755,6 @@
       // detail, keyed "raceId:section" (section = "overall" or a rating
       // group name) -- collapsed (short only) by default for every race.
       this.analysisExpanded = new Set();
-      // Which formats' "Your personal bests" section (renderMyBestsCard())
-      // are expanded past their single hero time to show every tier
-      // raced -- keyed by format id ("singles"/"doubles"), collapsed by
-      // default same as analysisExpanded above.
-      this.pbExpandedFormats = new Set();
       // Which of the personal-best board's combo tabs is selected (a
       // pbKeyFor() key). null = "whichever combo you have raced most",
       // resolved at render time so a first visit -- or a visit after the
@@ -770,13 +764,14 @@
       this.resetSetup();
 
       this.root.addEventListener("click", (event) => this.handleClick(event));
-      // renderMyBestsCard()'s format-section trigger is a div[role=button],
-      // not a real <button>, because it wraps its own nested <button> (the
-      // hero time) -- real buttons can't nest inside each other (invalid
-      // HTML; the browser silently closes the outer one, corrupting
-      // everything rendered after it). Keyboard activation isn't free on a
-      // div the way it is on a button, so this replays Enter/Space as a
-      // synthetic click through the same delegated handler above.
+      // The personal-best board's rows and the history rows are
+      // div[role="button"], not real <button>s, because each one wraps its
+      // own nested interactive control -- real buttons can't nest inside
+      // each other (invalid HTML; the browser silently closes the outer
+      // one, corrupting everything rendered after it). Keyboard activation
+      // isn't free on a div the way it is on a button, so this replays
+      // Enter/Space as a synthetic click through the same delegated
+      // handler above.
       this.root.addEventListener("keydown", (event) => this.handleKeydown(event));
       this.root.addEventListener("change", (event) => this.handleChange(event));
       // The blank-on-focus behavior for this page's [data-clear-on-focus]
@@ -849,7 +844,6 @@
         localStorage.setItem(HISTORY_SYNCED_KEY, "1");
         // Whatever's currently cached/showing is now stale.
         this.leaderboardCache = null;
-        this.myBestsCache = null;
         this.render();
       } catch (err) {
         // Leave the flag unset so this retries on the next page load.
@@ -1074,8 +1068,6 @@
       if (action === "reset-custom-stations") return this.resetCustomStations();
       if (action === "open-station-picker") return this.openStationPickerSheet();
       if (action === "set-station-picker-category") return this.setStationPickerCategory(target.dataset.value);
-      if (action === "toggle-pb-format") return this.togglePbFormat(target.dataset.format);
-      if (action === "pb-no-detail") return showInfoToast(t("hyrox.pb.noDetailAvailable"));
     }
 
     // Enter/Space activation for div[role=button] triggers (see the
@@ -1096,13 +1088,6 @@
       const key = `${raceId}:${section}`;
       if (this.analysisExpanded.has(key)) this.analysisExpanded.delete(key);
       else this.analysisExpanded.add(key);
-      this.render();
-    }
-
-    // ---------- Your personal bests: per-format expand ----------
-    togglePbFormat(formatId) {
-      if (this.pbExpandedFormats.has(formatId)) this.pbExpandedFormats.delete(formatId);
-      else this.pbExpandedFormats.add(formatId);
       this.render();
     }
 
@@ -1665,49 +1650,6 @@
       this.render();
     }
 
-    // The "Your personal bests" card (renderMyBestsCard()) used to read
-    // straight from local `history` -- but that's this browser's local
-    // race log, not the account's actual record. A result recorded on
-    // another device, or synced before this card existed, or simply
-    // missing after a cache clear, is still very much a real PB the
-    // leaderboard itself already knows about (it's in `hyrox_results`
-    // server-side) -- the card would just silently fail to show it,
-    // looking like the user has no bests at all despite ranking #1 on
-    // their own leaderboard. Sourcing from the same /api/hyrox/leaderboard
-    // endpoint the leaderboard card already uses (its `me` field is
-    // exactly "this user's best in this exact gender/category/format")
-    // makes the two cards agree by construction, regardless of which
-    // device recorded the race.
-    async loadMyBests() {
-      const gender = this.resolveLeaderboardGender();
-      if (!gender) return;
-      if (this.myBestsCache && this.myBestsCache.gender === gender) return; // already loaded/loading
-
-      this.myBestsCache = { gender, loading: true };
-      try {
-        const combos = [
-          { category: "open", format: "singles" },
-          { category: "pro", format: "singles" },
-          { category: "open", format: "doubles" },
-          { category: "pro", format: "doubles" },
-        ];
-        const results = await Promise.all(
-          combos.map(async ({ category, format }) => {
-            const response = await fetch(`/api/hyrox/leaderboard?gender=${gender}&category=${category}&format=${format}`);
-            const data = await response.json();
-            if (!data.ok || !data.me) return null; // hasn't raced this combo
-            return { gender, category, format, totalSeconds: data.me.best_seconds };
-          })
-        );
-        if (this.myBestsCache && this.myBestsCache.gender !== gender) return; // superseded by a newer gender switch
-        const entries = results.filter(Boolean).sort((a, b) => a.totalSeconds - b.totalSeconds);
-        this.myBestsCache = { gender, loading: false, entries };
-      } catch (err) {
-        this.myBestsCache = { gender, loading: false, entries: [] };
-      }
-      this.render();
-    }
-
     // ---------- Race flow ----------
     startRace() {
       if (!this.canStart()) return;
@@ -2022,9 +1964,6 @@
       // button.
       wrap.appendChild(this.renderHeroCard());
       wrap.appendChild(this.renderLeaderboardCard(false));
-
-      const myBestsCard = this.renderMyBestsCard();
-      if (myBestsCard) wrap.appendChild(myBestsCard);
 
       // Weight standards sits right under the intro -- it's the "what the
       // race asks of you" reference. Needs category + gender to show the
@@ -3315,8 +3254,8 @@
         const meta = rank === 1 ? t("hyrox.pb.boardPbTag") : `+${formatClockPrecise(r.totalSeconds - best)}`;
         // The whole row opens the same race-detail modal (breakdown + AI
         // analysis) the History rows below open -- these entries come
-        // straight from local history, so unlike renderMyBestsCard()'s
-        // server-sourced rows there is always a real race id to open.
+        // straight from local history, so there is always a real race id
+        // to open.
         listEl.appendChild(el(`
           <div class="hx-pb-lb-row ${kind}" data-rank="${rank}" data-action="show-race-detail" data-id="${r.id}" role="button" tabindex="0">
             <div class="hx-pb-lb-rank">${kind === "is-rest" ? "" : "#"}${rank}</div>
@@ -3338,132 +3277,6 @@
       }
 
       return card;
-    }
-
-    // Your own PBs, scoped to your own gender and split into a Singles
-    // section and a Doubles section -- shown on the setup screen right
-    // under the leaderboard. Different from renderPbBoard() above (the
-    // history screen's card): that one reads local `history` and ranks
-    // every combo you've ever raced, including a different gender if you
-    // ever switched your leaderboard preference mid-history. This
-    // one is sourced from the server (loadMyBests(), same endpoint the
-    // leaderboard card itself uses) so it always agrees with what your own
-    // leaderboard shows -- a result recorded on another device, or before
-    // this card existed, is still correctly shown here, not silently
-    // dropped because this particular browser's local history doesn't
-    // have it. No gender resolved yet (first visit, no race finished, no
-    // coaching profile) -> nothing to scope to, so the card doesn't render
-    // at all rather than guessing.
-    renderMyBestsCard() {
-      const gender = this.resolveLeaderboardGender();
-      if (!gender) return null;
-      if (!this.myBestsCache || this.myBestsCache.gender !== gender) {
-        this.loadMyBests(); // async; re-renders itself once the 4 combos resolve
-        return null;
-      }
-      if (this.myBestsCache.loading) return null;
-      const bests = this.myBestsCache.entries;
-      if (!bests.length) return null;
-
-      const card = el(`
-        <div class="hx-card">
-          <div class="pb-header">
-            <div class="pb-trophy">${TROPHY_ICON}</div>
-            <div class="hx-step-label">${t("hyrox.pb.myBestsTitle")}</div>
-          </div>
-          <div data-my-pb-sections></div>
-        </div>
-      `);
-      const sectionsEl = card.querySelector("[data-my-pb-sections]");
-      // FORMAT_IDS order (singles, doubles) fixes the section order; within
-      // each section, entries are already fastest-to-slowest because
-      // loadMyBests() sorts ascending by time and filtering by format
-      // preserves relative order, so rows[0] is always the fastest tier --
-      // that's the one shown collapsed. A format with only one tier raced
-      // gets no chevron and no expand affordance: there's nothing to
-      // expand into, so pretending otherwise would be a dead tap target.
-      FORMAT_IDS.forEach((formatId) => {
-        const rows = bests.filter((r) => r.format === formatId);
-        if (!rows.length) return; // no Doubles PB yet -- skip the section, don't show it empty
-        const isOpen = this.pbExpandedFormats.has(formatId);
-        const hasMultiple = rows.length > 1;
-        const hero = this.pbTimeButtonHtml(rows[0], "pb-time-btn pb-hero-time");
-
-        // pb-section-trigger is a div[role=button], not a real <button>,
-        // because it wraps its own nested <button> (the hero time) -- see
-        // the constructor comment for why real buttons can't nest.
-        const triggerAttrs = hasMultiple
-          ? `data-action="toggle-pb-format" data-format="${formatId}" role="button" tabindex="0" aria-expanded="${isOpen}"`
-          : "";
-        const section = el(`
-          <div class="pb-section ${isOpen ? "is-open" : ""}">
-            <div class="pb-section-trigger" ${triggerAttrs}>
-              <div class="pb-trigger-main">
-                <div class="pb-format-title">${formatTitle(formatId)}</div>
-                <div class="pb-hero-row">
-                  ${hero.html}
-                  <span class="pb-hero-tag">${categoryTitle(rows[0].category)}</span>
-                </div>
-              </div>
-              ${hasMultiple ? `<span class="pb-chevron">${CHEVRON_DOWN_ICON}</span>` : ""}
-            </div>
-          </div>
-        `);
-
-        if (hasMultiple) {
-          const detail = el(`<div class="pb-detail"><div class="pb-detail-inner" data-pb-detail-rows></div></div>`);
-          const detailRows = detail.querySelector("[data-pb-detail-rows]");
-          rows.forEach((r) => {
-            const btn = this.pbTimeButtonHtml(r, "pb-time-btn pb-detail-time");
-            const localMatch = btn.localMatch;
-            // The server's leaderboard `me` field is just {rank,
-            // best_seconds, name} -- no date. Best-effort only: shown when
-            // this exact time also matches something in local history
-            // (see pbTimeButtonHtml), an em dash otherwise rather than
-            // fabricating one.
-            const dateHtml = localMatch
-              ? t("hyrox.pb.setPrefix", {
-                  date: new Date(localMatch.date).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric", year: "numeric" }),
-                })
-              : "&mdash;";
-            detailRows.appendChild(el(`
-              <div class="pb-detail-row">
-                ${btn.html}
-                <div class="pb-detail-meta">
-                  <div class="pb-detail-tag">${categoryTitle(r.category)}</div>
-                  <div class="pb-detail-date">${dateHtml}</div>
-                </div>
-              </div>
-            `));
-          });
-          section.appendChild(detail);
-        }
-        sectionsEl.appendChild(section);
-      });
-      return card;
-    }
-
-    // One PB time as a clickable button: opens the full race report
-    // (renderRaceDetailModal -- the same breakdown + AI analysis History
-    // already shows) when this result matches something in local history,
-    // since that's the only place a race id/splits exist to open. The
-    // leaderboard endpoint this card sources from only ever returns
-    // {rank, best_seconds, name} -- never an id -- so a result set on
-    // another device (or before local history existed) has nothing to
-    // open; the button still exists, but taps it show a toast instead of
-    // silently doing nothing or opening a fake report.
-    pbTimeButtonHtml(r, cls) {
-      // Closest match wins, not first match: two attempts at the same
-      // combo within 0.5s of each other would otherwise let array order
-      // pick the wrong race's report to open behind the PB's own time.
-      const candidates = this.history.filter(
-        (h) => !h.flagged && h.gender === r.gender && h.category === r.category && h.format === r.format && Math.abs(h.totalSeconds - r.totalSeconds) < 0.5
-      );
-      const localMatch = candidates.length
-        ? candidates.reduce((closest, h) => (Math.abs(h.totalSeconds - r.totalSeconds) < Math.abs(closest.totalSeconds - r.totalSeconds) ? h : closest))
-        : undefined;
-      const attrs = localMatch ? `data-action="show-race-detail" data-id="${localMatch.id}"` : `data-action="pb-no-detail"`;
-      return { html: `<button type="button" class="${cls}" ${attrs}>${formatClock(r.totalSeconds)}</button>`, localMatch };
     }
 
     // Four separate global leaderboards -- open/pro x singles/doubles --

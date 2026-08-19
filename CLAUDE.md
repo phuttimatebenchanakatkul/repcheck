@@ -28,7 +28,7 @@ test is loaded straight from `static/*.js` and from inline `<script>` blocks in
 `templates/*.html` via the extractors in `tests-js/support/`.
 
 Some suites are source-level regex assertions against the real file rather than
-behavioural tests (see `tests/test_hyrox_personal_best_section.py`,
+behavioural tests (see `tests/test_hyrox_flagged_copy_matches_behavior.py`,
 `tests/test_cross_user_name_escaping.py`). That is a deliberate tradeoff for
 hand-rolled JS with no module boundary -- when adding one, mutation-check it:
 break the thing it guards and confirm the test actually fails.
