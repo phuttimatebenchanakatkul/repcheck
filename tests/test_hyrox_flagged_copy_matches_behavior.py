@@ -13,7 +13,8 @@ lists flagged races under a header reading "Saved times", each tagged
 "Not counted".
 
 This is a copy/behavior contract, not a rendering detail, so it is pinned at
-the source level the way test_hyrox_personal_best_section.py pins that card:
+the source level the way test_hyrox_keyboard_activation.py pins the keyboard
+shim:
 hyrox.js has a vitest harness now (tests-js/support/loadHyroxApp.js), but the
 thing at risk here lives in the i18n table, not in a method a harness can call.
 

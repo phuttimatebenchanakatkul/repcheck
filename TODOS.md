@@ -302,27 +302,27 @@
 
 ## Hyrox
 
-### PB card's div[role="button"] trigger wraps a real nested `<button>`
+### History rows are a div[role="button"] wrapping a real nested `<button>`
 
-**What:** The new "Your personal bests" card's per-format section trigger (`renderMyBestsCard()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="pb-time-btn">` (the hero time). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
+**What:** Each history row (`renderHistory()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="hx-history-remove">` (the "x"). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
 
 **Why:** Real accessibility gap on a brand-new, genuinely keyboard-operable widget (this PR also added the first working keydown handler in this file). Not blocking because the underlying HTML5 constraint that caused this shape is real and the current implementation does correctly avoid double-firing (see `handleKeydown`'s `event.target !== target` guard), but the ARIA pattern itself should be revisited.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. A real fix likely means moving the expand affordance to a dedicated control adjacent to, not wrapping, the hero time (e.g. a separate chevron button next to the time button, both siblings under a non-interactive row container) -- a layout change, not a one-line fix.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`, where the instance was the "Your personal bests" card's section trigger. That card was removed in v0.1.2.0, but the identical shape survives in the history rows, so the issue moved rather than closed -- repointed there. A real fix likely means making the row container non-interactive and giving the open action its own control adjacent to (not wrapping) the remove button -- a layout change, not a one-line fix. `handleKeydown`'s `event.target !== target` guard still correctly prevents double-firing in the meantime (see `tests/test_hyrox_keyboard_activation.py`).
 
 **Effort:** M
 **Priority:** P3
 **Depends on:** None
 
-### PB card's keyboard toggle drops focus back to `<body>` on expand/collapse
+### Keyboard activation drops focus back to `<body>` on every re-render
 
-**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. `togglePbFormat()` calls `render()`, so a keyboard user who presses Enter/Space to expand a PB section loses focus back to `<body>` and must re-tab from the top to continue.
+**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. Any keyboard activation routed through `handleKeydown` therefore drops focus to `<body>`: pressing Enter on a history row or a personal-best board row opens the detail modal, and dismissing it leaves the user re-tabbing from the top.
 
-**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to this PR, but this PR is the first to attach a newly-working custom keyboard handler (`handleKeydown`) to a disclosure control, making the gap freshly user-facing rather than theoretical.
+**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to any one feature, but `handleKeydown` makes it reachable by keyboard on two live surfaces, so the gap is user-facing rather than theoretical.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-format`) around the `render()` call in `togglePbFormat()` specifically -- the narrower, more tractable option if only this toggle is fixed rather than the pattern app-wide.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. The original instance was the PB card's expand toggle, removed in v0.1.2.0; the pattern outlived it, so this is repointed at the surviving keyboard-activated rows. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-id`) around the `render()` calls reached from `handleKeydown` -- the narrower, more tractable option.
 
-**Effort:** S (narrow fix, just this toggle) / L (app-wide)
+**Effort:** S (narrow fix, just the keyboard-reachable rows) / L (app-wide)
 **Priority:** P3
 **Depends on:** None
 

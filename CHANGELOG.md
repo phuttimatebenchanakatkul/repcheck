@@ -2,6 +2,14 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.2.2.0] - 2026-08-19
+
+### Changed
+
+- HYROX: the setup screen no longer shows a second copy of your personal bests.
+  The same board lives on the history screen, one tap away behind the hero's
+  "Personal bests" link, so the setup screen was saying it twice.
+
 ## [0.2.1.0] - 2026-08-19
 
 ### Added
