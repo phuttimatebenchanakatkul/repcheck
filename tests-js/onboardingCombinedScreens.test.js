@@ -47,11 +47,14 @@ describe("about_you screen composes gender + weight + height and gates Next on g
     expect(body).toContain("renderWizardActions(!!w.gender)");
   });
 
-  it("the weight/height sections no longer append their own actions row (the screen has exactly one shared row)", () => {
-    expect(fnBody(src, "renderWeightSection")).not.toContain("renderWizardActions");
-    expect(fnBody(src, "renderHeightSection")).not.toContain("renderWizardActions");
-    const rows = body.match(/renderWizardActions\(/g) || [];
-    expect(rows).toHaveLength(1);
+  it("no question section appends its own actions row (each combined screen has exactly one shared row)", () => {
+    for (const sectionFn of ["renderGenderSection", "renderWeightSection", "renderHeightSection", "renderBodyTypeSection"]) {
+      expect(fnBody(src, sectionFn)).not.toContain("renderWizardActions");
+    }
+    for (const stepFn of ["renderAboutYouStep", "renderBodyActivityStep", "renderPreferencesStep"]) {
+      const rows = fnBody(src, stepFn).match(/renderWizardActions\(/g) || [];
+      expect(rows, `${stepFn} should append exactly one actions row`).toHaveLength(1);
+    }
   });
 });
 
@@ -120,6 +123,13 @@ describe("option taps preserve the page scroll position", () => {
     const body = fnBody(src, "renderKeepingScroll");
     expect(body).toMatch(/const y = window\.scrollY;\s*\n\s*render\(\);\s*\n\s*window\.scrollTo\(0, y\);/);
   });
+
+  it("set-gender still invalidates a body-fat range from the other gender's table", () => {
+    // Matters more in the combined flow: body_activity's Next re-locks on
+    // this reset when the user goes Back and switches gender -- without it
+    // a stale opposite-gender range id flows into the generated profile.
+    expect(branchFor("set-gender")).toContain("bodyFatRangesFor(value).some((r) => r.id === w.bodyFatRangeId)");
+  });
 });
 
 describe("the combined-screen step titles exist in both locales", () => {
@@ -130,7 +140,13 @@ describe("the combined-screen step titles exist in both locales", () => {
   // each locale block, for the four keys this change introduced.
   const i18n = read("static", "i18n.js");
   const enBlock = i18n.slice(i18n.indexOf("    en: {"), i18n.indexOf("    th: {"));
-  const thBlock = i18n.slice(i18n.indexOf("    th: {"));
+  // Bounded at the first function after the th table, not end-of-file --
+  // ~95 lines of runtime code (getLang/t/etc.) follow the tables, and an
+  // unbounded slice would let a key string in that code satisfy the
+  // "defined in Thai" check without a th translation existing.
+  const thStart = i18n.indexOf("    th: {");
+  const thEnd = i18n.indexOf("function ", thStart);
+  const thBlock = i18n.slice(thStart, thEnd === -1 ? i18n.length : thEnd);
   const NEW_KEYS = [
     "onboarding.step.aboutYou",
     "onboarding.step.height",

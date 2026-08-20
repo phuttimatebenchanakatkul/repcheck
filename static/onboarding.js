@@ -177,7 +177,7 @@
   // prevents an infinite loop if the fallback itself somehow can't render.
   var BODY_TYPE_FALLBACK_SRC = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0ODAgNDgwIj48ZyBmaWxsPSIjOGI4ZjlhIj48Y2lyY2xlIGN4PSIyNDAiIGN5PSIxNTAiIHI9IjcyIi8+PHBhdGggZD0iTTExMCA0ODBjMC05NiA1OC0xNjAgMTMwLTE2MHMxMzAgNjQgMTMwIDE2MHoiLz48L2c+PC9zdmc+";
   function bodyTypeImageHtml(rangeId) {
-    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="ob-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
+    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" decoding="async" class="ob-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
   }
 
   function optionsFor(ids, prefix, iconMap) {
@@ -409,18 +409,16 @@
         </div>
       `);
     }
-    const wrap = el(`
-      <div class="ob-substep">
-        <div class="ob-substep-label">${t("coaching.wizard.stepWeight")}</div>
-        <div class="ob-weight-ruler">
-          <div class="ob-weight-ruler-value" id="ob-weight-value">${RepCheckUnits.formatWeightKg(parseFloat(w.weightKg))}</div>
-          <div class="ob-weight-ruler-window">
-            <div class="ob-weight-ruler-indicator"></div>
-            <div class="ob-weight-ruler-scroll" id="ob-weight-scroll" tabindex="0">${rows.join("")}</div>
-          </div>
+    const ruler = el(`
+      <div class="ob-weight-ruler">
+        <div class="ob-weight-ruler-value" id="ob-weight-value">${RepCheckUnits.formatWeightKg(parseFloat(w.weightKg))}</div>
+        <div class="ob-weight-ruler-window">
+          <div class="ob-weight-ruler-indicator"></div>
+          <div class="ob-weight-ruler-scroll" id="ob-weight-scroll" tabindex="0">${rows.join("")}</div>
         </div>
       </div>
     `);
+    const wrap = section("coaching.wizard.stepWeight", ruler);
     const scrollEl = wrap.querySelector("#ob-weight-scroll");
     const valueLabel = wrap.querySelector("#ob-weight-value");
     scrollEl.addEventListener("scroll", () => {
@@ -877,18 +875,16 @@
         </div>
       `);
     }
-    const wrap = el(`
-      <div class="ob-substep">
-        <div class="ob-substep-label">${t("onboarding.step.height")}</div>
-        <div class="ob-height-ruler">
-          <div class="ob-height-ruler-value" id="ob-height-value">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
-          <div class="ob-height-ruler-window">
-            <div class="ob-height-ruler-indicator"></div>
-            <div class="ob-height-ruler-scroll" id="ob-height-scroll" tabindex="0">${rows.join("")}</div>
-          </div>
+    const ruler = el(`
+      <div class="ob-height-ruler">
+        <div class="ob-height-ruler-value" id="ob-height-value">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
+        <div class="ob-height-ruler-window">
+          <div class="ob-height-ruler-indicator"></div>
+          <div class="ob-height-ruler-scroll" id="ob-height-scroll" tabindex="0">${rows.join("")}</div>
         </div>
       </div>
     `);
+    const wrap = section("onboarding.step.height", ruler);
     const scrollEl = wrap.querySelector("#ob-height-scroll");
     const valueLabel = wrap.querySelector("#ob-height-value");
     scrollEl.addEventListener("scroll", () => {
