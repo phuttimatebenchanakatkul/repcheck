@@ -272,7 +272,10 @@
   function renderProgress() {
     if (w.stepIndex < 0) { progressEl.innerHTML = ""; return; }
     const visible = visibleSteps();
-    const currentVisibleIndex = visible.indexOf(currentStep());
+    // Past the last question (result/error view) currentStep() is null and
+    // indexOf gives -1, which used to blank every dot right after the user
+    // finished answering -- treat it as all-done instead.
+    const currentVisibleIndex = w.stepIndex >= STEPS.length ? visible.length - 1 : visible.indexOf(currentStep());
     const dots = visible.map((_, i) => `<div class="ob-progress-dot ${i <= currentVisibleIndex ? "is-done" : ""}"></div>`).join("");
     progressEl.innerHTML = dots;
   }
