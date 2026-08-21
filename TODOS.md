@@ -662,7 +662,7 @@
 
 ### 42 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
 
-**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 42 tinted glows remain (recounted 2026-08-21 on `feat/onboarding-5-steps`, which removed the one on `.ob-result-hero-icon`), mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus one in `templates/home.html`.
+**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 42 tinted glows remain by this item's own grep (recounted 2026-08-21; `feat/onboarding-5-steps` removed one, on `.ob-result-hero-icon` — the rest of the drift from the original 46 came from other branches in passing), mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus two in `templates/home.html`.
 
 **Why:** The doc and the code now disagree, which is the same failure mode that produced the repeated one-off removals in the first place: a new badge gets built from whichever source the author happened to read. Finishing the sweep is what makes the rule self-enforcing.
 
