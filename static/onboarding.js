@@ -270,7 +270,9 @@
   }
 
   function renderProgress() {
-    if (w.stepIndex < 0) { progressEl.innerHTML = ""; return; }
+    // No dots on the intro, and none on the error view either -- a lit-up
+    // "all done" bar above an error message reads as a contradiction.
+    if (w.stepIndex < 0 || (w.error && w.stepIndex >= STEPS.length)) { progressEl.innerHTML = ""; return; }
     const visible = visibleSteps();
     // Past the last question (result/error view) currentStep() is null and
     // indexOf gives -1, which used to blank every dot right after the user
@@ -285,6 +287,12 @@
     renderProgress();
     bodyEl.innerHTML = "";
     bodyEl.appendChild(renderCurrentView());
+    // Every fresh view starts at the top. Nothing else guarantees this:
+    // whether the old scroll offset survives the innerHTML swap is
+    // engine-dependent (layout timing), so a tall combined screen could
+    // otherwise open mid-page with its first question hidden above the
+    // fold. renderKeepingScroll() undoes this for same-screen option taps.
+    window.scrollTo(0, 0);
   }
 
   // For taps that just select an option on the CURRENT screen: a full
@@ -293,9 +301,21 @@
   // screens are tall enough to scroll, and snapping back to the top after
   // every tap would make the lower question unanswerable in peace.
   function renderKeepingScroll() {
+    // The rebuild also destroys the tapped button, dropping keyboard focus
+    // to <body> -- a keyboard or screen-reader user would have to Tab back
+    // from the top of the document through every control on the screen.
+    // Remember which option had focus and re-focus its replacement.
+    const active = document.activeElement;
+    const refocusSelector = active && active.dataset && active.dataset.action && active.dataset.value
+      ? `[data-action="${active.dataset.action}"][data-value="${active.dataset.value}"]`
+      : null;
     const y = window.scrollY;
     render();
     window.scrollTo(0, y);
+    if (refocusSelector) {
+      const replacement = bodyEl.querySelector(refocusSelector);
+      if (replacement) replacement.focus({ preventScroll: true });
+    }
   }
 
   function renderCurrentView() {
