@@ -39,7 +39,8 @@ treatment: no tinted `box-shadow` behind it. This doc used to prescribe one
 (`0 6px 14px rgba(31, 169, 113, 0.42)` for green) and it was removed
 everywhere it got applied — see `fix/remove-cta-glow-effect`,
 `fix/remove-af-icon-glow`, `feat/quick-actions-five`, the HYROX add-a-station
-tiles, and the personal-bests trophy badge. A colored halo on every badge
+tiles, the personal-bests trophy badge, and the onboarding "You're all set!"
+checkmark (`.ob-result-hero-icon`, `feat/onboarding-5-steps`). A colored halo on every badge
 reads as decoration competing with the accent it is supposed to carry.
 Elevation still belongs on things that actually sit above the page
 (`--shadow` on cards, the hover lift on interactive rows — see Layout); it
