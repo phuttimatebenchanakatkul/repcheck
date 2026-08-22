@@ -584,6 +584,42 @@
 **Priority:** P3
 **Depends on:** None
 
+### Onboarding's putSynced() swallows failed saves, so an account can be marked onboarded with no server-side profile
+
+**What:** `putSynced()` (`static/onboarding.js`) ends with `.catch(function () {})` and never checks `res.ok`, so the `await Promise.all(syncPromises)` in `save()` — whose own comment says it waits "for the server to actually confirm" before POSTing `/api/onboarding/complete` — resolves even when every PUT failed. An offline or flaky-network user gets `onboarding_completed = true` with no profile/goals behind it, the exact state that comment claims the design prevents.
+
+**Why:** Silent data loss on the very first thing a new account does. The user lands on home with no targets and no obvious way to know why. `coaching.js`'s wizardSave may share the pattern.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/onboarding-5-steps`. Pre-existing (untouched by that branch), so it was spun off rather than folded into the wizard-condensing PR.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### Verify the onboarding weight/height wheels don't capture page scroll on a real touch device
+
+**What:** The 5-screen onboarding puts both vertical scroll-wheels (weight, height) on one screen that itself scrolls on phones. A flick that starts over a wheel scrolls the WHEEL (silently changing the stored kg/cm) instead of the page. The wheels have ~96px side gutters at 375px width and the value label sits directly above each wheel, so real exposure is unproven — desktop QA cannot answer it.
+
+**Why:** If real, an accidental flick corrupts the weight that feeds the calorie math, with no error anywhere.
+
+**Context:** Red-team finding during `/ship` on `feat/onboarding-5-steps`; user chose "accept, verify on device" over shipping an engage-on-tap guard unverified. If the trap reproduces, the fix sketch is: wheel scrolls only after a tap/focus on it, or shrink the capture window.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### Onboarding option taps rebuild the whole screen instead of updating the tapped card in place
+
+**What:** Every `set-*` tap in `static/onboarding.js` re-renders the full screen via `renderKeepingScroll()` — on the About-you screen that rebuilds ~1,400 nodes (366-row weight wheel + 101-row height wheel) per tap, and on Body & activity it re-creates the six body-type `<img>` cards. Scroll and focus are restored, but the wheels can flash through position 0 for a frame and the images re-decode.
+
+**Why:** Per-tap main-thread work on the mobile signup path; an in-place `.is-selected` toggle plus a Next-button state update would eliminate it.
+
+**Context:** Performance finding during `/ship` on `feat/onboarding-5-steps`; user chose "ship as-is" to keep the verified branch untouched. The source-contract tests in `tests-js/onboardingCombinedScreens.test.js` pin the current `renderKeepingScroll()` wiring and must be rewritten alongside the refactor.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
 ## Security
 
 ### RepCheckI18n.t() does not escape its vars, and ~8 innerHTML sinks rely on it
@@ -624,9 +660,9 @@
 
 ## Design
 
-### 46 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
+### 42 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
 
-**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 46 tinted glows remain, mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus one in `templates/home.html`.
+**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 42 tinted glows remain by this item's own grep (recounted 2026-08-21; `feat/onboarding-5-steps` removed one, on `.ob-result-hero-icon` — the rest of the drift from the original 46 came from other branches in passing), mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus two in `templates/home.html`.
 
 **Why:** The doc and the code now disagree, which is the same failure mode that produced the repeated one-off removals in the first place: a new badge gets built from whichever source the author happened to read. Finishing the sweep is what makes the rule self-enforcing.
 

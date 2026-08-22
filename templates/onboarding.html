@@ -70,6 +70,23 @@
       margin-bottom: 20px; line-height: 1.25;
     }
 
+    /* ---------- Sub-question heading inside a combined screen -- the old
+       per-screen question titles, demoted to section headings now that
+       several questions share one screen (see STEPS in onboarding.js). ---------- */
+    .ob-substep { margin-bottom: 26px; }
+    /* :has(), not :last-of-type -- the shared actions row is appended as a
+       sibling <div> after the substeps, so no .ob-substep is ever the last
+       div of its type and :last-of-type would never match. The inner
+       grid's own bottom margin must be zeroed too, or parent-child margin
+       collapse reinstates the 22px gap this rule exists to remove. */
+    .ob-substep:has(+ .ob-wizard-actions) { margin-bottom: 4px; }
+    .ob-substep:has(+ .ob-wizard-actions) > .ob-choice-grid,
+    .ob-substep:has(+ .ob-wizard-actions) > .ob-body-type-grid { margin-bottom: 0; }
+    .ob-substep-label {
+      font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.01em;
+      margin-bottom: 12px; line-height: 1.3;
+    }
+
     /* ---------- Choice cards (aspiration/gender/activity/protein/diet/
        distribution) -- a single full-width stacked list, icon chip on the
        left so an option reads visually without needing the title text at
@@ -329,7 +346,6 @@
       width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%;
       background: linear-gradient(135deg, var(--green), #29b87e); color: #fff;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 20px rgba(31, 169, 113, 0.35);
     }
     .ob-result-hero-icon svg { width: 26px; height: 26px; }
     .ob-result-hero-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }

@@ -177,7 +177,7 @@
   // prevents an infinite loop if the fallback itself somehow can't render.
   var BODY_TYPE_FALLBACK_SRC = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0ODAgNDgwIj48ZyBmaWxsPSIjOGI4ZjlhIj48Y2lyY2xlIGN4PSIyNDAiIGN5PSIxNTAiIHI9IjcyIi8+PHBhdGggZD0iTTExMCA0ODBjMC05NiA1OC0xNjAgMTMwLTE2MHMxMzAgNjQgMTMwIDE2MHoiLz48L2c+PC9zdmc+";
   function bodyTypeImageHtml(rangeId) {
-    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" loading="lazy" class="ob-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
+    return `<img src="/static/bodyfat/${rangeId}.webp" alt="" decoding="async" class="ob-body-type-img" onerror="this.onerror=null;this.src='${BODY_TYPE_FALLBACK_SRC}'">`;
   }
 
   function optionsFor(ids, prefix, iconMap) {
@@ -205,9 +205,13 @@
   // plan before they'd seen the app. Onboarding now always finishes on the
   // nutrition-only result screen and never writes a split plan; home.html/
   // workouts.html already treat "no plan yet" as the create-a-plan CTA.
+  // The same ten questions, grouped into five screens so setup feels
+  // short: related questions share a screen (each with its own small
+  // sub-heading) and Next only unlocks once every question on the screen
+  // is answered. The data collected -- and the profile/targets computed
+  // from it -- are identical to the old one-question-per-screen flow.
   const STEPS = [
-    "aspiration", "gender", "weight", "goal_weight", "height", "body_type", "activity",
-    "protein", "diet", "distribution",
+    "aspiration", "about_you", "goal_weight", "body_activity", "preferences",
   ];
 
   // "goal_weight" only makes sense when the user is actually trying to move
@@ -266,18 +270,52 @@
   }
 
   function renderProgress() {
-    if (w.stepIndex < 0) { progressEl.innerHTML = ""; return; }
+    // No dots on the intro, and none on the error view either -- a lit-up
+    // "all done" bar above an error message reads as a contradiction.
+    if (w.stepIndex < 0 || (w.error && w.stepIndex >= STEPS.length)) { progressEl.innerHTML = ""; return; }
     const visible = visibleSteps();
-    const currentVisibleIndex = visible.indexOf(currentStep());
+    // Past the last question (result/error view) currentStep() is null and
+    // indexOf gives -1, which used to blank every dot right after the user
+    // finished answering -- treat it as all-done instead.
+    const currentVisibleIndex = w.stepIndex >= STEPS.length ? visible.length - 1 : visible.indexOf(currentStep());
     const dots = visible.map((_, i) => `<div class="ob-progress-dot ${i <= currentVisibleIndex ? "is-done" : ""}"></div>`).join("");
     progressEl.innerHTML = dots;
   }
 
   function render() {
-    wrapEl.classList.toggle("is-wide", currentStep() === "body_type");
+    wrapEl.classList.toggle("is-wide", currentStep() === "body_activity");
     renderProgress();
     bodyEl.innerHTML = "";
     bodyEl.appendChild(renderCurrentView());
+    // Every fresh view starts at the top. Nothing else guarantees this:
+    // whether the old scroll offset survives the innerHTML swap is
+    // engine-dependent (layout timing), so a tall combined screen could
+    // otherwise open mid-page with its first question hidden above the
+    // fold. renderKeepingScroll() undoes this for same-screen option taps.
+    window.scrollTo(0, 0);
+  }
+
+  // For taps that just select an option on the CURRENT screen: a full
+  // render() replaces #ob-body's children, which resets the page's scroll
+  // position -- fine when every screen fit one question, but the combined
+  // screens are tall enough to scroll, and snapping back to the top after
+  // every tap would make the lower question unanswerable in peace.
+  function renderKeepingScroll() {
+    // The rebuild also destroys the tapped button, dropping keyboard focus
+    // to <body> -- a keyboard or screen-reader user would have to Tab back
+    // from the top of the document through every control on the screen.
+    // Remember which option had focus and re-focus its replacement.
+    const active = document.activeElement;
+    const refocusSelector = active && active.dataset && active.dataset.action && active.dataset.value
+      ? `[data-action="${active.dataset.action}"][data-value="${active.dataset.value}"]`
+      : null;
+    const y = window.scrollY;
+    render();
+    window.scrollTo(0, y);
+    if (refocusSelector) {
+      const replacement = bodyEl.querySelector(refocusSelector);
+      if (replacement) replacement.focus({ preventScroll: true });
+    }
   }
 
   function renderCurrentView() {
@@ -286,15 +324,10 @@
     if (w.stepIndex >= STEPS.length) return renderResult();
     const step = currentStep();
     if (step === "aspiration") return renderAspirationStep();
-    if (step === "gender") return renderGenderStep();
-    if (step === "weight") return renderWeightStep();
+    if (step === "about_you") return renderAboutYouStep();
     if (step === "goal_weight") return renderGoalWeightStep();
-    if (step === "height") return renderHeightStep();
-    if (step === "body_type") return renderBodyTypeStep();
-    if (step === "activity") return renderActivityStep();
-    if (step === "protein") return renderProteinStep();
-    if (step === "diet") return renderDietStep();
-    return renderDistributionStep();
+    if (step === "body_activity") return renderBodyActivityStep();
+    return renderPreferencesStep();
   }
 
   // ---------- Intro ----------
@@ -347,13 +380,32 @@
     return wrap;
   }
 
-  function renderGenderStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepGender")}</div></div>`);
+  // ---------- Combined-screen plumbing ----------
+  // Each of the old one-question screens is now a "section": the same
+  // content it always rendered, under a small sub-heading (its old screen
+  // title) instead of the big step label, with no Next/Back row of its
+  // own -- the combined screen appends one shared actions row at the end.
+  function section(labelKey, ...children) {
+    const sec = el(`<div class="ob-substep"><div class="ob-substep-label">${t(labelKey)}</div></div>`);
+    children.forEach((child) => sec.appendChild(child));
+    return sec;
+  }
+
+  function renderGenderSection() {
     const items = [
       { id: "male", title: t("coaching.gender.male"), icon: iconSvg(GENDER_ICONS.male) },
       { id: "female", title: t("coaching.gender.female"), icon: iconSvg(GENDER_ICONS.female) },
     ];
-    wrap.appendChild(renderChoiceGrid(items, "set-gender", w.gender, false));
+    return section("coaching.wizard.stepGender", renderChoiceGrid(items, "set-gender", w.gender, false));
+  }
+
+  function renderAboutYouStep() {
+    const wrap = el(`<div><div class="ob-wizard-step-label">${t("onboarding.step.aboutYou")}</div></div>`);
+    wrap.appendChild(renderGenderSection());
+    wrap.appendChild(renderWeightSection());
+    wrap.appendChild(renderHeightSection());
+    // The rulers can only ever hold in-range values (see their comments),
+    // so gender is the one answer on this screen that can still be missing.
     wrap.appendChild(renderWizardActions(!!w.gender));
     return wrap;
   }
@@ -368,7 +420,7 @@
   // unit the profile is actually stored/validated in.
   const WEIGHT_RULER_TICK_PX = 14;
 
-  function renderWeightStep() {
+  function renderWeightSection() {
     const rows = [];
     for (let kg = MIN_WEIGHT_KG; kg <= MAX_WEIGHT_KG; kg++) {
       const isMajor = kg % 10 === 0;
@@ -380,18 +432,16 @@
         </div>
       `);
     }
-    const wrap = el(`
-      <div>
-        <div class="ob-wizard-step-label">${t("coaching.wizard.stepWeight")}</div>
-        <div class="ob-weight-ruler">
-          <div class="ob-weight-ruler-value" id="ob-weight-value">${RepCheckUnits.formatWeightKg(parseFloat(w.weightKg))}</div>
-          <div class="ob-weight-ruler-window">
-            <div class="ob-weight-ruler-indicator"></div>
-            <div class="ob-weight-ruler-scroll" id="ob-weight-scroll" tabindex="0">${rows.join("")}</div>
-          </div>
+    const ruler = el(`
+      <div class="ob-weight-ruler">
+        <div class="ob-weight-ruler-value" id="ob-weight-value">${RepCheckUnits.formatWeightKg(parseFloat(w.weightKg))}</div>
+        <div class="ob-weight-ruler-window">
+          <div class="ob-weight-ruler-indicator"></div>
+          <div class="ob-weight-ruler-scroll" id="ob-weight-scroll" tabindex="0">${rows.join("")}</div>
         </div>
       </div>
     `);
+    const wrap = section("coaching.wizard.stepWeight", ruler);
     const scrollEl = wrap.querySelector("#ob-weight-scroll");
     const valueLabel = wrap.querySelector("#ob-weight-value");
     scrollEl.addEventListener("scroll", () => {
@@ -399,7 +449,7 @@
       w.weightKg = String(Math.max(MIN_WEIGHT_KG, Math.min(MAX_WEIGHT_KG, MIN_WEIGHT_KG + index)));
       valueLabel.textContent = RepCheckUnits.formatWeightKg(parseFloat(w.weightKg));
     }, { passive: true });
-    // setTimeout rather than requestAnimationFrame -- see renderHeightStep
+    // setTimeout rather than requestAnimationFrame -- see renderHeightSection
     // below for why.
     setTimeout(() => {
       scrollEl.scrollTop = (parseFloat(w.weightKg) - MIN_WEIGHT_KG) * WEIGHT_RULER_TICK_PX;
@@ -407,9 +457,8 @@
     // Unlike the old text input, the ruler can never produce an out-of-
     // range value (every row is clamped to [MIN_WEIGHT_KG, MAX_WEIGHT_KG]
     // by construction), so there's nothing to re-validate on scroll --
-    // same reasoning as renderHeightStep, which has no live disabled-
+    // same reasoning as renderHeightSection, which has no live disabled-
     // toggle either.
-    wrap.appendChild(renderWizardActions(true));
     return wrap;
   }
 
@@ -811,7 +860,7 @@
     // the first and last ticks can still scroll to the centre indicator --
     // computed from the measured element rather than hardcoded, since the
     // window is fluid-width, not a fixed px box like the vertical ruler.
-    // setTimeout (not requestAnimationFrame) matches renderHeightStep's
+    // setTimeout (not requestAnimationFrame) matches renderHeightSection's
     // reasoning: the wrap must be attached to the document and laid out
     // before getBoundingClientRect()/scrollTo() are meaningful, and
     // wizard navigation attaches it synchronously right after this
@@ -837,7 +886,7 @@
   // sliding across a short horizontal track does.
   const HEIGHT_RULER_TICK_PX = 14;
 
-  function renderHeightStep() {
+  function renderHeightSection() {
     const rows = [];
     for (let cm = HEIGHT_MIN_CM; cm <= HEIGHT_MAX_CM; cm++) {
       const isMajor = cm % 10 === 0;
@@ -849,18 +898,16 @@
         </div>
       `);
     }
-    const wrap = el(`
-      <div>
-        <div class="ob-wizard-step-label">${t("coaching.wizard.height")}</div>
-        <div class="ob-height-ruler">
-          <div class="ob-height-ruler-value" id="ob-height-value">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
-          <div class="ob-height-ruler-window">
-            <div class="ob-height-ruler-indicator"></div>
-            <div class="ob-height-ruler-scroll" id="ob-height-scroll" tabindex="0">${rows.join("")}</div>
-          </div>
+    const ruler = el(`
+      <div class="ob-height-ruler">
+        <div class="ob-height-ruler-value" id="ob-height-value">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
+        <div class="ob-height-ruler-window">
+          <div class="ob-height-ruler-indicator"></div>
+          <div class="ob-height-ruler-scroll" id="ob-height-scroll" tabindex="0">${rows.join("")}</div>
         </div>
       </div>
     `);
+    const wrap = section("onboarding.step.height", ruler);
     const scrollEl = wrap.querySelector("#ob-height-scroll");
     const valueLabel = wrap.querySelector("#ob-height-value");
     scrollEl.addEventListener("scroll", () => {
@@ -877,14 +924,12 @@
     setTimeout(() => {
       scrollEl.scrollTop = (w.heightCm - HEIGHT_MIN_CM) * HEIGHT_RULER_TICK_PX;
     });
-    wrap.appendChild(renderWizardActions(w.heightCm >= HEIGHT_MIN_CM && w.heightCm <= HEIGHT_MAX_CM));
     return wrap;
   }
 
-  function renderBodyTypeStep() {
+  function renderBodyTypeSection() {
     const gender = w.gender || "male";
     const ranges = bodyFatRangesFor(gender);
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepBodyType")}</div></div>`);
     const grid = el(`<div class="ob-body-type-grid"></div>`);
     ranges.forEach((r, i) => {
       const isSelected = w.bodyFatRangeId === r.id;
@@ -896,42 +941,33 @@
         </button>
       `));
     });
-    wrap.appendChild(grid);
-    wrap.appendChild(renderWizardActions(!!w.bodyFatRangeId));
+    return section("coaching.wizard.stepBodyType", grid);
+  }
+
+  function renderBodyActivityStep() {
+    const wrap = el(`<div><div class="ob-wizard-step-label">${t("onboarding.step.bodyActivity")}</div></div>`);
+    wrap.appendChild(renderBodyTypeSection());
+    wrap.appendChild(section("coaching.wizard.stepActivity",
+      renderChoiceGrid(optionsFor(ACTIVITY_IDS, "coaching.activity", ACTIVITY_ICONS), "set-activity", w.activityLevel, true)));
+    wrap.appendChild(renderWizardActions(!!w.bodyFatRangeId && !!w.activityLevel));
     return wrap;
   }
 
-  function renderActivityStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepActivity")}</div></div>`);
-    wrap.appendChild(renderChoiceGrid(optionsFor(ACTIVITY_IDS, "coaching.activity", ACTIVITY_ICONS), "set-activity", w.activityLevel, true));
-    wrap.appendChild(renderWizardActions(!!w.activityLevel));
-    return wrap;
-  }
-
-  function renderProteinStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepProtein")}</div></div>`);
-    const items = PROTEIN_IDS.map((id, i) => ({
+  function renderPreferencesStep() {
+    const wrap = el(`<div><div class="ob-wizard-step-label">${t("onboarding.step.preferences")}</div></div>`);
+    const proteinItems = PROTEIN_IDS.map((id, i) => ({
       id,
       title: t(`coaching.protein.${id}.title`),
       sub: t(`coaching.protein.${id}.sub`),
       icon: proteinMeterSvg(i + 1),
     }));
-    wrap.appendChild(renderChoiceGrid(items, "set-protein", w.proteinPreference, false));
-    wrap.appendChild(renderWizardActions(!!w.proteinPreference));
-    return wrap;
-  }
-
-  function renderDietStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepDiet")}</div></div>`);
-    wrap.appendChild(renderChoiceGrid(optionsFor(DIET_IDS, "coaching.diet", DIET_ICONS), "set-diet", w.dietPreference, true));
-    wrap.appendChild(renderWizardActions(!!w.dietPreference));
-    return wrap;
-  }
-
-  function renderDistributionStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepDistribution")}</div></div>`);
-    wrap.appendChild(renderChoiceGrid(optionsFor(DISTRIBUTION_IDS, "coaching.distribution", DISTRIBUTION_ICONS), "set-distribution", w.distribution, true));
-    wrap.appendChild(renderWizardActions(!!w.distribution));
+    wrap.appendChild(section("coaching.wizard.stepProtein",
+      renderChoiceGrid(proteinItems, "set-protein", w.proteinPreference, false)));
+    wrap.appendChild(section("coaching.wizard.stepDiet",
+      renderChoiceGrid(optionsFor(DIET_IDS, "coaching.diet", DIET_ICONS), "set-diet", w.dietPreference, true)));
+    wrap.appendChild(section("coaching.wizard.stepDistribution",
+      renderChoiceGrid(optionsFor(DISTRIBUTION_IDS, "coaching.distribution", DISTRIBUTION_ICONS), "set-distribution", w.distribution, true)));
+    wrap.appendChild(renderWizardActions(!!w.proteinPreference && !!w.dietPreference && !!w.distribution));
     return wrap;
   }
 
@@ -1156,17 +1192,17 @@
     const value = target.dataset.value;
 
     if (action === "start") { w.stepIndex = 0; return render(); }
-    if (action === "set-aspiration") { w.aspiration = value; return render(); }
+    if (action === "set-aspiration") { w.aspiration = value; return renderKeepingScroll(); }
     if (action === "set-gender") {
       w.gender = value;
       if (!bodyFatRangesFor(value).some((r) => r.id === w.bodyFatRangeId)) w.bodyFatRangeId = null;
-      return render();
+      return renderKeepingScroll();
     }
-    if (action === "set-body-type") { w.bodyFatRangeId = value; return render(); }
-    if (action === "set-activity") { w.activityLevel = value; return render(); }
-    if (action === "set-protein") { w.proteinPreference = value; return render(); }
-    if (action === "set-diet") { w.dietPreference = value; return render(); }
-    if (action === "set-distribution") { w.distribution = value; return render(); }
+    if (action === "set-body-type") { w.bodyFatRangeId = value; return renderKeepingScroll(); }
+    if (action === "set-activity") { w.activityLevel = value; return renderKeepingScroll(); }
+    if (action === "set-protein") { w.proteinPreference = value; return renderKeepingScroll(); }
+    if (action === "set-diet") { w.dietPreference = value; return renderKeepingScroll(); }
+    if (action === "set-distribution") { w.distribution = value; return renderKeepingScroll(); }
     if (action === "back-to-days") { w.error = null; w.stepIndex = lastVisibleIndex(); return render(); }
     if (action === "retry-generate") return generateAndCalculate();
 

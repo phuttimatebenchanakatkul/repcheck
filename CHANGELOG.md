@@ -2,6 +2,31 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.2.4.0] - 2026-08-21
+
+### Changed
+
+- First-run onboarding now takes 5 screens instead of 10. The same ten questions
+  are asked and the same nutrition targets come out — related questions simply
+  share a screen (your goal; gender/weight/height; goal weight & pace; body type
+  & activity; food preferences), with a sub-heading labeling each question on the
+  combined screens, and Next unlocks once everything on the screen is answered.
+  Users maintaining their weight see 4 screens, since the goal-weight question is
+  still skipped for them.
+- The body-type photos load as soon as their screen appears instead of lazily,
+  so the cards no longer pop in after the rest of the screen.
+- Tapping an option on the taller combined screens keeps your scroll position
+  (and keyboard focus) instead of snapping back to the top, while moving to the
+  next screen always starts it from the top.
+
+### Fixed
+
+- The progress bar now shows as complete on the results screen instead of
+  resetting to empty, and is hidden on the error screen rather than showing a
+  contradictory "all done" bar.
+- The "You're all set!" checkmark badge lost its green glow, matching the flat
+  gradient badges used everywhere else in the app.
+
 ## [0.2.3.0] - 2026-08-19
 
 ### Removed
