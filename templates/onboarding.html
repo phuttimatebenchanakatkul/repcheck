@@ -375,6 +375,51 @@
       background: var(--card-bg);
       margin-left: -28px; margin-right: -28px; margin-bottom: -32px;
       padding: 10px 28px 32px;
+      /* The bar is painted over the card's bottom edge, so it has to carry
+         the card's own corner radius -- without this it squares off the two
+         bottom corners while the top two stay rounded. */
+      border-bottom-left-radius: 26px;
+      border-bottom-right-radius: 26px;
+    }
+
+    /* ---------- "More below" scroll cue ----------
+       The combined screens run past the fold, and because Next is stuck to
+       the bottom of the viewport the screen looks finished when it isn't --
+       users answer the visible question and tap Next without ever seeing
+       the ones below. A fade above the bar plus a tappable pill say there
+       is more. Both hang off body.ob-has-more, set by onboarding.js
+       whenever the page still has somewhere left to scroll. */
+    .ob-wizard-actions::before {
+      content: "";
+      position: absolute; left: 0; right: 0; bottom: 100%; height: 46px;
+      pointer-events: none;
+      background: linear-gradient(to top, var(--card-bg), rgba(0, 0, 0, 0));
+      opacity: 0; transition: opacity 0.2s ease;
+    }
+    body.ob-has-more .ob-wizard-actions::before { opacity: 1; }
+    .ob-scroll-cue {
+      position: absolute; left: 50%; bottom: calc(100% + 6px);
+      transform: translateX(-50%) translateY(4px);
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 13px; border-radius: 999px;
+      border: 1.5px solid var(--border); background: var(--card-bg);
+      color: var(--text-secondary); box-shadow: var(--shadow);
+      font-family: inherit; font-size: 11.5px; font-weight: 700;
+      white-space: nowrap; cursor: pointer;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    body.ob-has-more .ob-scroll-cue {
+      opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
+    }
+    .ob-scroll-cue:hover { border-color: var(--text-secondary); color: var(--text); }
+    .ob-scroll-cue-arrow { display: inline-block; animation: ob-cue-bob 1.6s ease-in-out infinite; }
+    @keyframes ob-cue-bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(2px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ob-scroll-cue-arrow { animation: none; }
     }
     .ob-btn-primary, .ob-btn-secondary {
       flex: 1; padding: 14px; border-radius: 14px; font-size: 14px; font-weight: 700;
@@ -396,11 +441,10 @@
       .ob-field input { font-size: 16px; } /* prevents iOS auto-zoom */
     }
 
-    /* Fixed, not inside .ob-wrap -- stays put in the corner across every
-       step instead of scrolling away with the card, since a wrong/unwanted
-       account is something you'd want to escape from at any point in the
-       wizard, not just the first screen. */
-    .ob-logout-form { position: fixed; top: 18px; right: 18px; z-index: 10; }
+    /* In the normal flow at the top of .ob-wrap, NOT position:fixed. A fixed
+       pill sat on top of the card and covered whatever option happened to be
+       under it once a step got tall enough to scroll (body/activity, diet). */
+    .ob-logout-form { display: flex; justify-content: flex-end; margin-bottom: 12px; }
     .ob-logout-btn {
       padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 999px;
       background: var(--card-bg); color: var(--text-secondary);
@@ -411,10 +455,10 @@
   </style>
 </head>
 <body class="ob-body">
-  <form method="post" action="{{ url_for('auth.logout') }}" class="ob-logout-form">
-    <button type="submit" class="ob-logout-btn" data-i18n="sidebar.logout">Log out</button>
-  </form>
   <div class="ob-wrap">
+    <form method="post" action="{{ url_for('auth.logout') }}" class="ob-logout-form">
+      <button type="submit" class="ob-logout-btn" data-i18n="sidebar.logout">Log out</button>
+    </form>
     <img class="ob-logo" src="{{ url_for('static', filename='logo-full.png') }}" alt="RepCheck">
     <div class="ob-card">
       <div class="ob-progress" id="ob-progress"></div>
