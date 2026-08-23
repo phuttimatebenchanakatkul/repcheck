@@ -48,6 +48,12 @@
     if (!formEl) return;
     var input = formEl.querySelector('input[type="email"]');
     var button = formEl.querySelector("button");
+    // Both are required. Without this guard a .waitlist-form missing either
+    // one throws while wiring, which aborts the forEach below -- so a markup
+    // slip in the hero form would leave the closing CTA form unwired and
+    // silently falling through to a real page navigation on submit. The
+    // [data-note] line is genuinely optional and stays null-checked inline.
+    if (!input || !button) return;
     var note = formEl.querySelector("[data-note]");
     var defaultNote = note ? note.textContent : "";
 

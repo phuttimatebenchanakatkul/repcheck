@@ -2,10 +2,14 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.2.5.2] - 2026-08-23
+## [0.3.0.0] - 2026-08-24
 
 ### Added
 
+- **A pre-launch page for RepCheck**, deployed separately from the app: what it
+  does, who it's for, and a waitlist form. It's a plain static site with no
+  build step and no dependency on the app, so it can go live on its own domain
+  without touching anything users are already running.
 - **Setup now tells you when there are more questions below.** The taller
   onboarding screens run past the bottom of a phone display, and the Next
   button sitting at the bottom made them look finished — people answered the
@@ -22,6 +26,9 @@ All notable changes to RepCheck are recorded here, newest first.
   with the page instead of floating over whichever option sat underneath it.
 - **Sharing the pre-launch page no longer produces a blank preview card**, and
   the site stopped pointing crawlers at a sitemap that doesn't exist yet.
+- **A markup slip in one waitlist form can no longer silently disable the
+  other.** The wiring threw part-way through, leaving the second form dead and
+  sending an address into the URL bar on submit instead of to the waitlist.
 
 ### Changed
 

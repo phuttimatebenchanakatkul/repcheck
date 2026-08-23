@@ -4,7 +4,7 @@
 // jsdom -- what ships is what is tested.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { loadMarketingApp } from "./support/loadMarketingApp.js";
+import { loadMarketingApp, extractSource } from "./support/loadMarketingApp.js";
 
 // The submit handler's fetch chain settles on microtasks; a resolved promise
 // flushed twice is enough to run .then/.catch and their DOM writes.
@@ -175,6 +175,28 @@ describe("typing after an error", () => {
     expect(app.dom.ctaNote.className).not.toContain("is-error");
     // Each form remembers its OWN copy, not the hero's.
     expect(app.dom.ctaNote.textContent).toBe(app.notes.CTA_NOTE);
+  });
+});
+
+describe("malformed markup", () => {
+  it("wires the forms that are well-formed instead of dying on the first bad one", async () => {
+    // A .waitlist-form missing its email input used to throw while wiring,
+    // which aborted the forEach and left every LATER form on the page unwired
+    // -- their submits then fell through to a real page navigation. The page
+    // has two forms; a slip in the first must not silently break the second.
+    const app = loadMarketingApp();
+    const broken = document.createElement("form");
+    broken.className = "waitlist-form";
+    broken.innerHTML = '<button type="submit">Join</button>';
+    document.body.insertBefore(broken, app.dom.heroForm);
+
+    // Re-run the real IIFE against the DOM that now contains the bad form.
+    expect(() => new Function("window", "document", "localStorage", `return ${extractSource()}`)(window, document, localStorage)).not.toThrow();
+
+    const stillWired = document.getElementById("waitlist-form-cta");
+    const evt = new window.Event("submit", { bubbles: true, cancelable: true });
+    stillWired.dispatchEvent(evt);
+    expect(evt.defaultPrevented).toBe(true);
   });
 });
 
