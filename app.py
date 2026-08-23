@@ -2364,9 +2364,10 @@ def analyze():
         # Model name / clip duration are useful for debugging but not
         # shown to the user — keep them in the server log only.
         app.logger.info(
-            "Analyzed %s with %s: %.1fs clip, %s reps",
+            "Analyzed %s with %s: %.1fs clip, %s reps, %.1fs API call (%d attempt(s))",
             result["exercise_label"], result["model"],
             result["duration_seconds"], result["reps"],
+            result["api_seconds"], result["api_attempts"],
         )
 
         # For a logged-in user the analysis (and the trimmed clip it was
