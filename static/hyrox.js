@@ -3174,6 +3174,7 @@
             <div class="hx-step-label">${t("hyrox.pb.myBestsTitle")}</div>
           </div>
           <div data-my-pb-sections></div>
+          <div class="pb-nudge">${t("hyrox.pb.beatItHint")}</div>
         </div>
       `);
       const sectionsEl = card.querySelector("[data-my-pb-sections]");
