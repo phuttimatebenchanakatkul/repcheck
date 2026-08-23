@@ -567,10 +567,6 @@
 
 /* Flag pills (high-carb / bloated days): same pill, a plain on/off look
    instead of the 4-way status color coding above. */
-.pc-ck-context-row { margin-bottom: 12px; }
-.pc-ck-context-row:last-child { margin-bottom: 0; }
-.pc-ck-context-label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
-.pc-ck-flag-day[data-active="true"] { background: var(--amber); color: #fff; box-shadow: 0 4px 10px rgba(185, 131, 42, 0.35); }
 
 .pc-checkin-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .pc-checkin-legend-item {

@@ -9,10 +9,6 @@ the deterministic suggestion as a starting point so the model can't swing
 the result to something wild or unsafe. Front/back progress photos are
 included when the user provided them, but are optional -- a text-only
 check-in still gets the same Gemini review, just without the photo(s).
-User-reported high-carb/bloating days are the same kind of optional
-context: the deterministic math never sees them (it stays a pure,
-untouched safety anchor), but the model does, so it can read a weigh-in
-spike on a flagged day as likely water weight rather than real gain.
 """
 
 import json
@@ -60,34 +56,37 @@ def _extract_json(text):
     return json.loads(text)
 
 
-def _build_context_flags_line(high_carb_days, bloating_days):
-    """User-reported, non-fat explanations for a weigh-in spike -- a
-    high-carb day or bloating can bump the scale 0.5kg+ overnight from
-    water retention/gut contents alone, same day-format as weight_lines
-    above so the model can line a flagged date up against the actual
-    weigh-in list. Returns "" when neither was flagged, so _build_prompt()
-    can splice this in unconditionally without an extra branch there.
-    """
-    if not high_carb_days and not bloating_days:
-        return ""
-    parts = []
-    if high_carb_days:
-        parts.append("ate notably more carbs than usual on: " + ", ".join(high_carb_days))
-    if bloating_days:
-        parts.append("felt more bloated than usual on: " + ", ".join(bloating_days))
-    return (
-        "\nThe user also flagged this about their own week: they " + "; and they ".join(parts) + ". "
-        "A high-carb day or bloating can cause a temporary weight bump from water retention or gut "
-        "contents, not real fat/tissue gain -- weigh this against the trend below, especially if a "
-        "weigh-in on or right after one of those dates looks like an outlier against the rest of the "
-        "week.\n"
-    )
-
-
-def _build_prompt(profile, week_weight_entries, week_calorie_days, baseline, has_front, has_back, high_carb_days=None, bloating_days=None):
+def _build_prompt(profile, current_targets, week_weight_entries, week_calorie_days, baseline, has_front, has_back):
     weight_lines = "\n".join(f"  - {e['date']}: {e['kg']} kg" for e in week_weight_entries) or "  (none logged)"
     calorie_lines = "\n".join(f"  - {d['date']}: {round(d['calories'])} kcal" for d in week_calorie_days) or "  (none logged)"
-    context_flags_line = _build_context_flags_line(high_carb_days or [], bloating_days or [])
+
+    # The model was never told what the user is actually being ASKED to
+    # eat -- it only ever saw what they DID eat. With no target in the
+    # prompt there is no gap for it to close, so a week whose weight trend
+    # looked fine came back as delta 0 even when the user had been eating
+    # hundreds of kcal above (or below) their target every day and still
+    # getting the result they wanted. The target then stayed wrong
+    # indefinitely: every check-in re-confirmed "on track" and changed
+    # nothing, which is exactly the "check-in never adjusts my calories"
+    # report this fixes. Both the target and the measured gap go in
+    # explicitly rather than leaving the model to average the day list
+    # itself and guess what it should be compared against.
+    target_calories = round(current_targets["calories"]) if current_targets else None
+    logged_average = (
+        round(sum(d["calories"] for d in week_calorie_days) / len(week_calorie_days))
+        if week_calorie_days else None
+    )
+    target_line = (
+        f"Their CURRENT daily calorie target is {target_calories} kcal."
+        if target_calories is not None else ""
+    )
+    adherence_line = (
+        f" They actually averaged {logged_average} kcal/day across the days they logged, which is "
+        f"{abs(logged_average - target_calories)} kcal "
+        f"{'above' if logged_average > target_calories else 'below'} that target."
+        if target_calories is not None and logged_average is not None else ""
+    )
+
     baseline_line = (
         f"A deterministic trend calculation (weight change vs. target rate, calorie adherence) "
         f"already suggests a {baseline['delta']:+d} kcal/day change, reasoning: \"{baseline['reason']}\"."
@@ -113,10 +112,10 @@ def _build_prompt(profile, week_weight_entries, week_calorie_days, baseline, has
         "You are a sports-nutrition coaching assistant inside a fitness app, reviewing a "
         "user's weekly check-in to recommend a small calorie-target adjustment for next week.\n\n"
         f"Goal: {profile.get('aspiration')} weight. Gender: {profile.get('gender')}. "
-        f"Current bodyweight: {profile.get('weightKg')} kg.\n\n"
+        f"Current bodyweight: {profile.get('weightKg')} kg.\n"
+        f"{target_line}{adherence_line}\n\n"
         f"Weigh-ins logged this week:\n{weight_lines}\n\n"
-        f"Calories logged this week:\n{calorie_lines}\n"
-        f"{context_flags_line}\n"
+        f"Calories logged this week:\n{calorie_lines}\n\n"
         f"{baseline_line}\n\n"
         f"{photo_note}\n\n"
         + (
@@ -131,7 +130,17 @@ def _build_prompt(profile, week_weight_entries, week_calorie_days, baseline, has
         "fast enough while trying to lose, or gaining too fast while trying to gain / maintain), "
         "a POSITIVE number to add calories (losing too fast while trying to lose, gaining too "
         "slowly while trying to gain, or has drifted down while trying to maintain), or 0 if "
-        "everything looks on track. You may agree with, or adjust, the deterministic suggestion "
+        "everything looks on track.\n\n"
+        "IMPORTANT — do not return 0 just because the weight trend looks fine. If the trend is "
+        "where it should be but their average intake sits meaningfully away from their current "
+        "target (roughly 100 kcal/day or more), then the TARGET is the thing that's wrong, not "
+        "their eating: move the target TOWARD what they actually ate — a POSITIVE delta if they "
+        "ate above target, NEGATIVE if below — because that intake is demonstrably producing the "
+        "result they want. Telling someone to eat 1800 kcal while they lose weight steadily on "
+        "2500 is a bad recommendation; close as much of that gap as the cap below allows. Return "
+        "0 only when the weight trend AND their intake-vs-target are both already where they "
+        "should be.\n\n"
+        "You may agree with, or adjust, the deterministic suggestion "
         "above based on the numbers (and photo(s), if provided), but the delta MUST be within "
         f"-{WEEKLY_ADJUSTMENT_LIMIT} to +{WEEKLY_ADJUSTMENT_LIMIT} kcal/day — never outside that "
         "range.\n\n"
@@ -141,13 +150,12 @@ def _build_prompt(profile, week_weight_entries, week_calorie_days, baseline, has
     )
 
 
-def analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days=None, bloating_days=None):
+def analyze_checkin(profile, current_targets, week_weight_entries, week_calorie_days, baseline, photo_files):
     """photo_files: list of (bytes, mime_type) tuples -- 0, 1, or 2 items.
     baseline: coaching_engine.weekly_adjustment()'s result dict, or None.
-    high_carb_days/bloating_days: lists of "YYYY-MM-DD" strings the user
-    self-flagged during check-in -- purely extra context for the model's
-    reasoning (see _build_context_flags_line()), not something that
-    changes the deterministic baseline's own math.
+    current_targets: the {calories, protein, fat, carbs} the user is on
+    right now -- the model needs the target to judge their intake
+    against, not just the raw intake numbers (see _build_prompt()).
     Returns {"delta": int, "reason": str} with delta clamped to
     +/-WEEKLY_ADJUSTMENT_LIMIT. Raises CheckinAnalysisError on failure --
     callers should fall back to the deterministic baseline instead of
@@ -165,7 +173,7 @@ def analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, p
 
     has_front = len(photo_files) > 0
     has_back = len(photo_files) > 1
-    prompt = _build_prompt(profile, week_weight_entries, week_calorie_days, baseline, has_front, has_back, high_carb_days, bloating_days)
+    prompt = _build_prompt(profile, current_targets, week_weight_entries, week_calorie_days, baseline, has_front, has_back)
 
     try:
         client = genai.Client(api_key=api_key)

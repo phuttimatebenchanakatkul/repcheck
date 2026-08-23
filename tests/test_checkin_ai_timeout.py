@@ -79,7 +79,7 @@ def test_timeout_is_passed_to_the_model_call(monkeypatch):
     monkeypatch.setattr(real_genai, "Client", FakeClient)
 
     with pytest.raises(CheckinAnalysisError):
-        checkin_analyzer.analyze_checkin({"aspiration": "lose"}, [], [], None, [])
+        checkin_analyzer.analyze_checkin({"aspiration": "lose"}, {"calories": 2000}, [], [], None, [])
 
     assert captured, "generate_content was never reached -- test is not exercising the call"
     config = captured.get("config")
