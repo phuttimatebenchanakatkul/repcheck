@@ -9,6 +9,8 @@ progress_photos/
 # every user's email, password hash, and health data.
 repcheck.db*
 *.mp4
+# ...except the marketing site's own showcase clips, which have to ship.
+!marketing/assets/*.mp4
 *.mov
 *.MOV
 .vscode/
