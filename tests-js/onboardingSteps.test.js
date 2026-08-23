@@ -1,4 +1,4 @@
-// The condensed 5-screen onboarding wizard: pins the STEPS list itself and
+// The condensed 6-screen onboarding wizard: pins the STEPS list itself and
 // the maintain-skips-goal_weight visibility logic (shouldSkipStep/
 // visibleSteps/nextVisibleIndex/prevVisibleIndex/lastVisibleIndex), which
 // nothing else in the suite exercises. These helpers drive the progress
@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 import { loadOnboardingSteps } from "./support/loadOnboardingSteps.js";
 
 describe("STEPS", () => {
-  it("is exactly the five condensed screens, in order", () => {
+  it("is exactly the six condensed screens, in order", () => {
     const { STEPS } = loadOnboardingSteps();
-    expect(STEPS).toEqual(["aspiration", "about_you", "goal_weight", "body_activity", "preferences"]);
+    expect(STEPS).toEqual(["aspiration", "gender", "measurements", "goal_weight", "body_activity", "preferences"]);
   });
 });
 
@@ -20,13 +20,13 @@ describe("goal_weight visibility", () => {
   it("skips goal_weight only for maintain -- it's the same number as current weight by definition", () => {
     const maintain = loadOnboardingSteps({ aspiration: "maintain" });
     expect(maintain.shouldSkipStep("goal_weight")).toBe(true);
-    expect(maintain.visibleSteps()).toEqual(["aspiration", "about_you", "body_activity", "preferences"]);
+    expect(maintain.visibleSteps()).toEqual(["aspiration", "gender", "measurements", "body_activity", "preferences"]);
   });
 
-  it.each(["lose", "gain", null])("keeps all five steps visible for aspiration=%s", (aspiration) => {
+  it.each(["lose", "gain", null])("keeps all six steps visible for aspiration=%s", (aspiration) => {
     const { visibleSteps, shouldSkipStep } = loadOnboardingSteps({ aspiration });
     expect(shouldSkipStep("goal_weight")).toBe(false);
-    expect(visibleSteps()).toEqual(["aspiration", "about_you", "goal_weight", "body_activity", "preferences"]);
+    expect(visibleSteps()).toEqual(["aspiration", "gender", "measurements", "goal_weight", "body_activity", "preferences"]);
   });
 
   it("never skips any other step, whatever the aspiration", () => {
@@ -40,23 +40,23 @@ describe("goal_weight visibility", () => {
 });
 
 describe("navigation over skipped steps", () => {
-  // Indices into STEPS: 0=aspiration, 1=about_you, 2=goal_weight,
-  // 3=body_activity, 4=preferences.
-  it("Next from about_you jumps over goal_weight straight to body_activity for maintain", () => {
+  // Indices into STEPS: 0=aspiration, 1=gender, 2=measurements,
+  // 3=goal_weight, 4=body_activity, 5=preferences.
+  it("Next from measurements jumps over goal_weight straight to body_activity for maintain", () => {
     const { nextVisibleIndex } = loadOnboardingSteps({ aspiration: "maintain" });
-    expect(nextVisibleIndex(1)).toBe(3);
+    expect(nextVisibleIndex(2)).toBe(4);
   });
 
-  it("Next from about_you lands on goal_weight for lose/gain", () => {
+  it("Next from measurements lands on goal_weight for lose/gain", () => {
     for (const aspiration of ["lose", "gain"]) {
       const { nextVisibleIndex } = loadOnboardingSteps({ aspiration });
-      expect(nextVisibleIndex(1)).toBe(2);
+      expect(nextVisibleIndex(2)).toBe(3);
     }
   });
 
-  it("Back from body_activity jumps over goal_weight back to about_you for maintain", () => {
+  it("Back from body_activity jumps over goal_weight back to measurements for maintain", () => {
     const { prevVisibleIndex } = loadOnboardingSteps({ aspiration: "maintain" });
-    expect(prevVisibleIndex(3)).toBe(1);
+    expect(prevVisibleIndex(4)).toBe(2);
   });
 
   it("Next off the last step walks past the end of STEPS (the generate trigger)", () => {

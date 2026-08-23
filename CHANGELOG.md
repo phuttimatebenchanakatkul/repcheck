@@ -2,6 +2,32 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.2.5.0] - 2026-08-23
+
+### Fixed
+
+- **You can reach the Next button again during setup.** On a phone, the
+  "Tell us about yourself" screen put two scroll wheels across the middle of
+  the display. Because those wheels scrolled vertically, a downward flick was
+  swallowed by the wheel instead of scrolling the page — so Next stayed below
+  the fold and unreachable, and the flick silently changed your weight on the
+  way past. Weight and height are now picked on rulers that slide sideways,
+  which cannot swallow a vertical swipe, and the Next/Back bar sticks to the
+  bottom of the screen so it is always in reach.
+- **Your weight and height can no longer be silently rewritten.** Moving off a
+  measurement screen reset its ruler, and that reset could be recorded as an
+  answer — saving the lowest value on the dial (35 kg / 130 cm) over what you
+  actually chose. Seen on a run whose targets had just been calculated from
+  98 kg / 183 cm. A ruler that has left the screen, or has not been positioned
+  yet, is now ignored.
+
+### Changed
+
+- Setup is 6 screens instead of 5, and each one asks less. Gender has its own
+  screen again, height and weight share the next one, and both now fit a phone
+  screen whole with nothing to scroll past. Users maintaining their weight
+  still see one screen fewer, since goal weight is skipped for them.
+
 ## [0.2.4.0] - 2026-08-21
 
 ### Changed
