@@ -770,6 +770,14 @@ def _is_timeout(exc):
 
 def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4",
                 budget_seconds=ANALYSIS_BUDGET_SECONDS):
+    """Returns (feedback_text, api_seconds, attempts_made).
+
+    api_seconds is the total wall-clock time spent calling Gemini, from the
+    first attempt to the one that succeeded -- i.e. what the retry loop
+    actually cost, separate from video upload/trim time which happens
+    outside this function. attempts_made counts how many generate_content
+    calls were made (>1 means a safety-block or transient-error retry fired).
+    """
     try:
         from google import genai
         from google.genai import types
@@ -801,11 +809,13 @@ def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4",
 
     last_error = None
     timed_out = False
+    attempts_made = 0
     for attempt in range(MAX_SAFETY_BLOCK_RETRIES + 1):
         remaining = seconds_left()
         if remaining < MIN_ATTEMPT_SECONDS:
             timed_out = True
             break
+        attempts_made += 1
         try:
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
@@ -834,7 +844,7 @@ def call_gemini(video_bytes, config, duration_seconds, mime_type="video/mp4",
                 time.sleep(2)
             continue
         if response.text:
-            return response.text
+            return response.text, time.monotonic() - started, attempts_made
         # Empty text + a safety block is flaky on completely ordinary
         # footage elsewhere in this app -- retry before giving up.
         last_error = None
@@ -877,9 +887,9 @@ def main():
 
     with open(video_path, "rb") as f:
         video_bytes = f.read()
-    feedback = call_gemini(video_bytes, config, duration_seconds)
+    feedback, api_seconds, attempts = call_gemini(video_bytes, config, duration_seconds)
 
-    print("--- Form Analysis ---\n")
+    print(f"--- Form Analysis ({api_seconds:.1f}s, {attempts} attempt(s)) ---\n")
     print(feedback)
 
 
