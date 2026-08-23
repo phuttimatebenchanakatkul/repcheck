@@ -368,11 +368,22 @@ def weekly_adjustment(profile, current_targets, week_weight_entries, week_calori
         if abs(adherence_gap) < 100:
             return None
         step = min(WEEKLY_ADJUSTMENT_LIMIT, round(abs(adherence_gap) * 0.3))
-        delta = -step if adherence_gap > 0 else step
+        # The delta follows the SIGN of adherence_gap -- it moves the target
+        # TOWARD what the user actually ate, not away from it. The weight
+        # trend is inside the goal's expected band, so whatever they ate is
+        # provably producing the intended result: the target was the thing
+        # that was wrong (an underestimated TDEE, most often), not the
+        # intake. Cutting the target further in that situation -- which is
+        # what this did before -- made the number the user is asked to hit
+        # drift further from the intake that demonstrably works, week after
+        # week, and contradicted this branch's own "nudged to match
+        # reality" message.
+        delta = step if adherence_gap > 0 else -step
         reason = (
             "Your weight trend looks on track, but you've been eating "
             f"{'more' if adherence_gap > 0 else 'less'} than your target most days, "
-            "so the target's been nudged to match reality."
+            f"so the target's been {'raised' if adherence_gap > 0 else 'lowered'} "
+            "toward what's actually working."
         )
     else:
         too_slow = (

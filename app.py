@@ -156,7 +156,6 @@ ANALYZE_HISTORY_KEEP = 20
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
 ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_CONTENT_LENGTH = 300 * 1024 * 1024  # 300 MB
-ISO_DATE_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z", re.ASCII)
 
 # Any exercise name from this library can be picked and analyzed — see
 # analyze_form_gemini.resolve_exercise for how curated vs. generic
@@ -2289,18 +2288,6 @@ def api_coaching_calculate():
     return jsonify({"ok": True, "targets": targets, "distribution": distribution})
 
 
-def _filter_iso_date_list(raw, limit=31):
-    """Used for high_carb_days/bloating_days below -- these get "".join()-ed
-    straight into the Gemini prompt in checkin_analyzer.py, and unlike every
-    other value reaching that prompt (all numeric), they're client-supplied
-    strings. Slices to `limit` BEFORE filtering so a client can't pad the
-    array to force wasted regex work; `limit` defaults to 31 (a generous
-    month -- a check-in week only ever has 7 dates)."""
-    if not isinstance(raw, list):
-        return []
-    return [d for d in raw[:limit] if isinstance(d, str) and ISO_DATE_RE.match(d)]
-
-
 @app.route("/api/coaching/weekly-adjustment", methods=["POST"])
 def api_coaching_weekly_adjustment():
     payload = request.get_json(silent=True) or {}
@@ -2313,11 +2300,6 @@ def api_coaching_weekly_adjustment():
     week_calorie_days = payload.get("week_calorie_days") or []
     if not isinstance(current_targets, dict) or "calories" not in current_targets:
         return jsonify({"ok": False, "error": "Missing current_targets."}), 400
-
-    # Optional self-reported context (see checkin_analyzer.py's
-    # _build_context_flags_line() and _filter_iso_date_list() above).
-    high_carb_days = _filter_iso_date_list(payload.get("high_carb_days"))
-    bloating_days = _filter_iso_date_list(payload.get("bloating_days"))
 
     # The deterministic trend calculation always runs first, both as the
     # anchor/fallback for the Gemini call below and as the answer on its
@@ -2342,7 +2324,7 @@ def api_coaching_weekly_adjustment():
             photo_files.append((path.read_bytes(), mime_type))
 
     try:
-        ai_result = analyze_checkin(profile, week_weight_entries, week_calorie_days, baseline, photo_files, high_carb_days, bloating_days)
+        ai_result = analyze_checkin(profile, current_targets, week_weight_entries, week_calorie_days, baseline, photo_files)
         adjustment = apply_calorie_delta(profile, current_targets, ai_result["delta"], ai_result["reason"])
     except CheckinAnalysisError:
         # Gemini call failed (no API key, hiccup, bad response) -- fall
