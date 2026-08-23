@@ -1,4 +1,4 @@
-// Source-contract tests for the condensed 5-screen onboarding wizard:
+// Source-contract tests for the condensed 6-screen onboarding wizard:
 // per-screen Next gating, the section() composition of the combined
 // screens, scroll preservation on option taps, and the new step-title
 // i18n keys. Same deliberate "assert the exact wiring exists in the raw
@@ -34,27 +34,78 @@ function fnBody(source, name) {
   return source.slice(start, next === -1 ? source.length : next);
 }
 
-describe("about_you screen composes gender + weight + height and gates Next on gender only", () => {
-  const body = fnBody(src, "renderAboutYouStep");
+describe("gender is its own screen again", () => {
+  // It shared a screen with weight and height in 0.2.4.0. Three questions
+  // on one screen -- two of them scroll wheels -- was reported as "too much
+  // going on", so gender stands alone and the wheels pair up next door.
+  const body = fnBody(src, "renderGenderStep");
 
-  it("appends all three question sections", () => {
-    expect(body).toContain("renderGenderSection()");
+  it("offers both options and nothing else", () => {
+    expect(body).toContain('"set-gender"');
+    expect(body).toContain("coaching.gender.male");
+    expect(body).toContain("coaching.gender.female");
+    expect(body).not.toContain("renderWeightSection");
+    expect(body).not.toContain("renderHeightSection");
+  });
+
+  it("gates Next on an actual choice", () => {
+    expect(body).toContain("renderWizardActions(!!w.gender)");
+  });
+});
+
+describe("measurements screen pairs weight with height", () => {
+  const body = fnBody(src, "renderMeasurementsStep");
+
+  it("appends both ruler sections", () => {
     expect(body).toContain("renderWeightSection()");
     expect(body).toContain("renderHeightSection()");
   });
 
-  it("gates on !!w.gender -- the rulers always hold an in-range value, so gender is the only answer that can be missing", () => {
-    expect(body).toContain("renderWizardActions(!!w.gender)");
+  it("leaves Next enabled -- both rulers always hold an in-range value, so nothing here can be unanswered", () => {
+    expect(body).toContain("renderWizardActions(true)");
   });
 
   it("no question section appends its own actions row (each combined screen has exactly one shared row)", () => {
-    for (const sectionFn of ["renderGenderSection", "renderWeightSection", "renderHeightSection", "renderBodyTypeSection"]) {
+    for (const sectionFn of ["renderWeightSection", "renderHeightSection", "renderBodyTypeSection"]) {
       expect(fnBody(src, sectionFn)).not.toContain("renderWizardActions");
     }
-    for (const stepFn of ["renderAboutYouStep", "renderBodyActivityStep", "renderPreferencesStep"]) {
+    for (const stepFn of ["renderGenderStep", "renderMeasurementsStep", "renderBodyActivityStep", "renderPreferencesStep"]) {
       const rows = fnBody(src, stepFn).match(/renderWizardActions\(/g) || [];
       expect(rows, `${stepFn} should append exactly one actions row`).toHaveLength(1);
     }
+  });
+});
+
+describe("both measurement rulers scroll horizontally", () => {
+  // The reason is reachability, not looks. As vertical wheels these two
+  // were vertical scroll containers covering the middle of the screen, so a
+  // downward flick was swallowed by the wheel and the page never moved --
+  // leaving Next below the fold and unreachable, while the flick silently
+  // changed the value. A pan-x ruler cannot consume a vertical gesture.
+  it("both go through the shared horizontal ruler", () => {
+    for (const fn of ["renderWeightSection", "renderHeightSection"]) {
+      expect(fnBody(src, fn)).toContain("renderHorizontalRuler(");
+    }
+  });
+
+  it("no vertical scroll container survives anywhere in the wizard's markup", () => {
+    expect(src).not.toContain("ob-weight-ruler-scroll");
+    expect(src).not.toContain("ob-height-ruler-scroll");
+  });
+
+  it("the stylesheet pins the ruler to the horizontal axis", () => {
+    const css = read("templates", "onboarding.html");
+    const block = css.slice(css.indexOf(".ob-hruler-scroll {"), css.indexOf(".ob-hruler-scroll::-webkit-scrollbar"));
+    expect(block).toContain("overflow-x: scroll");
+    expect(block).toContain("overflow-y: hidden");
+    expect(block).toContain("touch-action: pan-x");
+  });
+
+  it("the Next/Back row is sticky so it cannot sit below the fold on the tall screens", () => {
+    const css = read("templates", "onboarding.html");
+    const block = css.slice(css.indexOf(".ob-wizard-actions {"), css.indexOf(".ob-btn-primary, .ob-btn-secondary"));
+    expect(block).toContain("position: sticky");
+    expect(block).toContain("bottom: 0");
   });
 });
 
@@ -148,7 +199,7 @@ describe("the combined-screen step titles exist in both locales", () => {
   const thEnd = i18n.indexOf("function ", thStart);
   const thBlock = i18n.slice(thStart, thEnd === -1 ? i18n.length : thEnd);
   const NEW_KEYS = [
-    "onboarding.step.aboutYou",
+    "onboarding.step.measurements",
     "onboarding.step.height",
     "onboarding.step.bodyActivity",
     "onboarding.step.preferences",

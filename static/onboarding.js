@@ -205,13 +205,19 @@
   // plan before they'd seen the app. Onboarding now always finishes on the
   // nutrition-only result screen and never writes a split plan; home.html/
   // workouts.html already treat "no plan yet" as the create-a-plan CTA.
-  // The same ten questions, grouped into five screens so setup feels
-  // short: related questions share a screen (each with its own small
-  // sub-heading) and Next only unlocks once every question on the screen
-  // is answered. The data collected -- and the profile/targets computed
-  // from it -- are identical to the old one-question-per-screen flow.
+  // The same ten questions, grouped into six screens so setup feels short
+  // without any one screen feeling crowded: closely related questions share
+  // a screen (each under its own sub-heading) and Next only unlocks once
+  // every question on that screen is answered. The data collected -- and
+  // the profile/targets computed from it -- are identical to the old
+  // one-question-per-screen flow.
+  //
+  // Gender and the two measurements were one screen in 0.2.4.0 and that was
+  // too much at once: three questions, two of them scroll wheels. They are
+  // split here, and the measurements screen is short enough to fit a phone
+  // viewport whole, so nothing on it needs page-scrolling to reach Next.
   const STEPS = [
-    "aspiration", "about_you", "goal_weight", "body_activity", "preferences",
+    "aspiration", "gender", "measurements", "goal_weight", "body_activity", "preferences",
   ];
 
   // "goal_weight" only makes sense when the user is actually trying to move
@@ -324,7 +330,8 @@
     if (w.stepIndex >= STEPS.length) return renderResult();
     const step = currentStep();
     if (step === "aspiration") return renderAspirationStep();
-    if (step === "about_you") return renderAboutYouStep();
+    if (step === "gender") return renderGenderStep();
+    if (step === "measurements") return renderMeasurementsStep();
     if (step === "goal_weight") return renderGoalWeightStep();
     if (step === "body_activity") return renderBodyActivityStep();
     return renderPreferencesStep();
@@ -391,75 +398,150 @@
     return sec;
   }
 
-  function renderGenderSection() {
+  // Its own screen again (it shared one with weight and height in 0.2.4.0).
+  // Two cards and nothing else, so it reads at a glance.
+  function renderGenderStep() {
+    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepGender")}</div></div>`);
     const items = [
       { id: "male", title: t("coaching.gender.male"), icon: iconSvg(GENDER_ICONS.male) },
       { id: "female", title: t("coaching.gender.female"), icon: iconSvg(GENDER_ICONS.female) },
     ];
-    return section("coaching.wizard.stepGender", renderChoiceGrid(items, "set-gender", w.gender, false));
-  }
-
-  function renderAboutYouStep() {
-    const wrap = el(`<div><div class="ob-wizard-step-label">${t("onboarding.step.aboutYou")}</div></div>`);
-    wrap.appendChild(renderGenderSection());
-    wrap.appendChild(renderWeightSection());
-    wrap.appendChild(renderHeightSection());
-    // The rulers can only ever hold in-range values (see their comments),
-    // so gender is the one answer on this screen that can still be missing.
+    wrap.appendChild(renderChoiceGrid(items, "set-gender", w.gender, false));
     wrap.appendChild(renderWizardActions(!!w.gender));
     return wrap;
   }
 
-  // A vertical scroll-snap ruler instead of a horizontal <input type=number>
-  // -- same rationale as the height ruler below: a fresh signup entering
-  // their weight for the first time gets a wheel they can flick through
-  // instead of having to summon a number keyboard. Ticks in whole kg (the
-  // canonical unit) regardless of the user's display preference, same as
-  // the height ruler ticking in whole cm even when showing ft/in -- only
-  // the value LABEL is unit-aware, the ruler itself always ticks in the
-  // unit the profile is actually stored/validated in.
-  const WEIGHT_RULER_TICK_PX = 14;
+  function renderMeasurementsStep() {
+    const wrap = el(`<div><div class="ob-wizard-step-label">${t("onboarding.step.measurements")}</div></div>`);
+    wrap.appendChild(renderWeightSection());
+    wrap.appendChild(renderHeightSection());
+    // Both rulers are clamped to their range by construction and always
+    // hold a real value, so there is nothing here that can be unanswered.
+    wrap.appendChild(renderWizardActions(true));
+    return wrap;
+  }
 
-  function renderWeightSection() {
-    const rows = [];
-    for (let kg = MIN_WEIGHT_KG; kg <= MAX_WEIGHT_KG; kg++) {
-      const isMajor = kg % 10 === 0;
-      const isMid = !isMajor && kg % 5 === 0;
-      rows.push(`
-        <div class="ob-weight-ruler-row">
-          <span class="ob-weight-ruler-label">${isMajor ? kg : ""}</span>
-          <span class="ob-weight-ruler-mark ${isMajor ? "is-major" : isMid ? "is-mid" : ""}"></span>
+  // ---------- Shared horizontal ruler (weight + height) ----------
+  // These two used to be VERTICAL scroll wheels, and that made the Next
+  // button unreachable: a vertical wheel is a vertical scroll container, so
+  // a downward flick that starts anywhere on it is consumed by the wheel
+  // and never reaches the page. On a phone the two wheels covered a 210px
+  // band across the middle of the screen with thousands of px of internal
+  // range, so the page could not be scrolled to the Next button at all --
+  // the flick just silently changed the user's weight instead (reported
+  // from a real device: weight read 98kg untouched, Next never reachable).
+  //
+  // Scrolling horizontally removes the conflict at the source rather than
+  // patching around it: a pan-x container cannot scroll vertically, so the
+  // browser hands every vertical gesture straight to the page. Same shape
+  // the goal-weight ruler below has always used -- one gesture vocabulary
+  // for all three number pickers, and a third of the vertical space.
+  //
+  // Ticks are always whole kg / whole cm (the unit the profile is stored
+  // and validated in) regardless of the user's display preference; only
+  // the value LABEL is unit-aware.
+  const HRULER_TICK_PX = 14;
+
+  function renderHorizontalRuler({ id, min, max, value, format, ariaLabel, onChange }) {
+    let cols = "";
+    for (let v = min; v <= max; v++) {
+      const isMajor = v % 10 === 0;
+      const isMid = !isMajor && v % 5 === 0;
+      cols += `
+        <div class="ob-hruler-col">
+          <span class="ob-hruler-collabel">${isMajor ? v : ""}</span>
+          <span class="ob-hruler-tick ${isMajor ? "is-major" : isMid ? "is-mid" : ""}"></span>
         </div>
-      `);
+      `;
     }
-    const ruler = el(`
-      <div class="ob-weight-ruler">
-        <div class="ob-weight-ruler-value" id="ob-weight-value">${RepCheckUnits.formatWeightKg(parseFloat(w.weightKg))}</div>
-        <div class="ob-weight-ruler-window">
-          <div class="ob-weight-ruler-indicator"></div>
-          <div class="ob-weight-ruler-scroll" id="ob-weight-scroll" tabindex="0">${rows.join("")}</div>
+    const start = Math.max(min, Math.min(max, Math.round(value)));
+    const wrap = el(`
+      <div class="ob-hruler">
+        <div class="ob-hruler-value" id="${id}-value">${format(start)}</div>
+        <div class="ob-hruler-window">
+          <div class="ob-hruler-indicator"></div>
+          <div class="ob-hruler-scroll" id="${id}-scroll" tabindex="0"
+               role="slider" aria-valuemin="${min}" aria-valuemax="${max}" aria-valuenow="${start}"
+               aria-label="${ariaLabel}">
+            <div class="ob-hruler-pad"></div>
+            ${cols}
+            <div class="ob-hruler-pad"></div>
+          </div>
         </div>
       </div>
     `);
-    const wrap = section("coaching.wizard.stepWeight", ruler);
-    const scrollEl = wrap.querySelector("#ob-weight-scroll");
-    const valueLabel = wrap.querySelector("#ob-weight-value");
+
+    const scrollEl = wrap.querySelector(".ob-hruler-scroll");
+    const valueEl = wrap.querySelector(".ob-hruler-value");
+    // Each column snaps on its CENTRE (scroll-snap-align: center), so the
+    // browser settles half a tick past a naive index*TICK -- both the seek
+    // and its inverse below carry the same half-tick term or the rest
+    // position drifts by one unit from what the snap actually lands on.
+    const HALF = HRULER_TICK_PX / 2;
+    // Only a scroll of the LIVE, already-positioned ruler may write state.
+    // Both guards close the same silent-corruption hole, measured in a real
+    // browser: the moment a step change swaps this ruler out of the DOM its
+    // scrollLeft snaps from wherever the user left it to 0, and position 0
+    // decodes to `min` -- so a stray scroll event around that transition
+    // would rewrite the user's weight to 35kg / height to 130cm behind
+    // their back. It reproduced as a saved profile reading 35kg/130cm on a
+    // run whose targets had just been calculated from 98kg/183cm.
+    let seeded = false;
     scrollEl.addEventListener("scroll", () => {
-      const index = Math.round(scrollEl.scrollTop / WEIGHT_RULER_TICK_PX);
-      w.weightKg = String(Math.max(MIN_WEIGHT_KG, Math.min(MAX_WEIGHT_KG, MIN_WEIGHT_KG + index)));
-      valueLabel.textContent = RepCheckUnits.formatWeightKg(parseFloat(w.weightKg));
+      if (!seeded || !scrollEl.isConnected) return;
+      const index = Math.round((scrollEl.scrollLeft - HALF) / HRULER_TICK_PX);
+      const next = Math.max(min, Math.min(max, min + index));
+      scrollEl.setAttribute("aria-valuenow", next);
+      valueEl.textContent = format(next);
+      onChange(next);
     }, { passive: true });
-    // setTimeout rather than requestAnimationFrame -- see renderHeightSection
-    // below for why.
+
+    // The pads must be exactly half the window's width so the first and
+    // last ticks can still reach the centre indicator. Measured, not
+    // hardcoded (the window is fluid-width), and rounded to a whole px: a
+    // fractional pad shifts true scrollLeft=0 a few px off from where the
+    // tick math expects it, making the lowest values unreachable.
+    // setTimeout, not rAF: the element must be attached and laid out
+    // first, and rAF never fires in a backgrounded/automated tab.
     setTimeout(() => {
-      scrollEl.scrollTop = (parseFloat(w.weightKg) - MIN_WEIGHT_KG) * WEIGHT_RULER_TICK_PX;
+      const windowEl = wrap.querySelector(".ob-hruler-window");
+      const half = windowEl ? Math.round(windowEl.getBoundingClientRect().width / 2) : 0;
+      wrap.querySelectorAll(".ob-hruler-pad").forEach((pad) => { pad.style.width = `${half}px`; });
+      scrollEl.scrollLeft = (start - min) * HRULER_TICK_PX + HALF;
+      // Armed only once the ruler is actually sitting on its value -- see
+      // the guard on the scroll listener above. A ruler whose render was
+      // already superseded never arms at all.
+      if (scrollEl.isConnected) seeded = true;
     });
-    // Unlike the old text input, the ruler can never produce an out-of-
-    // range value (every row is clamped to [MIN_WEIGHT_KG, MAX_WEIGHT_KG]
-    // by construction), so there's nothing to re-validate on scroll --
-    // same reasoning as renderHeightSection, which has no live disabled-
-    // toggle either.
+
     return wrap;
+  }
+
+  function renderWeightSection() {
+    // Every column is clamped to [MIN_WEIGHT_KG, MAX_WEIGHT_KG] by
+    // construction, so unlike a text input the ruler can never produce an
+    // out-of-range value -- nothing to re-validate as it scrolls.
+    return section("coaching.wizard.stepWeight", renderHorizontalRuler({
+      id: "ob-weight",
+      min: MIN_WEIGHT_KG,
+      max: MAX_WEIGHT_KG,
+      value: parseFloat(w.weightKg) || 70,
+      format: (kg) => RepCheckUnits.formatWeightKg(kg),
+      ariaLabel: t("coaching.wizard.stepWeight"),
+      onChange: (kg) => { w.weightKg = String(kg); },
+    }));
+  }
+
+  function renderHeightSection() {
+    return section("onboarding.step.height", renderHorizontalRuler({
+      id: "ob-height",
+      min: HEIGHT_MIN_CM,
+      max: HEIGHT_MAX_CM,
+      value: w.heightCm,
+      format: (cm) => RepCheckUnits.formatHeightCm(cm),
+      ariaLabel: t("onboarding.step.height"),
+      onChange: (cm) => { w.heightCm = cm; },
+    }));
   }
 
   // Rate is a % of bodyweight per week (see coaching_engine.py's
@@ -884,49 +966,6 @@
   // -- dragging/scrolling vertically through a tall list of 1cm ticks
   // gives much finer control over landing on one exact value than a thumb
   // sliding across a short horizontal track does.
-  const HEIGHT_RULER_TICK_PX = 14;
-
-  function renderHeightSection() {
-    const rows = [];
-    for (let cm = HEIGHT_MIN_CM; cm <= HEIGHT_MAX_CM; cm++) {
-      const isMajor = cm % 10 === 0;
-      const isMid = !isMajor && cm % 5 === 0;
-      rows.push(`
-        <div class="ob-height-ruler-row">
-          <span class="ob-height-ruler-label">${isMajor ? cm : ""}</span>
-          <span class="ob-height-ruler-mark ${isMajor ? "is-major" : isMid ? "is-mid" : ""}"></span>
-        </div>
-      `);
-    }
-    const ruler = el(`
-      <div class="ob-height-ruler">
-        <div class="ob-height-ruler-value" id="ob-height-value">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
-        <div class="ob-height-ruler-window">
-          <div class="ob-height-ruler-indicator"></div>
-          <div class="ob-height-ruler-scroll" id="ob-height-scroll" tabindex="0">${rows.join("")}</div>
-        </div>
-      </div>
-    `);
-    const wrap = section("onboarding.step.height", ruler);
-    const scrollEl = wrap.querySelector("#ob-height-scroll");
-    const valueLabel = wrap.querySelector("#ob-height-value");
-    scrollEl.addEventListener("scroll", () => {
-      const index = Math.round(scrollEl.scrollTop / HEIGHT_RULER_TICK_PX);
-      w.heightCm = Math.max(HEIGHT_MIN_CM, Math.min(HEIGHT_MAX_CM, HEIGHT_MIN_CM + index));
-      valueLabel.textContent = RepCheckUnits.formatHeightCm(w.heightCm);
-    }, { passive: true });
-    // Jump to the current value once the ruler is actually in the DOM and
-    // has a real scroll height to measure against (a fresh render
-    // shouldn't visibly animate-scroll into place). setTimeout rather than
-    // requestAnimationFrame -- rAF only fires on an actual paint, which
-    // some automated/backgrounded tab contexts never deliver, silently
-    // leaving the ruler stuck at scrollTop 0.
-    setTimeout(() => {
-      scrollEl.scrollTop = (w.heightCm - HEIGHT_MIN_CM) * HEIGHT_RULER_TICK_PX;
-    });
-    return wrap;
-  }
-
   function renderBodyTypeSection() {
     const gender = w.gender || "male";
     const ranges = bodyFatRangesFor(gender);
