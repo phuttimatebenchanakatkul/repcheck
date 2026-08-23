@@ -78,7 +78,7 @@ def run_pipeline(input_video, exercise, trimmed_path=None):
 
     with open(trimmed_path, "rb") as f:
         video_bytes = f.read()
-    raw_feedback = call_gemini(
+    raw_feedback, api_seconds, api_attempts = call_gemini(
         video_bytes, config, duration_seconds, video_mime_type(trimmed_path)
     )
 
@@ -118,6 +118,8 @@ def run_pipeline(input_video, exercise, trimmed_path=None):
         "model": GEMINI_MODEL,
         "duration_seconds": duration_seconds,
         "trimmed_path": trimmed_path,
+        "api_seconds": round(api_seconds, 1),
+        "api_attempts": api_attempts,
     }
 
 
@@ -138,6 +140,7 @@ def main():
     print(f"Squeeze: {result['squeeze_score']}/100")
     print(f"Favored: {result['favored']}")
     print(f"Reps: {result['reps']}")
+    print(f"API call: {result['api_seconds']}s ({result['api_attempts']} attempt(s))")
     print("\n--- Form Analysis ---\n")
     print(result["feedback"])
 

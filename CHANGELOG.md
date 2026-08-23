@@ -2,6 +2,14 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.2.5.1] - 2026-08-23
+
+### Changed
+
+- Workout form analysis now records how long the AI grading call itself took,
+  separate from video upload/trim time, so a slow analysis can be diagnosed
+  with real numbers instead of guesswork.
+
 ## [0.2.5.0] - 2026-08-23
 
 ### Fixed
