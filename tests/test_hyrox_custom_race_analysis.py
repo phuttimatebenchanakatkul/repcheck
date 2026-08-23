@@ -2,7 +2,7 @@
 
 hyrox.js is a single hand-rolled ES6 class with no build step and no JS test
 runtime wired up for it, so these are source-level regex assertions against
-the real file -- the same tradeoff test_hyrox_personal_best_section.py makes.
+the real file -- the same tradeoff test_hyrox_keyboard_activation.py makes.
 
 Custom races get no AI coaching: the prompt is built around the fixed
 standard station list, and a custom race's station mix (and count) is

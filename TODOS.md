@@ -140,6 +140,8 @@
 
 **Fixed by /qa on feat/assign-week-carousel, 2026-08-13** -- resolved by removal, not a direct fix. The "Assign your week" screen no longer has a weekday grid at all: `renderSplitStepReview()` was redesigned into a one-day-at-a-time carousel, and `.split-week-cell` no longer exists in `templates/workouts.html`. The carousel's own controls have a different (better, though not perfect) sizing profile: `.split-carousel-arrow` is 34px, and day-to-day jumps have two paths -- the arrows, or the new 8px `.split-carousel-dot` row (a secondary/supplementary way to jump directly to a day, not the primary interaction). The dots are below the 44px guideline too, but as optional pagination affordances behind a same-purpose 34px primary control, this is a materially smaller gap than the old grid being users' *only* way to assign a day. Not re-opened as a fresh TODO since it's a common, accepted mobile pattern (photo-gallery-style pagination dots) rather than the primary control missing a target size.
 
+**Addendum (feat/assign-week-day-picker, 2026-08-13):** The day pill's tap-to-cycle gesture was replaced with a tap-to-open `.split-carousel-pill-menu` (see the "day-type picker" entry below). Its `.split-carousel-pill-menu-item` options are `padding: 8px 10px` at 13px font, an effective height under 44px -- and unlike the dots, this IS the primary control for reassigning a day (there's no other path). Flagged as [LOW] confidence by the design review (code-only, not visually measured) and not blocking ship, but worth a closer look if this screen gets another pass -- padding the tappable area without growing the visible menu row would close most of the gap.
+
 ~~**What:** The 7-cell weekday grid in the split-review "Assign your week" screen (`.split-week-cell` in `templates/workouts.html`) renders at roughly 28-36px square on real phone widths (320-375px) -- the primary interactive control of that screen.~~
 
 ~~**Why:** Small miss-taps on the most-used control of a brand-new screen. Clears WCAG 2.2 AA's 24px minimum, but not Apple's stricter 44px HIG recommendation.~~
@@ -176,13 +178,13 @@
 **Priority:** P4
 **Depends on:** None
 
-### Decide what tap-to-cycle should do when it orphans a training day
+### Decide what the day-type picker should do when it orphans a training day
 
-**What:** In the split-review screen, tapping the day pill (formerly: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) cycles its assignment through every unique day label plus Rest. Nothing stops a user from cycling every day to Rest, or cycling away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`.
+**What:** In the split-review screen, tapping the day pill (formerly: cycled its assignment one tap at a time, before the day-type picker menu of 2026-08-13; before that: tapping the already-selected weekday grid cell, before the carousel redesign of 2026-08-13) now opens a menu and reassigns the day directly to whichever label or Rest is picked. Nothing stops a user from reassigning every day to Rest, or picking away the only weekday scheduled for a given training day -- that day's exercises stay in `plan.days` but become unreachable via `plan.schedule`. The underlying risk is unchanged by the interaction-model swap; only how a user reaches that state changed (now one direct tap instead of N cycling taps).
 
 **Why:** This is a product decision, not a confirmed bug -- a user might legitimately decide they don't want a given training day this week. But it's currently silent either way: no warning, no indication a day type has become unscheduled.
 
-**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s "cycles through every unique label then Rest, then wraps back" test pins that normal cycling doesn't crash, but (unlike the pre-carousel test this replaced) doesn't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being cycled away.
+**Context:** Surfaced by the original coverage audit for the split-review-redesign ship. `tests-js/reviewStep.test.js`'s picker-menu tests pin that normal reassignment doesn't crash, but don't specifically assert the orphan/0-instances-scheduled edge case, deliberately without asserting the *outcome* is desirable. Needs a product call: leave as-is (user's own choice), warn when a day type becomes fully unscheduled, or prevent the last instance of a day type from being picked away.
 
 **Effort:** S (once the desired behavior is decided)
 **Priority:** P3
@@ -302,41 +304,79 @@
 
 ## Hyrox
 
-### PB card's div[role="button"] trigger wraps a real nested `<button>`
+### History rows are a div[role="button"] wrapping a real nested `<button>`
 
-**What:** The new "Your personal bests" card's per-format section trigger (`renderMyBestsCard()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="pb-time-btn">` (the hero time). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
+**What:** Each history row (`renderHistory()`, `static/hyrox.js`) is a `div[role="button"] tabindex="0"` that structurally contains a real `<button class="hx-history-remove">` (the "x"). This solves the HTML5 constraint (`<button>` can't nest `<button>` -- the browser silently closes the outer one) but not the ARIA one: a `role="button"` container should not contain other interactive controls. Screen reader behavior for nested interactive elements varies by AT/browser combination -- some double-announce, some drop the inner control's semantics.
 
 **Why:** Real accessibility gap on a brand-new, genuinely keyboard-operable widget (this PR also added the first working keydown handler in this file). Not blocking because the underlying HTML5 constraint that caused this shape is real and the current implementation does correctly avoid double-firing (see `handleKeydown`'s `event.target !== target` guard), but the ARIA pattern itself should be revisited.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. A real fix likely means moving the expand affordance to a dedicated control adjacent to, not wrapping, the hero time (e.g. a separate chevron button next to the time button, both siblings under a non-interactive row container) -- a layout change, not a one-line fix.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`, where the instance was the "Your personal bests" card's section trigger. That card was removed in v0.1.2.0, but the identical shape survives in the history rows, so the issue moved rather than closed -- repointed there. A real fix likely means making the row container non-interactive and giving the open action its own control adjacent to (not wrapping) the remove button -- a layout change, not a one-line fix. `handleKeydown`'s `event.target !== target` guard still correctly prevents double-firing in the meantime (see `tests/test_hyrox_keyboard_activation.py`).
 
 **Effort:** M
 **Priority:** P3
 **Depends on:** None
 
-### PB card's keyboard toggle drops focus back to `<body>` on expand/collapse
+### Keyboard activation drops focus back to `<body>` on every re-render
 
-**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. `togglePbFormat()` calls `render()`, so a keyboard user who presses Enter/Space to expand a PB section loses focus back to `<body>` and must re-tab from the top to continue.
+**What:** `render()` (`static/hyrox.js`) unconditionally does `this.root.innerHTML = ""` and rebuilds the whole tree; there is no `.focus()` restoration anywhere in the file. Any keyboard activation routed through `handleKeydown` therefore drops focus to `<body>`: pressing Enter on a history row or a personal-best board row opens the detail modal, and dismissing it leaves the user re-tabbing from the top.
 
-**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to this PR, but this PR is the first to attach a newly-working custom keyboard handler (`handleKeydown`) to a disclosure control, making the gap freshly user-facing rather than theoretical.
+**Why:** This is an app-wide pre-existing pattern (full-rebuild rendering with no focus restoration), not unique to any one feature, but `handleKeydown` makes it reachable by keyboard on two live surfaces, so the gap is user-facing rather than theoretical.
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-format`) around the `render()` call in `togglePbFormat()` specifically -- the narrower, more tractable option if only this toggle is fixed rather than the pattern app-wide.
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. The original instance was the PB card's expand toggle, removed in v0.1.2.0; the pattern outlived it, so this is repointed at the surviving keyboard-activated rows. Fixing properly means either targeted DOM patching instead of full rebuilds (a much larger architectural change touching every render call site) or saving/restoring focus by a stable identifier (e.g. `data-id`) around the `render()` calls reached from `handleKeydown` -- the narrower, more tractable option.
 
-**Effort:** S (narrow fix, just this toggle) / L (app-wide)
+**Effort:** S (narrow fix, just the keyboard-reachable rows) / L (app-wide)
+**Priority:** P3
+**Depends on:** None
+
+### History rows render comboLabel() unescaped (pre-existing, self-XSS only)
+
+**What:** `renderHistory()` and `renderRaceDetailModal()` (`static/hyrox.js`) both emit `<span class="hx-history-tag">${comboLabel(r.gender, r.category, r.format)}</span>` into a template literal assigned via `innerHTML`. `comboLabel()` builds that string through `RepCheckI18n.t("hyrox.finishLabel", {...})`, which substitutes its vars with split/join and does not escape them, and it passes `category`/`format` straight through whenever they are not one of the fixed ids. `setCategory(value)` stores whatever `data-value` it is handed without validating against `CATEGORY_IDS`, and history records also arrive through account sync.
+
+**Why:** Verified, not theoretical: rendering a history record whose `category`, `format`, or `gender` contains `"><img src=x onerror=alert(1)>` produces a live `<img>` in the row, confirmed against the real English dictionary. Self-XSS only -- the data is the user's own -- which is why it is P3 and not P0. Same class as the workout-log entry above.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-pb-leaderboard`. That branch closed the instance it introduced (`pbBoardLabel()` now goes through `escapeHtml`, and the board's `data-key` through a new `escapeAttr`), and deliberately left these two pre-existing call sites alone. The systemic fix is making `RepCheckI18n.t()` escape its vars by default, which would close all of the remaining sinks at once; the narrow fix is wrapping these two call sites in the `escapeHtml` that already exists in the file.
+
+**Effort:** S (two call sites) / M (systemic t() escaping + audit of every intentional-markup caller)
 **Priority:** P3
 **Depends on:** None
 
 ### "No detail available" toast always blames "another device" even when the real cause is local-history eviction
 
-**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.
+**Fixed on `fix/never-evict-race-history`, 2026-08-14** -- resolved at the root cause. `MAX_HISTORY` (the count-based `saveHistory()` trim this TODO was about) is gone entirely; local Hyrox history is never truncated by count or age. The toast's "set on another device" copy is no longer a false-attribution risk, since local-history eviction is no longer a thing that can happen.
 
-**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.
+~~**What:** Local history is trimmed to the most recent `MAX_HISTORY` entries on every save (`static/hyrox.js`). If a user's server-side PB is older than that cutoff, its local backing record gets silently evicted, and tapping the PB button shows "No detail available for this result — it was set on another device" -- which is factually wrong when the race was actually set on this device and the app just stopped keeping the record.~~
 
-**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.
+~~**Why:** Low likelihood (requires a lot of completed races to hit the cap) but the copy asserts a specific wrong cause rather than a neutral one when it does happen.~~
+
+~~**Context:** Found by Claude's adversarial review during `/ship` on `feat/hyrox-personal-bests-report`. Deferred as a copy/product decision -- soften the message to a neutral "No detail available for this result" (drops the false specificity but also drops the reassuring, usually-correct explanation), or increase local history retention, or accept as-is given the low likelihood.~~
 
 **Effort:** S
+**Priority:** P4 (resolved)
+**Depends on:** None
+
+### Unbounded Hyrox history re-uploads the full blob on every single save
+
+**What:** `repcheck_hyrox_history_v1` is one of `account_sync.js`'s `SYNC_KEYS`, so every `saveHistory()` write (finishing a race, deleting one, or caching an AI analysis result) already re-uploads the entire history array via the wrapped `localStorage.setItem` -- this was true even before `fix/never-evict-race-history`. What that fix changes is the *size ceiling*: the array can no longer be capped at ~200 entries, so a long-lived account's full-blob re-upload grows without bound on every single write, including ones that only touch one record (e.g. caching one race's AI analysis text).
+
+**Why:** Not a correctness bug -- `account_sync.js`'s `pushToServer()` already has documented fallback handling for oversized payloads (sendBeacon queue-full retries via fetch, keepalive-quota-exceeded retries without keepalive), so this degrades gracefully rather than failing outright. But it's a standing efficiency cost that scales with account age: JSON.stringify of the whole array plus a full network re-transmission, repeated on every write, for the life of the account, when most writes only change one record.
+
+**Context:** Found by the security and performance specialists during `/ship` on `fix/never-evict-race-history` (both independently flagged the same root cause). A real fix means either delta/batched sync for this key specifically (only the changed record, not the whole array) or restructuring the synced value's shape (e.g. per-race rows instead of one array blob) -- the same "one JSON blob per user, whole-blob read-modify-write" architectural pattern already tracked for workout/nutrition/weight logs elsewhere in this file, now also true of Hyrox history now that it's unbounded. Out of scope for a bugfix branch whose actual mandate was "never evict race data."
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** None
+
+### No recovery path once a device's localStorage quota is hit for Hyrox history
+
+**What:** `saveHistory()`'s catch (added on `fix/never-evict-race-history`) surfaces a toast when `localStorage.setItem` throws `QuotaExceededError`, but `this.history` only ever grows and a failed save is never retried. Every future write on that device -- finishing a race, deleting one, caching an AI analysis -- re-triggers the same failure until the array shrinks. The only shrink path is `removeHistory()`, one entry at a time; there's no bulk-clear UI, and the toast copy just says "try another device."
+
+**Why:** Product/UX gap, not a code defect -- the underlying data is safe (server-authoritative, never lost), but a device that hits this has a genuinely degraded experience with no clear way out short of manually deleting races one by one or switching devices.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `fix/never-evict-race-history`, as a follow-on to the QuotaExceededError catch it also verified. Needs a product decision: a bulk "free up space" flow (e.g. clear local cache for races already confirmed synced server-side, since they're recoverable via hydration), or accept the one-at-a-time deletion path as sufficient given how rare hitting the quota actually is.
+
+**Effort:** M (once the desired recovery UX is decided)
 **Priority:** P4
-**Depends on:** A product decision on the intended wording
+**Depends on:** A product decision on the intended recovery flow
 
 ### Add-a-station category tabs don't implement the full ARIA APG tabs keyboard pattern
 
@@ -472,6 +512,114 @@
 **Priority:** P4
 **Depends on:** None
 
+### "Quick add" dock still abandons the meal being edited in add-ingredient mode
+
+**What:** `manualMacroCtaHtml()` (`templates/nutrition.html`) is appended on every branch of the food-search sheet, including when the sheet was opened by `openAddIngredientModal()`. Its `[data-manual-macro]` handler does `closeModal(); openQuickMacroModal();` -- and `closeModal()` nulls `modalMode`, so the food gets logged as its own standalone entry instead of being added as an ingredient of the meal the user was editing. The `[data-custom-index]` branch has the same gap.
+
+**Why:** The user is mid-edit on one meal and silently ends up with a second unrelated entry in their day, which they then have to find and delete. The sticky dock is the loudest control on the sheet, so it's the one they're most likely to reach for.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. That branch fixed its own new instance (the Custom tab's "Create a food" row is suppressed in add-ingredient mode) but deliberately did not touch the two pre-existing ones -- a real fix threads the `entryId` through the create/quick-macro/custom-food paths and the af-sheet result flow so the created food can be appended as an ingredient, which is a separate change with its own tests.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** None
+
+### A custom food can be created but never deleted from the app
+
+**What:** `DELETE /api/custom-foods/<id>` exists (`app.py`) and has no caller anywhere in `templates/` or `static/`.
+
+**Why:** A typo'd food (a mistyped name with an 8000 kcal value) is permanent and keeps matching every future search. The food sheet's new "Custom" tab now presents that list prominently, which makes the missing affordance obvious in a way it wasn't when custom foods only surfaced as search hits.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: needs a UI decision (swipe-to-delete on the row, matching the food log's own swipe gesture, vs an edit mode) rather than just wiring the endpoint.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** None
+
+### The Custom tab can't tell "you have no custom foods" from "the fetch failed"
+
+**What:** `loadCustomFoods()` (`templates/nutrition.html`) swallows every failure into an empty `catch`, is called exactly once at page load, and never re-runs. The food sheet's Custom tab renders `nutrition.custom.empty` ("Foods you build yourself show up here.") for all of: a genuinely empty library, a 500, a 401, an offline phone, and a request that simply hasn't landed yet.
+
+**Why:** A user with 40 saved foods can be told, in a confident empty state, that they have none -- and the obvious next action ("Create a food") makes them recreate a duplicate. There is no loading state, no error state, and no retry.
+
+**Context:** Flagged by the maintainability specialist and Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: needs a tri-state (unloaded / loaded / failed) plus a re-render when the fetch resolves while the sheet is open, which is more than the tab change itself warranted.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### Favoriting a scanned food leaves a dead row once its log entries are gone
+
+**What:** The `[data-fav-toggle]` handler keys on the food NAME, so a scan/barcode/quick-macro name can be favorited, and that favorite persists in localStorage independently of the log. Delete every entry for that name and `relogRowEntry()` finds nothing, so the Favorites tab renders it with no macro line on the `data-food` path, where `openLogAmountModal()` early-returns -- a row that does nothing on tap, with no way to clear it except re-hearting it.
+
+**Why:** It is the same dead-row failure `feat/food-sheet-custom-tab` removed from the Recent tab, surviving in the one place that fix can't reach (there is no entry left to render from).
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: the honest fix is either to drop unresolvable names from the favorites list (silently hides a favorite) or to render them as explicitly unavailable -- a product call, not a mechanical fix.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### The analyze-food sheet's screens are hardcoded English
+
+**What:** `renderRelogConfirm()`, `renderAfChoice()` and the create-food form (`templates/nutrition.html`) emit literals -- "Amount", "Cancel", "Log again", "Log your food any way you like.", "Create food" -- while the food-search sheet around them is fully `RepCheckI18n.t()`-driven.
+
+**Why:** A Thai user tapping a Thai-named food on a Thai-labelled tab is dropped onto an English confirm dialog. The food sheet's re-log row now makes that transition part of a normal logging flow rather than a scan-only path.
+
+**Context:** Noticed by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: it's a bulk i18n extraction across the whole af sheet (dozens of strings, en + th), unrelated to that branch's scope.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### The food sheet's two default-view empty states are still plain text, not the mascot
+
+**What:** `#163` standardised four empty screens onto `RepCheckMascot.emptyState()`, and on the food-search sheet that covers only the no-match QUERY state. The sheet's two default-view empty states -- `nutrition.searchToAdd` (pre-existing) and `nutrition.custom.empty` (added with the Custom tab) -- still render as plain `.nl-search-empty` text, so the same sheet shows a mascot when a search misses and a grey sentence when a tab is empty.
+
+**Why:** The Custom tab's empty state is the one every user hits on first open, which is exactly the moment the mascot exists for. Converting both together is one change and one visual check; converting either alone leaves the sheet half-and-half.
+
+**Context:** Noticed during `/ship` on `feat/food-sheet-custom-tab` while merging `#163`. Not done there: it needs a title/sub copy split (en + th) for both states and a pose choice, and the branch's dev session had expired so the result could not be checked visually. Related to the existing "Two competing empty-state treatments ship side by side" entry under Design.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Onboarding's putSynced() swallows failed saves, so an account can be marked onboarded with no server-side profile
+
+**What:** `putSynced()` (`static/onboarding.js`) ends with `.catch(function () {})` and never checks `res.ok`, so the `await Promise.all(syncPromises)` in `save()` — whose own comment says it waits "for the server to actually confirm" before POSTing `/api/onboarding/complete` — resolves even when every PUT failed. An offline or flaky-network user gets `onboarding_completed = true` with no profile/goals behind it, the exact state that comment claims the design prevents.
+
+**Why:** Silent data loss on the very first thing a new account does. The user lands on home with no targets and no obvious way to know why. `coaching.js`'s wizardSave may share the pattern.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/onboarding-5-steps`. Pre-existing (untouched by that branch), so it was spun off rather than folded into the wizard-condensing PR.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### Verify the onboarding weight/height wheels don't capture page scroll on a real touch device
+
+**What:** The 5-screen onboarding puts both vertical scroll-wheels (weight, height) on one screen that itself scrolls on phones. A flick that starts over a wheel scrolls the WHEEL (silently changing the stored kg/cm) instead of the page. The wheels have ~96px side gutters at 375px width and the value label sits directly above each wheel, so real exposure is unproven — desktop QA cannot answer it.
+
+**Why:** If real, an accidental flick corrupts the weight that feeds the calorie math, with no error anywhere.
+
+**Context:** Red-team finding during `/ship` on `feat/onboarding-5-steps`; user chose "accept, verify on device" over shipping an engage-on-tap guard unverified. If the trap reproduces, the fix sketch is: wheel scrolls only after a tap/focus on it, or shrink the capture window.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### Onboarding option taps rebuild the whole screen instead of updating the tapped card in place
+
+**What:** Every `set-*` tap in `static/onboarding.js` re-renders the full screen via `renderKeepingScroll()` — on the About-you screen that rebuilds ~1,400 nodes (366-row weight wheel + 101-row height wheel) per tap, and on Body & activity it re-creates the six body-type `<img>` cards. Scroll and focus are restored, but the wheels can flash through position 0 for a frame and the images re-decode.
+
+**Why:** Per-tap main-thread work on the mobile signup path; an in-place `.is-selected` toggle plus a Next-button state update would eliminate it.
+
+**Context:** Performance finding during `/ship` on `feat/onboarding-5-steps`; user chose "ship as-is" to keep the verified branch untouched. The source-contract tests in `tests-js/onboardingCombinedScreens.test.js` pin the current `renderKeepingScroll()` wiring and must be rewritten alongside the refactor.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
 ## Security
 
 ### RepCheckI18n.t() does not escape its vars, and ~8 innerHTML sinks rely on it
@@ -486,7 +634,45 @@
 **Priority:** P2
 **Depends on:** None
 
+### Blue label text on the card background falls below AA contrast in dark mode
+
+**What:** `--blue` is a single fixed `#2f66e8` in both themes (`static/style.css`), so blue 14px text on the dark `--card-bg` (`#1c1c1e`) is ~3.4:1 -- below AA's 4.5:1 for non-large text. The house `background: var(--blue-bg); color: var(--blue)` pairing is ~3.2:1 in dark, so this is systemic, not local to one component. Affects the food sheet's new `.nl-create-food-label` and existing blue-on-card text such as `static/style.css:1471`.
+
+**Why:** The blue label is what carries the affordance's meaning, and dark mode is this app's default theme.
+
+**Context:** Flagged by the design specialist during `/ship` on `feat/food-sheet-custom-tab`. Deferred: the fix is a theme-aware accent token (a lighter blue under `:root[data-theme="dark"]`) applied across every blue-on-card use -- a design-system change, not something to do inside one feature branch.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### relogEntry() silently drops any field it doesn't enumerate, and lands collapsed
+
+**What:** `relogEntry()` (`templates/nutrition.html`) whitelists `grams, unit, baseCalories, baseCarbs, baseFat, baseProtein` when cloning a non-composite entry. Anything else on the original (`barcode`, `servings`, `emoji`, a future field) is lost, and because the clone becomes the newest entry for that name, `latestEntryForFood()` hands the degraded copy to every later render -- lossy on each round trip. It also skips the `EXPANDED.add(id)` that `addFoodToSelectedDay()` does, so a re-logged entry appears collapsed while a searched one appears expanded.
+
+**Why:** Small today (few extra fields exist), but it is a silent data-narrowing path that compounds, and the re-log flow is now reachable from the food sheet's landing tab rather than only the recent-scans list.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Deferred: switching to a copy-then-override shape needs a check of every consumer that assumes those exact keys.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
 ## Design
+
+### 42 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
+
+**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 42 tinted glows remain by this item's own grep (recounted 2026-08-21; `feat/onboarding-5-steps` removed one, on `.ob-result-hero-icon` — the rest of the drift from the original 46 came from other branches in passing), mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus two in `templates/home.html`.
+
+**Why:** The doc and the code now disagree, which is the same failure mode that produced the repeated one-off removals in the first place: a new badge gets built from whichever source the author happened to read. Finishing the sweep is what makes the rule self-enforcing.
+
+**How to find them:** `grep -rEn "box-shadow: 0 [0-9]+px [0-9]+px rgba\((31, 169, 113|185, 131, 42|47, 102, 232|124, 79, 224|232, 131, 47)" --include=*.css --include=*.html static/ templates/`
+
+**Context:** Counted during `/ship` on `feat/hyrox-pb-leaderboard`, which removed the glow from `.pb-trophy` and corrected DESIGN.md but deliberately did not touch the other 45 — an app-wide visual change does not belong in a PR about a leaderboard. Worth doing as one sweep with a before/after screenshot pass, not incrementally.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
 
 ### Two competing empty-state treatments ship side by side
 
@@ -495,6 +681,66 @@
 **Why:** The point of the mascot was one empty-state language; the app currently has two systematised-but-mutually-inconsistent ones. Converting the remaining pair needs one new pose each (a timer-flavoured pose and a ready-to-start pose) plus deleting `.hx-history-empty-icon` / `.wl-empty-icon`.
 
 **Context:** Flagged by the design specialist during `/ship` on `feat/mascot-empty-states`. Left out to keep that PR scoped; the comments in `static/mascot.js` and `templates/base.html` were narrowed so they no longer claim a consolidation that hasn't happened.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### openScannedResultModal()/openRelogConfirmModal() null afPreviewUrl without revoking it
+
+**What:** Both set `afPreviewUrl = null` directly, dropping the last reference to a live blob URL. `useAfImage()` and `closeAnalyzeFoodModal()` both call `URL.revokeObjectURL` first.
+
+**Why:** Leaks a full-resolution meal photo for the page's lifetime each time it happens. Narrow window (a preview must still be assigned), and it is a copied pattern rather than a new one.
+
+**Context:** Found by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### The Custom tab renders every custom food with no cap and no lazy images
+
+**What:** The Custom branch of `renderModalDefaultSections()` maps over all of `customFoods`, while every other list in that sheet is bounded (`getRecentFoods(8)`, `getTopPicksForHour(hour, 8)`, `MODAL_MAX_RESULTS` for search). `get_custom_foods()` (`database.py`) has no LIMIT either, and each row's food image has no `loading="lazy"`.
+
+**Why:** A heavy user's whole library becomes one unbounded `innerHTML` rebuild inside a bottom sheet on every tab tap. Not felt at realistic library sizes; capping is also a product call, since this list is the user's own library where completeness matters more than in a suggestion list.
+
+**Context:** Flagged by the performance specialist during `/ship` on `feat/food-sheet-custom-tab`.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### foodIconHtml()'s image lookup walks Object.prototype
+
+**What:** `foodIconHtml()` (`templates/nutrition.html`) does a bare `FOOD_IMAGES[name]` lookup, so a food named `constructor`, `toString`, or `__proto__` returns a truthy inherited value and renders a broken image whose src is the coerced function source.
+
+**Why:** Cosmetic, not injectable (the coerced values contain no quotes), but a food name is user- and model-authored text, so the guard belongs there.
+
+**Context:** Noticed by Claude's adversarial review during `/ship` on `feat/food-sheet-custom-tab`. Fix is an `Object.prototype.hasOwnProperty.call(FOOD_IMAGES, name)` check.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+### Search doesn't match log-only food names, so a Recent row vanishes when you type it
+
+**What:** `renderModalResults()` (`templates/nutrition.html`) builds rows from `FOOD_LIBRARY.filter(...)` plus `customFoods` only. Every one of those names passes `foodByName()`, so `foodRowHtml`'s `data-relog-entry` branch is structurally unreachable in the query view. A scanned meal is now the first thing a user can see on the Recent tab -- but typing its name yields `nutrition.noMatch` ("No foods match ...") for a food that is one tap away on the tab behind the search box.
+
+**Why:** Browse and search disagree about what exists. The Recent tab change made this visible by putting log-only names in front of every user on open.
+
+**Context:** Found by the red-team pass during `/ship` on `feat/food-sheet-custom-tab`. Deferred: matching distinct log-only names in the query view is a new search source (ranking, dedup against library hits, and a cap), not a fix to the tab change.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### Custom-food and Open Food Facts rows don't honour the hour the sheet was opened from
+
+**What:** The `[data-custom-index]` and `[data-off-index]` click branches (`templates/nutrition.html`) call `closeModal(); openScannedResultModal(...)` with no `const hourForLog = pendingHour` capture, unlike the `[data-food]` and `[data-relog-entry]` branches beside them. `renderAfResult` then renders its hour select with "Now" pre-selected, so `addAfResultToLog` logs at the current wall clock.
+
+**Why:** Opening the sheet from a specific hour row and picking a Recent row logs at that hour, while picking a Custom row logs at "Now" -- two rows in one sheet behaving differently. Currently unreachable in the shipped UI: nothing calls `openAddFoodModal()` since the hour-row "+" was removed, so `pendingHour` is always null when this sheet opens. It becomes a live inconsistency the moment an hour-pinned entry point comes back.
+
+**Context:** Found by the red-team pass during `/ship` on `feat/food-sheet-custom-tab`. Deferred: the fix needs `renderAfResult` to accept a pre-selected hour, which is the scan-result screen's own contract rather than this sheet's.
 
 **Effort:** S
 **Priority:** P3

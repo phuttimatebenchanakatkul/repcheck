@@ -82,6 +82,20 @@ def exercise_picker_fn(workouts_html):
     return workouts_html[start:end]
 
 
+@pytest.fixture(scope="module")
+def inline_exercise_picker_fn(workouts_html):
+    start = workouts_html.index("async function renderInlineExercisePicker(container")
+    end = workouts_html.index("function renderWholeSplitView()", start)
+    return workouts_html[start:end]
+
+
+@pytest.fixture(scope="module")
+def picker_expand_css(workouts_html):
+    start = workouts_html.index(".wl-plan-picker-expand {")
+    end = workouts_html.index('/* Names the split the AI chose')
+    return workouts_html[start:end]
+
+
 # ---------- bottom sheet ----------
 
 
@@ -290,9 +304,15 @@ def test_wizard_save_handler_uses_persistSplitPlan_too(workouts_html):
 
 
 def test_week_view_has_a_pick_exercises_button_that_persists_immediately(whole_split_body_fn):
+    """"Pick exercises" expands renderInlineExercisePicker() in place
+    (#wl-plan-picker-expand) instead of swapping the whole sheet over to
+    renderExercisePickerStep()'s full-step picker -- see
+    renderInlineExercisePicker()'s own docstring-comment for why it isn't
+    just a call to that function against a different container."""
     assert 'id="split-view-pick-exercises-btn"' in whole_split_body_fn
+    assert 'id="wl-plan-picker-expand"' in whole_split_body_fn
     assert re.search(
-        r"renderExercisePickerStep\(activeLabel, \{\s*"
+        r"renderInlineExercisePicker\(pickerInner, \{\s*"
         r"getSelected: \(\) => activeDay\.exercises,\s*"
         r"onDone: \(selected\) => \{\s*"
         r"activeDay\.exercises = selected;\s*"
@@ -300,6 +320,27 @@ def test_week_view_has_a_pick_exercises_button_that_persists_immediately(whole_s
         r"renderWholeSplitBody\(plan\);",
         whole_split_body_fn,
     )
+
+
+def test_week_view_pick_exercises_button_toggles_the_expand_panel(whole_split_body_fn):
+    """Tapping the button while the panel is already open must collapse it
+    again without saving -- it's a toggle, not a one-way navigation into a
+    picker screen."""
+    assert re.search(
+        r'const opening = !pickerExpand\.classList\.contains\("is-open"\);',
+        whole_split_body_fn,
+    )
+    assert re.search(
+        r"if \(!opening\) \{\s*"
+        r"closePicker\(myToken\);\s*"
+        r"return;\s*\}",
+        whole_split_body_fn,
+    )
+    # Opening is deferred until the picker has rendered (so the growth is
+    # measured against real content), so the class goes on in openPicker()
+    # rather than at click time -- hence add/remove, not toggle.
+    assert 'pickerExpand.classList.add("is-open");' in whole_split_body_fn
+    assert 'pickerExpand.classList.remove("is-open");' in whole_split_body_fn
 
 
 def test_week_view_shows_empty_state_when_a_day_has_no_exercises_left(whole_split_body_fn):
@@ -422,4 +463,299 @@ def test_exercise_picker_bails_if_stale_after_the_await(exercise_picker_fn):
         r"if \(myGeneration !== splitModalGeneration\) return;\s*"
         r"splitModalBody\.innerHTML = `",
         exercise_picker_fn,
+    )
+
+
+# ---------- inline "Pick exercises" expansion (weekly-split view) ----------
+#
+# renderInlineExercisePicker() mounts the same categorized search+pick UI
+# into a container inside the already-open weekly-split view instead of
+# swapping #split-modal-body over to a new step, so the sheet visibly grows
+# in place (see the .wl-plan-picker-expand grid animation) rather than
+# looking like a second screen/sheet popping over the first.
+
+
+def test_inline_picker_shares_the_list_builder_with_the_wizard_step(workouts_html):
+    """Both pickers must render exercises identically -- sharing
+    buildExercisePickerListHtml() instead of each maintaining its own copy
+    of the category/search filtering logic."""
+    assert "function buildExercisePickerListHtml(query, selected) {" in workouts_html
+    assert workouts_html.count("listEl.innerHTML = buildExercisePickerListHtml(query, selected);") == 2
+
+
+def test_inline_picker_mounts_into_the_given_container_not_the_modal_body(inline_exercise_picker_fn):
+    """Unlike renderExercisePickerStep() (which always targets the fixed
+    #split-modal-body/#split-ex-picker-* ids), this picker must be
+    reusable against an arbitrary container -- it's mounted into
+    #wl-plan-picker-expand-inner, a small element nested inside the
+    weekly-split view's own #split-modal-body render."""
+    assert "container.innerHTML = `" in inline_exercise_picker_fn
+    assert "splitModalBody" not in inline_exercise_picker_fn
+    assert 'container.querySelector(".split-ex-picker-search")' in inline_exercise_picker_fn
+
+
+def test_inline_picker_takes_an_isStale_callback_instead_of_its_own_generation_counter(inline_exercise_picker_fn):
+    """It has no render step of its own to bump splitModalGeneration --
+    staleness is the caller's (renderWholeSplitBody's) responsibility,
+    since only the caller knows whether the panel got closed/reopened or
+    the whole view got re-rendered while loadCustomExercises() was
+    in flight."""
+    assert re.search(
+        r"async function renderInlineExercisePicker\(container, \{ getSelected, onDone \}, isStale\) \{\s*"
+        r"const t = RepCheckI18n\.t;\s*"
+        r"const selected = new Set\(getSelected\(\)\);\s*"
+        r"\s*"
+        r"await loadCustomExercises\(\);\s*"
+        r"if \(isStale\(\)\) return;",
+        inline_exercise_picker_fn,
+    )
+
+
+def test_inline_picker_wiring_passes_a_combined_staleness_check(whole_split_body_fn):
+    """Staleness here has two independent causes: the panel itself got
+    toggled closed/reopened (pickerToken), or the whole week view got
+    re-rendered out from under it -- another weekday tab, a remove-button
+    edit, "Edit split" (splitModalGeneration). Either one alone would miss
+    the other case."""
+    assert re.search(
+        r"const isStale = \(\) => myToken !== pickerToken \|\| splitModalGeneration !== renderGeneration;",
+        whole_split_body_fn,
+    )
+    assert "}, isStale).then(() => {" in whole_split_body_fn
+
+
+def test_picker_expand_animates_via_max_height_not_display_none(picker_expand_css):
+    """A display:none/block toggle would cut straight to the final state --
+    the max-height 0 -> a generous cap transition is what makes the panel
+    visibly grow instead of snapping open, matching the "carefully expand
+    vertically" requirement this exists to satisfy. (An earlier version of
+    this used the grid-template-rows 0fr->1fr trick instead, but hit an
+    overflow circularity that stuck the track at ~padding height instead
+    of the content's intrinsic size.)"""
+    assert "max-height: 0;" in picker_expand_css
+    assert "transition: max-height" in picker_expand_css
+    assert "display: none" not in picker_expand_css
+    # The open height is no longer a CSS cap: it's the panel's own measured
+    # scrollHeight, written inline by openPicker(). See
+    # test_picker_opens_to_its_measured_height_then_releases_the_cap.
+    assert not re.search(r"\.wl-plan-picker-expand\.is-open\s*\{\s*max-height:", picker_expand_css)
+
+
+def test_picker_renders_before_it_opens_so_the_growth_is_never_an_empty_box(whole_split_body_fn):
+    """renderInlineExercisePicker() awaits loadCustomExercises(), so opening
+    the panel first would animate an empty box for the whole transition and
+    then pop the picker in at the end. The open call has to be chained off
+    the render instead -- and re-checked for staleness, since the panel can
+    be closed again (or the whole week view re-rendered) during that await."""
+    assert re.search(
+        r"\}, isStale\)\.then\(\(\) => \{\s*"
+        r"if \(isStale\(\)\) return;\s*"
+        r"openPicker\(\);\s*"
+        r"\}\);",
+        whole_split_body_fn,
+    )
+
+
+def test_picker_opens_to_its_measured_height_then_releases_the_cap(whole_split_body_fn):
+    """max-height can't transition to `none`, so the growth has to target a
+    concrete measured pixel height. Holding that measurement afterwards
+    would clip the list (which re-renders shorter on every keystroke), so
+    the cap is dropped once the panel has settled."""
+    assert 'pickerExpand.style.maxHeight = pickerExpand.scrollHeight + "px";' in whole_split_body_fn
+    assert 'pickerExpand.style.maxHeight = "none";' in whole_split_body_fn
+
+
+def test_open_and_close_force_a_reflow_between_the_start_and_end_heights(whole_split_body_fn):
+    """Writing the start and end max-height in the same task lets the
+    browser collapse both into one style recalc -- there'd be no start value
+    to animate from and the panel would snap. pinHeight() reads offsetHeight
+    in between to flush the first write."""
+    assert re.search(
+        r"function pinHeight\(px\) \{\s*"
+        r'pickerExpand\.style\.maxHeight = px \+ "px";\s*'
+        r"void pickerExpand\.offsetHeight;\s*"
+        r"\}",
+        whole_split_body_fn,
+    )
+    assert "pinHeight(0);" in whole_split_body_fn
+    assert "pinHeight(pickerExpand.scrollHeight);" in whole_split_body_fn
+
+
+def test_settle_handler_ignores_transitions_bubbling_up_from_the_staged_children(whole_split_body_fn):
+    """The staged children animate opacity/transform inside the panel and
+    those transitionend events bubble to it. Without the target/propertyName
+    guard, the first child to finish fading would fire the panel's settle
+    step early -- dropping the height cap (or emptying the panel) mid-growth."""
+    assert re.search(
+        r'if \(ev\.target !== pickerExpand \|\| ev\.propertyName !== "max-height"\) return;',
+        whole_split_body_fn,
+    )
+
+
+def test_panel_is_emptied_only_after_the_collapse_has_played(whole_split_body_fn):
+    """Clearing innerHTML at click time drops the panel's height to zero
+    instantly, leaving nothing to animate. It's deferred to the settle
+    handler -- and token-guarded, so a quick reopen isn't wiped by the
+    previous close's pending callback."""
+    assert re.search(
+        r"cancelPanelSettled = onPanelSettled\(\(\) => \{\s*"
+        r"cancelPanelSettled = null;\s*"
+        r"if \(myToken !== pickerToken\) return;\s*"
+        r'pickerInner\.innerHTML = "";',
+        whole_split_body_fn,
+    )
+
+
+def test_reduced_motion_runs_the_settle_steps_inline(whole_split_body_fn):
+    """Under prefers-reduced-motion the CSS sets transition: none, so
+    transitionend never fires. Without an inline path the cap would stay
+    pinned at the opening measurement (clipping the list) and a closed panel
+    would keep its stale content forever."""
+    assert 'window.matchMedia("(prefers-reduced-motion: reduce)").matches' in whole_split_body_fn
+    # The open branch's full shape (including the reveal scroll) is pinned by
+    # test_reveal_runs_only_after_the_growth_has_settled; here it's only the
+    # cap release that matters.
+    assert re.search(
+        r"if \(reducedMotion\(\)\) \{\s*"
+        r'pickerExpand\.classList\.add\("is-open"\);\s*'
+        r'pickerExpand\.style\.maxHeight = "none";',
+        whole_split_body_fn,
+    )
+    assert re.search(
+        r"if \(reducedMotion\(\)\) \{\s*"
+        r'pickerExpand\.classList\.remove\("is-open"\);\s*'
+        r'pickerExpand\.style\.maxHeight = "0px";\s*'
+        r'pickerInner\.innerHTML = "";\s*'
+        r"return;\s*\}",
+        whole_split_body_fn,
+    )
+
+
+def test_picker_contents_reveal_top_to_bottom_starting_at_the_search_field(inline_exercise_picker_fn):
+    """The requested reveal order: the search field leads, the categorised
+    list follows, then everything after it -- rather than the whole picker
+    appearing at once the moment the panel starts growing."""
+    stages = re.findall(r'class="([^"]*wl-plan-picker-stage[^"]*)" style="--stage:(\d)', inline_exercise_picker_fn)
+    assert [n for _, n in stages] == ["0", "1", "2", "3"], stages
+    assert "split-ex-picker-search" in stages[0][0]
+    assert "split-ex-picker-list" in stages[2][0]
+
+
+def test_stage_delays_apply_only_while_opening(picker_expand_css):
+    """Staggering the collapse too would make dismissing the panel feel
+    sluggish -- the delay is scoped to the .is-open rule so closing fades
+    everything together."""
+    assert re.search(
+        r"\.wl-plan-picker-expand\.is-open \.wl-plan-picker-stage \{[^}]*"
+        r"transition-delay: calc\(var\(--stage, 0\) \* \d+ms\);",
+        picker_expand_css,
+    )
+    base = picker_expand_css[picker_expand_css.index(".wl-plan-picker-stage {"):]
+    base = base[: base.index("}")]
+    assert "transition-delay" not in base
+
+
+def test_staged_reveal_is_disabled_under_reduced_motion(picker_expand_css):
+    """The stagger is pure motion -- under reduced motion the content must
+    just be there, with no offset to slide in from and no delay."""
+    block = picker_expand_css[picker_expand_css.index("@media (prefers-reduced-motion: reduce)"):]
+    assert ".wl-plan-picker-expand { transition: none; }" in block
+    assert "transition-delay: 0s;" in block
+
+
+def _duration_ms(value):
+    value = value.strip()
+    return float(value[:-2]) if value.endswith("ms") else float(value[:-1]) * 1000
+
+
+def test_opening_is_slower_than_collapsing(picker_expand_css):
+    """The growth is the part the eye follows, so it has to be unhurried
+    enough to read as expanding rather than as a jump -- while dismissing
+    stays quick. A single shared duration can't do both, so the two
+    directions carry their own timing (openPicker adds .is-open before
+    writing the target height, closePicker removes it before writing 0)."""
+    close = re.search(r"\.wl-plan-picker-expand \{[^}]*transition: max-height ([\d.]+m?s)", picker_expand_css)
+    open_ = re.search(r"\.wl-plan-picker-expand\.is-open \{\s*transition-duration: ([\d.]+m?s);", picker_expand_css)
+    assert close and open_, picker_expand_css[:400]
+    assert _duration_ms(open_.group(1)) > _duration_ms(close.group(1))
+    # Slow enough to actually read as motion rather than a snap.
+    assert _duration_ms(open_.group(1)) >= 500
+
+
+def test_staged_fade_is_also_longer_on_the_way_in(picker_expand_css):
+    """A quick fade under a slow growth reads as the content popping in
+    before the panel has finished opening -- the stagger has to be paced to
+    the growth, and likewise shortened again on the way out."""
+    base = picker_expand_css[picker_expand_css.index(".wl-plan-picker-stage {"):]
+    base = base[: base.index("}")]
+    close = re.search(r"transition: opacity ([\d.]+m?s)", base)
+    open_ = re.search(
+        r"\.wl-plan-picker-expand\.is-open \.wl-plan-picker-stage \{[^}]*transition-duration: ([\d.]+m?s);",
+        picker_expand_css,
+    )
+    assert close and open_
+    assert _duration_ms(open_.group(1)) > _duration_ms(close.group(1))
+
+
+def test_panel_grows_with_the_sheets_own_easing_curve(workouts_html, picker_expand_css):
+    """Reusing .split-modal's presentation curve keeps the panel from
+    reading as a second, unrelated motion layered on the sheet."""
+    sheet = re.search(r"\.split-modal \{[^}]*transition: transform [\d.]+m?s (cubic-bezier\([^)]*\))", workouts_html)
+    assert sheet, "couldn't find .split-modal's transition"
+    assert sheet.group(1) in picker_expand_css
+
+
+def test_grown_picker_is_scrolled_into_view(whole_split_body_fn):
+    """The grown panel is routinely taller than what's left of the sheet
+    (the list caps at 50vh, .split-modal at 86vh, and the day's tabs and
+    exercise rows are already above it), so the Done button finishes the
+    growth below the fold with nothing on screen to suggest it's there.
+    Measured on a 844px-tall phone: a 597px panel in a 655px scrollport."""
+    assert "function revealPicker(smooth) {" in whole_split_body_fn
+    assert "splitModalBody.scrollTo({ top, behavior: smooth ? \"smooth\" : \"auto\" });" in whole_split_body_fn
+
+
+def test_reveal_scrolls_the_sheet_body_not_the_page(whole_split_body_fn):
+    """scrollIntoView() would walk every scrollable ancestor including the
+    document, dragging the page behind the sheet. The scrollport is
+    .split-modal-body (the one element with overflow-y: auto) and it's the
+    only thing that should move."""
+    assert "scrollIntoView" not in whole_split_body_fn
+    assert re.search(
+        r"const top = splitModalBody\.scrollTop\s*"
+        r"\+ \(pickBtn\.getBoundingClientRect\(\)\.top - bodyRect\.top\)",
+        whole_split_body_fn,
+    )
+
+
+def test_reveal_is_a_no_op_when_the_panel_already_fits(whole_split_body_fn):
+    """A short list on a tall screen needs no scroll, and scrolling anyway
+    would shove the day's exercise list out of view for nothing. Verified
+    against a 215px panel: scrollTop stays at 0."""
+    assert re.search(
+        r"if \(pickerExpand\.getBoundingClientRect\(\)\.bottom <= bodyRect\.bottom\) return;",
+        whole_split_body_fn,
+    )
+
+
+def test_reveal_runs_only_after_the_growth_has_settled(whole_split_body_fn):
+    """While the panel is still expanding, splitModalBody hasn't reached its
+    final scrollHeight, so scrollTo() would clamp short and land in the
+    wrong place. It has to follow the cap release in the settle handler --
+    and run inline (unanimated) on the reduced-motion path, which never
+    gets a transitionend."""
+    assert re.search(
+        r"cancelPanelSettled = onPanelSettled\(\(\) => \{\s*"
+        r"cancelPanelSettled = null;\s*"
+        r'pickerExpand\.style\.maxHeight = "none";\s*'
+        r"revealPicker\(true\);",
+        whole_split_body_fn,
+    )
+    assert re.search(
+        r"if \(reducedMotion\(\)\) \{\s*"
+        r'pickerExpand\.classList\.add\("is-open"\);\s*'
+        r'pickerExpand\.style\.maxHeight = "none";\s*'
+        r"revealPicker\(false\);\s*"
+        r"return;\s*\}",
+        whole_split_body_fn,
     )

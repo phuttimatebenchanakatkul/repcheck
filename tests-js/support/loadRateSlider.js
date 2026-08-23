@@ -19,7 +19,7 @@ const ONBOARDING_PATH = path.join(__dirname, "..", "..", "static", "onboarding.j
 const CONST_START_MARKER = "const RATE_REFERENCE_WEIGHT_KG = 75;";
 const CONST_END_MARKER = "const ASPIRATION_IDS =";
 const EL_START_MARKER = "function el(html) {";
-const EL_END_MARKER = "function exerciseIconHtml(name) {";
+const EL_END_MARKER = "// ---------- State ----------";
 const SLIDER_START_MARKER = "function renderRateSlider({ isLose, value, weightKg, onChange }) {";
 const SLIDER_END_MARKER = "function renderGoalWeightStep() {";
 

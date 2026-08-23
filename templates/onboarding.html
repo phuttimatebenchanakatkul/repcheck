@@ -16,7 +16,6 @@
     // wire up its localStorage<->server sync (see that file's header).
     window.REPCHECK_LOGGED_IN = true;
     window.REPCHECK_USER_NAME = {{ (current_user.name.split(" ")[0] if current_user else "") | tojson }};
-    window.EXERCISE_ICONS = {{ exercise_icons | tojson }};
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -69,6 +68,23 @@
     .ob-wizard-step-label {
       font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.01em;
       margin-bottom: 20px; line-height: 1.25;
+    }
+
+    /* ---------- Sub-question heading inside a combined screen -- the old
+       per-screen question titles, demoted to section headings now that
+       several questions share one screen (see STEPS in onboarding.js). ---------- */
+    .ob-substep { margin-bottom: 26px; }
+    /* :has(), not :last-of-type -- the shared actions row is appended as a
+       sibling <div> after the substeps, so no .ob-substep is ever the last
+       div of its type and :last-of-type would never match. The inner
+       grid's own bottom margin must be zeroed too, or parent-child margin
+       collapse reinstates the 22px gap this rule exists to remove. */
+    .ob-substep:has(+ .ob-wizard-actions) { margin-bottom: 4px; }
+    .ob-substep:has(+ .ob-wizard-actions) > .ob-choice-grid,
+    .ob-substep:has(+ .ob-wizard-actions) > .ob-body-type-grid { margin-bottom: 0; }
+    .ob-substep-label {
+      font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.01em;
+      margin-bottom: 12px; line-height: 1.3;
     }
 
     /* ---------- Choice cards (aspiration/gender/activity/protein/diet/
@@ -205,77 +221,56 @@
       font-size: 16px; font-weight: 800; color: var(--green); letter-spacing: -0.01em;
     }
     .ob-eta-card:not(:empty)::after { content: attr(data-label); display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); margin-top: 3px; }
-    .ob-goal-textarea {
-      width: 100%; min-height: 120px; padding: 13px 15px; border: 1.5px solid var(--border);
-      background: var(--bg); color: var(--text); border-radius: 14px; font-size: 14px; font-family: inherit;
-      line-height: 1.5; resize: vertical; transition: border-color 0.15s ease;
-    }
-    .ob-goal-textarea:focus { outline: none; border-color: var(--blue); }
 
-    /* ---------- Vertical height ruler (scroll-snap through 1cm ticks) ---------- */
-    .ob-height-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
-    .ob-height-ruler-value { font-size: 34px; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.01em; }
-    .ob-height-ruler-window {
+    /* ---------- Shared horizontal ruler (current weight + height) ----------
+       Horizontal on purpose. As VERTICAL wheels these two were vertical
+       scroll containers sitting across the middle of the screen, so a
+       downward flick was consumed by the wheel and never reached the page:
+       on a phone the Next button sat below the fold and could not be
+       scrolled to at all, while the flick silently changed the value
+       instead. A pan-x container cannot scroll vertically, so the browser
+       hands every vertical gesture straight to the page. Same tick
+       language and structure as the goal-weight ruler below (whole units,
+       every 5th taller, every 10th labelled) -- all three number pickers
+       in this wizard now share one gesture vocabulary. ---------- */
+    .ob-hruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
+    .ob-hruler-value { font-size: 34px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.01em; }
+    .ob-hruler-window {
       position: relative;
-      width: 150px;
-      height: 210px;
+      width: 100%;
+      height: 58px;
       overflow: hidden;
-      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
-      mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+      mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
     }
-    .ob-height-ruler-indicator {
-      position: absolute; left: 6px; right: 6px; top: 98px; height: 14px;
-      border-top: 2.5px solid var(--blue); border-bottom: 2.5px solid var(--blue);
+    .ob-hruler-indicator {
+      position: absolute; top: 4px; bottom: 4px; left: 50%; width: 14px; margin-left: -7px;
+      border-left: 2.5px solid var(--blue); border-right: 2.5px solid var(--blue);
       background: var(--blue-bg); border-radius: 7px;
       pointer-events: none; z-index: 2;
     }
-    .ob-height-ruler-scroll {
-      height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory;
-      padding: 98px 0; scrollbar-width: none;
+    .ob-hruler-scroll {
+      height: 100%; overflow-x: scroll; overflow-y: hidden; scroll-snap-type: x mandatory;
+      display: flex; align-items: flex-end;
+      scrollbar-width: none;
+      /* pan-x, never pan-y: this is what hands vertical flicks to the page. */
+      touch-action: pan-x;
     }
-    .ob-height-ruler-scroll::-webkit-scrollbar { display: none; }
-    .ob-height-ruler-row {
-      height: 14px; display: flex; align-items: center; justify-content: center;
-      gap: 8px; scroll-snap-align: center;
+    .ob-hruler-scroll::-webkit-scrollbar { display: none; }
+    /* Half the window's width on each end so the first and last ticks can
+       still reach the centre indicator. Set inline from the measured
+       window width rather than hardcoded, since the window is fluid. */
+    .ob-hruler-pad { flex: 0 0 auto; }
+    .ob-hruler-col {
+      flex: 0 0 14px; width: 14px; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      gap: 6px; scroll-snap-align: center;
     }
-    .ob-height-ruler-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); width: 28px; text-align: right; }
-    .ob-height-ruler-mark { height: 2px; width: 14px; background: var(--border); border-radius: 1px; }
-    .ob-height-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
-    .ob-height-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
-
-    /* ---------- Vertical weight ruler -- identical structure/behaviour to
-       the height ruler above (scroll-snap through 1kg ticks), just a
-       separate class set since the two rulers appear on different steps
-       and need independent markup. ---------- */
-    .ob-weight-ruler { display: flex; flex-direction: column; align-items: center; margin-bottom: 4px; }
-    .ob-weight-ruler-value { font-size: 34px; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.01em; }
-    .ob-weight-ruler-window {
-      position: relative;
-      width: 150px;
-      height: 210px;
-      overflow: hidden;
-      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
-      mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
-    }
-    .ob-weight-ruler-indicator {
-      position: absolute; left: 6px; right: 6px; top: 98px; height: 14px;
-      border-top: 2.5px solid var(--blue); border-bottom: 2.5px solid var(--blue);
-      background: var(--blue-bg); border-radius: 7px;
-      pointer-events: none; z-index: 2;
-    }
-    .ob-weight-ruler-scroll {
-      height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory;
-      padding: 98px 0; scrollbar-width: none;
-    }
-    .ob-weight-ruler-scroll::-webkit-scrollbar { display: none; }
-    .ob-weight-ruler-row {
-      height: 14px; display: flex; align-items: center; justify-content: center;
-      gap: 8px; scroll-snap-align: center;
-    }
-    .ob-weight-ruler-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); width: 28px; text-align: right; }
-    .ob-weight-ruler-mark { height: 2px; width: 14px; background: var(--border); border-radius: 1px; }
-    .ob-weight-ruler-mark.is-mid { width: 20px; background: var(--text-secondary); }
-    .ob-weight-ruler-mark.is-major { width: 26px; background: var(--text-secondary); }
+    .ob-hruler-collabel { font-size: 11px; font-weight: 700; color: var(--text-secondary); height: 14px; white-space: nowrap; }
+    .ob-hruler-tick { width: 2px; height: 14px; background: var(--border); border-radius: 1px; }
+    .ob-hruler-tick.is-mid { height: 20px; background: var(--text-secondary); }
+    .ob-hruler-tick.is-major { height: 26px; background: var(--text-secondary); }
+    .ob-hruler-scroll:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 10px; }
 
     /* ---------- Goal-weight ruler: the same flick-through wheel as the
        current-weight step above, laid out horizontally. Same tick
@@ -328,68 +323,6 @@
       font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-top: 6px;
     }
 
-    /* ---------- Split-type / location cards -- same icon-left, text-right
-       list layout as .ob-choice-card so every question in the wizard
-       shares one modern visual language. ---------- */
-    .ob-type-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
-    .ob-type-card {
-      display: flex; align-items: center; gap: 14px;
-      border: 1.5px solid var(--border); border-radius: 18px; padding: 14px 16px; cursor: pointer;
-      background: var(--card-bg);
-      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-    }
-    .ob-type-card:hover { border-color: var(--blue); transform: translateY(-1px); }
-    .ob-type-card.is-selected {
-      border-color: var(--blue);
-      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
-      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
-    }
-    .ob-type-card-icon {
-      flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--bg); color: var(--text-secondary);
-    }
-    .ob-type-card-icon svg { width: 22px; height: 22px; }
-    .ob-type-card.is-selected .ob-type-card-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
-    .ob-type-card-text { flex: 1; min-width: 0; }
-    .ob-type-card-title { font-size: 16px; font-weight: 700; color: var(--text); }
-    .ob-type-card.is-selected .ob-type-card-title { color: var(--blue); }
-    .ob-type-card-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
-
-    .ob-custom-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
-    .ob-custom-input-row input {
-      flex: 1; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 14px;
-      background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit;
-    }
-    .ob-custom-input-row input:focus { outline: none; border-color: var(--blue); }
-    .ob-custom-add-btn {
-      min-height: 44px; box-sizing: border-box;
-      padding: 12px 18px; border: none; border-radius: 14px;
-      background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
-      font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .ob-custom-days { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-    .ob-custom-day-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      background: var(--bg); border-radius: 14px; padding: 11px 14px; font-size: 14px; font-weight: 600;
-    }
-    .ob-custom-day-remove {
-      background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px; line-height: 1;
-      min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-
-    .ob-days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 22px; }
-    .ob-day-btn {
-      padding: 13px 0; border: 1.5px solid var(--border); border-radius: 14px; background: var(--card-bg); color: var(--text);
-      font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
-      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-    }
-    .ob-day-btn:hover { border-color: var(--blue); }
-    .ob-day-btn.is-selected {
-      border-color: var(--blue); background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
-      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.28);
-    }
-
     /* ---------- Result screen -- reuses the same icon-chip/gradient/pill
        language as the question steps (.ob-choice-*/.ob-section-label)
        instead of the plain text list this screen used to be. ---------- */
@@ -398,14 +331,13 @@
       width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%;
       background: linear-gradient(135deg, var(--green), #29b87e); color: #fff;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 20px rgba(31, 169, 113, 0.35);
     }
     .ob-result-hero-icon svg { width: 26px; height: 26px; }
     .ob-result-hero-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
 
     /* Grouped by whitespace + the .ob-section-label pill, not its own
        boxed container -- avoids stacking a 3rd nested card inside
-       .ob-card around .ob-macro-chip/.ob-review-day below. */
+       .ob-card around .ob-macro-chip below. */
     .ob-result-section { margin-bottom: 26px; }
     .ob-result-calorie-icon {
       width: 44px; height: 44px; margin: 10px auto 8px; border-radius: 13px;
@@ -429,54 +361,21 @@
     .ob-macro-chip-value { font-size: 16px; font-weight: 800; }
     .ob-macro-chip-label { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
 
-    .ob-review-day {
-      background: var(--bg); border: 1.5px solid var(--border); border-radius: 18px;
-      padding: 16px; margin-bottom: 12px;
+    /* ---------- Wizard nav buttons ----------
+       Sticky so Next is reachable without hunting for it. The two choice
+       screens are taller than a phone viewport, and a Next button parked
+       below the fold is the thing users report as "I can't answer the next
+       question". Sticky is inert on screens that already fit (nothing to
+       scroll = nothing to stick to), so short screens look unchanged. The
+       negative margins bleed the bar to the card's edges so scrolled
+       content passes behind an opaque strip, not a floating island. */
+    .ob-wizard-actions {
+      display: flex; gap: 10px; margin-top: 4px;
+      position: sticky; bottom: 0; z-index: 3;
+      background: var(--card-bg);
+      margin-left: -28px; margin-right: -28px; margin-bottom: -32px;
+      padding: 10px 28px 32px;
     }
-    .ob-review-day-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .ob-review-day-icon {
-      width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px;
-      background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .ob-review-day-icon svg { width: 16px; height: 16px; }
-    .ob-review-day-title { font-size: 14px; font-weight: 700; }
-    .ob-review-exercise-chips { display: flex; flex-wrap: wrap; gap: 7px; }
-    .ob-review-exercise-chip {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 12px; padding: 5px 12px 5px 5px; border-radius: 999px;
-      background: var(--card-bg); border: 1px solid var(--border); color: var(--text-secondary);
-    }
-    .ob-review-exercise-chip-icon {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px; border-radius: 999px; overflow: hidden; flex-shrink: 0; background: var(--card-bg);
-    }
-    .ob-rationale {
-      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg)); color: var(--text); border-radius: 16px; padding: 14px 16px;
-      margin: 6px 0 20px;
-    }
-    .ob-rationale-label {
-      display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--blue);
-      text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px;
-    }
-    .ob-rationale-label svg { width: 14px; height: 14px; flex-shrink: 0; }
-    .ob-rationale-text { font-size: 13px; line-height: 1.55; }
-    .ob-weekday-row {
-      display: flex; align-items: center; gap: 12px; background: var(--card-bg);
-      border: 1.5px solid var(--border); border-radius: 14px; padding: 8px 12px; margin-bottom: 8px;
-    }
-    .ob-weekday-row label {
-      width: 42px; flex-shrink: 0; text-align: center; font-size: 11px; font-weight: 800;
-      color: var(--blue); background: var(--blue-bg); border-radius: 10px; padding: 7px 0;
-    }
-    .ob-weekday-row select {
-      flex: 1; padding: 8px 4px; border: none; background: none; color: var(--text);
-      font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
-    }
-    .ob-weekday-row select:focus { outline: none; }
-
-    /* ---------- Wizard nav buttons ---------- */
-    .ob-wizard-actions { display: flex; gap: 10px; margin-top: 4px; }
     .ob-btn-primary, .ob-btn-secondary {
       flex: 1; padding: 14px; border-radius: 14px; font-size: 14px; font-weight: 700;
       cursor: pointer; font-family: inherit; border: none;
@@ -494,7 +393,7 @@
 
     @media (max-width: 480px) {
       .ob-body-type-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      .ob-field input, .ob-custom-input-row input, .ob-goal-textarea { font-size: 16px; } /* prevents iOS auto-zoom */
+      .ob-field input { font-size: 16px; } /* prevents iOS auto-zoom */
     }
 
     /* Fixed, not inside .ob-wrap -- stays put in the corner across every

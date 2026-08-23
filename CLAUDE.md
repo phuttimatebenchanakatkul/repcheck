@@ -28,7 +28,7 @@ test is loaded straight from `static/*.js` and from inline `<script>` blocks in
 `templates/*.html` via the extractors in `tests-js/support/`.
 
 Some suites are source-level regex assertions against the real file rather than
-behavioural tests (see `tests/test_hyrox_personal_best_section.py`,
+behavioural tests (see `tests/test_hyrox_flagged_copy_matches_behavior.py`,
 `tests/test_cross_user_name_escaping.py`). That is a deliberate tradeoff for
 hand-rolled JS with no module boundary -- when adding one, mutation-check it:
 break the thing it guards and confirm the test actually fails.
@@ -37,6 +37,13 @@ Escaping note: `RepCheckI18n.t()` does NOT escape its vars, and most list rows
 are template literals assigned via `innerHTML`. Any `t()` call carrying
 user-controlled data inside one needs an explicit `escapeHtml()`. There is no
 shared helper -- each file defines its own.
+
+## Versioning
+
+`VERSION` (4-digit `MAJOR.MINOR.PATCH.MICRO`) is the source of truth; `package.json`
+carries the npm-valid 3-digit translation of it. Both are bumped by `/ship`, which also
+writes the matching `CHANGELOG.md` entry and prefixes the PR title with `v<VERSION>`.
+Started at 0.1.0.0 -- anything before that shipped unversioned.
 
 ## Deploy Configuration (configured by /setup-deploy)
 - Platform: Render
