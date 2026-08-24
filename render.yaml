@@ -1,0 +1,17 @@
+# Render Blueprint for the pre-launch marketing site ONLY.
+#
+# The main Flask app (repcheck-q0m4) is NOT defined here on purpose -- it is
+# configured directly in the Render dashboard, and adding it to a blueprint
+# would hand control of a live production service to this file. Creating a
+# Blueprint instance from this file therefore creates exactly one new service,
+# the static marketing site, and leaves the existing web service untouched.
+#
+# staticPublishPath is relative to the REPO ROOT (not to a rootDir), so it
+# points at marketing/ rather than "." with a rootDir.
+services:
+  - name: repcheck-marketing
+    type: web
+    runtime: static
+    staticPublishPath: ./marketing
+    branch: main
+    autoDeployTrigger: commit

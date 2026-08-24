@@ -16,9 +16,23 @@ config wired to the same command for the in-app browser preview.)
 
 ## Deploying to Render
 
+**Status: not deployed yet.** Nothing serves this folder today. The Flask
+service (`repcheck-q0m4`) does not serve `marketing/` — there are no
+references to it in `app.py`, and `/marketing` returns 404 there. Merging to
+`main` therefore publishes this site nowhere until a service exists.
+
 This is a static site, so it's a different Render service type than the main
 app (`Static Site`, not `Web Service`) — cheaper, no cold starts, and it
 doesn't touch the existing `repcheck-q0m4` service at all.
+
+### Option A — Blueprint (repo root `render.yaml`)
+
+`render.yaml` at the repo root defines this site and nothing else, so
+creating a Blueprint instance from it leaves the dashboard-configured Flask
+service alone. Render dashboard → **New** → **Blueprint** → connect this
+repo → apply.
+
+### Option B — Dashboard, by hand
 
 1. Render dashboard → **New** → **Static Site**.
 2. Connect this repo.
