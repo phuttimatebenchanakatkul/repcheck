@@ -1863,7 +1863,10 @@ EXERCISE_DETAILS = {
 # (extra_exercises.py). Each reuses an emoji already in the palette above,
 # or an empty string where nothing genuinely fits, keeping the invariant
 # that every WORKOUT_EXERCISES name has an entry here.
-from extra_exercises import EXTRA_EXERCISES as _EXTRA_EXERCISES
+from extra_exercises import EXTRA_EXERCISES as _BASE_EXTRA_EXERCISES
+from exercise_variations import VARIATION_EXERCISES as _VARIATION_EXERCISES
+
+_EXTRA_EXERCISES = _BASE_EXTRA_EXERCISES + _VARIATION_EXERCISES
 
 for _extra in _EXTRA_EXERCISES:
     EXERCISE_DETAILS.setdefault(_extra["name"], {
