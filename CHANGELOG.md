@@ -2,6 +2,33 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.1.0] - 2026-08-24
+
+### Added
+
+- **The home screen now suggests what to log when today is empty.** If you
+  haven't logged food or a workout yet, a Suggestions card offers a few things
+  to start with, each one tap from being logged. Nothing is invented: food
+  suggestions are what you actually tend to eat around this hour, and workout
+  suggestions come from your own split plan, falling back to what you've
+  logged before. With no history at all it points you at your first log rather
+  than guessing on your behalf.
+
+### Changed
+
+- **The "recent" and "usual for this hour" rules now live in one place**
+  (`static/suggestions.js`). The food sheet, the exercise picker and the new
+  home suggestions all read from it, so what counts as a recent or habitual
+  pick can't drift apart between screens.
+
+### Removed
+
+- **The play button no longer sits on top of your set** on the analysis
+  result screen. The clip already starts playing on its own, and tapping it
+  still turns on sound and the normal video controls; if a browser refuses to
+  autoplay, you now get the native controls instead of a button covering the
+  footage.
+
 ## [0.3.0.0] - 2026-08-24
 
 ### Added
