@@ -17,6 +17,17 @@
   --purple:#7c4fe0;  --purple-bg:#f3edfd;
   --pink:  #c0398c;  --pink-bg:  #fbeaf4;
 
+  /* Text-only variants of the accents. Small coloured text (eyebrows, pills,
+     kickers -- all 11.5-12.5px) needs 4.5:1 to clear WCAG AA, and the accents
+     above only reach ~2.7-3.1:1 on a light surface. Same hue and saturation,
+     lightness dropped until every light background on this page clears: #fff
+     5.06, --bg 4.68, --green-bg 4.53, --amber-bg 4.53. Dark mode reverts both
+     to the accent -- it already passes there (6.5:1 / 5.9:1), and the darker
+     shades would be the ones failing. Use these for TEXT only; fills, borders
+     and gradients stay on --green / --amber so the brand reads unchanged. */
+  --green-ink: #177e54;
+  --amber-ink: #916721;
+
   --dark-card: #17181d;
   --dark-card-soft: #26272e;
   --dark-card-text: #ffffff;
@@ -46,6 +57,7 @@
     --border: #2c2c2e;
     --green-bg: #12321f;  --red-bg: #3a1f1e;   --amber-bg: #3a2f14;
     --blue-bg:  #14213f;  --purple-bg: #2a1f45; --pink-bg: #3a1830;
+    --green-ink: var(--green);  --amber-ink: var(--amber);
     --dark-card: #1c1c1e;
     --dark-card-soft: #2c2c2e;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
@@ -60,6 +72,7 @@
   --border: #2c2c2e;
   --green-bg: #12321f;  --red-bg: #3a1f1e;   --amber-bg: #3a2f14;
   --blue-bg:  #14213f;  --purple-bg: #2a1f45; --pink-bg: #3a1830;
+  --green-ink: var(--green);  --amber-ink: var(--amber);
   --dark-card: #1c1c1e;
   --dark-card-soft: #2c2c2e;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
@@ -236,9 +249,9 @@ img, svg { max-width: 100%; }
   text-transform: uppercase; letter-spacing: .06em;
   margin-bottom: 12px;
 }
-.kicker--green { --kicker: var(--green); }
+.kicker--green { --kicker: var(--green-ink); }
 .kicker--blue  { --kicker: var(--blue); }
-.kicker--amber { --kicker: var(--amber); }
+.kicker--amber { --kicker: var(--amber-ink); }
 .kicker--onDark { --kicker: var(--dark-card-text-secondary); }
 
 .section-title { max-width: 20ch; }
@@ -263,7 +276,7 @@ img, svg { max-width: 100%; }
   padding: 6px 14px 6px 10px;
   border-radius: 999px;
   background: var(--green-bg);
-  color: var(--green);
+  color: var(--green-ink);
   font-size: 12.5px; font-weight: 800;
   letter-spacing: .01em;
   margin-bottom: 22px;
@@ -346,7 +359,7 @@ img, svg { max-width: 100%; }
   padding-left: 4px;
 }
 .form-note.is-error { color: var(--red); font-weight: 600; }
-.form-note.is-ok { color: var(--green); font-weight: 600; }
+.form-note.is-ok { color: var(--green-ink); font-weight: 600; }
 
 .waitlist-form--lg { margin-inline: auto; max-width: 520px; }
 
@@ -589,7 +602,7 @@ img, svg { max-width: 100%; }
   padding: 4px 11px; border-radius: 999px;
   text-transform: uppercase; letter-spacing: .05em;
 }
-.pill--green { background: var(--green-bg); color: var(--green); }
+.pill--green { background: var(--green-bg); color: var(--green-ink); }
 
 .bars {
   display: grid;

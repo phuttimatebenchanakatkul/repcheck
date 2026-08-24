@@ -17,6 +17,17 @@ All notable changes to RepCheck are recorded here, newest first.
   page is unchanged, and the fix applies to any deep-dive section added
   later without needing a second edit.
 
+- **The small green and amber text on the pre-launch site is readable now.**
+  The accent colours are picked to sit under white text on a button, and used
+  the other way round -- as coloured text on a pale background -- they were
+  washing out. The "Pre-launch" and "Limited early access" chips, the
+  "Rep-by-rep" tag, the waitlist success message, and the green and amber
+  section labels were all landing around 2.7-3.1:1 against their backgrounds,
+  where the accessibility bar for text that size is 4.5:1. All of them now use
+  a deeper shade of the same colour and clear it. Dark mode is untouched, where
+  the original colours already passed, and buttons, icons and progress bars
+  keep the brighter accent so nothing else on the page shifts.
+
 ## [0.3.7.0] - 2026-08-24
 
 ### Added

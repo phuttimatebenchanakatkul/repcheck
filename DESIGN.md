@@ -29,6 +29,26 @@ Accent colors (same hex in both themes, only the `-bg` tint flips):
 | `--purple` | `#7c4fe0` | `#f3edfd` | `#2a1f45` |
 | `--pink` | `#c0398c` | `#fbeaf4` | `#3a1830` |
 
+**Accents are for fills, not for text.** The hexes above are picked to sit
+under white text on a button or an icon chip. Used *as* text on a light
+surface they land around 2.7-3.1:1, and every place we colour text this way
+(eyebrows, pills, section kickers) is 11.5-12.5px, which needs 4.5:1. So
+coloured text uses a darkened text-only variant instead -- same hue, same
+saturation, lower lightness:
+
+| Token | Light | Dark |
+|---|---|---|
+| `--green-ink` | `#177e54` | reverts to `--green` |
+| `--amber-ink` | `#916721` | reverts to `--amber` |
+
+Dark mode reverts to the accent because the accent already clears AA there
+(green 6.5:1, amber 5.9:1) and the darkened shades would be the ones failing.
+Only the two accents we actually set text in are defined; add the matching
+`-ink` when you first colour text with red, blue, purple or pink rather than
+reaching for the fill accent. Live so far in `marketing/styles.css`;
+`tests/test_marketing_contrast.py` computes the real ratios and fails if a
+token drifts back under the bar.
+
 Icon badges come in two treatments, and which one you use depends on where the
 badge sits, not on what it does. Neither treatment has a glow.
 
