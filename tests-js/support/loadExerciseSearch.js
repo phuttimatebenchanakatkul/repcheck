@@ -27,7 +27,7 @@ export function loadExerciseSearch(categories) {
   const source = html.slice(start, end);
   const factory = new Function(
     "EXERCISE_CATEGORIES",
-    `${source}\nreturn { exSearchTerms, exSearchCategoryNames, EX_SEARCH_TERM_ALIASES, EX_SEARCH_CATEGORY_ALIASES };`
+    `${source}\nreturn { exSearchTerms, exSearchCategoryNames, exSearchLookup, EX_SEARCH_TERM_ALIASES, EX_SEARCH_CATEGORY_ALIASES };`
   );
   return factory(categories);
 }

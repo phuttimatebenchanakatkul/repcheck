@@ -67,6 +67,17 @@ describe("exercise picker search aliases", () => {
     expect(exSearchCategoryNames(["squat"])).toEqual([]);
   });
 
+  it("survives a query that names a prototype member", () => {
+    // The query is user input and the alias tables are plain objects, so an
+    // unguarded table[query] returns Object.prototype.constructor -- truthy,
+    // not iterable, and it used to throw inside the keystroke handler.
+    for (const query of ["constructor", "toString", "valueOf", "hasOwnProperty"]) {
+      expect(() => exSearchTerms(query)).not.toThrow();
+      expect(exSearchTerms(query)).toEqual([query]);
+      expect(exSearchCategoryNames([query])).toEqual([]);
+    }
+  });
+
   it("lists a name once when it matches on more than one tier", () => {
     // "Russian Twist" is both a literal match and a member of the Core
     // category that "twist" pulls in -- it must not render twice.

@@ -951,13 +951,22 @@
     "leg raise": ["knee raise", "leg lift", "hanging"],
   };
 
+  // The query is whatever the user typed, so a plain table[query] lookup
+  // walks the prototype chain: "constructor" and "toString" resolve to
+  // functions, which are truthy (so `|| []` never fires) and not iterable,
+  // and the for..of below throws inside the input handler -- the sheet
+  // freezes on a keystroke. Only ever read a table's own keys.
+  function exSearchLookup(table, key) {
+    return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : [];
+  }
+
   // "curls" should find "Bicep Curl" -- strip a trailing plural, then fold
   // in whatever the alias tables have for the query.
   function exSearchTerms(q) {
     const terms = [q];
     if (q.length > 3 && q.endsWith("s")) terms.push(q.slice(0, -1));
     for (const base of terms.slice()) {
-      for (const alias of EX_SEARCH_TERM_ALIASES[base] || []) {
+      for (const alias of exSearchLookup(EX_SEARCH_TERM_ALIASES, base)) {
         if (!terms.includes(alias)) terms.push(alias);
       }
     }
@@ -967,8 +976,8 @@
   function exSearchCategoryNames(terms) {
     const names = [];
     for (const term of terms) {
-      for (const cat of EX_SEARCH_CATEGORY_ALIASES[term] || []) {
-        for (const name of EXERCISE_CATEGORIES[cat] || []) names.push(name);
+      for (const cat of exSearchLookup(EX_SEARCH_CATEGORY_ALIASES, term)) {
+        for (const name of exSearchLookup(EXERCISE_CATEGORIES, cat)) names.push(name);
       }
     }
     return names;
