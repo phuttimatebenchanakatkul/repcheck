@@ -11,8 +11,11 @@ repcheck.db*
 *.mp4
 *.mov
 *.MOV
-# The marketing site's hero demo clip is a shipped asset, not a test video.
-!marketing/demo.mp4
+# ...except the marketing site's demo clips. Render deploys that static site
+# straight from the repo, so an ignored clip is a 404 in production. These are
+# deliberately-published screen recordings with the iOS/Safari chrome cropped
+# off -- keep raw camera footage and user uploads out, as above.
+!marketing/*.mp4
 .vscode/
 .idea/
 .claude/

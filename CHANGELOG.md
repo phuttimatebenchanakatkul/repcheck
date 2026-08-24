@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.3.4.0] - 2026-08-24
+## [0.3.5.0] - 2026-08-24
 
 ### Changed
 
@@ -14,6 +14,17 @@ All notable changes to RepCheck are recorded here, newest first.
   is cropped to just the app itself, with the phone's status bar and the
   browser's own address bar and keyboard cut out, and the AI-processing wait
   is trimmed down to keep the loop tight.
+
+## [0.3.4.0] - 2026-08-24
+
+### Changed
+
+- **The pre-launch marketing site's nutrition section now shows a real
+  screen recording of food logging** (search, pick a food, adjust the
+  amount, add to log) instead of a hand-drawn macro-ring mockup. The clip
+  is cropped to the app's own viewport, with the iOS status bar, Safari's
+  bars, and the stretch where the system keyboard covers the screen all
+  cut out.
 
 ## [0.3.3.0] - 2026-08-24
 
