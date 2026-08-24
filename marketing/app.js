@@ -24,32 +24,6 @@
     });
   }
 
-  // ---------- hero demo video ----------
-  // Playback starts here, not via an autoplay attribute, so the guard fails
-  // safe: no JS (or a crash above) leaves the static poster, never an
-  // unstoppable loop that prefers-reduced-motion can't switch off.
-  var demoVideo = $(".phone-video");
-  if (demoVideo && window.matchMedia) {
-    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    var applyMotionPref = function () {
-      if (reduceMotion.matches) {
-        demoVideo.pause();
-      } else if (demoVideo.paused) {
-        var playing = demoVideo.play();
-        if (playing && playing.catch) {
-          playing.catch(function () {
-            // Autoplay denied (Low Power Mode, data saver): surface controls
-            // so the demo stays reachable instead of a dead poster.
-            demoVideo.controls = true;
-          });
-        }
-      }
-    };
-    applyMotionPref();
-    if (reduceMotion.addEventListener) reduceMotion.addEventListener("change", applyMotionPref);
-    else if (reduceMotion.addListener) reduceMotion.addListener(applyMotionPref);
-  }
-
   // ---------- sticky nav shadow/border ----------
   var nav = $("#nav");
   if (nav) {
@@ -60,35 +34,54 @@
     window.addEventListener("scroll", onScroll, { passive: true });
   }
 
-  // ---------- phone demo video ----------
-  // The markup autoplays it so the page still works with JS off. This is pure
-  // enhancement on top of that: honour reduced-motion, and don't leave a
-  // looping video decoding while it's scrolled out of view.
+  // ---------- phone demo videos ----------
+  // No video carries a markup autoplay attribute, on purpose: playback is
+  // JS-initiated so the guard fails safe. No JS (or a crash above) leaves
+  // every phone on its static poster, never an unstoppable loop that
+  // prefers-reduced-motion can't switch off (WCAG 2.2.2).
   var videos = $$(".phone-video");
-  if (videos.length) {
-    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (videos.length && window.matchMedia) {
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    if (reduceMotion) {
-      videos.forEach(function (video) {
-        video.removeAttribute("autoplay");
-        video.controls = true;
-        video.pause();
-      });
-    } else if (window.IntersectionObserver) {
-      var observer = new IntersectionObserver(function (entries) {
+    var playVideo = function (video) {
+      var playing = video.play();
+      if (playing && playing.catch) {
+        playing.catch(function () {
+          // Autoplay denied (Low Power Mode, data saver): surface controls
+          // so the demo stays reachable instead of a dead poster.
+          video.controls = true;
+        });
+      }
+    };
+
+    var observer = null;
+    var startWatching = function () {
+      if (observer || !window.IntersectionObserver) {
+        videos.forEach(playVideo);
+        return;
+      }
+      // Only play a phone's video while it's actually on screen -- keeps a
+      // scrolled-past clip from decoding in the background for no reason.
+      observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            // play() rejects if the browser declines autoplay -- swallow it and
-            // leave the poster up rather than throwing an unhandled rejection.
-            var played = entry.target.play();
-            if (played && played.catch) played.catch(function () {});
-          } else {
-            entry.target.pause();
-          }
+          if (entry.isIntersecting) playVideo(entry.target);
+          else entry.target.pause();
         });
       }, { threshold: 0.25 });
       videos.forEach(function (video) { observer.observe(video); });
-    }
+    };
+    var stopWatching = function () {
+      if (observer) { observer.disconnect(); observer = null; }
+      videos.forEach(function (video) { video.pause(); });
+    };
+
+    var applyMotionPref = function () {
+      if (reduceMotion.matches) stopWatching();
+      else startWatching();
+    };
+    applyMotionPref();
+    if (reduceMotion.addEventListener) reduceMotion.addEventListener("change", applyMotionPref);
+    else if (reduceMotion.addListener) reduceMotion.addListener(applyMotionPref);
   }
 
   // ---------- waitlist forms ----------
