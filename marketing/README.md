@@ -42,7 +42,7 @@ doesn't touch the existing `repcheck-q0m4` service at all.
   (kept as SVG so it stays crisp at every tab size with zero extra bytes).
 - `robots.txt` points its sitemap at `https://repcheck.app/sitemap.xml`,
   which doesn't exist yet — either generate one or drop that line.
-- Content mirrors the real app (527 exercises, 744 foods, 8 HYROX stations,
-  EN/TH) as of 2026-08-23 pulled from `workout_library.py`,
+- Content mirrors the real app (735 exercises, 744 foods, 8 HYROX stations,
+  EN/TH) as of 2026-08-24 pulled from `workout_library.py`,
   `food_library.py` and the HYROX station list in `app.py`/`hyrox.html`. If
   those numbers move, update the stats band and feature copy here too.
