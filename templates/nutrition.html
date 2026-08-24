@@ -2290,22 +2290,20 @@
   }
 
   // ---------- History-derived suggestions ----------
+  // The "recent foods" and "this hour's top picks" rules themselves live in
+  // static/suggestions.js (RepCheckSuggestions), shared with the home
+  // page's empty-day suggestions -- these wrappers just hand it this page's
+  // live in-memory `log`, which is ahead of localStorage mid-session.
   function allLoggedEntries() {
     return Object.values(log).flat();
   }
 
   function getRecentFoods(limit) {
-    const seen = new Set();
-    const names = [];
-    const entries = allLoggedEntries().sort((a, b) => b.addedAt - a.addedAt);
-    for (const entry of entries) {
-      if (!seen.has(entry.food)) {
-        seen.add(entry.food);
-        names.push(entry.food);
-      }
-      if (names.length >= limit) break;
-    }
-    return names;
+    return RepCheckSuggestions.recentFoods(limit, log);
+  }
+
+  function getTopPicksForHour(hour, limit) {
+    return RepCheckSuggestions.topPicksForHour(hour, limit, log);
   }
 
   // The most recent logged entry for a food NAME. Recent rows and top picks
@@ -2324,33 +2322,6 @@
       .filter((e) => e.source === "scan")
       .sort((a, b) => b.addedAt - a.addedAt)
       .slice(0, limit);
-  }
-
-  // "Top picks" for an hour are foods the user genuinely tends to eat
-  // AROUND that time -- not just anything logged there once. A food only
-  // qualifies if it was logged in this hour's window on at least
-  // TOP_PICK_MIN_DAYS *different days*, so a one-off (a snack logged at
-  // 3pm a single time) never shows up, while a real habit (coffee every
-  // morning, the same lunch most weekdays) does. The window is the target
-  // hour ±1 so "my usual 8am breakfast" still counts when it's logged at
-  // 7:50 one day and 8:15 the next, instead of splitting across exact
-  // clock hours. Ranked by how many distinct days it recurs on.
-  const TOP_PICK_MIN_DAYS = 2;
-  function getTopPicksForHour(hour, limit) {
-    const daysByFood = new Map(); // food -> Set of "YYYY-MM-DD" it was logged near this hour
-    for (const entry of allLoggedEntries()) {
-      const when = new Date(entry.addedAt);
-      let hourDiff = Math.abs(when.getHours() - hour);
-      if (hourDiff > 12) hourDiff = 24 - hourDiff; // wrap around midnight (23 vs 0 = 1 apart)
-      if (hourDiff > 1) continue;
-      if (!daysByFood.has(entry.food)) daysByFood.set(entry.food, new Set());
-      daysByFood.get(entry.food).add(toIsoDate(when));
-    }
-    return Array.from(daysByFood.entries())
-      .filter(([, days]) => days.size >= TOP_PICK_MIN_DAYS)
-      .sort((a, b) => b[1].size - a[1].size)
-      .slice(0, limit)
-      .map(([name]) => name);
   }
 
   // ---------- Add-food / add-ingredient modal ----------
@@ -5746,7 +5717,8 @@
   // ---------- Mobile FAB quick actions ("Scan a meal" / "Log today's
   // weight" land here with ?quick=... — see base.html's mt-fab-sheet). ----------
   (function handleQuickAction() {
-    const quick = new URLSearchParams(location.search).get("quick");
+    const search = location.search;
+    const quick = new URLSearchParams(search).get("quick");
     if (!quick) return;
     history.replaceState(null, "", location.pathname); // don't re-trigger on refresh
 
@@ -5768,6 +5740,19 @@
       // so show one single-tap prompt instead of a silent no-op.
       window.openBottomSheet(afModalOverlay, ".af-modal");
       renderAfBarcodeQuickPrompt();
+      return;
+    }
+    if (quick === "add") {
+      // Home-page empty-day suggestion (see templates/home.html). Opens
+      // the add-food sheet pinned to the current hour, with the suggested
+      // food's name already searched so it's one tap from logged. Bare
+      // ?quick=add (no name) is the "log your first meal" link.
+      const food = new URLSearchParams(search).get("food");
+      openAddFoodModal(new Date().getHours());
+      if (food) {
+        modalSearchInput.value = food;
+        renderModalResults(food);
+      }
       return;
     }
     if (quick === "checkin") {

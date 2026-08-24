@@ -2888,17 +2888,11 @@
     return { weekdayName: WEEKDAY_NAMES[weekdayIndex], label, exercises: day.exercises };
   }
 
+  // The rule lives in static/suggestions.js (RepCheckSuggestions), shared
+  // with the home page's empty-day suggestions -- this wrapper just hands
+  // it this page's live in-memory `log`.
   function getRecentWorkouts(limit) {
-    const seen = new Set();
-    const result = [];
-    const allEntries = Object.values(log).flat().sort((a, b) => b.addedAt - a.addedAt);
-    for (const entry of allEntries) {
-      if (seen.has(entry.exercise)) continue;
-      seen.add(entry.exercise);
-      result.push(entry.exercise);
-      if (result.length >= limit) break;
-    }
-    return result;
+    return RepCheckSuggestions.recentExercises(limit, log);
   }
 
   // ---------- Exercise favorites ----------
@@ -4732,10 +4726,19 @@
   // base.html's mt-fab-sheet) opens the add-exercise modal immediately,
   // logging at the current time on today's date.
   (function handleQuickAction() {
-    const quick = new URLSearchParams(location.search).get("quick");
+    const params = new URLSearchParams(location.search);
+    const quick = params.get("quick");
     if (quick !== "log") return;
+    // ?exercise=<name> comes from the home page's empty-day suggestions
+    // (see templates/home.html) -- same sheet, just pre-searched for the
+    // suggested movement so it's one tap from logged.
+    const exercise = params.get("exercise");
     history.replaceState(null, "", location.pathname);
     openExerciseModal();
+    if (exercise) {
+      exModalSearch.value = exercise;
+      renderExerciseModalSearch(exercise);
+    }
   })();
 
   // ---------- AI chat grounded in the user's logged workouts ----------

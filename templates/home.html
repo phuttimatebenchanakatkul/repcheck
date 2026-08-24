@@ -62,6 +62,13 @@
   <div id="hm-macro-bars"></div>
 </a>
 
+<!-- Empty-day suggestions: only rendered when today has no food logged
+     and/or no workout logged. Every row is something the user has
+     actually logged before (or an exercise from their own split plan) --
+     see static/suggestions.js. A user with no history gets a "log your
+     first one" link rather than an invented pick. -->
+{% if current_user %}<div id="hm-suggestions"></div>{% endif %}
+
 <style>
   /* ---------- Hero ---------- */
   .hm-hero {
@@ -176,6 +183,30 @@
     font-size: 10px; font-weight: 600; color: var(--text-secondary);
     border-top: 1px solid var(--border); padding-top: 6px;
   }
+
+  /* ---------- Empty-day suggestions ---------- */
+  .hm-suggest-card {
+    background: var(--card-bg); border-radius: 20px; box-shadow: var(--shadow);
+    padding: 18px; margin-bottom: 14px;
+  }
+  .hm-suggest-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; }
+  .hm-suggest-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+  .hm-suggest-group { margin-top: 16px; }
+  .hm-suggest-group-head { font-size: 13px; font-weight: 800; }
+  .hm-suggest-group-note { font-size: 11.5px; font-weight: 700; color: var(--text-secondary); margin-top: 2px; }
+  .hm-suggest-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .hm-suggest-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); color: var(--text); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 11px 14px; min-height: 44px; box-sizing: border-box;
+    font-size: 13.5px; font-weight: 700;
+    transition: border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  }
+  .hm-suggest-row:hover { border-color: var(--blue); color: var(--blue); }
+  .hm-suggest-row:active { transform: scale(0.98); }
+  .hm-suggest-row span { flex: 1; }
+  .hm-suggest-row svg { flex-shrink: 0; }
 
   /* .pc-week-toggle/.pc-week-toggle-btn come from coaching.css (same
      Consumed/Remaining switch component as the full week chart) --
@@ -504,10 +535,96 @@
       `;
     }
 
+    // ---------- Empty-day suggestions ----------
+    // Shown when today has nothing logged: food suggestions when no food
+    // is logged, exercise suggestions when no workout is. Everything
+    // offered is real user data -- foods they've eaten around this hour
+    // or logged recently (RepCheckSuggestions), exercises from their own
+    // split plan or their log. With no history there is nothing true to
+    // suggest, so the section falls back to a first-log link instead of
+    // inventing a pick.
+    const SUGGEST_LIMIT = 3;
+    const SUGGEST_ARROW = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`;
+
+    // t() does not escape its vars and these rows are assigned through
+    // innerHTML -- food and exercise names can be user-created (custom
+    // foods/exercises, scanned product names), so they get escaped here.
+    // See CLAUDE.md's escaping note.
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[ch]);
+    }
+
+    function suggestRowHtml(label, href) {
+      return `<a class="hm-suggest-row" href="${href}"><span>${escapeHtml(label)}</span>${SUGGEST_ARROW}</a>`;
+    }
+
+    function suggestGroupHtml(headKey, note, rowsHtml) {
+      return `
+        <div class="hm-suggest-group">
+          <div class="hm-suggest-group-head">${t(headKey)}</div>
+          ${note ? `<div class="hm-suggest-group-note">${t(note)}</div>` : ""}
+          <div class="hm-suggest-rows">${rowsHtml}</div>
+        </div>
+      `;
+    }
+
+    const NUTRITION_URL = "{{ url_for('nutrition') }}";
+    const WORKOUTS_URL = "{{ url_for('workouts') }}";
+
+    function foodGroupHtml() {
+      const names = RepCheckSuggestions.foodsForHour(new Date().getHours(), SUGGEST_LIMIT);
+      if (!names.length) {
+        // Nothing logged, ever -- the only honest suggestion is to start.
+        return suggestGroupHtml("home.suggest.noFood", null,
+          suggestRowHtml(t("home.suggest.firstFood"), `${NUTRITION_URL}?quick=add`));
+      }
+      const rows = names
+        .map((name) => suggestRowHtml(name, `${NUTRITION_URL}?quick=add&food=${encodeURIComponent(name)}`))
+        .join("");
+      return suggestGroupHtml("home.suggest.noFood", "home.suggest.fromHistory", rows);
+    }
+
+    function workoutGroupHtml() {
+      const splitInfo = getTodaysSplitInfo();
+      const planned = splitInfo ? splitInfo.exercises.slice(0, SUGGEST_LIMIT) : [];
+      const names = planned.length ? planned : RepCheckSuggestions.recentExercises(SUGGEST_LIMIT);
+      if (!names.length) {
+        // No plan and no logged exercises: point at the plan builder
+        // rather than picking movements for someone we know nothing about.
+        return suggestGroupHtml("home.suggest.noWorkout", null,
+          suggestRowHtml(t(loadSplitPlan() ? "home.suggest.firstWorkout" : "home.suggest.buildPlan"), WORKOUTS_URL));
+      }
+      const rows = names
+        .map((name) => suggestRowHtml(name, `${WORKOUTS_URL}?quick=log&exercise=${encodeURIComponent(name)}`))
+        .join("");
+      return suggestGroupHtml("home.suggest.noWorkout",
+        planned.length ? "home.suggest.fromPlan" : "home.suggest.fromHistory", rows);
+    }
+
+    function renderSuggestions() {
+      const mount = document.getElementById("hm-suggestions");
+      if (!mount) return; // logged-out visitors have no account to suggest from
+      const todayIso = toIsoDate(new Date());
+      const needsFood = !RepCheckSuggestions.hasFoodOn(todayIso);
+      const needsWorkout = !RepCheckSuggestions.hasWorkoutOn(todayIso);
+      if (!needsFood && !needsWorkout) { mount.innerHTML = ""; return; }
+      mount.innerHTML = `
+        <div class="hm-suggest-card">
+          <div class="hm-suggest-title">${t("home.suggest.title")}</div>
+          <div class="hm-suggest-sub">${t("home.suggest.sub")}</div>
+          ${needsFood ? foodGroupHtml() : ""}
+          ${needsWorkout ? workoutGroupHtml() : ""}
+        </div>
+      `;
+    }
+
     function renderAll() {
       renderHero();
       renderCheckinBanner();
       renderMacroCard();
+      renderSuggestions();
     }
 
     renderAll();
