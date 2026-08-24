@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.8.0] - 2026-08-24
+
+### Fixed
+
+- **The three deep-dive sections on the pre-launch site have their coloured
+  labels back.** "Form analysis", "Nutrition" and "Workout logging" were
+  meant to sit above each section as small green, blue and amber eyebrows.
+  Instead all three rendered as grey body text at the same size as the
+  paragraph underneath them, so each section opened with two lines that
+  looked identical and nothing marked where one topic ended and the next
+  began. A body-copy rule further down the stylesheet was quietly winning
+  against the label styling; it now leaves the labels alone. The rest of the
+  page is unchanged, and the fix applies to any deep-dive section added
+  later without needing a second edit.
+
 ## [0.3.7.0] - 2026-08-24
 
 ### Added
