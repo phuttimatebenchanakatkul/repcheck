@@ -238,6 +238,7 @@ img, svg { max-width: 100%; }
 }
 .kicker--green { --kicker: var(--green); }
 .kicker--blue  { --kicker: var(--blue); }
+.kicker--amber { --kicker: var(--amber); }
 .kicker--onDark { --kicker: var(--dark-card-text-secondary); }
 
 .section-title { max-width: 20ch; }
@@ -536,6 +537,23 @@ img, svg { max-width: 100%; }
   border-right: 2px solid var(--green);
   border-bottom: 2px solid var(--green);
   transform: rotate(42deg);
+}
+
+.side-note {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--purple);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: var(--shadow);
+}
+.side-note p { font-size: 14.5px; color: var(--text-secondary); }
+.side-note .side-note-title {
+  margin-bottom: 4px;
+  font-size: 12.5px; font-weight: 800;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text);
 }
 
 @media (max-width: 900px) {
