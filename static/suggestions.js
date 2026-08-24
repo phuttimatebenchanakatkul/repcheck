@@ -53,10 +53,18 @@
     return isPlainObject(value) ? value : {};
   }
 
+  // Pushes into one array rather than reassigning `out = out.concat(...)`
+  // per day: concat re-copies everything gathered so far on every day key,
+  // which turns flattening a multi-year log into O(days x entries). Pushed
+  // element by element rather than with push.apply -- a single day's array
+  // is small, but apply takes the whole array as arguments and blows the
+  // stack past ~100k of them.
   function allEntries(log) {
     var out = [];
     Object.keys(log).forEach(function (iso) {
-      if (Array.isArray(log[iso])) out = out.concat(log[iso]);
+      var day = log[iso];
+      if (!Array.isArray(day)) return;
+      for (var i = 0; i < day.length; i++) out.push(day[i]);
     });
     return out;
   }
