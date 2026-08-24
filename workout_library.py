@@ -302,7 +302,18 @@ EXERCISE_CATEGORIES = {
 # readable). Each extra names an existing EXERCISE_CATEGORIES key, so it
 # slots into the right group; done before WORKOUT_EXERCISES is derived so
 # the flat list, the location check, and exercise_details.py all see them.
-from extra_exercises import EXTRA_EXERCISES as _EXTRA_EXERCISES
+# exercise_variations.py is a second catalog in the same shape, adding the
+# extra named variations that make a picker search for a common movement
+# ("dip", "step-up", "hip thrust") come back with a full list instead of
+# two or three names. Concatenated here so every merge below -- categories,
+# unilateral, locations, and exercise_details.py -- covers both files.
+from extra_exercises import EXTRA_EXERCISES as _BASE_EXTRA_EXERCISES
+from exercise_variations import (
+    BODYWEIGHT_VARIATIONS,
+    VARIATION_EXERCISES as _VARIATION_EXERCISES,
+)
+
+_EXTRA_EXERCISES = _BASE_EXTRA_EXERCISES + _VARIATION_EXERCISES
 
 for _extra in _EXTRA_EXERCISES:
     EXERCISE_CATEGORIES.setdefault(_extra["category"], []).append(_extra["name"])
@@ -428,6 +439,10 @@ BODYWEIGHT_EXERCISES = {
     "Standing Pelvic Circles", "Modified Side Plank (Knee Down)",
     "Ankle Pumps",
 }
+
+# The unloaded movements from the search-depth catalog, so a Scapular
+# Pull-Up gets the same reps-only log row its sibling Pull-Up already does.
+BODYWEIGHT_EXERCISES |= BODYWEIGHT_VARIATIONS
 
 # Where each exercise can actually be done, used by the split planner
 # wizard's "Where do you usually train?" question (gym / home / hybrid --
