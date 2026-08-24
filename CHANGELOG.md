@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.2.0] - 2026-08-24
+
+### Fixed
+
+- **The Workout AI chat now hides on days you haven't logged anything,
+  not just when your whole history is empty.** A single workout logged
+  days ago used to leave the chat card pinned open forever, so it kept
+  showing up under the "Nothing logged yet" empty state on every rest
+  day. It now tracks whichever day you're actually looking at in the
+  date strip: it appears the moment you log that day's first exercise
+  and disappears again the moment you navigate to (or empty out) a day
+  with nothing on it.
+
 ## [0.3.1.1] - 2026-08-24
 
 ### Fixed
