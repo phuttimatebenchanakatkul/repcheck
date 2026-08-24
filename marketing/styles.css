@@ -508,7 +508,9 @@ img, svg { max-width: 100%; }
   align-items: center;
 }
 .split-copy h2 { max-width: 17ch; }
-.split-copy > p { margin-top: 16px; color: var(--text-secondary); font-size: 16.5px; }
+/* :not(.kicker) so this body-copy rule doesn't out-specify `.kicker`
+   (0,1,1 vs 0,1,0, and declared later) and grey out the section labels. */
+.split-copy > p:not(.kicker) { margin-top: 16px; color: var(--text-secondary); font-size: 16.5px; }
 
 /* The phone is a fixed 285px, narrower than its grid column -- centre it so it
    doesn't hang off the copy-facing edge of the split. */
