@@ -11,6 +11,11 @@ repcheck.db*
 *.mp4
 *.mov
 *.MOV
+# ...except the marketing site's demo clips. Render deploys that static site
+# straight from the repo, so an ignored clip is a 404 in production. These are
+# deliberately-published screen recordings with the iOS/Safari chrome cropped
+# off -- keep raw camera footage and user uploads out, as above.
+!marketing/*.mp4
 .vscode/
 .idea/
 .claude/

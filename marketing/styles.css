@@ -371,6 +371,19 @@ img, svg { max-width: 100%; }
   overflow: hidden;
 }
 
+/* A screen recording fills the handset edge to edge, so it drops the padding
+   the mocked-up screens need. The aspect ratio is the clip's own 444x754 --
+   keep the two in step if the capture is ever recropped, or the dark screen
+   background shows through at the ends. */
+.phone-screen--video { padding: 0; background: #0b0c0e; }
+.phone-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 444 / 754;
+  object-fit: cover;
+}
+
 .mock-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .mock-back { width: 8px; height: 8px; border-left: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary); transform: rotate(45deg); }
 .mock-title { font-size: 13px; font-weight: 800; }
@@ -572,6 +585,10 @@ img, svg { max-width: 100%; }
 .split-copy h2 { max-width: 17ch; }
 .split-copy > p { margin-top: 16px; color: var(--text-secondary); font-size: 16.5px; }
 
+/* The phone is a fixed 285px, narrower than its grid column -- centre it so it
+   doesn't hang off the copy-facing edge of the split. */
+.split-visual--phone { display: grid; place-items: center; }
+
 .check-list {
   list-style: none; padding: 0; margin: 24px 0 0;
   display: grid; gap: 11px;
@@ -629,7 +646,6 @@ img, svg { max-width: 100%; }
   text-transform: uppercase; letter-spacing: .05em;
 }
 .pill--green { background: var(--green-bg); color: var(--green); }
-.pill--blue  { background: var(--blue-bg);  color: var(--blue); }
 
 .bars {
   display: grid;
@@ -656,51 +672,6 @@ img, svg { max-width: 100%; }
   border-top: 1px solid var(--border);
   font-size: 13px; color: var(--text-secondary);
 }
-
-.rings {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 14px; text-align: center;
-}
-.ring {
-  padding: 14px 6px 12px;
-  border-radius: var(--radius-md);
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-}
-.section--alt .ring { background: var(--card-bg); }
-.ring::before {
-  content: "";
-  display: block;
-  width: 56px; height: 56px;
-  margin: 0 auto 10px;
-  border-radius: 50%;
-  background: conic-gradient(var(--ring-c) calc(var(--p) * 1%), var(--border) 0);
-  -webkit-mask: radial-gradient(circle, transparent 56%, #000 57%);
-  mask: radial-gradient(circle, transparent 56%, #000 57%);
-}
-.ring--p { --ring-c: var(--blue); }
-.ring--c { --ring-c: var(--amber); }
-.ring--f { --ring-c: var(--purple); }
-.ring b { display: block; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
-.ring span { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
-
-.mini-rows { margin-top: 18px; display: grid; gap: 2px; }
-.mini-rows > div {
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 2px;
-  font-size: 13.5px; font-weight: 600;
-  border-bottom: 1px solid var(--border);
-}
-.mini-rows > div:last-child { border-bottom: 0; }
-.mini-rows em {
-  margin-left: auto; font-style: normal;
-  font-size: 13px; color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-.mr-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.mr-dot--blue  { background: var(--blue); }
-.mr-dot--green { background: var(--green); }
-.mr-dot--amber { background: var(--amber); }
 
 /* ---------- HYROX band ---------- */
 
