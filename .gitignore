@@ -11,6 +11,8 @@ repcheck.db*
 *.mp4
 *.mov
 *.MOV
+# The marketing site's hero demo clip is a shipped asset, not a test video.
+!marketing/demo.mp4
 .vscode/
 .idea/
 .claude/

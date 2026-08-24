@@ -371,81 +371,14 @@ img, svg { max-width: 100%; }
   overflow: hidden;
 }
 
-.mock-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.mock-back { width: 8px; height: 8px; border-left: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary); transform: rotate(45deg); }
-.mock-title { font-size: 13px; font-weight: 800; }
-
-.mock-video {
-  position: relative;
-  height: 168px;
-  border-radius: var(--radius-md);
-  background: var(--dark-card);
-  overflow: hidden;
-  display: grid; place-items: center;
+.phone-screen--video { padding: 0; background: #0b0c0e; }
+.phone-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 444 / 754;
+  object-fit: cover;
 }
-.mock-skeleton { color: rgba(255, 255, 255, .34); }
-.mock-pose { width: 96px; height: 122px; }
-.mock-pose .joint-warn { fill: var(--red); }
-.mock-video .scan {
-  position: absolute; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--green), transparent);
-  box-shadow: 0 0 12px rgba(31, 169, 113, .8);
-  animation: scan 3.2s ease-in-out infinite;
-}
-@keyframes scan {
-  0%, 100% { top: 12%; }
-  50%      { top: 86%; }
-}
-.mock-badge {
-  position: absolute; left: 10px; bottom: 10px;
-  background: rgba(255, 255, 255, .14);
-  color: #fff;
-  font-size: 10.5px; font-weight: 700;
-  padding: 4px 9px; border-radius: 999px;
-  backdrop-filter: blur(6px);
-}
-
-.mock-score {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--card-bg);
-  border-radius: var(--radius-md);
-  padding: 12px;
-  margin: 12px 0 10px;
-  box-shadow: var(--shadow);
-}
-.mock-ring {
-  width: 44px; height: 44px; flex: none;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  background:
-    conic-gradient(var(--green) 0 82%, var(--border) 82% 100%);
-  position: relative;
-}
-.mock-ring::before {
-  content: ""; position: absolute; inset: 4px;
-  background: var(--card-bg); border-radius: 50%;
-}
-.mock-ring span {
-  position: relative; font-size: 14px; font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.mock-score-title { font-size: 13.5px; font-weight: 800; }
-.mock-score-sub { font-size: 11.5px; color: var(--text-secondary); }
-
-.mock-row {
-  display: flex; align-items: flex-start; gap: 9px;
-  background: var(--card-bg);
-  border-radius: 11px;
-  padding: 9px 11px;
-  margin-bottom: 7px;
-  box-shadow: var(--shadow);
-}
-.mock-row b { display: block; font-size: 11.8px; font-weight: 700; line-height: 1.35; }
-.mock-row i { display: block; font-size: 10.5px; font-style: normal; color: var(--text-secondary); }
-.mock-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-top: 5px; }
-.mock-row--red   .mock-dot { background: var(--red); }
-.mock-row--amber .mock-dot { background: var(--amber); }
-.mock-row--green .mock-dot { background: var(--green); }
 
 .float-card {
   position: absolute;
