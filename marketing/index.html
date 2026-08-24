@@ -81,22 +81,13 @@
         <div class="phone-screen">
           <div class="status"><span>15:29</span><span>5G</span></div>
 
-          <div class="screen is-active" data-screen="0">
-            <div class="an-video">
-              <span class="an-back">‹</span>
-              <span class="an-title">Tricep Pushdown</span>
-              <span class="an-scan"></span>
-              <span class="an-play"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg></span>
-              <span class="an-meta">YOUR SET · 0:12</span>
-            </div>
-            <div class="an-body">
-              <span class="grab"></span>
-              <div><b class="score">88</b><span class="score-label">OVERALL FORM &amp; TECHNIQUE</span></div>
-              <span class="pill pill-purple">9 REPS COUNTED</span>
-              <p class="verdict">Strong set — ready to push further.</p>
-              <div class="tip">This set favours the <b>Stretch</b> — the Squeeze could use more focus.</div>
-              <div class="ask"><span><i>✦</i>Ask a question about your analysis</span><b>↑</b></div>
-            </div>
+          <div class="screen is-active screen--video" data-screen="0">
+            <video id="analyze-demo" muted playsinline loop
+                   preload="metadata" poster="assets/analyze-demo-poster.jpg"
+                   aria-label="Screen recording of RepCheck analysing a tricep pushdown set: the clip is uploaded, the exercise picked, the set analysed, and a form report returned.">
+              <source src="assets/analyze-demo.webm" type="video/webm">
+              <source src="assets/analyze-demo.mp4" type="video/mp4">
+            </video>
           </div>
 
           <div class="screen" data-screen="1">
@@ -214,17 +205,19 @@
       <li>Saved forever, so month three compares to week one</li>
     </ul>
   </div>
-  <div class="split-demo">
-    <div class="strip strip--bare"><span>Tricep Pushdown &middot; real analysis</span><span id="demo-replay" role="button" tabindex="0">Replay</span></div>
-    <div class="demo-phone">
-      <video id="analyze-demo" width="390" height="844" muted playsinline loop
-             preload="metadata" poster="assets/analyze-demo-poster.jpg"
-             aria-label="Screen recording of RepCheck analysing a tricep pushdown set: the clip is uploaded, the exercise picked, the set analysed, and a form report returned.">
-        <source src="assets/analyze-demo.webm" type="video/webm">
-        <source src="assets/analyze-demo.mp4" type="video/mp4">
-      </video>
+  <div class="split-chart">
+    <div class="strip strip--bare"><span>Back squat · 8 reps</span><span>Hover the set</span></div>
+    <div class="bars" id="bars">
+          <div class="bar" data-rep="0" style="--h:202px"><span class="bar-score">88</span><span class="bar-fill"></span><span class="bar-n">1</span></div>
+          <div class="bar" data-rep="1" style="--h:212px"><span class="bar-score">92</span><span class="bar-fill"></span><span class="bar-n">2</span></div>
+          <div class="bar" data-rep="2" style="--h:207px"><span class="bar-score">90</span><span class="bar-fill"></span><span class="bar-n">3</span></div>
+          <div class="bar" data-rep="3" style="--h:193px"><span class="bar-score">84</span><span class="bar-fill"></span><span class="bar-n">4</span></div>
+          <div class="bar" data-rep="4" style="--h:166px"><span class="bar-score">72</span><span class="bar-fill"></span><span class="bar-n">5</span></div>
+          <div class="bar is-warn" data-rep="5" style="--h:133px"><span class="bar-score">58</span><span class="bar-fill"></span><span class="bar-n">6</span></div>
+          <div class="bar is-warn" data-rep="6" style="--h:117px"><span class="bar-score">51</span><span class="bar-fill"></span><span class="bar-n">7</span></div>
+          <div class="bar is-warn" data-rep="7" style="--h:106px"><span class="bar-score">46</span><span class="bar-fill"></span><span class="bar-n">8</span></div>
     </div>
-    <p class="rep-note">A real run of the app at native speed: upload, pick the lift, watch it track the set, then read the report.</p>
+    <p class="rep-note" id="rep-note">Every rep scored against the movement's real standards — hover a bar to read the call.</p>
   </div>
 </section>
 

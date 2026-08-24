@@ -81,10 +81,25 @@
   var screens = $$(".screen");
   var tabs = $$(".tab");
 
+  // Screen 0 (feature "It watches you lift") is the real screen recording
+  // instead of a mocked score -- play it only while that screen is the one
+  // showing, pause and rewind it otherwise so it doesn't keep running
+  // silently behind the other five screens.
+  var demo = document.getElementById("analyze-demo");
+
   function showFeature(i) {
     featureBtns.forEach(function (b, n) { b.classList.toggle("is-active", n === i); });
     screens.forEach(function (s, n) { s.classList.toggle("is-active", n === i); });
     tabs.forEach(function (t, n) { t.classList.toggle("is-active", n === TAB_FOR_FEATURE[i]); });
+    if (demo) {
+      if (i === 0) {
+        var playing = demo.play();
+        if (playing && playing.catch) playing.catch(function () {});
+      } else {
+        demo.pause();
+        demo.currentTime = 0;
+      }
+    }
   }
 
   featureBtns.forEach(function (b, i) {
@@ -93,31 +108,30 @@
   });
   showFeature(0);
 
-  // ---------- analyze showcase ----------
-  // The recording is the section's whole point, so it plays as soon as it
-  // scrolls into view and pauses when it leaves -- no autoplaying video
-  // burning bandwidth at the top of the page.
-  var demo = document.getElementById("analyze-demo");
-  if (demo && "IntersectionObserver" in window) {
-    new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          var playing = demo.play();
-          if (playing && playing.catch) playing.catch(function () {});
-        } else {
-          demo.pause();
-        }
-      });
-    }, { threshold: 0.35 }).observe(demo);
-  }
-
-  var replay = document.getElementById("demo-replay");
-  if (replay && demo) {
-    replay.addEventListener("click", function () {
-      demo.currentTime = 0;
-      demo.play();
+  // ---------- rep-by-rep chart ----------
+  var NOTES = [
+    "Rep 1 — clean setup, brace held through the descent.",
+    "Rep 2 — best rep of the set. Bar path dead vertical.",
+    "Rep 3 — depth to parallel, knees tracking over toes.",
+    "Rep 4 — slight forward lean out of the hole.",
+    "Rep 5 — depth shallow by ~4°, tempo slowing.",
+    "Rep 6 — knees start caving. Cue: drive the knees out.",
+    "Rep 7 — same fault, deeper. Bar drifting forward.",
+    "Rep 8 — fatigue set in. Cut the set here, or drop 5 kg."
+  ];
+  var DEFAULT_NOTE = "Every rep scored against the movement's real standards — hover a bar to read the call.";
+  var note = $("#rep-note");
+  $$(".bar").forEach(function (bar, i) {
+    bar.addEventListener("mouseenter", function () {
+      $$(".bar").forEach(function (b) { b.classList.remove("is-on"); });
+      bar.classList.add("is-on");
+      if (note) note.textContent = NOTES[i];
     });
-  }
+    bar.addEventListener("mouseleave", function () {
+      bar.classList.remove("is-on");
+      if (note) note.textContent = DEFAULT_NOTE;
+    });
+  });
 
   // ---------- waitlist ----------
   // Swap ENDPOINT for the real form ID before going live -- until then
