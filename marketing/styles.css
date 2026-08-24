@@ -371,11 +371,13 @@ img, svg { max-width: 100%; }
   overflow: hidden;
 }
 
-.phone-screen--video { padding: 0; background: #0b0c0e; }
+.phone-screen--video { padding: 0; background: var(--dark-card); }
 .phone-video {
   display: block;
   width: 100%;
   height: auto;
+  /* Must match demo.mp4's native dimensions -- a re-exported clip at a
+     different size gets silently cropped by object-fit: cover. */
   aspect-ratio: 444 / 754;
   object-fit: cover;
 }
