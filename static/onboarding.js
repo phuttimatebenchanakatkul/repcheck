@@ -299,6 +299,9 @@
     // otherwise open mid-page with its first question hidden above the
     // fold. renderKeepingScroll() undoes this for same-screen option taps.
     window.scrollTo(0, 0);
+    // After layout, not now: the new view's height is not known until the
+    // browser has laid it out, and the cue depends on that height.
+    requestAnimationFrame(updateScrollCue);
   }
 
   // For taps that just select an option on the CURRENT screen: a full
@@ -371,12 +374,29 @@
 
   function renderWizardActions(canProceed) {
     const isFirst = w.stepIndex === 0;
+    // The cue is shown/hidden purely by CSS off body.ob-has-more (see
+    // updateScrollCue) -- it is in the markup on every question screen but
+    // only visible while there is actually something below the fold.
     return el(`
       <div class="ob-wizard-actions">
+        <button type="button" class="ob-scroll-cue" data-action="scroll-more">
+          <span>${t("onboarding.moreBelow")}</span><span class="ob-scroll-cue-arrow">↓</span>
+        </button>
         ${isFirst ? "" : `<button type="button" class="ob-btn-secondary" data-action="back">${t("common.back")}</button>`}
         <button type="button" class="ob-btn-primary" data-action="next" ${canProceed ? "" : "disabled"}>${t("common.next")}</button>
       </div>
     `);
+  }
+
+  // ---------- "More questions below" cue ----------
+  // A combined screen can be twice a phone viewport tall, and the sticky
+  // Next button makes the first fold look like the whole screen. Flag
+  // "there is more below" on <body> whenever the page can still scroll;
+  // the fade and the pill above the button bar key off that class.
+  function updateScrollCue() {
+    const doc = document.documentElement;
+    const remaining = doc.scrollHeight - window.innerHeight - window.scrollY;
+    document.body.classList.toggle("ob-has-more", remaining > 24);
   }
 
   // ---------- Nutrition steps (mirrors coaching.js) ----------
@@ -1244,6 +1264,10 @@
     if (action === "set-distribution") { w.distribution = value; return renderKeepingScroll(); }
     if (action === "back-to-days") { w.error = null; w.stepIndex = lastVisibleIndex(); return render(); }
     if (action === "retry-generate") return generateAndCalculate();
+    if (action === "scroll-more") {
+      window.scrollBy({ top: Math.round(window.innerHeight * 0.7), behavior: "smooth" });
+      return;
+    }
 
     if (action === "back") {
       if (w.stepIndex === 0) return;
@@ -1260,5 +1284,12 @@
 
   document.querySelector(".ob-card").addEventListener("click", handleClick);
   document.addEventListener("repcheck:language-changed", render);
+  window.addEventListener("scroll", updateScrollCue, { passive: true });
+  window.addEventListener("resize", updateScrollCue);
+  // Screens change height without a re-render too -- body-type images
+  // finish loading, a ruler seeds itself, the keyboard opens.
+  if (window.ResizeObserver) {
+    new ResizeObserver(updateScrollCue).observe(document.querySelector(".ob-card"));
+  }
   render();
 })();

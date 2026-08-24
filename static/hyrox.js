@@ -3283,6 +3283,10 @@
         bodyEl.appendChild(el(`<div class="hx-pb-lb-foot">${t("hyrox.pb.boardShowingTop", { shown: rows.length, n: active.entries.length })}</div>`));
       }
 
+      // Only on a board that actually has times -- the empty state above
+      // returns early, and its own sub-line already says the same thing.
+      bodyEl.appendChild(el(`<div class="pb-nudge">${t("hyrox.pb.beatItHint")}</div>`));
+
       return card;
     }
 

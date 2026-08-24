@@ -2,6 +2,39 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.0.0] - 2026-08-24
+
+### Added
+
+- **A pre-launch page for RepCheck**, deployed separately from the app: what it
+  does, who it's for, and a waitlist form. It's a plain static site with no
+  build step and no dependency on the app, so it can go live on its own domain
+  without touching anything users are already running.
+- **Setup now tells you when there are more questions below.** The taller
+  onboarding screens run past the bottom of a phone display, and the Next
+  button sitting at the bottom made them look finished — people answered the
+  one question they could see and moved on. A "More questions below" cue and
+  a soft fade above the buttons now say there's more, and tapping the cue
+  scrolls down. It only appears when the screen actually has more to show.
+
+### Fixed
+
+- **The setup card is rounded on all four corners again.** The button bar at
+  the bottom was squaring off the two bottom corners while the top two stayed
+  round.
+- **The Log out pill no longer covers your answers during setup.** It scrolls
+  with the page instead of floating over whichever option sat underneath it.
+- **Sharing the pre-launch page no longer produces a blank preview card**, and
+  the site stopped pointing crawlers at a sitemap that doesn't exist yet.
+- **A markup slip in one waitlist form can no longer silently disable the
+  other.** The wiring threw part-way through, leaving the second form dead and
+  sending an address into the URL bar on submit instead of to the waitlist.
+
+### Changed
+
+- The HYROX personal-bests board now ends with a single line telling you what
+  to do about the times on it.
+
 ## [0.2.5.1] - 2026-08-23
 
 ### Changed

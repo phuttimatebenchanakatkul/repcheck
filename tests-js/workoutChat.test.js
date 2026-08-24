@@ -254,11 +254,11 @@ describe("today-only interactivity", () => {
   });
 
   it("disables the input/send button for a future day too, not just past ones", () => {
-    const tomorrow = (() => {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      return d.toISOString().slice(0, 10);
-    })();
+    // isoDaysAgo, not toISOString(): the widget reads "today" from the LOCAL
+    // date, so a UTC-derived tomorrow is the same string as local today for
+    // every timezone ahead of UTC during its small hours -- this assertion
+    // failed nightly between 00:00 and 07:00 in UTC+7 and passed all day.
+    const tomorrow = isoDaysAgo(-1);
     const { applyDateLockState, dom } = loadWorkoutChat({ selectedDate: tomorrow });
     applyDateLockState();
     expect(dom.inputEl.disabled).toBe(true);

@@ -59,3 +59,16 @@ Started at 0.1.0.0 -- anything before that shipped unversioned.
 - Deploy trigger: automatic on push to main
 - Deploy status: poll production URL (no CLI available)
 - Health check: curl -s -o /dev/null -w "%{http_code}" https://repcheck-q0m4.onrender.com/ -- expect 302
+
+## Marketing / pre-launch site (`marketing/`)
+A second, separate Render deployment -- a static pre-launch/marketing page,
+independent of the Flask app above. See [marketing/README.md](marketing/README.md)
+for local preview and deploy setup. Deployed as a Render **Static Site** (not
+a Web Service like the main app), root directory `marketing`, publish
+directory `.`, no build command. It shares brand colors/type with the app
+(see `DESIGN.md`) but has its own HTML/CSS/JS and does not import from
+`static/` or `templates/`.
+
+Before this is live: `marketing/app.js`'s `ENDPOINT` constant is a Formspree
+placeholder and needs swapping for a real form endpoint, or waitlist
+submissions will fail.

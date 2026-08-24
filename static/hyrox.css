@@ -1050,6 +1050,15 @@
   padding-top: 12px; line-height: 1.55;
 }
 
+/* The board is a scoreboard; this is the one line telling you what to do
+   about it. Same footer treatment as .hx-lb-total so both cards' captions
+   read as the same thing, just weighted a touch heavier than the neutral
+   "top 5 of 12" line it can sit under. */
+.pb-nudge {
+  font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+  text-align: center; line-height: 1.45; padding-top: 12px;
+}
+
 @media (max-width: 380px) {
   .hx-pb-lb-row { padding: 12px; gap: 10px; }
   .hx-pb-lb-rank { width: 40px; }
