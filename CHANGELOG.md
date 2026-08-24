@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.3.2.0] - 2026-08-24
+## [0.3.4.0] - 2026-08-24
 
 ### Changed
 
@@ -12,6 +12,33 @@ All notable changes to RepCheck are recorded here, newest first.
   is cropped to the app's own viewport, with the iOS status bar, Safari's
   bars, and the stretch where the system keyboard covers the screen all
   cut out.
+
+## [0.3.3.0] - 2026-08-24
+
+### Fixed
+
+- **The Workout AI chat now hides on days you haven't logged anything,
+  not just when your whole history is empty.** A single workout logged
+  days ago used to leave the chat card pinned open forever, so it kept
+  showing up under the "Nothing logged yet" empty state on every rest
+  day. It now tracks whichever day you're actually looking at in the
+  date strip: it appears the moment you log that day's first exercise
+  and disappears again the moment you navigate to (or empty out) a day
+  with nothing on it.
+
+## [0.3.2.0] - 2026-08-24
+
+### Added
+
+- **Searching for an exercise on the Analyze page now returns a full list**,
+  not a stray handful. Common movements like bench press, dips, step-ups,
+  hip thrusts, and shrugs used to come back with as few as one or two
+  results; the exercise library grew by over 200 named variations so a
+  search for any well-known movement fills the sheet.
+- **The search also understands what you actually type.** "Curls" now finds
+  Bicep Curl, "abs" or "quads" returns that whole muscle group, and "twist"
+  also surfaces movements filed under different names like Rotation and
+  Chop — on top of the existing exact-name matching.
 
 ## [0.3.1.1] - 2026-08-24
 

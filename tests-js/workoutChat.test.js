@@ -469,18 +469,17 @@ describe("empty-log visibility", () => {
     expect(dom.chatEl.hidden).toBe(true);
   });
 
-  it("stays hidden when a day exists in the log but holds no exercises", () => {
+  it("stays hidden when the selected day exists in the log but holds no exercises", () => {
     const { dom } = loadWorkoutChat({ log: { [isoDaysAgo(0)]: [] } });
     expect(dom.chatEl.hidden).toBe(true);
   });
 
-  it("shows once at least one exercise is logged on any day", () => {
+  it("shows when the selected day has a logged exercise", () => {
+    const today = isoDaysAgo(0);
     const log = {
-      [isoDaysAgo(3)]: [
-        { name: "Bench Press", addedAt: 1, sets: [{ reps: 8, weightKg: 60 }] },
-      ],
+      [today]: [{ name: "Bench Press", addedAt: 1, sets: [{ reps: 8, weightKg: 60 }] }],
     };
-    const { dom } = loadWorkoutChat({ log });
+    const { dom } = loadWorkoutChat({ log, selectedDate: today });
     expect(dom.chatEl.hidden).toBe(false);
   });
 
@@ -496,16 +495,40 @@ describe("empty-log visibility", () => {
     expect(dom.chatEl.hidden).toBe(false);
   });
 
-  it("keeps showing on an empty past day when other days have workouts", () => {
+  // The regression this whole block exists for: one workout three days ago
+  // used to pin the card open on every later rest day, so it sat directly
+  // under the "Nothing logged yet" empty state.
+  it("stays hidden on an empty today even when an earlier day has workouts", () => {
     const log = {
-      [isoDaysAgo(2)]: [
-        { name: "Deadlift", addedAt: 1, sets: [{ reps: 5, weightKg: 100 }] },
-      ],
+      [isoDaysAgo(3)]: [{ name: "Deadlift", addedAt: 1, sets: [{ reps: 5, weightKg: 100 }] }],
     };
-    const { dom, setSelectedDate, refreshForSelectedDate } = loadWorkoutChat({ log });
+    const { dom } = loadWorkoutChat({ log, selectedDate: isoDaysAgo(0) });
+    expect(dom.chatEl.hidden).toBe(true);
+  });
+
+  it("hides again when navigating from a logged day to an empty one", () => {
+    const logged = isoDaysAgo(2);
+    const log = {
+      [logged]: [{ name: "Deadlift", addedAt: 1, sets: [{ reps: 5, weightKg: 100 }] }],
+    };
+    const { dom, setSelectedDate, refreshForSelectedDate } = loadWorkoutChat({
+      log,
+      selectedDate: logged,
+    });
+    expect(dom.chatEl.hidden).toBe(false);
+
     setSelectedDate(isoDaysAgo(5));
     refreshForSelectedDate();
 
+    expect(dom.chatEl.hidden).toBe(true);
+  });
+
+  it("shows on a past day that does have workouts", () => {
+    const past = isoDaysAgo(4);
+    const log = {
+      [past]: [{ name: "Row", addedAt: 1, sets: [{ reps: 10, weightKg: 40 }] }],
+    };
+    const { dom } = loadWorkoutChat({ log, selectedDate: past });
     expect(dom.chatEl.hidden).toBe(false);
   });
 });
