@@ -342,6 +342,9 @@
     color: var(--text);
     font-size: 16px;
     line-height: 1;
+    /* The UA's default button padding eats into the 26px box and shrinks the
+       icon below its declared size. */
+    padding: 0;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -349,17 +352,18 @@
     flex-shrink: 0;
   }
   .wl-plan-quick-add:hover { background: var(--sidebar-active); }
-  .wl-plan-quick-add svg { width: 13px; height: 13px; }
-  /* White-on-green, same pairing as .wl-entry-check's proven badge below --
-     color-mix(green 45%, white) here read as a near-invisible checkmark
-     against the identical-hue green background. */
+  .wl-plan-quick-add svg { width: 13px; height: 13px; flex-shrink: 0; }
+  /* A bare green checkmark, not a check inside a filled green disc: at 26px
+     the disc dominated and the small inner check didn't read as a tick at
+     all -- it just looked like a green dot. */
   .wl-plan-quick-add.is-added {
-    background: var(--green);
-    color: #fff;
+    background: transparent;
+    color: var(--green);
     cursor: default;
     pointer-events: none;
   }
-  .wl-plan-quick-add.is-added:hover { background: var(--green); }
+  .wl-plan-quick-add.is-added:hover { background: transparent; }
+  .wl-plan-quick-add.is-added svg { width: 20px; height: 20px; stroke-width: 3.5; }
   .wl-plan-exercise-grip {
     width: 22px;
     height: 22px;

@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.1.1] - 2026-08-24
+
+### Fixed
+
+- **A logged exercise in Today's plan now shows a green checkmark**, not a
+  green dot. The tick was there, but it was drawn small and white inside a
+  filled green circle, and on a phone the circle was the only thing that read.
+  The circle is gone: the checkmark itself is the icon now, stroked in green
+  and sized up.
+
 ## [0.3.1.0] - 2026-08-24
 
 ### Added
