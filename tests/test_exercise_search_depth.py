@@ -10,7 +10,9 @@ import pytest
 
 from exercise_details import EXERCISE_DETAILS
 from exercise_variations import VARIATION_EXERCISES
+from exercise_variations import BODYWEIGHT_VARIATIONS
 from workout_library import (
+    BODYWEIGHT_EXERCISES,
     EXERCISE_CATEGORIES,
     EXERCISE_LOCATIONS,
     UNILATERAL_EXERCISES,
@@ -65,6 +67,21 @@ def test_variations_merge_cleanly_into_the_library():
 def test_variations_only_use_existing_categories():
     for entry in VARIATION_EXERCISES:
         assert entry["category"] in EXERCISE_CATEGORIES
+
+
+def test_bodyweight_variations_match_their_siblings():
+    """A variation of a bodyweight movement has to log the same way its
+    sibling does -- reps only, no weight field -- or the same exercise
+    behaves two different ways depending on which name you picked."""
+    assert BODYWEIGHT_VARIATIONS <= BODYWEIGHT_EXERCISES
+    for name in BODYWEIGHT_VARIATIONS:
+        assert name in WORKOUT_EXERCISES, f"{name!r} is not a real exercise"
+    # Assisted and weighted variants carry a load value, so they must stay
+    # out -- that is the line the pre-existing catalog already draws.
+    for name in ("Band-Assisted Chin-Up", "Assisted Chin-Up (Machine)",
+                 "Weighted Ring Dip", "Weighted Sit-Up", "Weighted Hanging Leg Raise"):
+        assert name in WORKOUT_EXERCISES
+        assert name not in BODYWEIGHT_EXERCISES
 
 
 def test_unilateral_flag_reaches_the_log_ui():

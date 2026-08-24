@@ -250,6 +250,96 @@ _BY_CATEGORY = {
 }
 
 
+# Which of the above carry no external load, so the log shows reps only and
+# no weight field (see BODYWEIGHT_EXERCISES in workout_library.py). Kept as
+# an explicit set rather than guessed from the name, and matched to how the
+# existing catalog already draws the line: assisted variants (band or
+# machine) and anything named Weighted stay OUT because they do carry a
+# load value, while stability-ball and slider work counts as bodyweight.
+# Commonly-loaded patterns follow their existing siblings too -- plain
+# Step-Up, Calf Raise, Hip Thrust and the lunges are not bodyweight entries,
+# so their variations aren't either, except the explicitly bodyweight and
+# plyometric ones.
+BODYWEIGHT_VARIATIONS = {
+    # Chest / dips
+    "Parallel Bar Dip",
+    "Straight-Bar Dip",
+    "Feet-Elevated Bench Dip",
+    "Slow-Negative Dip",
+    "Chest-Lean Dip",
+    "Upright Dip (Tricep Focus)",
+    "Dip Support Hold",
+    # Back / vertical pulls
+    "Archer Pull-Up",
+    "L-Sit Pull-Up",
+    "Negative Pull-Up",
+    "Chest-to-Bar Pull-Up",
+    "Scapular Pull-Up",
+    "Mixed-Grip Pull-Up",
+    "Tempo Pull-Up",
+    "Fat-Grip Pull-Up",
+    "Close-Grip Chin-Up",
+    "Negative Chin-Up",
+    "L-Sit Chin-Up",
+    "Isometric Chin-Up Hold",
+    "Ring Chin-Up",
+    "Towel Chin-Up",
+    "Tempo Chin-Up",
+    # Arms
+    "Bodyweight Tricep Extension",
+    # Legs
+    "Jumping Lunge",
+    "Slider Reverse Lunge",
+    "Deficit Step-Down",
+    "Bodyweight Hip Thrust",
+    "Feet-Elevated Glute Bridge",
+    "Glute Bridge March",
+    "Frog Glute Bridge",
+    "Quadruped Glute Kickback",
+    "Sliding Hamstring Curl",
+    "Razor Hamstring Curl",
+    "Eccentric Nordic Hamstring Curl",
+    "Single-Leg Stability Ball Hamstring Curl",
+    "Side-Lying Hip Abduction",
+    "Side-Lying Hip Adduction",
+    "Copenhagen Adduction",
+    # Core
+    "Decline Crunch",
+    "Stability Ball Crunch",
+    "Oblique Crunch",
+    "Frog Crunch",
+    "Butterfly Crunch",
+    "Long-Arm Crunch",
+    "Double Crunch",
+    "Butterfly Sit-Up",
+    "V Sit-Up",
+    "Stability Ball Sit-Up",
+    "Twisting Sit-Up",
+    "Anchored Sit-Up",
+    "Hanging Straight-Leg Raise",
+    "Parallel Bar Leg Raise",
+    "Incline Bench Leg Raise",
+    "Roman Chair Leg Raise",
+    "Side-Lying Leg Raise",
+    "Bench Leg Raise",
+    "Plank Jack",
+    "Plank to Push-Up",
+    "Reverse Plank",
+    "Plank with Leg Lift",
+    "Single-Arm Plank",
+    "Plank Reach-Out",
+    # Full body / plyometrics
+    "Lateral Box Jump",
+    "Single-Leg Box Jump",
+    "Vertical Jump",
+    "Hurdle Jump",
+    "Split Jump",
+    "Countermovement Jump",
+    "Seated Box Jump",
+    "Depth Drop",
+}
+
+
 def _build():
     out = []
     for category, items in _BY_CATEGORY.items():
