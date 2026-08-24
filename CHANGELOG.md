@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.6.0] - 2026-08-24
+
+### Fixed
+
+- **The food-logging demo clip in the nutrition section no longer flashes
+  motion at people who've asked their phone for less of it.** It landed
+  with its own autoplay wiring, separate from the hero video's, so a brief
+  moment of playback slipped through before prefers-reduced-motion caught
+  up and paused it. Both demo videos now start and stop the same way.
+
 ## [0.3.5.0] - 2026-08-24
 
 ### Changed
