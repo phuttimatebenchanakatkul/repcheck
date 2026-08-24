@@ -1763,18 +1763,6 @@ html.an-result .mobile-tabbar { display: none; }
     var(--paper) 100%);
   pointer-events: none;
 }
-.an-play {
-  position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
-  width: 54px; height: 54px; border-radius: 50%; border: none; padding: 0;
-  background: rgba(255, 255, 255, 0.92);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.34);
-  transition: transform 0.12s ease, opacity 0.2s ease;
-}
-.an-play svg { width: 19px; height: 19px; color: #101114; margin-left: 3px; }
-.an-play:active { transform: translate(-50%, -50%) scale(0.92); }
-.an-play[hidden] { display: none; }
-
 /* ---------- Bar over the video ---------- */
 /* Fixed, not absolute: the way out must not scroll away. */
 .an-bar {

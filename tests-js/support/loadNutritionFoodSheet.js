@@ -39,6 +39,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { installSuggestions } from "./loadSuggestions.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.join(__dirname, "..", "..", "templates", "nutrition.html");
@@ -152,6 +153,10 @@ export function loadNutritionFoodSheet({
   offResults = [],
 } = {}) {
   const source = extractSource();
+  // nutrition.html's getRecentFoods/getTopPicksForHour delegate to
+  // RepCheckSuggestions (static/suggestions.js), which the page gets from
+  // base.html -- the extracted source expects it as a global here too.
+  installSuggestions();
 
   const log = JSON.parse(JSON.stringify(initialLog));
   const FOOD_LIBRARY = library.slice();

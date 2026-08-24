@@ -43,15 +43,10 @@
          being talked about, so it should already be moving. Muted and
          playsinline because every browser blocks autoplay with sound, and
          looped because these are a few seconds long and form is easier to
-         see on the second pass. The play button starts hidden and is only
-         revealed if autoplay is actually refused (iOS Low Power Mode and
-         some data-saver modes block even muted autoplay). #}
+         see on the second pass. #}
       <div class="an-stage-media">
         <video id="an-video" src="{{ video_url }}" playsinline preload="auto" muted autoplay loop></video>
       </div>
-      <button type="button" class="an-play" id="an-play" aria-label="Play your set" hidden>
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </button>
     {% else %}
       {# Anonymous analyses never store the clip -- a calm field, not an
          empty black box, and the layout below is unchanged either way. #}
@@ -206,36 +201,27 @@
   // get sound, since a muted autoplay has no affordance for it.
   (function () {
     const video = document.getElementById("an-video");
-    const play = document.getElementById("an-play");
-    if (!video || !play) return;
+    if (!video) return;
 
-    function showPlayButton() { play.hidden = false; }
+    function showControls() { video.controls = true; }
 
     // autoplay can be refused after the element is parsed, so react to the
     // rejected promise rather than trusting the attribute.
     const attempt = video.play();
     if (attempt && typeof attempt.catch === "function") {
-      attempt.catch(showPlayButton);
+      attempt.catch(showControls);
     }
     // Belt and braces: some browsers resolve play() then immediately pause.
     video.addEventListener("pause", () => {
-      if (!video.ended) showPlayButton();
+      if (!video.ended) showControls();
     });
 
-    play.addEventListener("click", () => {
-      video.controls = true;
-      video.muted = false;
-      video.play();
-      play.hidden = true;
-    });
-
-    // Tapping the clip itself hands over the native controls and sound --
-    // the only route to audio once it is already playing muted.
+    // Tapping the clip hands over the native controls and sound -- the only
+    // route to audio once it is already playing muted.
     video.addEventListener("click", () => {
       if (video.controls) return;
       video.controls = true;
       video.muted = false;
-      play.hidden = true;
     });
   })();
 

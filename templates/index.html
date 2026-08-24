@@ -1122,15 +1122,11 @@
     // below is identical either way.
     // Autoplays the moment the analysis lands: muted and playsinline
     // because browsers block autoplay with sound, looped because these
-    // clips are seconds long and form reads better on a second pass. The
-    // play button stays hidden unless autoplay is actually refused.
+    // clips are seconds long and form reads better on a second pass.
     const stageInner = data.video_url ? `
       <div class="an-stage-media">
         <video id="an-video" src="${data.video_url}" playsinline preload="auto" muted autoplay loop></video>
       </div>
-      <button type="button" class="an-play" id="an-play" aria-label="Play your set" hidden>
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </button>
     ` : `<div class="an-stage-empty"></div>`;
 
     const moreHtml = secondary.length ? `
@@ -1282,27 +1278,19 @@
     }
 
     const video = document.getElementById("an-video");
-    const play = document.getElementById("an-play");
-    if (video && play) {
-      const showPlay = () => { play.hidden = false; };
+    if (video) {
+      const showControls = () => { video.controls = true; };
       // Autoplay can be refused after parse (iOS Low Power Mode, data
       // saver), so react to the rejected promise, not the attribute.
       const attempt = video.play();
-      if (attempt && typeof attempt.catch === "function") attempt.catch(showPlay);
-      video.addEventListener("pause", () => { if (!video.ended) showPlay(); });
+      if (attempt && typeof attempt.catch === "function") attempt.catch(showControls);
+      video.addEventListener("pause", () => { if (!video.ended) showControls(); });
 
-      play.addEventListener("click", () => {
-        video.controls = true;
-        video.muted = false;
-        video.play();
-        play.hidden = true;
-      });
       // The only route to sound once it is already playing muted.
       video.addEventListener("click", () => {
         if (video.controls) return;
         video.controls = true;
         video.muted = false;
-        play.hidden = true;
       });
     }
 
