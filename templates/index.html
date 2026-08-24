@@ -502,6 +502,16 @@
   // never appearing. Guarding on this makes the late resolve a no-op.
   let poseWanted = false;
 
+  // A single detectForVideo() call measures 25-80ms (GPU or CPU delegate)
+  // on real hardware -- already over a whole 60Hz frame budget on its own.
+  // Calling it on every requestAnimationFrame tick (as this loop used to)
+  // guarantees main-thread contention that stutters the preview video's own
+  // decode/paint, which is what read as "laggy". A decorative skeleton
+  // overlay doesn't need 60Hz; gate actual detection to this interval and
+  // just leave the last-drawn skeleton on screen between ticks.
+  const POSE_DETECT_INTERVAL_MS = 120;
+  let lastDetectTs = 0;
+
   function startPoseLoop() {
     if (!poseWanted) return;
     // getPoseLandmarker() hands back the SAME pending promise to every
@@ -510,17 +520,41 @@
     // one, leaving the other running detectForVideo() every frame for the
     // rest of the session. Bail if a loop is already live.
     if (poseRafId) return;
-    function loop() {
+    // Detect immediately on this analysis's first tick rather than waiting
+    // out whatever's left of a previous analysis's throttle window.
+    lastDetectTs = 0;
+    function loop(now) {
       // Re-checked per frame, not just on entry, so a stop that lands
       // mid-flight can't be outlived by an already-scheduled callback.
       if (!poseWanted) { poseRafId = null; return; }
-      if (poseLandmarker && previewVideo.readyState >= 2 && previewVideo.videoWidth) {
+      if (
+        poseLandmarker &&
+        previewVideo.readyState >= 2 &&
+        previewVideo.videoWidth &&
+        now - lastDetectTs >= POSE_DETECT_INTERVAL_MS
+      ) {
+        lastDetectTs = now;
         if (poseCanvas.width !== previewVideo.videoWidth) {
           poseCanvas.width = previewVideo.videoWidth;
           poseCanvas.height = previewVideo.videoHeight;
         }
-        const result = poseLandmarker.detectForVideo(previewVideo, performance.now());
-        drawPose(result);
+        try {
+          const result = poseLandmarker.detectForVideo(previewVideo, now);
+          drawPose(result);
+        } catch (err) {
+          // detectForVideo() throws on a non-monotonically-increasing
+          // timestamp -- confirmed by hand, and confirmed that once it has
+          // thrown once, the SAME landmarker instance fails every later
+          // call too, even with a valid timestamp. poseLandmarker is
+          // cached at module scope and reused by every future analysis on
+          // this page, so one bad frame would otherwise silently and
+          // permanently kill the overlay for the rest of the session.
+          // Drop the wedged instance so the next analysis builds a fresh
+          // one; this analysis just stops updating the skeleton.
+          console.warn("Pose detection failed, dropping landmarker:", err);
+          poseLandmarker = null;
+          poseLandmarkerPromise = null;
+        }
       }
       poseRafId = requestAnimationFrame(loop);
     }
