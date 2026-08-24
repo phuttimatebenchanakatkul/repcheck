@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.3.0] - 2026-08-24
+
+### Changed
+
+- **The pre-launch marketing site's hero now shows a real analysis**, not a
+  drawn mockup. The phone in the hero used to play a hand-built CSS animation
+  of a squat score screen; it now plays an actual 24-second recording of the
+  app scoring a tricep-pushdown set — picking the exercise, tapping Analyze,
+  the pose-tracking overlay running, and the scored report landing. The clip
+  is cropped to just the app itself, with the phone's status bar and the
+  browser's own address bar and keyboard cut out, and the AI-processing wait
+  is trimmed down to keep the loop tight.
+
 ## [0.3.1.1] - 2026-08-24
 
 ### Fixed
