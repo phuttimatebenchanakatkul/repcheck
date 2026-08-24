@@ -903,15 +903,94 @@
     });
   }
 
+  // A plain substring search over exercise names can't answer the two
+  // things people actually type: a muscle group ("abs", "quads"), and a
+  // movement whose common name isn't the one in the library ("twist" when
+  // the entries are called Rotation and Chop). These fill both gaps --
+  // EX_SEARCH_CATEGORY_ALIASES maps a query to whole EXERCISE_CATEGORIES
+  // groups, EX_SEARCH_TERM_ALIASES to extra substrings to match names on.
+  // Plurals are handled separately (see exSearchTerms), so keep the keys
+  // singular where a plural would just be the same word plus an "s".
+  const EX_SEARCH_CATEGORY_ALIASES = {
+    ab: ["Core"], abs: ["Core"], core: ["Core"], stomach: ["Core"], oblique: ["Core"],
+    chest: ["Chest"], pec: ["Chest"],
+    back: ["Back"], lat: ["Back"], trap: ["Back"],
+    shoulder: ["Shoulders"], delt: ["Shoulders"],
+    arm: ["Arms"], bicep: ["Arms"], tricep: ["Arms"], forearm: ["Arms"],
+    leg: ["Legs"], quad: ["Legs"], hamstring: ["Legs"], glute: ["Legs"], butt: ["Legs"], calf: ["Legs"], calve: ["Legs"],
+    cardio: ["Full Body / Conditioning"], conditioning: ["Full Body / Conditioning"], "full body": ["Full Body / Conditioning"],
+    stretch: ["Mobility & Flexibility"], mobility: ["Mobility & Flexibility"], flexibility: ["Mobility & Flexibility"],
+    balance: ["Balance & Stability"], stability: ["Balance & Stability"],
+    speed: ["Athletic / Speed & Agility"], agility: ["Athletic / Speed & Agility"], athletic: ["Athletic / Speed & Agility"],
+    functional: ["Functional / Real-World Strength"], prenatal: ["Prenatal / Low-Impact"], pregnancy: ["Prenatal / Low-Impact"],
+  };
+  const EX_SEARCH_TERM_ALIASES = {
+    twist: ["rotation", "chop", "oblique", "russian"],
+    rotation: ["twist", "chop", "pallof"],
+    carry: ["farmer", "suitcase", "yoke", "sandbag", "walk"],
+    swing: ["kettlebell", "clean", "snatch"],
+    "sit-up": ["crunch", "v-up", "hollow"],
+    situp: ["sit-up", "crunch"],
+    "pull up": ["pull-up"], pullup: ["pull-up"],
+    "chin up": ["chin-up"], chinup: ["chin-up"],
+    "push up": ["push-up"], pushup: ["push-up"],
+    "step up": ["step-up"], stepup: ["step-up"],
+    bridge: ["hip thrust", "glute"],
+    "hip thrust": ["bridge", "glute"],
+    skull: ["tricep extension", "lying tricep"],
+    kickback: ["extension", "glute"],
+    abduction: ["glute medius", "hip", "band"],
+    adduction: ["inner thigh", "adductor", "hip"],
+    "good morning": ["hinge", "romanian", "hyperextension"],
+    "face pull": ["rear delt", "reverse fly"],
+    fly: ["flye", "crossover", "pec deck"],
+    shrug: ["trap", "upright row"],
+    pullover: ["lat", "straight-arm"],
+    dip: ["tricep", "push-up"],
+    plank: ["hold", "hollow", "pallof"],
+    "leg raise": ["knee raise", "leg lift", "hanging"],
+  };
+
+  // "curls" should find "Bicep Curl" -- strip a trailing plural, then fold
+  // in whatever the alias tables have for the query.
+  function exSearchTerms(q) {
+    const terms = [q];
+    if (q.length > 3 && q.endsWith("s")) terms.push(q.slice(0, -1));
+    for (const base of terms.slice()) {
+      for (const alias of EX_SEARCH_TERM_ALIASES[base] || []) {
+        if (!terms.includes(alias)) terms.push(alias);
+      }
+    }
+    return terms;
+  }
+
+  function exSearchCategoryNames(terms) {
+    const names = [];
+    for (const term of terms) {
+      for (const cat of EX_SEARCH_CATEGORY_ALIASES[term] || []) {
+        for (const name of EXERCISE_CATEGORIES[cat] || []) names.push(name);
+      }
+    }
+    return names;
+  }
+
   function renderExerciseModalSearch(query) {
     const q = query.trim().toLowerCase();
     if (!q) {
       renderExerciseModalDefault();
       return;
     }
-    const matches = EXERCISE_LIBRARY.filter((name) => name.toLowerCase().includes(q))
+    // Ranked in tiers so the literal match always sits above the looser
+    // alias and muscle-group hits, rather than being buried by them.
+    const terms = exSearchTerms(q);
+    const exact = EXERCISE_LIBRARY.filter((name) => name.toLowerCase().includes(q));
+    const aliased = EXERCISE_LIBRARY.filter((name) => {
+      const lower = name.toLowerCase();
+      return terms.some((term) => lower.includes(term));
+    });
+    const matches = Array.from(new Set([...exact, ...aliased, ...exSearchCategoryNames(terms)]))
       .sort((a, b) => (exerciseFavorites.has(b) ? 1 : 0) - (exerciseFavorites.has(a) ? 1 : 0))
-      .slice(0, 30);
+      .slice(0, 40);
     exModalBody.innerHTML = matches.length
       ? `<div class="ex-modal-section"><div class="ex-modal-list">${matches.map(exerciseRowHtml).join("")}</div></div>`
       : `<div class="ex-modal-empty">${RepCheckI18n.t("analyze.noMatch", { query: escapeHtml(query) })}</div>`;
