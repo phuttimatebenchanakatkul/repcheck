@@ -16,10 +16,18 @@ config wired to the same command for the in-app browser preview.)
 
 ## Deploying to Render
 
-**Status: not deployed yet.** Nothing serves this folder today. The Flask
-service (`repcheck-q0m4`) does not serve `marketing/` — there are no
-references to it in `app.py`, and `/marketing` returns 404 there. Merging to
-`main` therefore publishes this site nowhere until a service exists.
+**Status: live** at https://repcheck-marketing.onrender.com
+(Render static site `repcheck-marketing`, id `srv-da6241gu01pc738uiv80`).
+
+It currently deploys from the **`marketing-analyze-demo`** branch, not
+`main`, because the analyze-showcase video only exists on that branch.
+**After merging that branch, switch the service's branch to `main`** in the
+Render dashboard (or via the API) — otherwise the live site keeps tracking a
+branch that may be deleted.
+
+The Flask service (`repcheck-q0m4`) does not serve `marketing/` — there are
+no references to it in `app.py`, and `/marketing` 404s there. The two are
+entirely separate services.
 
 This is a static site, so it's a different Render service type than the main
 app (`Static Site`, not `Web Service`) — cheaper, no cold starts, and it

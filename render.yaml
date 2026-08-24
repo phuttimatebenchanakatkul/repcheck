@@ -13,5 +13,7 @@ services:
     type: web
     runtime: static
     staticPublishPath: ./marketing
-    branch: main
+    # Live service tracks this branch until the marketing work lands on
+    # main; switch to main after merging.
+    branch: marketing-analyze-demo
     autoDeployTrigger: commit

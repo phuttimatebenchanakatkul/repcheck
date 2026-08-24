@@ -52,3 +52,19 @@ shared helper -- each file defines its own.
 - Deploy trigger: automatic on push to main
 - Deploy status: poll production URL (no CLI available)
 - Health check: curl -s -o /dev/null -w "%{http_code}" https://repcheck-q0m4.onrender.com/ -- expect 302
+
+## Marketing / pre-launch site (`marketing/`)
+Live at https://repcheck-marketing.onrender.com -- a second, separate Render
+deployment (static site `repcheck-marketing`, `srv-da6241gu01pc738uiv80`),
+independent of the Flask app above. It deploys from the
+`marketing-analyze-demo` branch, NOT `main`; switch it to `main` once that
+branch merges. See [marketing/README.md](marketing/README.md)
+for local preview and deploy setup. Deployed as a Render **Static Site** (not
+a Web Service like the main app), publish path `marketing` (repo-root
+relative), no build command. It shares brand colors/type with the app
+(see `DESIGN.md`) but has its own HTML/CSS/JS and does not import from
+`static/` or `templates/`.
+
+STILL BROKEN ON THE LIVE SITE: `marketing/app.js`'s `ENDPOINT` constant is a
+Formspree placeholder (`YOUR_FORM_ID`), so waitlist submissions fail against
+the real form. Swap it for a real endpoint.
