@@ -34,6 +34,37 @@
     window.addEventListener("scroll", onScroll, { passive: true });
   }
 
+  // ---------- phone demo video ----------
+  // The markup autoplays it so the page still works with JS off. This is pure
+  // enhancement on top of that: honour reduced-motion, and don't leave a
+  // looping video decoding while it's scrolled out of view.
+  var videos = $$(".phone-video");
+  if (videos.length) {
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduceMotion) {
+      videos.forEach(function (video) {
+        video.removeAttribute("autoplay");
+        video.controls = true;
+        video.pause();
+      });
+    } else if (window.IntersectionObserver) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            // play() rejects if the browser declines autoplay -- swallow it and
+            // leave the poster up rather than throwing an unhandled rejection.
+            var played = entry.target.play();
+            if (played && played.catch) played.catch(function () {});
+          } else {
+            entry.target.pause();
+          }
+        });
+      }, { threshold: 0.25 });
+      videos.forEach(function (video) { observer.observe(video); });
+    }
+  }
+
   // ---------- waitlist forms ----------
   // Wired to a Formspree-style endpoint: POST JSON, expect 200 on success.
   // Swap ENDPOINT for the real form ID before going live -- until then

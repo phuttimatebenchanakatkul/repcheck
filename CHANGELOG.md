@@ -2,6 +2,17 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.4.0] - 2026-08-24
+
+### Changed
+
+- **The pre-launch marketing site's nutrition section now shows a real
+  screen recording of food logging** (search, pick a food, adjust the
+  amount, add to log) instead of a hand-drawn macro-ring mockup. The clip
+  is cropped to the app's own viewport, with the iOS status bar, Safari's
+  bars, and the stretch where the system keyboard covers the screen all
+  cut out.
+
 ## [0.3.3.0] - 2026-08-24
 
 ### Fixed
