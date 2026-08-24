@@ -81,25 +81,26 @@
   var screens = $$(".screen");
   var tabs = $$(".tab");
 
-  // Screen 0 (feature "It watches you lift") is the real screen recording
-  // instead of a mocked score -- play it only while that screen is the one
-  // showing, pause and rewind it otherwise so it doesn't keep running
-  // silently behind the other five screens.
-  var demo = document.getElementById("analyze-demo");
-
+  // Some screens are real screen recordings rather than mocked-up cards. Play
+  // whichever one is showing, and pause + rewind the rest so they don't keep
+  // running silently behind the screens you can't see.
   function showFeature(i) {
     featureBtns.forEach(function (b, n) { b.classList.toggle("is-active", n === i); });
     screens.forEach(function (s, n) { s.classList.toggle("is-active", n === i); });
     tabs.forEach(function (t, n) { t.classList.toggle("is-active", n === TAB_FOR_FEATURE[i]); });
-    if (demo) {
-      if (i === 0) {
-        var playing = demo.play();
+    screens.forEach(function (s, n) {
+      var video = s.querySelector("video");
+      if (!video) return;
+      if (n === i) {
+        // play() rejects if the browser declines autoplay -- ignore it and
+        // leave the poster up rather than throwing an unhandled rejection.
+        var playing = video.play();
         if (playing && playing.catch) playing.catch(function () {});
       } else {
-        demo.pause();
-        demo.currentTime = 0;
+        video.pause();
+        video.currentTime = 0;
       }
-    }
+    });
   }
 
   featureBtns.forEach(function (b, i) {
