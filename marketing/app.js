@@ -25,23 +25,29 @@
   }
 
   // ---------- hero demo video ----------
-  // The reduced-motion media block in styles.css only stops CSS animation;
-  // an <video autoplay loop> keeps moving on its own, so pause it here and
-  // let the poster stand in.
+  // Playback starts here, not via an autoplay attribute, so the guard fails
+  // safe: no JS (or a crash above) leaves the static poster, never an
+  // unstoppable loop that prefers-reduced-motion can't switch off.
   var demoVideo = $(".phone-video");
   if (demoVideo && window.matchMedia) {
     var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     var applyMotionPref = function () {
       if (reduceMotion.matches) {
-        demoVideo.removeAttribute("autoplay");
         demoVideo.pause();
       } else if (demoVideo.paused) {
         var playing = demoVideo.play();
-        if (playing && playing.catch) playing.catch(function () {});
+        if (playing && playing.catch) {
+          playing.catch(function () {
+            // Autoplay denied (Low Power Mode, data saver): surface controls
+            // so the demo stays reachable instead of a dead poster.
+            demoVideo.controls = true;
+          });
+        }
       }
     };
     applyMotionPref();
     if (reduceMotion.addEventListener) reduceMotion.addEventListener("change", applyMotionPref);
+    else if (reduceMotion.addListener) reduceMotion.addListener(applyMotionPref);
   }
 
   // ---------- sticky nav shadow/border ----------

@@ -87,8 +87,11 @@
       <div class="hero-visual" aria-hidden="true">
         <div class="phone">
           <div class="phone-screen phone-screen--video">
+            <!-- No autoplay attribute on purpose: app.js starts playback so
+                 that no-JS and prefers-reduced-motion both degrade to the
+                 poster instead of an unstoppable loop. -->
             <video class="phone-video" src="demo.mp4" poster="demo-poster.jpg"
-                   autoplay muted loop playsinline></video>
+                   muted loop playsinline></video>
           </div>
         </div>
 

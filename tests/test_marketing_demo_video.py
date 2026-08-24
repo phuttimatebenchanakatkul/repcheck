@@ -4,9 +4,11 @@ The clip lives under a global `*.mp4` gitignore (test workout videos must
 never land in this public repo), so the shipped asset only survives via the
 `!marketing/demo.mp4` negation -- rename or replace the file and git drops
 it silently, the local preview keeps working, and production 404s the hero.
-And the clip only autoplays because `muted` (plus `playsinline` on iOS)
-accompanies `autoplay`; lose either and every major browser blocks playback,
-leaving a frozen poster with no error anywhere.
+And playback is deliberately JS-initiated: the tag carries `muted` and
+`playsinline` (without which browsers block programmatic autoplay, leaving a
+frozen poster with no error anywhere) but NOT `autoplay`, so that no-JS and
+prefers-reduced-motion both degrade to the poster instead of an unstoppable
+loop app.js can no longer pause.
 
 The marketing site is a separate Render Static Site with no build step (see
 CLAUDE.md), so nothing else checks this. Source-level regex assertions against
@@ -65,21 +67,31 @@ def test_the_video_assets_survive_the_gitignore(video_tag):
         )
 
 
-def test_the_video_can_actually_autoplay(video_tag):
-    for attr in ("autoplay", "muted", "playsinline"):
+def test_the_video_can_actually_be_played_by_script(video_tag):
+    for attr in ("muted", "playsinline"):
         assert re.search(rf"\b{attr}\b", video_tag), (
             f"the hero <video> lost its `{attr}` attribute -- browsers only "
-            "allow autoplay for muted, inline video, so the hero degrades to "
-            "a frozen poster frame with no error"
+            "allow scripted autoplay for muted, inline video, so the hero "
+            "degrades to a frozen poster frame with no error"
         )
 
 
-def test_reduced_motion_users_get_a_paused_video():
-    """styles.css's prefers-reduced-motion block only stops CSS animation; the
-    looping video is paused by app.js. If that guard goes, motion-sensitive
-    users get an unstoppable 24s loop (WCAG 2.2.2)."""
+def test_playback_is_js_initiated_so_the_motion_guard_fails_safe(video_tag):
+    """styles.css's prefers-reduced-motion block only stops CSS animation, so
+    app.js owns playback: it plays for everyone else and pauses for
+    reduced-motion users (WCAG 2.2.2). A markup `autoplay` attribute would
+    invert the failure mode -- any app.js breakage then leaves an unstoppable
+    24s loop instead of a poster."""
+    assert not re.search(r"\bautoplay\b", video_tag), (
+        "the hero <video> regained a markup `autoplay` attribute -- the "
+        "reduced-motion guard now fails open whenever app.js doesn't run"
+    )
     with open("marketing/app.js", encoding="utf-8") as f:
         js = f.read()
     assert "prefers-reduced-motion" in js and ".pause()" in js, (
         "app.js no longer pauses the hero video under prefers-reduced-motion"
+    )
+    assert ".play()" in js, (
+        "app.js no longer starts the hero video -- with no markup autoplay, "
+        "nothing plays it and every visitor sees a frozen poster"
     )
