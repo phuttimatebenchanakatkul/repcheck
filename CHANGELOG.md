@@ -2,6 +2,20 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.2.0] - 2026-08-24
+
+### Added
+
+- **Searching for an exercise on the Analyze page now returns a full list**,
+  not a stray handful. Common movements like bench press, dips, step-ups,
+  hip thrusts, and shrugs used to come back with as few as one or two
+  results; the exercise library grew by over 200 named variations so a
+  search for any well-known movement fills the sheet.
+- **The search also understands what you actually type.** "Curls" now finds
+  Bicep Curl, "abs" or "quads" returns that whole muscle group, and "twist"
+  also surfaces movements filed under different names like Rotation and
+  Chop — on top of the existing exact-name matching.
+
 ## [0.3.1.1] - 2026-08-24
 
 ### Fixed
