@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.7.0] - 2026-08-24
+
+### Added
+
+- **The pre-launch site now shows workout logging happening for real.** A new
+  section between the nutrition block and the HYROX band plays a 16-second
+  recording of the app: today's plan sitting ready, tapping Log an exercise,
+  weight and reps going into two sets, then the Workout AI chat being asked
+  how to progressively overload and answering with the actual plan — hold
+  30kg, hit 10 reps on every set, then add 1.25-2.5kg. The clip is cropped to
+  the app itself, with the phone's status bar, Safari's bars, and every
+  stretch where the keyboard covered the screen cut out. The AI chat is
+  written up in the same section rather than a separate one, labelled with
+  what it actually does: it reads the last four sessions you logged of an
+  exercise before it answers.
+
 ## [0.3.6.0] - 2026-08-24
 
 ### Fixed
