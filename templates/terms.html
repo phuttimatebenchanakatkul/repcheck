@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Terms of Service{% endblock %}
+{% block heading %}Terms of Service{% endblock %}
+
+{% block content %}
+<!--
+  Public (see _PUBLIC_ENDPOINTS in app.py). Apple does not strictly require
+  a terms page, but App Store Connect has an EULA field that points at one,
+  and the "not medical advice" disclaimer below matters for a training app
+  that generates coaching from AI.
+-->
+<div class="policy-page">
+  <p class="policy-updated">Last updated 25 August 2026</p>
+
+  <h2>Using RepCheck</h2>
+  <p>RepCheck is provided as-is for personal training use. You need an account
+  to use it, you are responsible for keeping your login details safe, and you
+  are responsible for what you upload.</p>
+
+  <h2>Not medical or professional advice</h2>
+  <p>RepCheck's form analysis, coaching, calorie estimates and training plans
+  are generated automatically, including by AI, and are estimates rather than
+  professional advice. They are not medical advice, not a diagnosis, and not a
+  substitute for a doctor, physiotherapist or qualified coach. Training carries
+  risk of injury. Use your own judgement, and talk to a doctor before starting
+  a new training or nutrition programme — especially if you have an existing
+  condition or injury.</p>
+
+  <h2>Accuracy</h2>
+  <p>Calorie and macro estimates from photos, rep counts and form scores are
+  approximations and will sometimes be wrong. Do not rely on them for medical
+  or clinical decisions.</p>
+
+  <h2>Your content</h2>
+  <p>The videos, photos and logs you upload stay yours. You give us permission
+  to process them in order to run the features you asked for — analysing a lift,
+  estimating a meal, generating a plan. See the
+  <a href="{{ url_for('privacy') }}">Privacy Policy</a> for who that processing
+  involves.</p>
+
+  <h2>Acceptable use</h2>
+  <p>Do not upload content that is illegal, that you do not have the right to
+  upload, or that contains other people who have not agreed to it. Do not use
+  a display name intended to harass or impersonate. Accounts that break these
+  rules can be suspended.</p>
+
+  <h2>Ending your account</h2>
+  <p>You can delete your account at any time from Settings. See the
+  <a href="{{ url_for('privacy') }}">Privacy Policy</a> for exactly what is
+  erased and when.</p>
+
+  <h2>Liability</h2>
+  <p>To the extent the law allows, RepCheck is not liable for injury, loss or
+  damage arising from using the app, including from relying on its estimates
+  or generated plans.</p>
+
+  <h2>Contact</h2>
+  <p><a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a></p>
+</div>
+{% endblock %}

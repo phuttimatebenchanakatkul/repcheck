@@ -68,6 +68,11 @@ from coaching_engine import (
     weekly_adjustment,
 )
 from database import (
+    ACCOUNT_DELETION_GRACE_DAYS,
+    account_deletion_due_at,
+    cancel_account_deletion,
+    purge_deleted_accounts,
+    schedule_account_deletion,
     DB_PATH,
     add_friendship,
     analyze_chat_key_result_id,
@@ -254,6 +259,37 @@ app.register_blueprint(auth_bp)
 init_db()
 
 
+# Deleted accounts are purged by a lazy sweep rather than a scheduler: there
+# is no cron in this project (Render web service), so the sweep runs once at
+# startup and then at most hourly on an incoming request. _last_purge_sweep
+# is process-local, so a restart just means one extra sweep -- harmless,
+# since purge_deleted_accounts() is a no-op when nothing is due.
+_PURGE_SWEEP_INTERVAL_SECONDS = 3600
+_last_purge_sweep = 0.0
+
+
+def run_deletion_purge():
+    """Purge accounts past their grace period and unlink the files they
+    owned. database.py deletes the rows and hands back the filenames; the
+    directories live here, so unlinking is this side's job (same split as
+    prune_analyze_results)."""
+    files = purge_deleted_accounts()
+    for filename in files["photos"]:
+        try:
+            (PROGRESS_PHOTOS_DIR / filename).unlink(missing_ok=True)
+        except OSError:
+            pass  # a missing/locked file must not strand the rest of the purge
+    for filename in files["videos"]:
+        try:
+            (ANALYZE_VIDEOS_DIR / filename).unlink(missing_ok=True)
+        except OSError:
+            pass
+    return files
+
+
+run_deletion_purge()
+
+
 @app.context_processor
 def inject_current_user():
     # Makes {{ current_user }} available in every template (including
@@ -265,7 +301,10 @@ def inject_current_user():
     # runs per-request, long after the whole module (and ADMIN_EMAILS with
     # it) has finished loading.
     is_admin = bool(user) and (user.get("email") or "").lower() in ADMIN_EMAILS
-    return {"current_user": user, "is_admin": is_admin}
+    # Drives base.html's "your account is scheduled for deletion" banner --
+    # None (falsy) for the overwhelmingly common not-scheduled case.
+    deletion_due = account_deletion_due_at(user.get("deleted_at")) if user else None
+    return {"current_user": user, "is_admin": is_admin, "account_deletion_due": deletion_due}
 
 
 # The only things reachable without a session: the auth pages/flows and the
@@ -276,7 +315,24 @@ _PUBLIC_ENDPOINTS = frozenset({
     "auth.signup_page", "auth.signup",
     "auth.logout",
     "auth.google_login", "auth.google_callback",
+    # The privacy policy and terms have to be readable without an account:
+    # App Store Connect needs a public privacy-policy URL, and App Review
+    # opens it without logging in.
+    "privacy", "terms",
 })
+
+
+@app.before_request
+def _sweep_deleted_accounts():
+    """Hourly lazy purge (see run_deletion_purge). Deliberately the first
+    before_request hook and deliberately cheap: the common case is a single
+    indexed SELECT that matches nothing."""
+    global _last_purge_sweep
+    now = time.monotonic()
+    if now - _last_purge_sweep < _PURGE_SWEEP_INTERVAL_SECONDS:
+        return
+    _last_purge_sweep = now
+    run_deletion_purge()
 
 
 @app.before_request
@@ -1356,7 +1412,9 @@ def hyrox():
 
 @app.route("/settings", methods=["GET"])
 def settings():
-    return render_template("settings.html", active_nav="settings")
+    # grace_days drives the delete-account copy in settings.html so the
+    # stated window can never drift from ACCOUNT_DELETION_GRACE_DAYS.
+    return render_template("settings.html", active_nav="settings", grace_days=ACCOUNT_DELETION_GRACE_DAYS)
 
 
 @app.route("/friends", methods=["GET"])
@@ -1628,6 +1686,47 @@ def api_account_update():
     if error:
         return jsonify({"ok": False, "error": error}), 400
     return jsonify({"ok": True})
+
+
+# Apple App Store Guideline 5.1.1(v): an app that lets you create an account
+# must let you delete it from inside the app. This schedules the deletion;
+# the account keeps working for ACCOUNT_DELETION_GRACE_DAYS and the user can
+# undo it from settings the whole time (see /api/account/restore below).
+@app.route("/api/account", methods=["DELETE"])
+def api_account_delete():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    deleted_at = schedule_account_deletion(user["id"])
+    return jsonify({
+        "ok": True,
+        "deleted_at": deleted_at,
+        "due_at": account_deletion_due_at(deleted_at),
+        "grace_days": ACCOUNT_DELETION_GRACE_DAYS,
+    })
+
+
+@app.route("/api/account/restore", methods=["POST"])
+def api_account_restore():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    cancel_account_deletion(user["id"])
+    return jsonify({"ok": True})
+
+
+# ---------- Policy pages ----------
+# Public (see _PUBLIC_ENDPOINTS): App Store Connect requires a privacy-policy
+# URL that App Review can open without an account, and the store listing
+# links straight to it.
+@app.route("/privacy", methods=["GET"])
+def privacy():
+    return render_template("privacy.html", grace_days=ACCOUNT_DELETION_GRACE_DAYS)
+
+
+@app.route("/terms", methods=["GET"])
+def terms():
+    return render_template("terms.html")
 
 
 # ---------- Friends ----------
