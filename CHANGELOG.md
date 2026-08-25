@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.3.9.0] - 2026-08-25
+## [0.3.11.0] - 2026-08-25
 
 ### Changed
 
@@ -13,6 +13,27 @@ All notable changes to RepCheck are recorded here, newest first.
   now gets a screen of its own at the end, so no screen in the whole setup
   asks more than two things. The questions themselves, and the plan they
   produce, are unchanged.
+
+## [0.3.9.0] - 2026-08-25
+
+### Fixed
+
+- **The weekly check-in no longer keeps asking after you've already done
+  it.** The real problem was that the check-in could never finish. Tapping
+  "Complete check-in" left the button sitting on "Loading..." forever, with
+  no error and nothing to retry — and because the check-in only records
+  itself (`lastAdjustmentDate`) at the very end of a successful submit, one
+  that can't finish never advances the 7-day cadence. So the home banner
+  kept advertising the check-in and the deep link kept re-opening the sheet.
+- The cause: `fetch` has no default timeout, and submitting a check-in makes
+  four requests in a row (profile recovery, the weigh-in, each progress
+  photo, then the calorie adjustment). Only the last one had a 45-second
+  abort, and even that one stopped watching once the response headers
+  arrived — a stalled response body still hung. On a dropped mobile
+  connection or a backgrounded tab, any one of them could stay pending
+  forever. Every request coaching.js makes now goes through one wrapper that
+  bounds both the request and the body read, so the check-in always ends in
+  either a result or an error you can retry.
 
 ## [0.3.7.0] - 2026-08-24
 
