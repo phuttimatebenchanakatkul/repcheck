@@ -30,6 +30,11 @@
   <script>
     window.REPCHECK_LOGGED_IN = {{ 'true' if current_user else 'false' }};
   </script>
+  <!-- Loaded first and on every page: the iOS shell's photo/camera bridge
+       (RepCheckNative). Everything else that opens a camera assumes it is
+       already defined, and in a browser it is a few hundred bytes that
+       report "not native" and get out of the way. -->
+  <script src="{{ asset_url('native.js') }}"></script>
   <script src="{{ asset_url('account_sync.js') }}"></script>
   <script src="{{ asset_url('units.js') }}"></script>
   <script src="{{ asset_url('i18n.js') }}"></script>

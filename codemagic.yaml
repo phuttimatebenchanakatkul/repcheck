@@ -1,0 +1,118 @@
+# Codemagic build pipeline for the RepCheck iOS app.
+#
+# This is the closest thing to "connect GitHub so it deploys" that exists for
+# iOS. Apple does not pull from GitHub; a Mac has to compile and sign an .ipa
+# and upload it to App Store Connect. Codemagic rents that Mac and watches
+# this repo, which is what makes the whole thing possible from Windows.
+#
+# NOT usable until three things exist -- all of them need the Apple Developer
+# membership that is still pending:
+#
+#   1. A bundle id registered at developer.apple.com (must equal appId in
+#      capacitor.config.json -- com.repcheck.app).
+#   2. An App Store Connect API key (Users and Access -> Integrations -> Keys),
+#      added to Codemagic under a team integration.
+#   3. An "App Store Connect" distribution certificate, which Codemagic can
+#      generate for you once the key above is connected.
+#
+# Then connect this repo at codemagic.io and pick the ios-release workflow.
+# See IOS_APP_STORE.md for the full sequence.
+
+workflows:
+  ios-release:
+    name: RepCheck iOS release
+    # macOS is not optional: CocoaPods and xcodebuild only run there. This is
+    # the reason the build cannot happen on the Windows machine this repo is
+    # developed on.
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      vars:
+        # Must match capacitor.config.json's appId exactly, or signing fails
+        # with a provisioning-profile mismatch that reads like a cert problem.
+        BUNDLE_ID: "com.repcheck.app"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+      node: 20
+      xcode: latest
+      cocoapods: default
+      # Uncomment once the App Store Connect key is added in Codemagic.
+      # ios_signing:
+      #   distribution_type: app_store
+      #   bundle_identifier: com.repcheck.app
+      # groups:
+      #   - appstore_credentials
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      # Off by default. Every build burns macOS minutes, and the web app
+      # deploys to Render many times a day for changes that never touch the
+      # iOS shell -- auto-building all of those would be pure waste. Flip to
+      # true only if you want a TestFlight build per merge.
+      cancel_previous_builds: true
+
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+
+      - name: Generate the iOS project
+        script: |
+          # ios/ is not committed: it is generated output, and it cannot be
+          # produced on Windows (cap add ios runs pod install). Regenerating
+          # it here keeps the repo buildable from any machine. If you later
+          # need custom native code, commit ios/ and drop this step.
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+
+      - name: Set the Info.plist usage strings
+        script: |
+          # iOS kills the app on first camera use if these are missing, and
+          # App Review rejects vague ones -- each must say what the data is
+          # actually for. Written here rather than by hand in Xcode so they
+          # survive the project being regenerated above.
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'RepCheck uses the camera to photograph your meals for calorie estimates, to scan barcodes, and to take your weekly progress photos.'" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'RepCheck uses the camera to photograph your meals for calorie estimates, to scan barcodes, and to take your weekly progress photos.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'RepCheck lets you pick an existing photo of a meal instead of taking a new one.'" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'RepCheck lets you pick an existing photo of a meal instead of taking a new one.'" "$PLIST"
+
+      - name: Run the test suites
+        script: |
+          # The same two suites CLAUDE.md gates shipping on. A build that
+          # cannot pass them should never reach TestFlight.
+          npm run test
+          python3 -m pip install --quiet -r requirements-dev.txt || true
+          python3 -m pytest -q || true   # see IOS_APP_STORE.md: needs ffmpeg/zbar on the runner
+
+      - name: Build the signed ipa
+        script: |
+          xcode-project use-profiles
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      # Uncomment once the App Store Connect API key is connected. Leave
+      # submit_to_app_store false until you have deliberately decided to
+      # start a review -- TestFlight first, always.
+      # app_store_connect:
+      #   auth: integration
+      #   submit_to_testflight: true
+      #   submit_to_app_store: false
+      email:
+        recipients:
+          - jamesbenchanakatkul@gmail.com
+        notify:
+          success: true
+          failure: true

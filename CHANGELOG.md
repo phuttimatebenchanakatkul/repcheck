@@ -2,6 +2,26 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.3.0] - 2026-08-25
+
+### Added
+
+- **Groundwork for RepCheck as an actual iPhone app.** Nothing changes on the
+  website -- every camera and photo button behaves exactly as it did. What is
+  new is that when the same app runs inside the iOS shell, those buttons open
+  the real iPhone camera instead of the browser's file picker: photographing a
+  meal, picking one from your library, and taking your weekly progress photos.
+  Apple rejects apps that are just a website in a wrapper, so this is the part
+  that makes RepCheck a real app rather than a bookmark.
+- Progress photos taken this way are never edited and never saved to your
+  camera roll -- they go straight to your private check-in and nowhere else.
+- A build pipeline that produces the iPhone app from this repo, and an offline
+  screen so a phone with no signal shows a RepCheck message rather than a
+  browser error.
+
+None of it is live yet: the app cannot be built until the Apple Developer
+membership is active.
+
 ## [0.4.2.1] - 2026-08-25
 
 ### Fixed

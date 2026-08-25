@@ -1,14 +1,25 @@
 {
   "name": "repcheck-js-tests",
   "private": true,
-  "version": "0.4.2",
-  "description": "JS test runtime for RepCheck's inline template scripts. The app itself is server-rendered Flask + vanilla JS with no build step -- this package.json exists only to test that JS, not to build or ship it.",
+  "version": "0.4.3",
+  "description": "JS test runtime for RepCheck's inline template scripts, plus the Capacitor dependencies for the iOS shell. The web app itself is server-rendered Flask + vanilla JS with no build step -- the Capacitor packages are never bundled into it; they exist so `npx cap sync` can copy the native plugin code into the Xcode project. static/native.js talks to window.Capacitor.Plugins at runtime instead of importing any of them.",
   "type": "module",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "cap:sync": "cap sync ios",
+    "cap:add-ios": "cap add ios"
   },
   "devDependencies": {
     "jsdom": "^25.0.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "@capacitor/cli": "^8.5.0"
+  },
+  "dependencies": {
+    "@capacitor/camera": "^8.2.3",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/push-notifications": "^8.1.2"
   }
 }
