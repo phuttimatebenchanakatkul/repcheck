@@ -77,9 +77,14 @@
   // ---------- feature switcher: each feature plays its real app screen ----------
   // Feature index -> which app tab that screen lives under (see base.html's tab bar).
   var TAB_FOR_FEATURE = [4, 2, 0, 1, 3, -1];
-  var featureBtns = $$(".feature");
-  var screens = $$(".screen");
-  var tabs = $$(".tab");
+  // Scoped to section 01. These used to be document-wide, which meant the
+  // race walkthrough's phone further down the page (its own screen, its own
+  // tab bar) got swept into the same lists -- showFeature(0) then stripped
+  // is-active off it on load and left that handset blank.
+  var whatSection = $(".what");
+  var featureBtns = $$(".feature", whatSection);
+  var screens = $$(".screen", whatSection);
+  var tabs = $$(".tab", whatSection);
 
   // Some screens are real screen recordings rather than mocked-up cards. Play
   // whichever one is showing, and pause + rewind the rest so they don't keep
