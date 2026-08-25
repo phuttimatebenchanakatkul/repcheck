@@ -453,6 +453,49 @@
     localStorage.setItem(key, JSON.stringify(value));
   }
 
+  // ---------- Bounded JSON requests ----------
+  // `fetch` has NO default timeout. A request that never reaches the server,
+  // or whose response body never finishes arriving (dropped mobile
+  // connection, a backgrounded tab, a proxy that sends headers and then
+  // stalls), simply never settles -- the promise stays pending forever.
+  //
+  // That is fatal for submitCheckin(), which awaits four separate requests in
+  // sequence while `submitting` is true: one unsettled request leaves
+  // "Complete check-in" disabled on "Loading..." with no error and nothing to
+  // retry. And because `lastAdjustmentDate` is only written at the END of a
+  // successful submit, a check-in that can never finish never advances the
+  // 7-day cadence -- so the home banner keeps advertising it and the deep
+  // link keeps re-opening the sheet. That is the "I already checked in but it
+  // still pops up" report: not a due-date bug, a submit that could not land.
+  //
+  // The previous 45s AbortController lived inline in submitCheckin() and
+  // covered exactly one of those four requests -- and only its HEADERS, since
+  // clearTimeout ran in a `finally` before response.json() read the body.
+  // This helper covers the body read too, and every request in the path uses
+  // it. See tests-js/coachingFetchTimeouts.test.js, which fails if a bare
+  // fetch( is reintroduced here.
+  const REQUEST_TIMEOUT_MS = 45000;
+
+  async function fetchJson(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs || REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetchWithSignal(url, options, controller.signal);
+      // Parse INSIDE the timeout window: headers arriving is not the same as
+      // the response being complete.
+      const data = await response.json();
+      return { response, data };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // Split out so the test above can assert this file contains exactly one
+  // bare fetch( call -- the one inside this wrapper.
+  function fetchWithSignal(url, options, signal) {
+    return fetch(url, Object.assign({}, options || {}, { signal }));
+  }
+
   function el(html) {
     const wrap = document.createElement("div");
     wrap.innerHTML = html.trim();
@@ -812,8 +855,7 @@
       formData.append("angle", angle);
       formData.append("date", dateIso);
       try {
-        const res = await fetch("/api/checkin/photo", { method: "POST", body: formData });
-        const data = await res.json();
+        const { data } = await fetchJson("/api/checkin/photo", { method: "POST", body: formData });
         return data.ok ? data.id : null;
       } catch (err) {
         // Best-effort -- a failed photo upload shouldn't block the rest of
@@ -856,9 +898,8 @@
         // GET /api/sync (all keys) -- NOT /api/sync/<key>, which only exists
         // for PUT/POST/DELETE (see app.py). A per-key GET 405s, which would
         // have made this recovery silently never fire.
-        const res = await fetch("/api/sync");
-        if (!res.ok) return false;
-        const data = await res.json();
+        const { response, data } = await fetchJson("/api/sync");
+        if (!response.ok) return false;
         if (!data || !data.ok || !data.values) return false;
         const serverProfile = data.values[PROFILE_KEY];
         if (!serverProfile || typeof serverProfile !== "object") return false;
@@ -994,42 +1035,30 @@
           // Bound the wait from this side too. checkin_analyzer.py caps its
           // own Gemini call at CHECKIN_ANALYSIS_TIMEOUT_SECONDS (30s), which
           // covers a slow/hung MODEL -- but not a request that never reaches
-          // the server or whose response never arrives (dropped mobile
-          // connection, backgrounded tab, a dev server blocked by another
-          // request). Without an abort here that fetch simply never settles,
-          // so `submitting` stays true and "Complete check-in" is disabled on
-          // "Loading..." forever, with no error and nothing to retry -- the
-          // exact "I can't complete my check-in" report this guards against.
-          // 45s = the server's 30s budget plus room for upload/latency, so a
-          // request the server IS still working on isn't cut off early.
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 45000);
-          let response;
-          try {
-            response = await fetch("/api/coaching/weekly-adjustment", {
-              method: "POST",
-              signal: controller.signal,
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                aspiration: this.profile.aspiration,
-                gender: this.profile.gender,
-                weight_kg: this.profile.weightKg,
-                body_fat_range_id: this.profile.bodyFatRangeId,
-                activity_level: this.profile.activityLevel,
-                protein_preference: this.profile.proteinPreference,
-                diet_preference: this.profile.dietPreference,
-                loss_rate_pct: this.profile.lossRatePct,
-                gain_rate_pct: this.profile.gainRatePct,
-                current_targets: currentTargets,
-                week_weight_entries: weekWeightEntries,
-                week_calorie_days: weekCalorieDays,
-                photo_ids: photoIds,
-              }),
-            });
-          } finally {
-            clearTimeout(timeoutId);
-          }
-          const data = await response.json();
+          // the server or whose response never arrives. fetchJson()'s
+          // REQUEST_TIMEOUT_MS (45s) = the server's 30s budget plus room for
+          // upload/latency, so a request the server IS still working on isn't
+          // cut off early, and unlike the inline abort this replaces it also
+          // covers the response-body read.
+          const { data } = await fetchJson("/api/coaching/weekly-adjustment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              aspiration: this.profile.aspiration,
+              gender: this.profile.gender,
+              weight_kg: this.profile.weightKg,
+              body_fat_range_id: this.profile.bodyFatRangeId,
+              activity_level: this.profile.activityLevel,
+              protein_preference: this.profile.proteinPreference,
+              diet_preference: this.profile.dietPreference,
+              loss_rate_pct: this.profile.lossRatePct,
+              gain_rate_pct: this.profile.gainRatePct,
+              current_targets: currentTargets,
+              week_weight_entries: weekWeightEntries,
+              week_calorie_days: weekCalorieDays,
+              photo_ids: photoIds,
+            }),
+          });
           if (data.ok) {
             adjustment = data.adjustment;
           } else {
@@ -1145,12 +1174,11 @@
     async persistWeightEntry(dateIso, entry) {
       if (!window.REPCHECK_LOGGED_IN) return; // nothing to confirm — log-only-in-this-browser mode
       try {
-        const response = await fetch("/api/weight/log-entry", {
+        const { data } = await fetchJson("/api/weight/log-entry", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: dateIso, entry }),
         });
-        const data = await response.json();
         if (!data.ok) throw new Error(data.error || "Save failed");
         // Adopt the server's response as the canonical log instead of
         // trusting this device's own locally-computed blob -- see the
@@ -1285,7 +1313,7 @@
         this.render();
 
         try {
-          const response = await fetch("/api/coaching/calculate", {
+          const { data } = await fetchJson("/api/coaching/calculate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1303,7 +1331,6 @@
               training_days: getTrainingDaysFromSplitPlan(),
             }),
           });
-          const data = await response.json();
           if (!data.ok) throw new Error(data.error || t("coaching.wizard.error"));
           w.result = data;
         } catch (err) {
@@ -2079,7 +2106,7 @@
           const mySeq = ++requestSeq;
           debounceTimer = setTimeout(async () => {
             try {
-              const response = await fetch("/api/coaching/calculate", {
+              const { data } = await fetchJson("/api/coaching/calculate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -2097,7 +2124,6 @@
                   training_days: getTrainingDaysFromSplitPlan(),
                 }),
               });
-              const data = await response.json();
               if (mySeq !== requestSeq) return;
               estimateEl.textContent = data.ok ? `~${data.targets.calories} ${t("coaching.wizard.kcalPerDay")}` : "";
             } catch (err) {
