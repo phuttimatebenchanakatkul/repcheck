@@ -205,19 +205,27 @@
   // plan before they'd seen the app. Onboarding now always finishes on the
   // nutrition-only result screen and never writes a split plan; home.html/
   // workouts.html already treat "no plan yet" as the create-a-plan CTA.
-  // The same ten questions, grouped into six screens so setup feels short
+  // The same ten questions, grouped into seven screens so setup feels short
   // without any one screen feeling crowded: closely related questions share
   // a screen (each under its own sub-heading) and Next only unlocks once
   // every question on that screen is answered. The data collected -- and
   // the profile/targets computed from it -- are identical to the old
   // one-question-per-screen flow.
   //
+  // Ten questions do not divide evenly into seven screens, so the flattest
+  // possible split is three screens of two and four of one -- which is what
+  // this is. No screen carries three questions any more: "preferences" was
+  // the last one that did (protein + diet + distribution) and its third
+  // question now stands alone on the final screen, where it also reads as
+  // the odd one out of the group (the first two are about *what* you eat,
+  // distribution is about *when*).
+  //
   // Gender and the two measurements were one screen in 0.2.4.0 and that was
   // too much at once: three questions, two of them scroll wheels. They are
   // split here, and the measurements screen is short enough to fit a phone
   // viewport whole, so nothing on it needs page-scrolling to reach Next.
   const STEPS = [
-    "aspiration", "gender", "measurements", "goal_weight", "body_activity", "preferences",
+    "aspiration", "gender", "measurements", "goal_weight", "body_activity", "preferences", "distribution",
   ];
 
   // "goal_weight" only makes sense when the user is actually trying to move
@@ -337,7 +345,8 @@
     if (step === "measurements") return renderMeasurementsStep();
     if (step === "goal_weight") return renderGoalWeightStep();
     if (step === "body_activity") return renderBodyActivityStep();
-    return renderPreferencesStep();
+    if (step === "preferences") return renderPreferencesStep();
+    return renderDistributionStep();
   }
 
   // ---------- Intro ----------
@@ -1024,9 +1033,18 @@
       renderChoiceGrid(proteinItems, "set-protein", w.proteinPreference, false)));
     wrap.appendChild(section("coaching.wizard.stepDiet",
       renderChoiceGrid(optionsFor(DIET_IDS, "coaching.diet", DIET_ICONS), "set-diet", w.dietPreference, true)));
-    wrap.appendChild(section("coaching.wizard.stepDistribution",
-      renderChoiceGrid(optionsFor(DISTRIBUTION_IDS, "coaching.distribution", DISTRIBUTION_ICONS), "set-distribution", w.distribution, true)));
-    wrap.appendChild(renderWizardActions(!!w.proteinPreference && !!w.dietPreference && !!w.distribution));
+    wrap.appendChild(renderWizardActions(!!w.proteinPreference && !!w.dietPreference));
+    return wrap;
+  }
+
+  // Distribution used to be the third question on the preferences screen.
+  // On its own screen it follows the one-question shape (aspiration,
+  // gender): the question itself is the big step label, with no
+  // section() sub-heading repeating it underneath.
+  function renderDistributionStep() {
+    const wrap = el(`<div><div class="ob-wizard-step-label">${t("coaching.wizard.stepDistribution")}</div></div>`);
+    wrap.appendChild(renderChoiceGrid(optionsFor(DISTRIBUTION_IDS, "coaching.distribution", DISTRIBUTION_ICONS), "set-distribution", w.distribution, true));
+    wrap.appendChild(renderWizardActions(!!w.distribution));
     return wrap;
   }
 
