@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.2.1] - 2026-08-25
+
+### Fixed
+
+- **The "More questions below" prompt no longer exists for keyboard and
+  screen-reader users when it isn't on screen.** It was only made
+  see-through when there was nothing below the fold, which hides it from
+  eyes but not from anything else -- so tabbing through setup could land on
+  an invisible button, and a screen reader would read out a prompt about
+  questions further down when every question was already in view. It is now
+  properly hidden, and skipped along with everything else that isn't there.
+  It still fades in and out exactly as before.
+
 ## [0.4.2.0] - 2026-08-25
 
 ### Fixed
