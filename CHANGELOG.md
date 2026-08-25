@@ -15,6 +15,16 @@ All notable changes to RepCheck are recorded here, newest first.
   body fat + activity level, and protein + diet. The soft fade above the
   Next button is unchanged; it only ever meant "this page scrolls".
 
+## [0.4.1.1] - 2026-08-25
+
+### Changed
+
+- Internal only, nothing user-facing: the project's deploy notes said no
+  Render API key was available and told you to check deploys by loading the
+  site. That is not enough -- a failed deploy rolls back and the rolled-back
+  site answers exactly like a healthy one, which is how the v0.4.0.0 failure
+  went unnoticed. The notes now say how to read the real deploy status.
+
 ## [0.4.1.0] - 2026-08-25
 
 ### Fixed

@@ -49,15 +49,43 @@ Started at 0.1.0.0 -- anything before that shipped unversioned.
 - Platform: Render
 - Production URL: https://repcheck-q0m4.onrender.com
 - Deploy workflow: auto-deploy on push to main (no render.yaml checked in -- configured via the Render dashboard)
-- Deploy status command: none (no Render CLI/API key configured) -- poll the production URL
+- Deploy status: query the Render API -- `RENDER_API_KEY` is in `.env` (see below)
 - Merge method: squash
 - Project type: web app (Flask, server-rendered, no build step)
 - Post-deploy health check: https://repcheck-q0m4.onrender.com/ -- expect a 302 to /login (the whole app is auth-gated), not a 200; treat 302->/login as healthy, anything else (500, timeout, unrelated redirect) as a failure
 
+### Checking a deploy actually landed
+**The health check alone cannot tell you a deploy succeeded.** Render rolls
+back to the previous release when a deploy fails, and the rolled-back app
+still answers the health check with a 302 to /login. On 2026-08-25 that hid a
+failed v0.4.0.0 deploy: the health check passed the whole time while the
+merged feature was simply absent from the site.
+
+So after merging to main, confirm by deploy **status**, not by health check:
+
+```bash
+set -a; . ./.env; set +a
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" -H "Accept: application/json" "https://api.render.com/v1/services/srv-d9dl6amrnols73cm9uv0/deploys?limit=1"
+```
+
+Look for `"status": "live"`. Anything else (`update_failed`, `build_failed`,
+`canceled`) means production is still on the previous release. For the reason,
+read the build and boot logs:
+
+```bash
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" -H "Accept: application/json" "https://api.render.com/v1/logs?ownerId=tea-d9dkndjrjlhs73aqq5i0&resource=srv-d9dl6amrnols73cm9uv0&limit=100"
+```
+
+Service ids: `srv-d9dl6amrnols73cm9uv0` (this Flask app),
+`srv-da6241gu01pc738uiv80` (the marketing static site). Never echo the key.
+
+Then, and only then, verify the feature itself is reachable -- a route that
+should exist, not just the health check.
+
 ### Custom deploy hooks
 - Pre-merge: none
 - Deploy trigger: automatic on push to main
-- Deploy status: poll production URL (no CLI available)
+- Deploy status: Render API (see above), then the health check
 - Health check: curl -s -o /dev/null -w "%{http_code}" https://repcheck-q0m4.onrender.com/ -- expect 302
 
 ## Marketing / pre-launch site (`marketing/`)
