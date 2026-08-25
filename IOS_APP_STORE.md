@@ -3,7 +3,10 @@
 RepCheck is a server-rendered Flask app with no build step. This document is the
 plan for wrapping it in a native iOS shell and getting it through App Review.
 
-Status: **not started.** Nothing in this repo is iOS-related yet.
+Status: **shell scaffolded, cannot be built until the Apple membership is
+active.** The web-side blockers (account deletion, /privacy, /terms) shipped in
+v0.4.0.0; the Capacitor shell and native camera bridge are in this repo now.
+What is left needs an Apple Developer account and a macOS build machine.
 
 ## Architecture decision: Capacitor shell over the live server
 
@@ -17,7 +20,23 @@ not accept apps that are only a website in a wrapper. The shell has to add
 native capability the browser cannot provide, and the web app has to actually
 use it when it detects it is running inside the shell.
 
-### Native capability to add (the 4.2 defence)
+### Native capability (the 4.2 defence)
+
+**Done.** `static/native.js` is the bridge (`RepCheckNative`). Inside the shell
+the food-photo, photo-library and progress-photo flows open the real native
+camera; in a browser every entry point clicks the same hidden `<input>` it
+always did, so the web app is byte-for-byte unchanged. It reads
+`window.Capacitor.Plugins` at runtime rather than importing the packages,
+because this project has no build step. Covered by `tests-js/native.test.js`
+(behaviour, in jsdom) and `tests/test_native_bridge_wiring.py` (that the call
+sites are actually plugged in).
+
+**Still to do, and blocked on the developer account:** push notifications need
+an APNs key, and HealthKit needs an entitlement -- neither can be requested
+without an active membership. The plugin packages are already in package.json
+so `cap sync` picks them up once the native project exists.
+
+### Plugin inventory
 
 | Capability | Plugin | Replaces / adds |
 |---|---|---|
@@ -54,19 +73,28 @@ These are required regardless of the wrapper and can all be done on Windows.
 5. **App Privacy labels** -- declare health/fitness data, photos/video, email,
    and usage data in App Store Connect, and say whether it is linked to identity.
 
-## What requires a Mac
+## What requires a Mac -- and how it is handled
 
-You are on Windows. These steps cannot happen here:
+`npx cap add ios` runs `pod install`, which is macOS-only, so the native Xcode
+project cannot be generated on the Windows machine this repo is developed on.
+`ios/` is therefore gitignored and treated as build output.
 
-- `npx cap add ios` -> `pod install` (CocoaPods is macOS-only)
-- Opening `ios/App/App.xcworkspace`, setting the bundle ID, signing team,
-  `NSCameraUsageDescription` / `NSPhotoLibraryUsageDescription` /
-  `NSHealthShareUsageDescription` strings in `Info.plist`
-- Archive + upload to App Store Connect
+`codemagic.yaml` covers this: it rents a macOS runner, regenerates the iOS
+project, writes the `Info.plist` usage strings, runs both test suites, and
+builds a signed ipa. That is the answer to "connect GitHub so it deploys" --
+Apple never pulls from GitHub; a CI Mac builds and uploads on your behalf.
 
-Options: a borrowed/rented Mac, a cloud Mac (MacStadium, Scaleway), or a hosted
-build service (Codemagic, Expo EAS Build) which can build and upload from a
-Windows-authored repo.
+Before it can run, three things need the active membership:
+
+1. A bundle id registered at developer.apple.com, matching `appId` in
+   `capacitor.config.json` (`com.repcheck.app`).
+2. An App Store Connect API key (Users and Access -> Integrations -> Keys),
+   added to Codemagic.
+3. An App Store distribution certificate, which Codemagic generates once the
+   key above is connected.
+
+Then uncomment the `ios_signing` and `app_store_connect` blocks in
+`codemagic.yaml`. Keep `submit_to_app_store: false` -- TestFlight first.
 
 ## Cost and time
 
@@ -79,10 +107,24 @@ Windows-authored repo.
 
 ## Order of work
 
-1. Enrol in the Apple Developer Program (you; blocks everything native).
-2. Flask-side blockers: account deletion, /privacy, /terms.  <- can start now
-3. Sign in with Apple (needs the developer account from step 1).
-4. Capacitor scaffold + native camera/push/health bridge in the web app.
-5. Mac-side: `cap add ios`, Info.plist strings, signing, archive.
-6. App Store Connect listing, privacy labels, screenshots, submit.
-7. Once live: add the "Download on the App Store" badge to `marketing/index.html`.
+1. ~~Flask-side blockers: account deletion, /privacy, /terms.~~ **Done, v0.4.0.0.**
+2. ~~Capacitor scaffold + native camera bridge.~~ **Done.**
+3. Enrol in the Apple Developer Program. **Paid, membership pending.**
+4. Accept the Program License Agreement in App Store Connect (Business tab).
+   Payment alone is not enough -- app creation and uploads stay blocked until
+   someone accepts it.
+5. Register the bundle id `com.repcheck.app`. Permanent; never reusable.
+6. Connect this repo at codemagic.io, add the App Store Connect API key, and
+   uncomment the signing blocks in `codemagic.yaml`.
+7. First TestFlight build. Expect the first one to fail on something small.
+8. Push notifications (APNs key) and HealthKit (entitlement) -- both need the
+   live account, and both strengthen the 4.2 case beyond the camera.
+9. App Store Connect listing: privacy labels (health data, photos, email),
+   1024x1024 icon with no alpha, 6.7" and 6.5" screenshots, description,
+   support URL.
+10. Sign in with Apple, *if* review asks for it. Guideline 4.8 is triggered by
+    the Google login, but the existing email/password option is commonly
+    accepted as the required alternative -- so this is a contingency, not a
+    prerequisite.
+11. Once live: add the "Download on the App Store" badge to
+    `marketing/index.html`.
