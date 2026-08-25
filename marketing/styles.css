@@ -175,7 +175,11 @@ button { font: inherit; }
 /* hyrox screen */
 .clock { font-size: 42px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
 .stchips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
-.stchip { aspect-ratio: 1; border-radius: 13px; background: var(--app-line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+/* Top-aligned, not centred: half these labels wrap to two lines ("Sled
+   Push", "Wall Balls") and centring them pushed their number up, so no two
+   chips in a row put their number -- or the first line of their name -- on
+   the same line as each other. */
+.stchip { aspect-ratio: 1; border-radius: 13px; background: var(--app-line); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; padding: 12px 3px 8px; }
 .stchip span { font-family: "JetBrains Mono", monospace; font-size: 9px; color: var(--app-dim); }
 .stchip b { font-size: 10.5px; text-align: center; line-height: 1.15; padding: 0 4px; }
 
