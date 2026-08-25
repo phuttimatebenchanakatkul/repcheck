@@ -2,6 +2,35 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.11.0] - 2026-08-25
+
+### Added
+
+- **The pre-launch site now walks through adding an exercise, screen by
+  screen.** A new "Adding an exercise" section on the marketing page steps
+  through the real flow from `templates/workouts.html`: tap "+ Log an
+  exercise" on the day, pick the exercise out of the bottom sheet (search,
+  or the All / Favorites / Recent tabs, or create a custom one under the
+  name you typed), type weight x reps into Set 1, then "+ Add Set" until
+  the card ticks green and folds back to `60 kg - 3 sets - 8, 8, 6 reps`.
+  The four phone screens are mocked from the site's own tokens rather than
+  screenshots, so they follow the light/dark toggle, and every label in
+  them is the app's own string from `static/i18n.js`.
+- The step list auto-advances while the section is on screen and stops the
+  moment you tap a step yourself. The step buttons ship `disabled` and
+  `app.js` enables them, so with JS off the section degrades to four
+  written steps and the first screen instead of four dead controls;
+  `prefers-reduced-motion` turns the cycling off entirely and leaves the
+  steps clickable.
+- `marketing/exercise-icons/` holds four SVGs copied out of
+  `static/exercise_icons/` so the marketing folder stays deployable on its
+  own.
+
+### Fixed
+
+- The stats band claimed 527 exercises in the library. It's 735 -- the
+  number `marketing/README.md` already recorded from `workout_library.py`.
+
 ## [0.3.9.0] - 2026-08-25
 
 ### Fixed
