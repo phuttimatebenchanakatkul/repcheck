@@ -17,6 +17,32 @@
   --purple:#7c4fe0;  --purple-bg:#f3edfd;
   --pink:  #c0398c;  --pink-bg:  #fbeaf4;
 
+  /* Text-only variants of the accents. Small coloured text (eyebrows, pills,
+     kickers -- all 11.5-12.5px) needs 4.5:1 to clear WCAG AA, and the accents
+     above are tuned for FILLS: white text sitting on them. Used as text they
+     miss the bar. Each ink keeps the accent's hue and saturation and moves
+     only lightness, in whichever direction the theme needs:
+
+       green -- fails on light (2.8:1), clears every dark surface as-is
+       (4.6:1 worst case, on --green-bg). Darkened here; the dark blocks
+       below revert it to the accent.
+
+       amber -- fails on light (3.1:1). On dark it clears --bg and
+       --card-bg but not its own tint --amber-bg (3.97:1), so it needs a
+       lightened value there rather than a revert.
+
+       blue -- passes on white but misses on --blue-bg (4.39:1), and fails
+       every dark surface (3.2-3.9:1). Moves BOTH ways: a touch darker here,
+       lighter in the dark blocks.
+
+     Use these for TEXT only. Fills, borders, rings and gradients stay on the
+     accent so the brand reads unchanged. tests/test_marketing_contrast.py
+     computes the real ratios for every ink against every surface it can land
+     on, in both themes. */
+  --green-ink: #177e54;
+  --amber-ink: #916721;
+  --blue-ink:  #2b63e8;
+
   --dark-card: #17181d;
   --dark-card-soft: #26272e;
   --dark-card-text: #ffffff;
@@ -46,6 +72,8 @@
     --border: #2c2c2e;
     --green-bg: #12321f;  --red-bg: #3a1f1e;   --amber-bg: #3a2f14;
     --blue-bg:  #14213f;  --purple-bg: #2a1f45; --pink-bg: #3a1830;
+    --green-ink: var(--green);  --amber-ink: #c68c2d;
+    --blue-ink: #5884ed;
     --dark-card: #1c1c1e;
     --dark-card-soft: #2c2c2e;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
@@ -60,6 +88,8 @@
   --border: #2c2c2e;
   --green-bg: #12321f;  --red-bg: #3a1f1e;   --amber-bg: #3a2f14;
   --blue-bg:  #14213f;  --purple-bg: #2a1f45; --pink-bg: #3a1830;
+  --green-ink: var(--green);  --amber-ink: #c68c2d;
+  --blue-ink: #5884ed;
   --dark-card: #1c1c1e;
   --dark-card-soft: #2c2c2e;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
@@ -236,9 +266,9 @@ img, svg { max-width: 100%; }
   text-transform: uppercase; letter-spacing: .06em;
   margin-bottom: 12px;
 }
-.kicker--green { --kicker: var(--green); }
-.kicker--blue  { --kicker: var(--blue); }
-.kicker--amber { --kicker: var(--amber); }
+.kicker--green { --kicker: var(--green-ink); }
+.kicker--blue  { --kicker: var(--blue-ink); }
+.kicker--amber { --kicker: var(--amber-ink); }
 .kicker--onDark { --kicker: var(--dark-card-text-secondary); }
 
 .section-title { max-width: 20ch; }
@@ -263,7 +293,7 @@ img, svg { max-width: 100%; }
   padding: 6px 14px 6px 10px;
   border-radius: 999px;
   background: var(--green-bg);
-  color: var(--green);
+  color: var(--green-ink);
   font-size: 12.5px; font-weight: 800;
   letter-spacing: .01em;
   margin-bottom: 22px;
@@ -346,7 +376,7 @@ img, svg { max-width: 100%; }
   padding-left: 4px;
 }
 .form-note.is-error { color: var(--red); font-weight: 600; }
-.form-note.is-ok { color: var(--green); font-weight: 600; }
+.form-note.is-ok { color: var(--green-ink); font-weight: 600; }
 
 .waitlist-form--lg { margin-inline: auto; max-width: 520px; }
 
@@ -508,7 +538,9 @@ img, svg { max-width: 100%; }
   align-items: center;
 }
 .split-copy h2 { max-width: 17ch; }
-.split-copy > p { margin-top: 16px; color: var(--text-secondary); font-size: 16.5px; }
+/* :not(.kicker) so this body-copy rule doesn't out-specify `.kicker`
+   (0,1,1 vs 0,1,0, and declared later) and grey out the section labels. */
+.split-copy > p:not(.kicker) { margin-top: 16px; color: var(--text-secondary); font-size: 16.5px; }
 
 /* The phone is a fixed 285px, narrower than its grid column -- centre it so it
    doesn't hang off the copy-facing edge of the split. */
@@ -587,7 +619,7 @@ img, svg { max-width: 100%; }
   padding: 4px 11px; border-radius: 999px;
   text-transform: uppercase; letter-spacing: .05em;
 }
-.pill--green { background: var(--green-bg); color: var(--green); }
+.pill--green { background: var(--green-bg); color: var(--green-ink); }
 
 .bars {
   display: grid;
