@@ -40,6 +40,36 @@ def get_db():
         conn.close()
 
 
+def _add_column_if_missing(conn, table, column, definition):
+    """Add a column older databases don't have yet, tolerating another
+    process adding it at the same moment.
+
+    The obvious probe-then-ALTER -- read PRAGMA table_info, ALTER if absent
+    -- is check-then-act, and gunicorn boots several workers that each run
+    init_db() on import. On the first boot after a new column is introduced,
+    two workers can both see it missing; the loser raises "duplicate column
+    name", and a worker that cannot import the app cannot boot, so the whole
+    deploy fails and rolls back. Not hypothetical: that is exactly what
+    users.deleted_at did to the v0.4.0.0 deploy.
+
+    Returns True only for the caller that actually added the column, so a
+    one-time backfill attached to a migration still runs exactly once.
+    """
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column in columns:
+        return False
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    except sqlite3.OperationalError as exc:
+        # Another worker won the race. The column exists either way, which
+        # is all this function promises -- but it was not us that added it,
+        # so the caller's backfill belongs to that other worker.
+        if "duplicate column name" not in str(exc).lower():
+            raise
+        return False
+    return True
+
+
 def init_db():
     with get_db() as conn:
         conn.execute("""
@@ -69,9 +99,7 @@ def init_db():
         # below does the irreversible part once the window has passed. NULL
         # means "not scheduled" -- every account that predates this column.
         # Probe-then-ALTER for existing DBs, same reasoning as friend_code.
-        user_cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
-        if "deleted_at" not in user_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN deleted_at TEXT")
+        _add_column_if_missing(conn, "users", "deleted_at", "TEXT")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_data (
                 user_id INTEGER NOT NULL REFERENCES users(id),
@@ -83,33 +111,32 @@ def init_db():
         """)
         # Short shareable code (shown as text + QR) friends use to add you.
         # ALTER TABLE ... IF NOT EXISTS doesn't exist in SQLite, so probe first.
-        cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
-        if "friend_code" not in cols:
-            conn.execute("ALTER TABLE users ADD COLUMN friend_code TEXT")
-            conn.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_users_friend_code
-                ON users (friend_code) WHERE friend_code IS NOT NULL
-            """)
+        _add_column_if_missing(conn, "users", "friend_code", "TEXT")
+        # Unconditional and idempotent (IF NOT EXISTS), so it is still
+        # created even when another worker added the column itself.
+        conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_friend_code
+            ON users (friend_code) WHERE friend_code IS NOT NULL
+        """)
         # Gates the combined nutrition+workout-split onboarding wizard to
         # once per account, right after a brand-new signup. New rows get 0
         # from the column default below; accounts that already existed
         # before this feature shipped are backfilled to 1 (already
         # "onboarded" in spirit) so they aren't suddenly interrupted by a
         # wizard that didn't exist when they signed up.
-        if "onboarding_completed" not in cols:
-            conn.execute(
-                "ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0"
-            )
+        # The backfill hangs off the return value, not off a second probe:
+        # only the worker that actually added the column runs it, so it
+        # happens exactly once.
+        if _add_column_if_missing(
+            conn, "users", "onboarding_completed", "INTEGER NOT NULL DEFAULT 0"
+        ):
             conn.execute("UPDATE users SET onboarding_completed = 1")
         # VESTIGIAL: rate_limited originally exempted pre-existing accounts
         # from the AI usage limits, but enforcement now applies to every
         # account and ignores this column entirely (see app.py's
         # _limited_user). The migration is kept only so fresh installs get
         # the same schema as databases it already ran against.
-        if "rate_limited" not in cols:
-            conn.execute(
-                "ALTER TABLE users ADD COLUMN rate_limited INTEGER NOT NULL DEFAULT 1"
-            )
+        _add_column_if_missing(conn, "users", "rate_limited", "INTEGER NOT NULL DEFAULT 1")
         # Per-user AI usage counters (workout/food analysis, chatbot). One
         # row per user per feature, holding a fixed-window count -- see
         # rate_limit_peek / rate_limit_consume below.
@@ -193,13 +220,13 @@ def init_db():
         # what the entered calories/protein/fat/carbs are FOR (e.g. "1 bar"
         # = 45g) -- previously implicitly "100g", now explicit and
         # user-defined. Probe-then-ALTER, same reasoning as friend_code.
-        cf_cols = {row["name"] for row in conn.execute("PRAGMA table_info(custom_foods)")}
-        if "barcode" not in cf_cols:
-            conn.execute("ALTER TABLE custom_foods ADD COLUMN barcode TEXT")
-        if "serving_label" not in cf_cols:
-            conn.execute("ALTER TABLE custom_foods ADD COLUMN serving_label TEXT NOT NULL DEFAULT '1 serving'")
-        if "serving_grams" not in cf_cols:
-            conn.execute("ALTER TABLE custom_foods ADD COLUMN serving_grams REAL NOT NULL DEFAULT 100")
+        _add_column_if_missing(conn, "custom_foods", "barcode", "TEXT")
+        _add_column_if_missing(
+            conn, "custom_foods", "serving_label", "TEXT NOT NULL DEFAULT '1 serving'"
+        )
+        _add_column_if_missing(
+            conn, "custom_foods", "serving_grams", "REAL NOT NULL DEFAULT 100"
+        )
         # One barcode maps to at most one custom food per user (SQLite
         # allows multiple NULLs through a UNIQUE index, so foods without a
         # barcode never collide with each other or with this constraint).
@@ -239,11 +266,10 @@ def init_db():
         # once, 'each' side individually, or 'either' -- user picks per set)
         # were added after this table first shipped name-only. Probe-then-
         # ALTER for existing DBs, same reasoning as friend_code above.
-        ce_cols = {row["name"] for row in conn.execute("PRAGMA table_info(custom_exercises)")}
-        if "emoji" not in ce_cols:
-            conn.execute("ALTER TABLE custom_exercises ADD COLUMN emoji TEXT")
-        if "mode" not in ce_cols:
-            conn.execute("ALTER TABLE custom_exercises ADD COLUMN mode TEXT NOT NULL DEFAULT 'both'")
+        _add_column_if_missing(conn, "custom_exercises", "emoji", "TEXT")
+        _add_column_if_missing(
+            conn, "custom_exercises", "mode", "TEXT NOT NULL DEFAULT 'both'"
+        )
         # Weekly check-in progress photos (front/back). A dedicated table
         # rather than the generic user_data JSON-blob pattern, since these
         # need to be queried/listed per user and each row points at a real
@@ -306,9 +332,7 @@ def init_db():
         # The analyzed (trimmed) clip is now kept on disk per result so the
         # history view can replay it -- rows from before this column simply
         # have no video. Probe-then-ALTER, same reasoning as friend_code.
-        ar_cols = {row["name"] for row in conn.execute("PRAGMA table_info(analyze_results)")}
-        if "video_filename" not in ar_cols:
-            conn.execute("ALTER TABLE analyze_results ADD COLUMN video_filename TEXT")
+        _add_column_if_missing(conn, "analyze_results", "video_filename", "TEXT")
 
 
 def _row_to_dict(row):

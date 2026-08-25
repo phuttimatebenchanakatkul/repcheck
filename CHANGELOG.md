@@ -2,6 +2,24 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.1.0] - 2026-08-25
+
+### Fixed
+
+- **Account deletion, the privacy policy and the terms page are actually
+  live now.** They merged as 0.4.0.0 but never reached the site: the new
+  database column they need was added on startup by a check-then-act
+  migration, and the server runs several worker processes that all start at
+  once. Two of them raced, the second one crashed on a column the first had
+  just added, and the deploy failed and rolled back -- so the site kept
+  serving the previous release with none of the new pages on it.
+- The same race was present in every other startup migration in the app and
+  had simply never been triggered, because it can only fire on the very
+  first start after a column is introduced. All ten now go through one
+  race-safe path.
+- A failed cleanup sweep can no longer stop the app from starting or break a
+  request. Nothing that runs at startup should be able to take the site down.
+
 ## [0.4.0.0] - 2026-08-25
 
 ### Added

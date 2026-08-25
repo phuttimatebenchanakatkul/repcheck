@@ -287,7 +287,15 @@ def run_deletion_purge():
     return files
 
 
-run_deletion_purge()
+# Guarded because this runs at import, and anything that raises at import
+# stops a gunicorn worker from booting -- which fails the whole deploy and
+# rolls it back. A purge that cannot run is a purge that happens an hour
+# later on the next sweep; a purge that raises here takes the site down.
+# (v0.4.0.0 shipped a migration that did exactly that.)
+try:
+    run_deletion_purge()
+except Exception:  # noqa: BLE001 -- boot must not depend on the sweep
+    traceback.print_exc()
 
 
 @app.context_processor
@@ -332,7 +340,10 @@ def _sweep_deleted_accounts():
     if now - _last_purge_sweep < _PURGE_SWEEP_INTERVAL_SECONDS:
         return
     _last_purge_sweep = now
-    run_deletion_purge()
+    try:
+        run_deletion_purge()
+    except Exception:  # noqa: BLE001 -- a failed sweep must not 500 the request
+        traceback.print_exc()
 
 
 @app.before_request
