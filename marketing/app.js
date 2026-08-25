@@ -84,6 +84,101 @@
     else if (reduceMotion.addListener) reduceMotion.addListener(applyMotionPref);
   }
 
+  // ---------- add-an-exercise walkthrough ----------
+  // The step buttons ship disabled in the markup and are enabled here, so a
+  // no-JS visitor gets four readable steps and the first screen instead of
+  // four controls that do nothing.
+  var axRoot = $("#ax");
+  if (axRoot) {
+    var axSteps = $$(".ax-step", axRoot);
+    var axScreens = $$(".ax-screen", axRoot);
+    // Must match --ax-dwell in styles.css, or the progress bar under the
+    // active step finishes out of step with the actual advance.
+    var AX_DWELL = 4200;
+    var axIndex = 0;
+    var axTimer = null;
+    var axManual = false;
+
+    var axShow = function (index) {
+      axIndex = (index + axSteps.length) % axSteps.length;
+      axSteps.forEach(function (step, i) {
+        var on = i === axIndex;
+        step.classList.toggle("is-active", on);
+        step.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      axScreens.forEach(function (screen, i) {
+        screen.classList.toggle("is-active", i === axIndex);
+      });
+    };
+
+    var axStop = function () {
+      if (axTimer) { clearInterval(axTimer); axTimer = null; }
+    };
+    var axStart = function () {
+      if (axTimer || axManual) return;
+      axRoot.classList.remove("is-paused");
+      axTimer = setInterval(function () { axShow(axIndex + 1); }, AX_DWELL);
+    };
+    var axPause = function () {
+      axStop();
+      if (!axManual) axRoot.classList.add("is-paused");
+    };
+
+    axSteps.forEach(function (step, i) {
+      step.disabled = false;
+      step.addEventListener("click", function () {
+        // Once someone drives it themselves, stop moving under them.
+        axManual = true;
+        axStop();
+        axRoot.classList.add("is-manual");
+        axRoot.classList.remove("is-paused");
+        axShow(i);
+      });
+      step.addEventListener("keydown", function (evt) {
+        var delta = 0;
+        if (evt.key === "ArrowDown" || evt.key === "ArrowRight") delta = 1;
+        else if (evt.key === "ArrowUp" || evt.key === "ArrowLeft") delta = -1;
+        else return;
+        evt.preventDefault();
+        var next = (i + delta + axSteps.length) % axSteps.length;
+        axSteps[next].focus();
+        axSteps[next].click();
+      });
+    });
+
+    var axMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    var axApplyMotion = function () {
+      if (axMotion && axMotion.matches) {
+        // Reduced motion: no self-advancing carousel. The steps stay
+        // clickable, so the whole walkthrough is still reachable.
+        axStop();
+        axManual = true;
+        axRoot.classList.add("is-manual");
+        axRoot.classList.remove("is-paused");
+      } else if (!axRoot.classList.contains("is-manual")) {
+        axManual = false;
+        axStart();
+      }
+    };
+
+    if (window.IntersectionObserver) {
+      // Only cycle while the section is actually on screen -- otherwise a
+      // visitor arrives at step 3 of 4 with no idea what came before it.
+      new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting && !(axMotion && axMotion.matches)) axStart();
+          else axPause();
+        });
+      }, { threshold: 0.4 }).observe(axRoot);
+    }
+
+    axApplyMotion();
+    if (axMotion) {
+      if (axMotion.addEventListener) axMotion.addEventListener("change", axApplyMotion);
+      else if (axMotion.addListener) axMotion.addListener(axApplyMotion);
+    }
+  }
+
   // ---------- waitlist forms ----------
   // Wired to a Formspree-style endpoint: POST JSON, expect 200 on success.
   // Swap ENDPOINT for the real form ID before going live -- until then
