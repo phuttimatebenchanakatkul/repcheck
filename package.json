@@ -1,7 +1,7 @@
 {
   "name": "repcheck-js-tests",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "JS test runtime for RepCheck's inline template scripts. The app itself is server-rendered Flask + vanilla JS with no build step -- this package.json exists only to test that JS, not to build or ship it.",
   "type": "module",
   "scripts": {
