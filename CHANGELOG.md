@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.3.10.0] - 2026-08-25
+## [0.3.12.0] - 2026-08-25
 
 ### Fixed
 
@@ -28,6 +28,18 @@ All notable changes to RepCheck are recorded here, newest first.
   shade of the same colour -- deeper on light, lighter on dark where that was
   the failing side -- and clear the bar in both themes. Buttons, icons and
   progress bars keep the original accent, so nothing else on the page shifts.
+
+## [0.3.11.0] - 2026-08-25
+
+### Changed
+
+- **Setting up a new account is now seven shorter screens instead of six.**
+  The last screen used to ask three things at once -- how much protein you
+  want to prioritise, what kind of diet you follow, and whether to spread
+  calories through the week or keep them stable. The calorie-spread question
+  now gets a screen of its own at the end, so no screen in the whole setup
+  asks more than two things. The questions themselves, and the plan they
+  produce, are unchanged.
 ## [0.3.9.0] - 2026-08-25
 
 ### Fixed

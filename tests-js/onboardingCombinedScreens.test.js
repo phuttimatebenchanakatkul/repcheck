@@ -1,4 +1,4 @@
-// Source-contract tests for the condensed 6-screen onboarding wizard:
+// Source-contract tests for the condensed 7-screen onboarding wizard:
 // per-screen Next gating, the section() composition of the combined
 // screens, scroll preservation on option taps, and the new step-title
 // i18n keys. Same deliberate "assert the exact wiring exists in the raw
@@ -69,7 +69,7 @@ describe("measurements screen pairs weight with height", () => {
     for (const sectionFn of ["renderWeightSection", "renderHeightSection", "renderBodyTypeSection"]) {
       expect(fnBody(src, sectionFn)).not.toContain("renderWizardActions");
     }
-    for (const stepFn of ["renderGenderStep", "renderMeasurementsStep", "renderBodyActivityStep", "renderPreferencesStep"]) {
+    for (const stepFn of ["renderGenderStep", "renderMeasurementsStep", "renderBodyActivityStep", "renderPreferencesStep", "renderDistributionStep"]) {
       const rows = fnBody(src, stepFn).match(/renderWizardActions\(/g) || [];
       expect(rows, `${stepFn} should append exactly one actions row`).toHaveLength(1);
     }
@@ -126,17 +126,48 @@ describe("body_activity screen gates Next on both of its answers", () => {
   });
 });
 
-describe("preferences screen gates Next on all three of its answers", () => {
+describe("preferences screen gates Next on both of its answers", () => {
+  // It carried three questions until distribution moved to its own screen
+  // -- the only screen in the wizard that ever did.
   const body = fnBody(src, "renderPreferencesStep");
 
-  it("appends protein, diet, and distribution choice grids", () => {
+  it("appends the protein and diet choice grids", () => {
     expect(body).toContain('"set-protein"');
     expect(body).toContain('"set-diet"');
-    expect(body).toContain('"set-distribution"');
   });
 
-  it("requires protein AND diet AND distribution before Next unlocks", () => {
-    expect(body).toContain("renderWizardActions(!!w.proteinPreference && !!w.dietPreference && !!w.distribution)");
+  it("no longer carries distribution", () => {
+    expect(body).not.toContain('"set-distribution"');
+    expect(body).not.toContain("coaching.wizard.stepDistribution");
+  });
+
+  it("requires protein AND diet before Next unlocks", () => {
+    expect(body).toContain("renderWizardActions(!!w.proteinPreference && !!w.dietPreference)");
+  });
+});
+
+describe("distribution is its own final screen", () => {
+  const body = fnBody(src, "renderDistributionStep");
+
+  it("is the last entry in STEPS, so it is the screen Next generates from", () => {
+    const steps = src.slice(src.indexOf("const STEPS = ["), src.indexOf("const w = {"));
+    expect(steps).toContain('"preferences", "distribution",');
+  });
+
+  it("asks the distribution question and nothing else", () => {
+    expect(body).toContain('"set-distribution"');
+    expect(body).not.toContain('"set-protein"');
+    expect(body).not.toContain('"set-diet"');
+  });
+
+  it("uses the question itself as the big step label (one-question shape, like aspiration/gender)", () => {
+    expect(body).toContain('ob-wizard-step-label">${t("coaching.wizard.stepDistribution")}');
+    // No section() sub-heading -- that would repeat the title underneath it.
+    expect(body).not.toContain("section(");
+  });
+
+  it("gates Next on an actual choice", () => {
+    expect(body).toContain("renderWizardActions(!!w.distribution)");
   });
 });
 
