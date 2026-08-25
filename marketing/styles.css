@@ -19,14 +19,29 @@
 
   /* Text-only variants of the accents. Small coloured text (eyebrows, pills,
      kickers -- all 11.5-12.5px) needs 4.5:1 to clear WCAG AA, and the accents
-     above only reach ~2.7-3.1:1 on a light surface. Same hue and saturation,
-     lightness dropped until every light background on this page clears: #fff
-     5.06, --bg 4.68, --green-bg 4.53, --amber-bg 4.53. Dark mode reverts both
-     to the accent -- it already passes there (6.5:1 / 5.9:1), and the darker
-     shades would be the ones failing. Use these for TEXT only; fills, borders
-     and gradients stay on --green / --amber so the brand reads unchanged. */
+     above are tuned for FILLS: white text sitting on them. Used as text they
+     miss the bar. Each ink keeps the accent's hue and saturation and moves
+     only lightness, in whichever direction the theme needs:
+
+       green -- fails on light (2.8:1), clears every dark surface as-is
+       (4.6:1 worst case, on --green-bg). Darkened here; the dark blocks
+       below revert it to the accent.
+
+       amber -- fails on light (3.1:1). On dark it clears --bg and
+       --card-bg but not its own tint --amber-bg (3.97:1), so it needs a
+       lightened value there rather than a revert.
+
+       blue -- passes on white but misses on --blue-bg (4.39:1), and fails
+       every dark surface (3.2-3.9:1). Moves BOTH ways: a touch darker here,
+       lighter in the dark blocks.
+
+     Use these for TEXT only. Fills, borders, rings and gradients stay on the
+     accent so the brand reads unchanged. tests/test_marketing_contrast.py
+     computes the real ratios for every ink against every surface it can land
+     on, in both themes. */
   --green-ink: #177e54;
   --amber-ink: #916721;
+  --blue-ink:  #2b63e8;
 
   --dark-card: #17181d;
   --dark-card-soft: #26272e;
@@ -57,7 +72,8 @@
     --border: #2c2c2e;
     --green-bg: #12321f;  --red-bg: #3a1f1e;   --amber-bg: #3a2f14;
     --blue-bg:  #14213f;  --purple-bg: #2a1f45; --pink-bg: #3a1830;
-    --green-ink: var(--green);  --amber-ink: var(--amber);
+    --green-ink: var(--green);  --amber-ink: #c68c2d;
+    --blue-ink: #5884ed;
     --dark-card: #1c1c1e;
     --dark-card-soft: #2c2c2e;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
@@ -72,7 +88,8 @@
   --border: #2c2c2e;
   --green-bg: #12321f;  --red-bg: #3a1f1e;   --amber-bg: #3a2f14;
   --blue-bg:  #14213f;  --purple-bg: #2a1f45; --pink-bg: #3a1830;
-  --green-ink: var(--green);  --amber-ink: var(--amber);
+  --green-ink: var(--green);  --amber-ink: #c68c2d;
+  --blue-ink: #5884ed;
   --dark-card: #1c1c1e;
   --dark-card-soft: #2c2c2e;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
@@ -250,7 +267,7 @@ img, svg { max-width: 100%; }
   margin-bottom: 12px;
 }
 .kicker--green { --kicker: var(--green-ink); }
-.kicker--blue  { --kicker: var(--blue); }
+.kicker--blue  { --kicker: var(--blue-ink); }
 .kicker--amber { --kicker: var(--amber-ink); }
 .kicker--onDark { --kicker: var(--dark-card-text-secondary); }
 

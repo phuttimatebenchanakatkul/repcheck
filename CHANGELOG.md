@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.3.8.0] - 2026-08-24
+## [0.3.8.0] - 2026-08-25
 
 ### Fixed
 
@@ -23,10 +23,11 @@ All notable changes to RepCheck are recorded here, newest first.
   washing out. The "Pre-launch" and "Limited early access" chips, the
   "Rep-by-rep" tag, the waitlist success message, and the green and amber
   section labels were all landing around 2.7-3.1:1 against their backgrounds,
-  where the accessibility bar for text that size is 4.5:1. All of them now use
-  a deeper shade of the same colour and clear it. Dark mode is untouched, where
-  the original colours already passed, and buttons, icons and progress bars
-  keep the brighter accent so nothing else on the page shifts.
+  where the accessibility bar for text that size is 4.5:1. The blue "Nutrition"
+  label had the same problem in dark mode. All of them now use an adjusted
+  shade of the same colour -- deeper on light, lighter on dark where that was
+  the failing side -- and clear the bar in both themes. Buttons, icons and
+  progress bars keep the original accent, so nothing else on the page shifts.
 
 ## [0.3.7.0] - 2026-08-24
 
