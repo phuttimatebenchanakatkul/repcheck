@@ -71,6 +71,27 @@
   @media (max-width: 640px) {
     .st-plans { grid-template-columns: 1fr; }
   }
+
+  /* Delete-account card. Deliberately the last card on the page and
+     visually separated -- it is the only irreversible control in
+     settings, so it should not read like the save buttons above it. */
+  .st-card--danger { border-color: var(--red); }
+  .st-danger-body { margin: 0 0 8px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+  .st-danger-what { margin: 0 0 14px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+  .st-danger-btn {
+    background: var(--red);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .st-danger-btn:hover { filter: brightness(0.93); }
+  .st-danger-btn[disabled] { opacity: 0.6; cursor: default; }
+  .st-legal-links { display: flex; gap: 18px; flex-wrap: wrap; }
+  .st-legal-links a { color: var(--text); font-size: 14px; text-decoration: underline; }
 </style>
 
 {% if not current_user %}
@@ -230,6 +251,33 @@
       <button type="button" data-value="24h" data-i18n="settings.units.24h">24-hour</button>
     </div>
   </div>
+</div>
+
+<!--
+  Legal + account deletion. Deletion is required by Apple App Store
+  Guideline 5.1.1(v): an app that lets you create an account must let you
+  delete it from inside the app. It is a scheduled deletion with a grace
+  window, not an instant wipe -- grace_days comes from
+  ACCOUNT_DELETION_GRACE_DAYS in app.py, and account_deletion_due is the
+  computed purge date (None when nothing is scheduled).
+-->
+<div class="st-card" id="legal">
+  <div class="st-card-title" data-i18n="settings.legal.title">Legal</div>
+  <div class="st-legal-links">
+    <a href="{{ url_for('privacy') }}" data-i18n="settings.legal.privacy">Privacy Policy</a>
+    <a href="{{ url_for('terms') }}" data-i18n="settings.legal.terms">Terms of Service</a>
+  </div>
+</div>
+
+<div class="st-card st-card--danger" id="delete-account"
+     data-grace-days="{{ grace_days }}"
+     data-due="{{ account_deletion_due or '' }}">
+  <div class="st-card-title" data-i18n="settings.danger.title">Delete account</div>
+  <p class="st-danger-body" id="st-delete-body"></p>
+  <p class="st-danger-what" data-i18n="settings.danger.what"></p>
+  <button type="button" class="st-danger-btn" id="st-delete-btn" data-i18n="settings.danger.button">Delete my account</button>
+  <button type="button" class="st-save-btn" id="st-restore-btn" hidden data-i18n="settings.danger.restore">Keep my account</button>
+  <span class="st-status" id="st-delete-status"></span>
 </div>
 
 <script>
@@ -497,6 +545,70 @@
     if (emailManagedHintEl) {
       document.addEventListener("repcheck:language-changed", () => {
         emailManagedHintEl.textContent = t("settings.account.emailManagedBy", { provider: emailManagedHintEl.dataset.provider });
+      });
+    }
+
+    // ---------- Delete account ----------
+    // Apple App Store Guideline 5.1.1(v). Scheduling is reversible for the
+    // whole grace window, so this card has two states: "not scheduled"
+    // (delete button) and "scheduled" (due date + restore button). Every
+    // string goes in via textContent -- t() does not escape its vars (see
+    // CLAUDE.md), and the due date comes back off the wire.
+    const deleteCard = document.getElementById("delete-account");
+    if (deleteCard) {
+      const graceDays = deleteCard.dataset.graceDays;
+      const deleteBtn = document.getElementById("st-delete-btn");
+      const restoreBtn = document.getElementById("st-restore-btn");
+      const bodyEl = document.getElementById("st-delete-body");
+      const deleteStatusEl = document.getElementById("st-delete-status");
+      let dueAt = deleteCard.dataset.due || "";
+
+      function paintDeleteCard() {
+        const scheduled = Boolean(dueAt);
+        bodyEl.textContent = scheduled
+          ? t("settings.danger.scheduled", { date: dueAt })
+          : t("settings.danger.body", { days: graceDays });
+        deleteBtn.hidden = scheduled;
+        restoreBtn.hidden = !scheduled;
+      }
+      paintDeleteCard();
+      document.addEventListener("repcheck:language-changed", paintDeleteCard);
+
+      deleteBtn.addEventListener("click", async () => {
+        if (!window.confirm(t("settings.danger.confirmPrompt", { days: graceDays }))) return;
+        deleteBtn.disabled = true;
+        deleteStatusEl.textContent = "";
+        try {
+          const res = await fetch("/api/account", { method: "DELETE" });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error || t("settings.danger.error"));
+          dueAt = data.due_at || "";
+          paintDeleteCard();
+        } catch (e) {
+          deleteStatusEl.style.color = "var(--red)";
+          deleteStatusEl.textContent = t("settings.danger.error");
+        } finally {
+          deleteBtn.disabled = false;
+        }
+      });
+
+      restoreBtn.addEventListener("click", async () => {
+        restoreBtn.disabled = true;
+        deleteStatusEl.textContent = "";
+        try {
+          const res = await fetch("/api/account/restore", { method: "POST" });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error || t("settings.danger.error"));
+          dueAt = "";
+          paintDeleteCard();
+          deleteStatusEl.style.color = "var(--text-secondary)";
+          deleteStatusEl.textContent = t("settings.danger.restored");
+        } catch (e) {
+          deleteStatusEl.style.color = "var(--red)";
+          deleteStatusEl.textContent = t("settings.danger.error");
+        } finally {
+          restoreBtn.disabled = false;
+        }
       });
     }
   })();

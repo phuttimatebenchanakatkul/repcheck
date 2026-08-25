@@ -455,6 +455,36 @@
         };
       </script>
 
+      <!--
+        Scheduled-deletion banner. account_deletion_due is injected by
+        app.py's context processor and is None for every account that has
+        not asked to be deleted, so this renders nothing in the normal
+        case. It exists because a user who schedules deletion gets no other
+        signal on the pages they actually use -- the control and the undo
+        both live in Settings.
+      -->
+      {% if account_deletion_due %}
+      <div class="deletion-banner" role="status">
+        <span data-i18n="banner.deletion.text" data-date="{{ account_deletion_due }}">Your account is scheduled for deletion on {{ account_deletion_due }}.</span>
+        <a href="{{ url_for('settings') }}#delete-account" data-i18n="banner.deletion.action">Keep my account</a>
+      </div>
+      <script>
+        // data-i18n would overwrite the server-rendered date with the raw
+        // "{date}" placeholder, so the banner's text is set here instead,
+        // from the date the server already put in data-date.
+        (function () {
+          const el = document.querySelector(".deletion-banner [data-date]");
+          if (!el || !window.RepCheckI18n) return;
+          el.removeAttribute("data-i18n");
+          const paint = () => {
+            el.textContent = RepCheckI18n.t("banner.deletion.text", { date: el.dataset.date });
+          };
+          paint();
+          document.addEventListener("repcheck:language-changed", paint);
+        })();
+      </script>
+      {% endif %}
+
       {% block content %}{% endblock %}
     </main>
   </div>

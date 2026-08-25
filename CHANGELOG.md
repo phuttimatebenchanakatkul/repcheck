@@ -2,6 +2,33 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.0.0] - 2026-08-25
+
+### Added
+
+- **You can now delete your account yourself, from Settings.** Until now the
+  only way to get your data out of RepCheck was to ask. Settings has a new
+  Delete account card at the bottom: confirm once, and the account is
+  scheduled for deletion. It is not instant on purpose -- you have 30 days to
+  change your mind, and a banner on every page tells you the exact date your
+  data goes with a "Keep my account" button next to it. Log back in any time
+  in those 30 days and one tap puts everything back.
+- After the 30 days, everything really goes: workouts, nutrition logs, weight
+  history, progress photos (the image files too, not just the rows), saved
+  form analyses and their clips, custom foods and exercises, friends,
+  challenges and HYROX race times.
+- **A privacy policy and terms of service, at /privacy and /terms.** Both are
+  readable without logging in, and linked from a new Legal card in Settings.
+  The privacy policy is specific about the parts that matter: that progress
+  photos are private to your account, and that food photos, lift videos and
+  coach messages are sent to Google and OpenAI to produce their results.
+
+### Changed
+
+- The stated deletion window is rendered from the code's own setting rather
+  than typed into the copy, so the policy page, the settings card and the
+  confirm dialog can never disagree with what actually happens.
+
 ## [0.3.13.0] - 2026-08-25
 
 ### Added
