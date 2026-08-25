@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.2.0] - 2026-08-25
+## [0.4.3.0] - 2026-08-25
 
 ### Added
 
@@ -21,6 +21,32 @@ All notable changes to RepCheck are recorded here, newest first.
 
 None of it is live yet: the app cannot be built until the Apple Developer
 membership is active.
+
+## [0.4.2.1] - 2026-08-25
+
+### Fixed
+
+- **The "More questions below" prompt no longer exists for keyboard and
+  screen-reader users when it isn't on screen.** It was only made
+  see-through when there was nothing below the fold, which hides it from
+  eyes but not from anything else -- so tabbing through setup could land on
+  an invisible button, and a screen reader would read out a prompt about
+  questions further down when every question was already in view. It is now
+  properly hidden, and skipped along with everything else that isn't there.
+  It still fades in and out exactly as before.
+
+## [0.4.2.0] - 2026-08-25
+
+### Fixed
+
+- **Setup no longer tells you there are more questions below when there
+  aren't.** The "More questions below" prompt appeared on every question
+  screen and lit up whenever the page could still be scrolled -- so on a
+  screen with one question and a long list of answers it pointed you down
+  the page to look for a question that was never there. It now appears only
+  on the two screens that really do ask a second question further down:
+  body fat + activity level, and protein + diet. The soft fade above the
+  Next button is unchanged; it only ever meant "this page scrolls".
 
 ## [0.4.1.1] - 2026-08-25
 

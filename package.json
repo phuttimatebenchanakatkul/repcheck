@@ -1,7 +1,7 @@
 {
   "name": "repcheck-js-tests",
   "private": true,
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "JS test runtime for RepCheck's inline template scripts, plus the Capacitor dependencies for the iOS shell. The web app itself is server-rendered Flask + vanilla JS with no build step -- the Capacitor packages are never bundled into it; they exist so `npx cap sync` can copy the native plugin code into the Xcode project. static/native.js talks to window.Capacitor.Plugins at runtime instead of importing any of them.",
   "type": "module",
   "scripts": {

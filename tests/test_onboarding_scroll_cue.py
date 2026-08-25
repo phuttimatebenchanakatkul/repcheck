@@ -84,6 +84,39 @@ def test_more_below_cue_is_gated_on_the_has_more_class(onboarding_html):
     ), "body.ob-has-more must reveal the fade above the button bar"
 
 
+def test_hidden_cue_is_out_of_the_tab_order_and_the_a11y_tree(onboarding_html):
+    """opacity: 0 hides the pill from eyes only.
+
+    An opacity-0 button is still focusable and still announced, so on a screen
+    where nothing is below the fold a keyboard or screen-reader user could land
+    on an invisible "More questions below" pointing at questions that are all
+    already on screen. visibility: hidden is what removes it from both.
+
+    The trailing `;` in each pattern matters: the rule carries a comment that
+    says "visibility: hidden" in prose, and without the terminator these would
+    pass on the comment alone after the real declaration was deleted.
+    """
+    cue = re.search(r"\.ob-scroll-cue\s*\{(.*?)\}", onboarding_html, re.S)
+    assert cue, ".ob-scroll-cue rule not found"
+    assert re.search(
+        r"visibility:\s*hidden\s*;", cue.group(1)
+    ), "the hidden cue must leave the tab order, not just go transparent"
+
+    shown = re.search(
+        r"body\.ob-has-more\s+\.ob-scroll-cue\s*\{(.*?)\}", onboarding_html, re.S
+    )
+    assert shown, "body.ob-has-more .ob-scroll-cue rule not found"
+    assert re.search(
+        r"visibility:\s*visible\s*;", shown.group(1)
+    ), "revealing the cue must put it back in the tab order"
+
+    # visibility flips discretely, so without it in the transition the pill
+    # would disappear instantly instead of fading out.
+    assert re.search(
+        r"transition:[^;]*visibility", cue.group(1)
+    ), "hiding must stay animated -- keep visibility in the transition"
+
+
 def test_script_toggles_has_more_from_remaining_scroll(onboarding_js):
     assert re.search(
         r'classList\.toggle\(\s*"ob-has-more"', onboarding_js
@@ -103,6 +136,16 @@ def test_cue_is_rendered_on_question_screens_and_scrolls_down(onboarding_js):
     assert actions, "renderWizardActions not found"
     assert "ob-scroll-cue" in actions.group(0), "question screens render no cue"
     assert 'data-action="scroll-more"' in actions.group(0)
+    # ...but only on the two multi-question screens -- 5 (body fat +
+    # activity) and 6 (protein + diet). On a one-question screen the
+    # copy would be a lie, so the markup is not emitted at all.
+    assert "showCue ?" in actions.group(0), "the cue must be conditional"
+    cue_steps = re.search(r"const CUE_STEPS = \[(.*?)\]", onboarding_js, re.S)
+    assert cue_steps, "CUE_STEPS not found"
+    assert sorted(re.findall(r'"(\w+)"', cue_steps.group(1))) == [
+        "body_activity",
+        "preferences",
+    ], "only the two multi-question screens may show the cue"
     assert re.search(
         r'action === "scroll-more"[^}]*window\.scrollBy', onboarding_js, re.S
     ), "tapping the cue must scroll the page down"
