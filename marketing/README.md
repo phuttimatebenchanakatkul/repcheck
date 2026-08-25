@@ -31,6 +31,15 @@ doesn't touch the existing `repcheck-q0m4` service at all.
    similar so the two don't collide).
 5. Deploy. Auto-deploy on push to `main` works the same way as the main app.
 
+## Assets
+
+`exercise-icons/` holds four SVGs copied out of `static/exercise_icons/` for
+the "Adding an exercise" walkthrough. They're copies on purpose -- this folder
+stays deployable on its own -- so if the app's icon art is redrawn, re-copy
+them. The walkthrough's on-screen labels ("Log an exercise", "Set 1", "+ Add
+Set", the All/Favorites/Recent tabs) are the app's own strings from
+`static/i18n.js`, and the flow it shows is the one in `templates/workouts.html`.
+
 ## Before this goes live
 
 - **`app.js`**: `ENDPOINT` is a placeholder (`https://formspree.io/f/YOUR_FORM_ID`).
