@@ -10,3 +10,21 @@ progress_photos/
 *.MOV
 .vscode/
 .idea/
+
+# Node is only ever used for the JS test suite and for generating the iOS
+# project -- neither happens in this image, which runs the Flask app. Without
+# this, COPY . . ships ~69MB of npm packages into production for nothing.
+# (It grew that large when the Capacitor dependencies landed; it was already
+# being copied before that, just smaller.)
+node_modules/
+
+# iOS build inputs and output. Never used by the web server.
+ios/
+native/
+codemagic.yaml
+capacitor.config.json
+
+# Test suites do not run in the production image.
+tests/
+tests-js/
+vitest.config.js
