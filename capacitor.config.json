@@ -1,0 +1,18 @@
+{
+  "appId": "com.repcheck.app",
+  "appName": "RepCheck",
+  "webDir": "native/www",
+  "server": {
+    "url": "https://repcheck-q0m4.onrender.com",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "Camera": {
+      "presentationStyle": "fullscreen"
+    }
+  }
+}
