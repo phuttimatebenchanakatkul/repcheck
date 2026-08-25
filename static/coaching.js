@@ -2495,6 +2495,22 @@
           const file = e.target.files && e.target.files[0];
           if (file) this.setCheckinPhoto(input.dataset.photoInput, file);
         });
+        // Each slot is a <label for> around its hidden input, so a tap
+        // opens the browser's file picker for free -- correct on the web,
+        // but inside the iOS shell these are body photos and have to come
+        // from the real native camera (Guideline 4.2, see
+        // static/native.js). Intercept the tap there and ONLY there; in a
+        // browser this listener returns immediately and the label behaves
+        // exactly as it always has.
+        const slot = input.closest("label");
+        if (!slot) return;
+        slot.addEventListener("click", (e) => {
+          if (!window.RepCheckNative || !window.RepCheckNative.isNative()) return;
+          e.preventDefault();
+          window.RepCheckNative.openCamera(null, (file) => {
+            this.setCheckinPhoto(input.dataset.photoInput, file);
+          });
+        });
       });
       return wrap;
     }

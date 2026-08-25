@@ -2793,8 +2793,17 @@
       </div>
       ${afRecentSectionHtml(recentScans)}
     `;
-    document.getElementById("af-take-photo-btn").addEventListener("click", () => afCameraInput.click());
-    document.getElementById("af-upload-photo-btn").addEventListener("click", () => afUploadInput.click());
+    // Inside the iOS shell these open the real native camera / photo
+    // library (Guideline 4.2 -- see static/native.js); in a browser
+    // RepCheckNative clicks the very same hidden input this used to click
+    // directly, and afCameraInput's own change listener delivers the file
+    // exactly as before.
+    document.getElementById("af-take-photo-btn").addEventListener("click", () => {
+      RepCheckNative.openCamera(afCameraInput, useAfImage);
+    });
+    document.getElementById("af-upload-photo-btn").addEventListener("click", () => {
+      RepCheckNative.openLibrary(afUploadInput, useAfImage);
+    });
     document.getElementById("af-scan-barcode-btn").addEventListener("click", () => {
       // Live in-app scanning when the browser supports it (no photo
       // capture/upload round-trip needed) -- startLiveBarcodeScan() falls
@@ -2829,8 +2838,17 @@
       </div>
       ${afRecentSectionHtml(recentScans)}
     `;
-    document.getElementById("af-take-photo-btn").addEventListener("click", () => afCameraInput.click());
-    document.getElementById("af-upload-photo-btn").addEventListener("click", () => afUploadInput.click());
+    // Inside the iOS shell these open the real native camera / photo
+    // library (Guideline 4.2 -- see static/native.js); in a browser
+    // RepCheckNative clicks the very same hidden input this used to click
+    // directly, and afCameraInput's own change listener delivers the file
+    // exactly as before.
+    document.getElementById("af-take-photo-btn").addEventListener("click", () => {
+      RepCheckNative.openCamera(afCameraInput, useAfImage);
+    });
+    document.getElementById("af-upload-photo-btn").addEventListener("click", () => {
+      RepCheckNative.openLibrary(afUploadInput, useAfImage);
+    });
     wireAfRecentSection(recentScans);
   }
 
