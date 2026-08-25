@@ -101,7 +101,7 @@ button { font: inherit; }
 
 .screen { display: none; flex: 1; flex-direction: column; gap: 12px; padding: 14px 18px; overflow: hidden; }
 .screen.is-active { display: flex; }
-.screen[data-screen="0"] { padding: 0; gap: 0; }
+.screen--video { padding: 0; gap: 0; }
 
 .scr-head { display: flex; justify-content: space-between; align-items: center; }
 .scr-head b { font-size: 21px; font-weight: 800; letter-spacing: -0.025em; }
