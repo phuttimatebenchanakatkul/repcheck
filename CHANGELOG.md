@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.3.12.0] - 2026-08-25
+## [0.3.13.0] - 2026-08-25
 
 ### Added
 
@@ -31,6 +31,33 @@ All notable changes to RepCheck are recorded here, newest first.
 - The stats band claimed 527 exercises in the library. It's 735 -- the
   number `marketing/README.md` already recorded from `workout_library.py`.
 
+## [0.3.12.0] - 2026-08-25
+
+### Fixed
+
+- **The three deep-dive sections on the pre-launch site have their coloured
+  labels back.** "Form analysis", "Nutrition" and "Workout logging" were
+  meant to sit above each section as small green, blue and amber eyebrows.
+  Instead all three rendered as grey body text at the same size as the
+  paragraph underneath them, so each section opened with two lines that
+  looked identical and nothing marked where one topic ended and the next
+  began. A body-copy rule further down the stylesheet was quietly winning
+  against the label styling; it now leaves the labels alone. The rest of the
+  page is unchanged, and the fix applies to any deep-dive section added
+  later without needing a second edit.
+
+- **The small green and amber text on the pre-launch site is readable now.**
+  The accent colours are picked to sit under white text on a button, and used
+  the other way round -- as coloured text on a pale background -- they were
+  washing out. The "Pre-launch" and "Limited early access" chips, the
+  "Rep-by-rep" tag, the waitlist success message, and the green and amber
+  section labels were all landing around 2.7-3.1:1 against their backgrounds,
+  where the accessibility bar for text that size is 4.5:1. The blue "Nutrition"
+  label had the same problem in dark mode. All of them now use an adjusted
+  shade of the same colour -- deeper on light, lighter on dark where that was
+  the failing side -- and clear the bar in both themes. Buttons, icons and
+  progress bars keep the original accent, so nothing else on the page shifts.
+
 ## [0.3.11.0] - 2026-08-25
 
 ### Changed
@@ -42,7 +69,6 @@ All notable changes to RepCheck are recorded here, newest first.
   now gets a screen of its own at the end, so no screen in the whole setup
   asks more than two things. The questions themselves, and the plan they
   produce, are unchanged.
-
 ## [0.3.9.0] - 2026-08-25
 
 ### Fixed

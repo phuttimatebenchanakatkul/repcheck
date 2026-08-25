@@ -29,6 +29,47 @@ Accent colors (same hex in both themes, only the `-bg` tint flips):
 | `--purple` | `#7c4fe0` | `#f3edfd` | `#2a1f45` |
 | `--pink` | `#c0398c` | `#fbeaf4` | `#3a1830` |
 
+**Accents are for fills, not for text.** The hexes above are picked to sit
+under white text on a button or an icon chip. Used *as* text they miss the
+4.5:1 bar, and every place we colour text this way (eyebrows, pills, section
+kickers) is 11.5-12.5px, so none of it earns the 3:1 large-text exemption.
+Coloured text uses a text-only variant instead -- same hue, same saturation,
+lightness moved in whichever direction that theme needs:
+
+| Token | Light | Dark |
+|---|---|---|
+| `--green-ink` | `#177e54` | reverts to `--green` |
+| `--amber-ink` | `#916721` | `#c68c2d` |
+| `--blue-ink` | `#2b63e8` | `#5884ed` |
+
+**There is no "always darken" rule -- check, don't assume.** Each accent fails
+somewhere different:
+
+- **green** fails only on light. On dark it clears every surface as-is
+  (4.6:1 worst case, on `--green-bg`), so dark reverts to the accent.
+- **amber** fails on light, and on dark clears `--bg` and `--card-bg` but not
+  its own tint `--amber-bg` (3.97:1) -- so dark gets a *lightened* value, not
+  a revert.
+- **blue** passes on white but misses on `--blue-bg` (4.39:1), and fails every
+  dark surface (3.2-3.9:1). It moves both ways: slightly darker on light,
+  lighter on dark.
+
+An ink must clear 4.5:1 against every surface it can land on in that theme --
+`--bg`, `--card-bg`, and its own `-bg` tint -- including tints no component
+uses yet, so a chip added later is safe before it ships rather than after.
+Only the three accents we currently set text in have inks; add the matching
+one when red, purple or pink is first used as text rather than reaching for
+the fill accent.
+
+Live so far in `marketing/styles.css`. `tests/test_marketing_contrast.py`
+computes the real ratios from the real tokens for every ink against every
+surface in both themes, so it survives a repalette and fails only on a real
+regression. It also checks that the two dark blocks (the
+`prefers-color-scheme` one and the `[data-theme="dark"]` one) define every ink
+identically -- they are hand-duplicated, and an ink added to one and forgotten
+in the other breaks only the OS-default path, which is the one nobody clicks
+to check.
+
 Icon badges come in two treatments, and which one you use depends on where the
 badge sits, not on what it does. Neither treatment has a glow.
 
