@@ -83,8 +83,11 @@
           <div class="status"><span>15:29</span><span>5G</span></div>
 
           <div class="screen is-active screen--video" data-screen="0">
+            <!-- preload=auto, unlike the others: this screen is the one showing
+                 on load, so it starts playing immediately. Left on metadata it
+                 streams while it plays and stalls through the first loop. -->
             <video id="analyze-demo" muted playsinline loop
-                   preload="metadata" poster="assets/analyze-demo-poster.jpg"
+                   preload="auto" poster="assets/analyze-demo-poster.jpg"
                    aria-label="Screen recording of RepCheck analysing a tricep pushdown set: the clip is uploaded, the exercise picked, the set analysed, and a form report returned.">
               <source src="assets/analyze-demo.webm" type="video/webm">
               <source src="assets/analyze-demo.mp4" type="video/mp4">
