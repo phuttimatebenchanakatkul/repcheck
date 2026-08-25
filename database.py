@@ -12,6 +12,7 @@ browser origin (127.0.0.1 vs localhost vs a LAN IP) happened to write
 it. See static/account_sync.js for the client side of this.
 """
 
+import datetime
 import json
 import os
 import re
@@ -63,6 +64,14 @@ def init_db():
             ON users (auth_provider, provider_user_id)
             WHERE provider_user_id IS NOT NULL
         """)
+        # Account deletion is a 30-day grace period, not an instant wipe:
+        # deleted_at stamps when the user asked, and purge_deleted_accounts()
+        # below does the irreversible part once the window has passed. NULL
+        # means "not scheduled" -- every account that predates this column.
+        # Probe-then-ALTER for existing DBs, same reasoning as friend_code.
+        user_cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "deleted_at" not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN deleted_at TEXT")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_data (
                 user_id INTEGER NOT NULL REFERENCES users(id),
@@ -1401,3 +1410,138 @@ def get_progress_photo(photo_id):
 def delete_progress_photo(user_id, photo_id):
     with get_db() as conn:
         conn.execute("DELETE FROM progress_photos WHERE user_id = ? AND id = ?", (user_id, photo_id))
+
+
+# ---------- Account deletion (Apple App Store Guideline 5.1.1(v)) ----------
+# Deleting an account is a two-step, 30-day process rather than an instant
+# wipe: schedule_account_deletion() stamps users.deleted_at, the user can
+# still log back in and cancel_account_deletion() the whole time, and
+# purge_deleted_accounts() does the irreversible part once the window has
+# passed. Apple accepts a grace period as long as it is disclosed, so the
+# 30 days is stated in the settings confirm dialog and in /privacy -- if you
+# change this constant, change that copy too.
+ACCOUNT_DELETION_GRACE_DAYS = 30
+
+# Every table holding rows that belong to a user, as (table, user column).
+# Ordered so children go before the rows they point at. Tables that need a
+# subquery (custom_food_servings, challenge_submissions on someone else's
+# challenge) are handled separately in _purge_user_rows below.
+_USER_OWNED_TABLES = (
+    ("user_data", "user_id"),
+    ("rate_limits", "user_id"),
+    ("usage_events", "user_id"),
+    ("challenge_submissions", "user_id"),
+    ("custom_exercises", "user_id"),
+    ("progress_photos", "user_id"),
+    ("hyrox_results", "user_id"),
+    ("analyze_results", "user_id"),
+)
+
+
+def schedule_account_deletion(user_id):
+    """Start the grace period. Idempotent -- asking twice does not push the
+    purge date back, so a user cannot keep an account alive by re-clicking."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET deleted_at = datetime('now') WHERE id = ? AND deleted_at IS NULL",
+            (user_id,),
+        )
+        row = conn.execute("SELECT deleted_at FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row["deleted_at"] if row else None
+
+
+def cancel_account_deletion(user_id):
+    """Undo a scheduled deletion. No-op if the account was never scheduled;
+    impossible once purge_deleted_accounts() has run, because by then the
+    user row is gone."""
+    with get_db() as conn:
+        conn.execute("UPDATE users SET deleted_at = NULL WHERE id = ?", (user_id,))
+
+
+def account_deletion_due_at(deleted_at):
+    """The ISO date a given deleted_at stamp becomes an actual purge, for
+    showing the user when their data goes. None if not scheduled."""
+    if not deleted_at:
+        return None
+    # deleted_at is a UTC stamp (SQLite datetime('now')), so the date this
+    # produces is a UTC date. Close enough for "your data goes on the 24th".
+    stamp = datetime.datetime.fromisoformat(deleted_at)
+    return (stamp + datetime.timedelta(days=ACCOUNT_DELETION_GRACE_DAYS)).date().isoformat()
+
+
+def _purge_user_rows(conn, user_id):
+    """Irreversibly remove one user and everything of theirs. Returns the
+    on-disk filenames the caller still has to unlink -- this module owns the
+    database, app.py owns PROGRESS_PHOTOS_DIR and ANALYZE_VIDEOS_DIR, so the
+    two halves of "delete their photos" are split along that line."""
+    photos = [
+        row["filename"]
+        for row in conn.execute("SELECT filename FROM progress_photos WHERE user_id = ?", (user_id,))
+    ]
+    videos = [
+        row["video_filename"]
+        for row in conn.execute(
+            "SELECT video_filename FROM analyze_results WHERE user_id = ? AND video_filename IS NOT NULL",
+            (user_id,),
+        )
+    ]
+
+    # Servings hang off custom_foods, which hangs off the user.
+    conn.execute(
+        """DELETE FROM custom_food_servings
+           WHERE custom_food_id IN (SELECT id FROM custom_foods WHERE user_id = ?)""",
+        (user_id,),
+    )
+    conn.execute("DELETE FROM custom_foods WHERE user_id = ?", (user_id,))
+
+    # Challenges this user created are removed along with everyone else's
+    # submissions to them -- otherwise those rows would point at a
+    # challenges row that no longer exists.
+    conn.execute(
+        """DELETE FROM challenge_submissions
+           WHERE challenge_id IN (SELECT id FROM challenges WHERE creator_id = ?)""",
+        (user_id,),
+    )
+    conn.execute("DELETE FROM challenges WHERE creator_id = ?", (user_id,))
+
+    # Friendship is stored as one row per direction, so this user appears as
+    # both user_id and friend_id and both sides have to go.
+    conn.execute("DELETE FROM friends WHERE user_id = ? OR friend_id = ?", (user_id, user_id))
+
+    for table, column in _USER_OWNED_TABLES:
+        conn.execute(f"DELETE FROM {table} WHERE {column} = ?", (user_id,))
+
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    return {"photos": photos, "videos": videos}
+
+
+def purge_deleted_accounts(grace_days=ACCOUNT_DELETION_GRACE_DAYS):
+    """Purge every account whose grace period has run out. Returns the
+    filenames the caller must unlink, pooled across all purged users.
+
+    There is no scheduler in this project (Render web service, no cron), so
+    app.py calls this on startup and again on login -- a lazy sweep. That
+    means a purge can land late if nobody visits the app for a while, which
+    is fine: the guarantee to the user is "not before day 30", and the
+    settings copy says "after 30 days" rather than naming an exact moment."""
+    # The cutoff is computed by SQLite, not Python, because deleted_at was
+    # written by SQLite's datetime('now') -- which is UTC. Building the
+    # cutoff from datetime.now() instead would compare a local-time bound
+    # against UTC stamps and purge early by the machine's UTC offset (seven
+    # hours, on the timezone this app is mostly used in). Same clock in,
+    # same clock out.
+    files = {"photos": [], "videos": []}
+    with get_db() as conn:
+        due = [
+            row["id"]
+            for row in conn.execute(
+                """SELECT id FROM users
+                   WHERE deleted_at IS NOT NULL AND deleted_at <= datetime('now', ?)""",
+                ("-" + str(int(grace_days)) + " days",),
+            )
+        ]
+        for user_id in due:
+            purged = _purge_user_rows(conn, user_id)
+            files["photos"].extend(purged["photos"])
+            files["videos"].extend(purged["videos"])
+    return files
