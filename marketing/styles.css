@@ -764,7 +764,7 @@ img, svg { max-width: 100%; }
 .ax-appbar-title { font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
 .ax-avatar {
   width: 24px; height: 24px; border-radius: 999px;
-  background: var(--blue-bg); color: var(--blue);
+  background: var(--blue-bg); color: var(--blue-ink);
   display: grid; place-items: center;
   font-size: 11px; font-weight: 800;
 }
@@ -938,7 +938,7 @@ img, svg { max-width: 100%; }
   padding: 9px;
   text-align: center;
   font-size: 12px; font-weight: 700;
-  color: var(--blue);
+  color: var(--blue-ink);
 }
 
 /* The element the step is about gets a soft pulse, so the eye lands on the
