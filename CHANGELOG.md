@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.2.0] - 2026-08-25
+
+### Fixed
+
+- **Setup no longer tells you there are more questions below when there
+  aren't.** The "More questions below" prompt appeared on every question
+  screen and lit up whenever the page could still be scrolled -- so on a
+  screen with one question and a long list of answers it pointed you down
+  the page to look for a question that was never there. It now appears only
+  on the two screens that really do ask a second question further down:
+  body fat + activity level, and protein + diet. The soft fade above the
+  Next button is unchanged; it only ever meant "this page scrolls".
+
 ## [0.4.1.1] - 2026-08-25
 
 ### Changed
