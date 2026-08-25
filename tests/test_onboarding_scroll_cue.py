@@ -103,6 +103,16 @@ def test_cue_is_rendered_on_question_screens_and_scrolls_down(onboarding_js):
     assert actions, "renderWizardActions not found"
     assert "ob-scroll-cue" in actions.group(0), "question screens render no cue"
     assert 'data-action="scroll-more"' in actions.group(0)
+    # ...but only on the two multi-question screens -- 5 (body fat +
+    # activity) and 6 (protein + diet). On a one-question screen the
+    # copy would be a lie, so the markup is not emitted at all.
+    assert "showCue ?" in actions.group(0), "the cue must be conditional"
+    cue_steps = re.search(r"const CUE_STEPS = \[(.*?)\]", onboarding_js, re.S)
+    assert cue_steps, "CUE_STEPS not found"
+    assert sorted(re.findall(r'"(\w+)"', cue_steps.group(1))) == [
+        "body_activity",
+        "preferences",
+    ], "only the two multi-question screens may show the cue"
     assert re.search(
         r'action === "scroll-more"[^}]*window\.scrollBy', onboarding_js, re.S
     ), "tapping the cue must scroll the page down"

@@ -381,16 +381,25 @@
     return grid;
   }
 
+  // The screens that can actually hide a question below the fold: 5 (body
+  // fat + activity) and 6 (protein + diet). Anywhere else the copy would be
+  // a lie. A single-question screen has no second question to scroll to,
+  // however far the page scrolls (a long choice grid is not another
+  // question). Measurements carries two, but it fits a phone viewport whole
+  // and so never scrolls at all -- see the STEPS comment above.
+  const CUE_STEPS = ["body_activity", "preferences"];
+
   function renderWizardActions(canProceed) {
     const isFirst = w.stepIndex === 0;
-    // The cue is shown/hidden purely by CSS off body.ob-has-more (see
-    // updateScrollCue) -- it is in the markup on every question screen but
+    // On those two screens the cue is shown/hidden purely by CSS off
+    // body.ob-has-more (see updateScrollCue) -- it is in the markup but
     // only visible while there is actually something below the fold.
+    const showCue = CUE_STEPS.includes(currentStep());
     return el(`
       <div class="ob-wizard-actions">
-        <button type="button" class="ob-scroll-cue" data-action="scroll-more">
+        ${showCue ? `<button type="button" class="ob-scroll-cue" data-action="scroll-more">
           <span>${t("onboarding.moreBelow")}</span><span class="ob-scroll-cue-arrow">↓</span>
-        </button>
+        </button>` : ""}
         ${isFirst ? "" : `<button type="button" class="ob-btn-secondary" data-action="back">${t("common.back")}</button>`}
         <button type="button" class="ob-btn-primary" data-action="next" ${canProceed ? "" : "disabled"}>${t("common.next")}</button>
       </div>
