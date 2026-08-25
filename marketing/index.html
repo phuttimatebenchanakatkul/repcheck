@@ -322,6 +322,78 @@
     </div>
   </section>
 
+  <!-- ================= RACE WALKTHROUGH =================
+       An interactive walkthrough of the app's own HYROX screens. Every
+       number in it is lifted from the real implementation (static/hyrox.js
+       + hyrox_coach.py): the 8+8 segment order, the Open/Pro weight
+       standards, the lap counts a 12.5m lane produces, and the shape of
+       the finish screen (splits breakdown + the coach's overall/focus/
+       strong/solid grouping). The splits are one athlete's 1:24:06 race.
+
+       The markup below is only the no-JS fallback (the app's entry screen,
+       statically). app.js takes over #rd-screen on load and drives the
+       whole flow from there. -->
+  <section class="section" id="race">
+    <div class="wrap">
+      <p class="kicker kicker--red">Race day, start to finish</p>
+      <h2 class="section-title">Run a whole HYROX race without leaving this page</h2>
+      <p class="section-lede">These are RepCheck's own race screens, playing back one athlete's 1:24:06 finish. Set the race up, start the clock, then read the race back — the same four screens you'd use on the gym floor.</p>
+
+      <div class="rd" id="race-demo">
+        <ol class="rd-steps" id="rd-steps">
+          <li data-step="hero">
+            <span class="rd-step-n">1</span>
+            <div>
+              <h3>Open the race simulator</h3>
+              <p>Your fastest time so far, the eight stations in order, one button. Tap a station and it shows you how that one is actually judged.</p>
+            </div>
+          </li>
+          <li data-step="setup">
+            <span class="rd-step-n">2</span>
+            <div>
+              <h3>Set the race up</h3>
+              <p>Open or Pro, Singles or Doubles, full or half. The loads and lap counts come from the HYROX rulebook and your own lane length — nothing to look up.</p>
+            </div>
+          </li>
+          <li data-step="running">
+            <span class="rd-step-n">3</span>
+            <div>
+              <h3>Run the clock</h3>
+              <p>One tap per segment. Sixteen splits — eight runs, eight stations — with the weight and lap count for whatever is up now on screen.</p>
+            </div>
+          </li>
+          <li data-step="finished">
+            <span class="rd-step-n">4</span>
+            <div>
+              <h3>Read the race back</h3>
+              <p>Running versus stations, every split ranked, and an AI read on the two stations to fix before the next one.</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="rd-stage">
+          <div class="phone rd-phone">
+            <div class="phone-screen rd-screen" id="rd-screen">
+              <div class="rd-card rd-hero">
+                <div class="rd-hero-top">
+                  <span class="rd-hero-kicker">Race simulator</span>
+                  <span class="rd-hero-chip">🏁 4 races</span>
+                </div>
+                <div class="rd-hero-title">1:24:06</div>
+                <div class="rd-hero-sub">Your fastest race · Men's Open Singles</div>
+                <div class="rd-hero-hint">Tap a station to see how it's done</div>
+                <div class="rd-hero-cta">Start race</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filled by app.js the moment the race starts, empty until then. -->
+          <div class="rd-watch-rig" id="rd-watch" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= FAQ ================= -->
   <section class="section" id="faq">
     <div class="wrap wrap--narrow">

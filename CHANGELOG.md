@@ -2,6 +2,30 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.3.8.0] - 2026-08-25
+
+### Added
+
+- **The pre-launch site now walks you through a whole HYROX race.** A new
+  section under the HYROX band plays the app's own four race screens in
+  order -- the race simulator with your personal best and the eight stations,
+  race setup, the running clock, and the finish -- driven by one athlete's
+  1:24:06 Men's Open Singles race. It's interactive: tap a station to see how
+  it's judged, switch Open to Pro and every load changes (152kg sled push
+  becomes 202kg), switch to Doubles and the round counts halve into your
+  share, switch to Half and the distances halve. Start the race and the clock
+  runs the real splits at 60x speed, recording all sixteen of them, then the
+  finish screen breaks down running (49:02) against stations (35:04) and hands
+  back the race coach's read: wall balls and the sled pull first, leave the
+  running alone. Every number in it -- the weight standards, the lap counts
+  off a 12.5m lane, the station how-tos, the coach's focus/strengths/solid
+  grouping -- is taken from the shipping app, not written for the page.
+- **An Apple Watch companion, shown as a concept.** From the moment the demo
+  race starts, a watch mockup sits beside the phone mirroring the same race:
+  elapsed clock, segment count, what's up now with its load, and a Done
+  button that logs the split. RepCheck has no watchOS app today, so it's
+  labelled in design, not shipped, right under the watch.
+
 ## [0.3.7.0] - 2026-08-24
 
 ### Added

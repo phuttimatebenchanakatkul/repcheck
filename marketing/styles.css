@@ -663,6 +663,367 @@ img, svg { max-width: 100%; }
   .band-inner { grid-template-columns: 1fr; gap: 38px; }
 }
 
+/* "One shade inset from a card": var(--bg) reads right in light mode, but in
+   dark mode --bg is near-black and would punch holes in the card, so the dark
+   palettes swap it for the softer card tone. Defined in all three theme states
+   (default, OS dark, explicit toggle) so no state falls through. */
+:root { --rd-soft: var(--bg); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --rd-soft: var(--dark-card-soft); }
+}
+:root[data-theme="dark"] { --rd-soft: var(--dark-card-soft); }
+
+/* ---------- HYROX race walkthrough (#race) ----------
+   The phone screen here is a rebuild of the app's own HYROX screens, so the
+   values below deliberately track static/hyrox.css: blue for "up now" and
+   the segment counter, green for the Complete button, the same card radii.
+   Prefixed .rd-* to keep it from colliding with anything else on the page. */
+
+.rd {
+  margin-top: 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 56px;
+  align-items: start;
+}
+
+.rd-steps { display: grid; gap: 10px; align-content: start; position: sticky; top: 92px; }
+.rd-steps li {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.rd-steps li.is-active { border-color: var(--red); box-shadow: var(--shadow-lift); transform: translateY(-1px); }
+.rd-steps h3 { font-size: 15.5px; margin: 0 0 4px; }
+.rd-steps p { font-size: 13.5px; color: var(--text-secondary); margin: 0; }
+.rd-step-n {
+  flex: none;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--rd-soft); color: var(--text-secondary);
+  font-size: 12.5px; font-weight: 800;
+}
+.rd-steps li.is-active .rd-step-n { background: var(--red); color: #fff; }
+
+.rd-stage { display: flex; align-items: flex-start; gap: 26px; }
+.rd-phone { flex: none; }
+
+/* The screens scroll inside the handset the way they do on a real phone. */
+.rd-screen {
+  height: 620px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  position: relative;
+  padding: 12px 10px 14px;
+  scrollbar-width: none;
+}
+.rd-screen::-webkit-scrollbar { display: none; }
+.rd-card {
+  background: var(--card-bg);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 16px 14px;
+}
+
+/* ----- hero (the app's HYROX landing screen) ----- */
+.rd-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rd-hero-kicker { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+.rd-hero-chip {
+  background: var(--rd-soft); color: var(--text-secondary);
+  border-radius: 999px; padding: 5px 10px; font-size: 11px; font-weight: 700;
+}
+.rd-hero-title { font-size: 40px; font-weight: 800; letter-spacing: -.03em; margin-top: 14px; font-variant-numeric: tabular-nums; }
+.rd-hero-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; }
+.rd-hero-stations { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 16px; }
+.rd-hero-station {
+  border: 1px solid var(--border); background: var(--rd-soft);
+  border-radius: 14px; padding: 9px 4px 8px;
+  display: grid; justify-items: center; gap: 3px;
+  cursor: pointer; color: var(--text); font-family: inherit;
+  transition: border-color .15s ease, transform .1s ease;
+}
+.rd-hero-station:hover { border-color: var(--blue); }
+.rd-hero-station:active { transform: scale(.97); }
+.rd-hero-station-num { font-size: 9.5px; font-weight: 800; color: var(--text-secondary); }
+.rd-hero-hint { text-align: center; font-size: 11.5px; color: var(--blue); font-weight: 600; margin-top: 12px; }
+.rd-hero-cta, .rd-primary {
+  width: 100%; margin-top: 14px; padding: 14px;
+  border: none; border-radius: 999px;
+  background: var(--blue); color: #fff;
+  font-size: 14.5px; font-weight: 700; font-family: inherit; cursor: pointer;
+  transition: opacity .15s ease, transform .1s ease;
+}
+.rd-hero-cta:hover, .rd-primary:hover { opacity: .9; }
+.rd-hero-cta:active, .rd-primary:active { transform: scale(.99); }
+.rd-hero-link { display: block; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--blue); margin-top: 12px; }
+
+/* ----- race setup ----- */
+.rd-setup-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.rd-back {
+  border: none; background: var(--rd-soft); color: var(--text);
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+}
+.rd-setup-title { font-size: 15px; font-weight: 800; }
+.rd-step-label {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-secondary); margin: 16px 0 8px;
+}
+.rd-choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rd-choice {
+  border: 1.5px solid var(--border); border-radius: 14px;
+  background: var(--rd-soft); padding: 11px 12px;
+  text-align: left; cursor: pointer; font-family: inherit; color: var(--text);
+  display: grid; gap: 2px;
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.rd-choice:hover { border-color: var(--blue); }
+.rd-choice.is-selected {
+  border-color: var(--blue);
+  background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
+  box-shadow: 0 6px 16px rgba(47, 102, 232, .14);
+}
+.rd-choice-title { font-size: 13px; font-weight: 700; }
+.rd-choice-sub { font-size: 10.5px; font-weight: 600; color: var(--text-secondary); }
+
+.rd-agenda { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.rd-agenda-runs, .rd-agenda-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 11px; font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.rd-agenda-row:last-child { border-bottom: none; }
+.rd-agenda-runs { background: var(--rd-soft); color: var(--text-secondary); font-weight: 600; }
+.rd-agenda-runs b { color: var(--text); font-weight: 800; }
+.rd-agenda-icon { color: var(--text-secondary); display: flex; }
+.rd-agenda-name { font-weight: 700; }
+.rd-agenda-meta { margin-left: auto; color: var(--text-secondary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rd-agenda-note { font-size: 11px; color: var(--text-secondary); margin: 8px 2px 0; }
+
+.rd-pb-banner {
+  margin-top: 16px; padding: 12px 14px; border-radius: 14px;
+  background: var(--amber-bg);
+  display: grid; gap: 4px;
+}
+.rd-pb-banner-label { font-size: 11px; font-weight: 700; color: var(--amber); }
+.rd-pb-banner-time { font-size: 22px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.rd-pb-banner-time i { font-size: 11px; font-style: normal; font-weight: 600; color: var(--text-secondary); margin-left: 8px; }
+
+/* ----- running ----- */
+.rd-run-head { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-bottom: 14px; }
+.rd-run-value { display: block; font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.rd-run-count { color: var(--blue); text-align: right; }
+.rd-run-count i { font-size: 18px; font-style: normal; color: var(--text-secondary); }
+.rd-run-label {
+  display: block; margin-top: 6px;
+  font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary);
+}
+.rd-run-head .rd-run-stat:last-child .rd-run-label { text-align: right; }
+.rd-badge {
+  margin-left: 6px; padding: 2px 6px; border-radius: 999px;
+  background: var(--purple-bg); color: var(--purple); font-size: 9px; letter-spacing: .02em;
+}
+.rd-now {
+  text-align: center; padding: 18px 16px 16px; border-radius: 20px; margin-bottom: 14px;
+  background: linear-gradient(165deg, var(--blue-bg), var(--card-bg));
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.rd-now-kicker { font-size: 10.5px; font-weight: 800; color: var(--blue); text-transform: uppercase; letter-spacing: .06em; }
+.rd-now-badge {
+  width: 74px; height: 74px; margin: 12px auto 0; border-radius: 22px;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, #4d7ff5, var(--blue));
+  box-shadow: 0 12px 26px rgba(47, 102, 232, .38);
+}
+.rd-now-title { font-size: 22px; font-weight: 800; margin-top: 12px; letter-spacing: -.02em; }
+.rd-now-chips { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
+.rd-now-chip {
+  background: var(--card-bg); border-radius: 12px; padding: 7px 12px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.rd-now-chip-value { display: block; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rd-now-chip-label { display: block; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); margin-top: 2px; }
+.rd-now-hero { margin-top: 10px; }
+.rd-now-hero-value { font-size: 30px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.rd-now-hero-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); margin-top: 4px; }
+.rd-now-hero.is-share .rd-now-hero-value { color: var(--purple); }
+.rd-now-hero.is-share .rd-now-hero-label { color: var(--purple); opacity: .85; }
+.rd-now-caption { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 5px; }
+.rd-now-info {
+  margin-top: 12px; border: none; background: transparent; cursor: pointer; font-family: inherit;
+  color: var(--blue); font-size: 11.5px; font-weight: 700;
+}
+.rd-progress { height: 5px; border-radius: 999px; background: var(--rd-soft); overflow: hidden; }
+.rd-progress span { display: block; height: 100%; background: var(--blue); border-radius: 999px; transition: width .3s ease; }
+.rd-dots { display: flex; gap: 4px; margin: 9px 0 14px; }
+.rd-dot { flex: 1; height: 3px; border-radius: 999px; background: var(--border); }
+.rd-dot.is-done { background: var(--green); }
+.rd-dot.is-current { background: var(--blue); }
+.rd-complete {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 16px; border: none; border-radius: 16px;
+  background: linear-gradient(135deg, var(--green), #29b87e);
+  box-shadow: 0 8px 22px rgba(31, 169, 113, .3);
+  color: #fff; font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer;
+  transition: transform .1s ease, box-shadow .15s ease;
+}
+.rd-complete:active { transform: scale(.99); }
+.rd-complete-icon { display: flex; }
+.rd-cancel {
+  display: block; margin: 12px auto 0; border: none; background: transparent;
+  color: var(--red); font-size: 11.5px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.rd-splits-head {
+  margin-top: 16px; font-size: 10px; font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-secondary);
+}
+.rd-splits { display: grid; gap: 2px; margin-top: 6px; }
+.rd-split-row { display: flex; align-items: center; gap: 9px; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.rd-split-row:last-child { border-bottom: none; }
+.rd-split-icon { color: var(--text-secondary); display: flex; }
+.rd-split-name { font-weight: 700; }
+.rd-split-times { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+.rd-split-times b { font-weight: 800; }
+.rd-split-times i { display: block; font-style: normal; font-size: 10.5px; color: var(--text-secondary); }
+
+/* ----- finished ----- */
+.rd-finish-hero { text-align: center; padding: 6px 0 14px; }
+.rd-finish-icon {
+  width: 46px; height: 46px; margin: 0 auto 10px; border-radius: 16px;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, #d9a441, var(--amber));
+  box-shadow: 0 10px 22px rgba(185, 131, 42, .32);
+}
+.rd-finish-time { font-size: 40px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.rd-finish-label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.rd-pb-new { background: var(--amber-bg); color: var(--amber); border-radius: 14px; padding: 12px 14px; font-size: 12px; font-weight: 600; }
+
+.rd-breakdown { margin-top: 18px; }
+.rd-bd-title, .rd-analysis-head {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-secondary);
+}
+.rd-bd-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 12px; }
+.rd-bd-total { border-radius: 14px; padding: 11px 12px; text-align: center; }
+.rd-bd-total b { display: block; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rd-bd-total span { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.rd-bd-total.is-run { background: var(--blue-bg); color: var(--blue); }
+.rd-bd-total.is-station { background: var(--green-bg); color: var(--green); }
+.rd-bd-rows { display: grid; gap: 5px; }
+.rd-bd-row { display: grid; grid-template-columns: 16px 1fr 64px 42px; gap: 8px; align-items: center; font-size: 11.5px; }
+.rd-bd-icon { color: var(--text-secondary); display: flex; }
+.rd-bd-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-bd-row.is-run .rd-bd-name { font-weight: 600; color: var(--text-secondary); }
+.rd-bd-track { height: 6px; border-radius: 999px; background: var(--rd-soft); overflow: hidden; }
+.rd-bd-track span { display: block; height: 100%; border-radius: 999px; background: var(--text-secondary); opacity: .5; }
+.rd-bd-row.is-focus .rd-bd-track span { background: var(--red); opacity: 1; }
+.rd-bd-row.is-strong .rd-bd-track span { background: var(--green); opacity: 1; }
+.rd-bd-row.is-solid .rd-bd-track span { background: var(--blue); opacity: .85; }
+.rd-bd-time { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+.rd-analysis { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+.rd-analysis-head { display: flex; align-items: center; gap: 6px; color: var(--purple); }
+.rd-analysis-overall { font-size: 14px; font-weight: 700; margin-top: 10px; }
+.rd-tip-bullets { margin: 8px 0 0; padding-left: 16px; display: grid; gap: 4px; }
+.rd-tip-bullets li { font-size: 11.5px; color: var(--text-secondary); }
+.rd-tip-bullets.is-overall li { font-size: 12px; }
+.rd-tip-group { margin-top: 16px; border-radius: 14px; padding: 12px; background: var(--rd-soft); }
+.rd-tip-group-label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.rd-tip-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.rd-tip-group.is-focus .rd-tip-group-label { color: var(--red); }
+.rd-tip-group.is-strong .rd-tip-group-label { color: var(--green); }
+.rd-tip-group.is-solid .rd-tip-group-label { color: var(--text-secondary); }
+.rd-tip-row { display: flex; gap: 9px; margin-top: 11px; }
+.rd-tip-icon { color: var(--text-secondary); display: flex; padding-top: 1px; }
+.rd-tip-name { font-size: 12px; font-weight: 800; }
+.rd-tip-text { font-size: 12px; color: var(--text); margin-top: 2px; }
+
+/* ----- station "how it's done" sheet, inside the handset ----- */
+.rd-sheet {
+  position: absolute; inset: 0;
+  background: rgba(10, 10, 12, .5);
+  display: flex; align-items: flex-end;
+  border-radius: 32px;
+  padding: 10px;
+}
+.rd-sheet-card { width: 100%; background: var(--card-bg); border-radius: 20px; padding: 16px 14px; box-shadow: var(--shadow-lift); }
+.rd-sheet-head { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; }
+.rd-sheet-icon { color: var(--blue); display: flex; }
+.rd-sheet-close {
+  margin-left: auto; border: none; background: var(--rd-soft); color: var(--text-secondary);
+  width: 26px; height: 26px; border-radius: 50%; font-size: 17px; line-height: 1; cursor: pointer;
+}
+.rd-sheet-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.rd-sheet-chip { background: var(--rd-soft); border-radius: 11px; padding: 6px 10px; text-align: center; }
+.rd-sheet-chip b { display: block; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rd-sheet-chip i { display: block; font-style: normal; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+.rd-sheet-detail { font-size: 12.5px; color: var(--text-secondary); margin: 12px 0 0; }
+.rd-sheet-fact { font-size: 12px; font-weight: 700; color: var(--blue); margin: 8px 0 0; }
+
+/* ----- Apple Watch companion -----
+   Appears next to the handset the moment the race starts. Concept, not a
+   shipped app -- the note underneath says so. */
+.rd-watch-rig { flex: none; width: 190px; padding-top: 42px; animation: rd-watch-in .35s ease both; }
+@keyframes rd-watch-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+.rd-watch {
+  width: 176px;
+  margin-inline: auto;
+  border-radius: 46px;
+  padding: 11px 9px;
+  background: linear-gradient(160deg, #3a3c42, #17181d 55%);
+  box-shadow: 0 24px 48px rgba(16, 17, 20, .32), 0 0 0 1px rgba(255, 255, 255, .06) inset;
+  position: relative;
+}
+/* Digital crown + side button. */
+.rd-watch::before, .rd-watch::after {
+  content: ""; position: absolute; right: -3px; width: 4px; border-radius: 3px;
+  background: linear-gradient(180deg, #6d6f77, #2c2d33);
+}
+.rd-watch::before { top: 34%; height: 26px; }
+.rd-watch::after { top: 54%; height: 18px; }
+.rd-watch-screen {
+  background: #000; border-radius: 38px;
+  padding: 14px 12px 12px; color: #fff; text-align: center;
+}
+.rd-watch-top { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 700; color: #8e8e93; }
+.rd-watch-seg { color: #4d7ff5; }
+.rd-watch-time { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin-top: 6px; color: #30d158; }
+.rd-watch-label { font-size: 8.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #8e8e93; margin-top: 2px; }
+.rd-watch-now { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 12.5px; font-weight: 800; margin-top: 10px; }
+.rd-watch-icon { display: flex; color: #4d7ff5; }
+.rd-watch-meta { font-size: 10.5px; color: #8e8e93; font-weight: 600; margin-top: 3px; }
+.rd-watch-bar { height: 4px; border-radius: 999px; background: #2c2c2e; margin: 10px 0; overflow: hidden; }
+.rd-watch-bar span { display: block; height: 100%; border-radius: 999px; background: #30d158; transition: width .3s ease; }
+.rd-watch-btn {
+  width: 100%; border: none; border-radius: 14px; padding: 11px;
+  background: #30d158; color: #04240f;
+  font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer;
+}
+.rd-watch-btn:active { transform: scale(.98); }
+.rd-watch-next { font-size: 9.5px; color: #8e8e93; font-weight: 600; margin-top: 8px; }
+.rd-watch-screen.is-finish { padding: 26px 12px 24px; }
+.rd-watch-trophy { color: #ffd60a; display: grid; place-items: center; margin-bottom: 8px; }
+.rd-watch-saved { font-size: 10px; font-weight: 700; color: #30d158; margin-top: 10px; }
+.rd-watch-note { font-size: 11.5px; color: var(--text-secondary); margin-top: 14px; text-align: center; }
+.rd-watch-note b { display: block; color: var(--text); font-size: 12px; margin-bottom: 3px; }
+
+@media (max-width: 1080px) {
+  .rd { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .rd-steps { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rd-stage { justify-content: center; }
+}
+@media (max-width: 720px) {
+  .rd-steps { grid-template-columns: minmax(0, 1fr); }
+  .rd-stage { flex-direction: column; align-items: center; gap: 18px; }
+  .rd-watch-rig { padding-top: 0; }
+}
+@media (max-width: 380px) {
+  .rd-phone { width: 100%; }
+  .rd-screen { height: 560px; }
+}
+
 /* ---------- FAQ ---------- */
 
 .faq { margin-top: 40px; display: grid; gap: 10px; }
