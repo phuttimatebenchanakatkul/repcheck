@@ -287,3 +287,202 @@ button { font: inherit; }
   height: 100%;
   object-fit: cover;
 }
+
+/* ---------- race walkthrough (section 04) ----------
+   Same shape as the feature switcher above: hairline-separated rows on the
+   left that go black when active, the phone on soft grey to the right. The
+   screens inside the handset reuse the app-screen components already defined
+   above (.card, .row, .pill, .date, .clock, .sub, .stchips, .cta-blue), so
+   this section and the phone in section 01 are the same phone. */
+.race { border-bottom: 1px solid var(--hair); }
+.race-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+.race-steps { border-right: 1px solid var(--hair); }
+.race-step {
+  display: block; width: 100%; text-align: left; appearance: none;
+  border: none; border-bottom: 1px solid var(--hair);
+  background: #fff; color: var(--ink); cursor: pointer;
+  padding: 24px 30px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.race-step.is-active { background: var(--ink); color: #fff; }
+.race-stage {
+  display: flex; align-items: flex-start; justify-content: center; gap: 30px;
+  padding: 48px 30px; background: var(--soft);
+}
+
+/* The handset scrolls its own screen, like the real thing. */
+.rc-screen { overflow-y: auto; scrollbar-width: none; position: relative; }
+.rc-screen::-webkit-scrollbar { display: none; }
+
+/* Station chips on the HYROX screen are buttons here (tap for how it's done),
+   so they need the button reset the mocked-up divs never needed. */
+button.stchip { appearance: none; border: none; font: inherit; color: inherit; cursor: pointer; }
+button.stchip:hover { background: #34343a; }
+.cta-blue { appearance: none; border: none; font: inherit; color: #fff; cursor: pointer; width: 100%; }
+
+/* ----- race setup ----- */
+.rc-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.rc-choice {
+  appearance: none; border: 1.5px solid var(--app-line); border-radius: 13px;
+  background: var(--app-line); color: var(--app-text);
+  font: inherit; text-align: left; cursor: pointer; padding: 9px 11px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.rc-choice b { display: block; font-size: 12.5px; font-weight: 700; }
+.rc-choice span { display: block; margin-top: 2px; font-size: 10px; color: var(--app-dim); }
+.rc-choice:hover { border-color: var(--blue); }
+.rc-choice.is-on { border-color: var(--blue); background: #14213f; }
+.rc-choice.is-on span { color: #9dbaff; }
+
+.rc-ag-row { display: flex; align-items: center; gap: 9px; font-size: 11.5px; }
+.rc-ag-row.is-runs { padding-bottom: 9px; border-bottom: 1px solid var(--app-line); }
+.rc-ag-icon { color: var(--app-dim); display: flex; }
+.rc-ag-name { font-weight: 700; }
+.rc-ag-meta { margin-left: auto; color: var(--app-dim); font-variant-numeric: tabular-nums; }
+
+.rc-pb { background: #3a2f14; }
+.rc-pb-clock { font-size: 30px; color: #f0c06a; }
+
+/* ----- running ----- */
+.rc-run-head { display: flex; justify-content: space-between; align-items: flex-end; }
+.rc-run-head .date { display: block; margin-top: 5px; }
+.rc-run-seg { text-align: right; }
+.rc-run-seg b { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: #9dbaff; font-variant-numeric: tabular-nums; }
+.rc-run-seg i { font-size: 17px; font-style: normal; color: var(--app-dim); }
+
+.rc-now { align-items: center; text-align: center; background: #14213f; }
+.rc-now-badge {
+  width: 62px; height: 62px; border-radius: 20px; display: flex; align-items: center; justify-content: center;
+  background: var(--blue); color: #fff;
+}
+.rc-now-title { font-size: 21px; font-weight: 800; letter-spacing: -0.03em; }
+.rc-now-figure b { display: block; font-size: 28px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.rc-now-figure span { display: block; margin-top: 4px; font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: .14em; color: #9dbaff; }
+.rc-now-figure.is-share b { color: #b79bf5; }
+.rc-now-figure.is-share span { color: #b79bf5; }
+.rc-now-chips { display: flex; gap: 7px; justify-content: center; }
+.rc-now-chip { flex: 1; padding: 8px 6px; border-radius: 12px; background: rgba(255,255,255,.06); }
+.rc-now-chip b { display: block; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rc-now-chip span { display: block; margin-top: 3px; font-family: "JetBrains Mono", monospace; font-size: 8.5px; letter-spacing: .12em; color: var(--app-dim); }
+.rc-how {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: #9dbaff; padding: 0;
+}
+
+.rc-dots { display: flex; gap: 3px; }
+.rc-dot { flex: 1; height: 3px; border-radius: 2px; background: var(--app-line); }
+.rc-dot.is-done { background: var(--green); }
+.rc-dot.is-now { background: var(--blue); }
+
+.rc-complete {
+  appearance: none; border: none; cursor: pointer; width: 100%;
+  padding: 15px; border-radius: 16px; background: var(--green); color: #04240f;
+  font-family: inherit; font-size: 15px; font-weight: 800;
+}
+.rc-cancel {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  font-family: "JetBrains Mono", monospace; font-size: 9.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: #d1453b; padding: 0;
+}
+.rc-splits { display: flex; flex-direction: column; }
+.rc-split { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--app-line); font-size: 11.5px; }
+.rc-split:last-child { border-bottom: none; }
+.rc-split-icon { color: var(--app-dim); display: flex; }
+.rc-split-name { font-weight: 600; }
+.rc-split b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.rc-split i { width: 52px; text-align: right; font-style: normal; color: var(--app-dim); font-variant-numeric: tabular-nums; }
+
+/* ----- finish ----- */
+.rc-finish { text-align: center; padding: 8px 0 2px; }
+.rc-finish-clock { display: block; margin-top: 6px; font-size: 44px; }
+.rc-bd-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.rc-bd-total { padding: 10px; border-radius: 13px; text-align: center; }
+.rc-bd-total b { display: block; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rc-bd-total span { display: block; margin-top: 3px; font-family: "JetBrains Mono", monospace; font-size: 8.5px; letter-spacing: .12em; }
+.rc-bd-total.is-run { background: #14213f; color: #9dbaff; }
+.rc-bd-total.is-station { background: #12321f; color: #6fd8a6; }
+.rc-bd-row { display: grid; grid-template-columns: 1fr 58px 40px; gap: 8px; align-items: center; font-size: 11px; }
+.rc-bd-row b { text-align: right; font-variant-numeric: tabular-nums; }
+.rc-bd-row.is-run .rc-bd-name { color: var(--app-dim); }
+.rc-bd-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.rc-bd-track { height: 5px; border-radius: 3px; background: var(--app-line); overflow: hidden; }
+.rc-bd-track > span { display: block; height: 100%; background: #4a4a4f; }
+.rc-bd-row.is-focus .rc-bd-track > span { background: #d1453b; }
+.rc-bd-row.is-strong .rc-bd-track > span { background: var(--green); }
+.rc-bd-row.is-solid .rc-bd-track > span { background: var(--blue); }
+
+.rc-coach-overall { font-size: 13.5px; font-weight: 700; line-height: 1.4; }
+.rc-coach-bullets { display: flex; flex-direction: column; gap: 5px; margin: 0; padding-left: 15px; }
+.rc-coach-bullets li { font-size: 11.5px; line-height: 1.45; color: var(--app-dim); }
+.rc-tips { display: flex; flex-direction: column; gap: 9px; padding-top: 11px; border-top: 1px solid var(--app-line); }
+.rc-tips.is-focus .date { color: #ef7d74; }
+.rc-tips.is-strong .date { color: #6fd8a6; }
+.rc-tip { display: flex; gap: 9px; }
+.rc-tip-icon { color: var(--app-dim); display: flex; padding-top: 1px; }
+.rc-tip b { display: block; font-size: 12px; }
+.rc-tip span { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.45; color: var(--app-dim); }
+
+/* ----- "how it's done" sheet, inside the handset ----- */
+.rc-sheet { position: absolute; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; }
+.rc-sheet-card {
+  width: 100%; background: var(--app-card); border-radius: 22px 22px 0 0;
+  padding: 12px 16px 18px; display: flex; flex-direction: column; gap: 11px;
+}
+.rc-sheet-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; }
+.rc-sheet-close {
+  appearance: none; border: none; cursor: pointer; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--app-line); color: var(--app-dim); font-size: 16px; line-height: 1;
+}
+.rc-sheet-detail { margin: 0; font-size: 12px; line-height: 1.5; color: var(--app-dim); }
+
+/* ----- Apple Watch companion (concept, labelled as one) ----- */
+.watch-rig { width: 186px; flex: none; padding-top: 30px; animation: rc-watch-in .34s ease both; }
+@keyframes rc-watch-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.watch {
+  position: relative; width: 172px; margin-inline: auto;
+  border-radius: 46px; padding: 11px 9px;
+  background: linear-gradient(160deg, #3a3c42, #161616 55%);
+  box-shadow: 0 24px 48px rgba(0,0,0,.24);
+}
+/* digital crown + side button */
+.watch::before, .watch::after {
+  content: ""; position: absolute; right: -3px; width: 4px; border-radius: 3px;
+  background: linear-gradient(180deg, #6d6f77, #2c2d33);
+}
+.watch::before { top: 33%; height: 26px; }
+.watch::after { top: 53%; height: 18px; }
+.watch-screen {
+  background: #000; border-radius: 38px; padding: 14px 12px 12px;
+  color: var(--app-text); text-align: center;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.watch-top { display: flex; justify-content: space-between; font-family: "JetBrains Mono", monospace; font-size: 9.5px; color: var(--app-dim); }
+.watch-seg { color: #9dbaff; }
+.watch-clock { font-size: 29px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: #30d158; font-variant-numeric: tabular-nums; }
+.watch-label { font-family: "JetBrains Mono", monospace; font-size: 8.5px; letter-spacing: .16em; color: var(--app-dim); }
+.watch-now { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 7px; font-size: 12.5px; font-weight: 800; }
+.watch-now svg { color: #9dbaff; }
+.watch-meta { font-size: 10.5px; color: var(--app-dim); }
+.watch-bar { height: 4px; border-radius: 2px; background: #2c2c2e; margin: 9px 0 3px; overflow: hidden; }
+.watch-bar > span { display: block; height: 100%; background: #30d158; }
+.watch-btn {
+  appearance: none; border: none; cursor: pointer; width: 100%;
+  padding: 10px; border-radius: 13px; background: #30d158; color: #04240f;
+  font-family: inherit; font-size: 13.5px; font-weight: 800;
+}
+.watch-next { font-family: "JetBrains Mono", monospace; font-size: 8.5px; letter-spacing: .1em; color: var(--app-dim); margin-top: 6px; }
+.watch-screen.is-finish { padding: 30px 12px 26px; gap: 5px; }
+.watch-saved { font-size: 10px; font-weight: 700; color: #30d158; margin-top: 8px; }
+.watch-note { margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: var(--meta); text-align: center; }
+.watch-note b { display: block; margin-bottom: 3px; font-size: 12.5px; color: var(--ink); }
+
+@media (max-width: 980px) {
+  .race-stage { flex-direction: column; align-items: center; gap: 22px; }
+  .watch-rig { padding-top: 0; }
+}
+@media (max-width: 720px) {
+  .race-steps { border-right: none; }
+  .race-step { padding-left: 20px; padding-right: 20px; }
+  .race-stage { padding-left: 20px; padding-right: 20px; }
+}

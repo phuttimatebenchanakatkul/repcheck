@@ -27,6 +27,7 @@
     <nav class="nav-links" aria-label="Sections">
       <a href="#what" data-magnet="">What it does</a>
       <a href="#hyrox" data-magnet="">HYROX</a>
+      <a href="#race" data-magnet="">Race</a>
       <a href="#waitlist" class="nav-cta" data-magnet="">Waitlist</a>
     </nav>
   </header>
@@ -231,8 +232,68 @@
   </ul>
 </section>
 
+<section id="race" class="race">
+  <div class="strip"><span>04 — A race, start to finish</span><span>Tap through it</span></div>
+  <div class="race-grid">
+    <div class="race-steps" id="rc-steps">
+      <button class="race-step" type="button" data-rc="goto" data-screen="hero">
+        <span class="feature-head"><span class="idx">01</span><span class="feature-title">Open the race simulator</span></span>
+        <span class="feature-plain">Your best time, the eight stations in order, one button. Tap a station and it tells you how that one is judged.</span>
+      </button>
+      <button class="race-step" type="button" data-rc="goto" data-screen="setup">
+        <span class="feature-head"><span class="idx">02</span><span class="feature-title">Set the race up</span></span>
+        <span class="feature-plain">Open or Pro, Singles or Doubles, full or half. The loads and the lap counts come from the rulebook and the length of your own lane.</span>
+      </button>
+      <button class="race-step" type="button" data-rc="goto" data-screen="running">
+        <span class="feature-head"><span class="idx">03</span><span class="feature-title">Run the clock</span></span>
+        <span class="feature-plain">One tap per segment. Sixteen splits — eight runs, eight stations — with the weight and the lap count for whatever is up now.</span>
+      </button>
+      <button class="race-step" type="button" data-rc="goto" data-screen="finished">
+        <span class="feature-head"><span class="idx">04</span><span class="feature-title">Read the race back</span></span>
+        <span class="feature-plain">Running against stations, every split ranked, and the coach's read on the two stations to fix before the next race.</span>
+      </button>
+      <p class="hint">This is one real 1:24:06 race, replayed at 60× →</p>
+    </div>
+
+    <div class="race-stage">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="status"><span>15:29</span><span>5G</span></div>
+          <!-- app.js renders every race screen into here; the markup below is
+               the no-JS fallback (the app's HYROX screen, statically). -->
+          <div class="screen is-active rc-screen" id="rc-screen">
+            <div class="scr-head"><b>HYROX</b><span class="avatar">J</span></div>
+            <div class="card">
+              <div class="row"><span class="date">YOUR PERSONAL BEST</span><span class="pill">4 races</span></div>
+              <b class="clock">1:24:06</b>
+              <span class="sub">Men's Open Singles</span>
+              <div class="stchips"><div class="stchip"><span>1</span><b>SkiErg</b></div><div class="stchip"><span>2</span><b>Sled Push</b></div><div class="stchip"><span>3</span><b>Sled Pull</b></div><div class="stchip"><span>4</span><b>Burpees</b></div><div class="stchip"><span>5</span><b>Row</b></div><div class="stchip"><span>6</span><b>Carry</b></div><div class="stchip"><span>7</span><b>Lunges</b></div><div class="stchip"><span>8</span><b>Wall Balls</b></div></div>
+              <span class="centered sub">Tap a station to see how it's done</span>
+              <div class="cta-blue">Start race</div>
+              <span class="centered link">View history</span>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tabpill">
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path></svg></span>
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM7 8v8M17 8v8"></path></svg></span>
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M3 8h15v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"></path><path d="M3 22h16"></path></svg></span>
+              <span class="tab is-active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M9 2h6"></path></svg></span>
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"></path><path d="M17.5 6.5 20 9l-2.5 2.5"></path><path d="M14 4l-4 16"></path></svg></span>
+            </div>
+            <span class="fab">+</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filled by app.js once the race starts; empty (and hidden) until then. -->
+      <div class="watch-rig" id="rc-watch" hidden></div>
+    </div>
+  </div>
+</section>
+
 <section class="faq">
-  <div class="strip"><span>04 — Questions worth answering</span></div>
+  <div class="strip"><span>05 — Questions worth answering</span></div>
       <details class="faq-item"><summary><span>What do I need to record a form check?</span><i></i></summary><p>A phone and somewhere to prop it. Film side-on, whole body in frame, normal gym lighting. No wearables, no markers.</p></details>
       <details class="faq-item"><summary><span>Is this a replacement for a coach?</span><i></i></summary><p>No — and we won't pretend otherwise. It's the feedback you don't get on the six days a week you train alone.</p></details>
       <details class="faq-item"><summary><span>What does it cost?</span><i></i></summary><p>Early access is free. When pricing lands, the waitlist hears first — we'll be specific in that email rather than vague here.</p></details>
@@ -241,7 +302,7 @@
 </section>
 
 <section id="waitlist" class="cta">
-  <p class="kicker">05 — Limited early-access slots</p>
+  <p class="kicker">06 — Limited early-access slots</p>
   <h2>Be in the first group in</h2>
   <form class="waitlist-form" id="waitlist-form" novalidate="">
     <label class="sr-only" for="email">Email address</label>
