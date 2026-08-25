@@ -115,7 +115,7 @@
   <!-- ================= STATS ================= -->
   <section class="stats">
     <div class="wrap stats-grid">
-      <div><b>527</b><span>exercises in the library</span></div>
+      <div><b>735</b><span>exercises in the library</span></div>
       <div><b>744</b><span>foods, Thai dishes included</span></div>
       <div><b>8</b><span>HYROX stations tracked</span></div>
       <div><b>2</b><span>languages, EN &amp; TH</span></div>
@@ -294,6 +294,181 @@
           <div class="phone-screen phone-screen--video">
             <video class="phone-video" src="workoutlog.mp4" poster="workoutlog-poster.jpg"
                    muted loop playsinline preload="metadata"></video>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ADD AN EXERCISE ================= -->
+  <!-- A screen-for-screen walkthrough of the real add-an-exercise flow in
+       the app (templates/workouts.html): the log button, the picker sheet,
+       the weight x reps set card, the finished entry. Every label inside the
+       mock is the app's own string from static/i18n.js -- if that copy
+       changes, this is a place that goes stale.
+
+       Progressive enhancement: the step buttons ship disabled and app.js
+       enables them, so with JS off this degrades to four written steps and
+       the first screen rather than four dead controls. The phone itself is
+       aria-hidden -- the step copy carries the substance. -->
+  <section class="section section--alt" id="add-exercise">
+    <div class="wrap">
+      <p class="kicker kicker--blue">Adding an exercise</p>
+      <h2 class="section-title">Four taps from opening the app to a logged set</h2>
+      <p class="section-lede">No forms, no "create workout" ceremony. Tap through it here — this is the flow exactly as it runs in the app.</p>
+
+      <div class="ax" id="ax">
+        <ol class="ax-steps" id="ax-steps">
+          <li>
+            <button type="button" class="ax-step is-active" data-ax-step="1" aria-pressed="true" disabled>
+              <span class="ax-step-n">1</span>
+              <span class="ax-step-body">
+                <span class="ax-step-title">Tap "+ Log an exercise"</span>
+                <span class="ax-step-text">Pick the day on the strip — today, or a past one you're backfilling — and hit the blue button sitting under it.</span>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="ax-step" data-ax-step="2" aria-pressed="false" disabled>
+              <span class="ax-step-n">2</span>
+              <span class="ax-step-body">
+                <span class="ax-step-title">Pick it out of the sheet</span>
+                <span class="ax-step-text">Search the library, or take one off <b>All</b> / <b>Favorites</b> / <b>Recent</b> — your favorites, your own custom moves, today's split and what you lifted lately, in that order. Nothing matches what you typed? Create it under that exact name.</span>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="ax-step" data-ax-step="3" aria-pressed="false" disabled>
+              <span class="ax-step-n">3</span>
+              <span class="ax-step-body">
+                <span class="ax-step-title">Type the weight and the reps</span>
+                <span class="ax-step-text">It lands in the day already open on Set 1. Weight × reps and that's the set logged — bodyweight moves drop the weight box, and anything one-sided gets its own left and right row.</span>
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="ax-step" data-ax-step="4" aria-pressed="false" disabled>
+              <span class="ax-step-n">4</span>
+              <span class="ax-step-body">
+                <span class="ax-step-title">Add sets until you're done</span>
+                <span class="ax-step-text">Each new set carries the weight forward and leaves the reps blank — that's the number that actually changes. Fill them all in and the card ticks green and folds back to one line.</span>
+              </span>
+            </button>
+          </li>
+        </ol>
+
+        <div class="ax-stage">
+          <div class="phone ax-phone" aria-hidden="true">
+            <div class="phone-screen ax-screen-wrap">
+
+              <!-- 1 - the day, with the log button -->
+              <div class="ax-screen is-active" data-ax-screen="1">
+                <div class="ax-appbar"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
+                <div class="ax-card">
+                  <div class="ax-dates">
+                    <span class="ax-date"><i>M</i><b class="is-done">17</b></span>
+                    <span class="ax-date"><i>T</i><b class="is-done">18</b></span>
+                    <span class="ax-date"><i>W</i><b class="is-done">19</b></span>
+                    <span class="ax-date"><i>T</i><b>20</b></span>
+                    <span class="ax-date"><i>F</i><b class="is-done">21</b></span>
+                    <span class="ax-date"><i>S</i><b class="is-done">22</b></span>
+                    <span class="ax-date"><i>S</i><b class="is-today">23</b></span>
+                  </div>
+                  <div class="ax-daytitle">Today</div>
+                  <div class="ax-logbtn ax-tap">+ Log an exercise</div>
+                  <div class="ax-empty">
+                    <span class="ax-empty-dot"></span>
+                    <b>Nothing logged yet</b>
+                    <i>One exercise is all it takes to get going.</i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2 - the picker sheet -->
+              <div class="ax-screen" data-ax-screen="2">
+                <div class="ax-appbar ax-appbar--dim"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
+                <div class="ax-card ax-card--dim">
+                  <div class="ax-daytitle">Today</div>
+                  <div class="ax-logbtn">+ Log an exercise</div>
+                </div>
+                <div class="ax-sheet">
+                  <span class="ax-sheet-handle"></span>
+                  <div class="ax-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    <span>Search for an exercise...</span>
+                  </div>
+                  <div class="ax-seg">
+                    <span class="is-active">All</span><span>Favorites</span><span>Recent</span>
+                  </div>
+                  <div class="ax-row ax-tap">
+                    <span class="ax-row-icon"><img src="exercise-icons/001_flat_bench_press.svg" alt=""></span>
+                    <span class="ax-row-name">Flat Bench Press</span>
+                    <span class="ax-heart is-fav">♥</span>
+                  </div>
+                  <div class="ax-row">
+                    <span class="ax-row-icon"><img src="exercise-icons/002_incline_bench_press.svg" alt=""></span>
+                    <span class="ax-row-name">Incline Bench Press</span>
+                    <span class="ax-heart">♡</span>
+                  </div>
+                  <div class="ax-row">
+                    <span class="ax-row-icon"><img src="exercise-icons/059_tricep_pushdown.svg" alt=""></span>
+                    <span class="ax-row-name">Tricep Pushdown</span>
+                    <span class="ax-heart">♡</span>
+                  </div>
+                  <div class="ax-row">
+                    <span class="ax-row-icon"><img src="exercise-icons/049_bicep_curl.svg" alt=""></span>
+                    <span class="ax-row-name">Bicep Curl</span>
+                    <span class="ax-heart">♡</span>
+                  </div>
+                  <div class="ax-create">+ Create a custom exercise</div>
+                </div>
+              </div>
+
+              <!-- 3 - the set card, open on Set 1 -->
+              <div class="ax-screen" data-ax-screen="3">
+                <div class="ax-appbar"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
+                <div class="ax-card">
+                  <div class="ax-daytitle">Today</div>
+                  <div class="ax-logbtn">+ Log an exercise</div>
+                  <div class="ax-entry is-complete">
+                    <span class="ax-row-icon"><img src="exercise-icons/001_flat_bench_press.svg" alt=""><span class="ax-check">✓</span></span>
+                    <span class="ax-entry-info"><b>Flat Bench Press</b><i>18:42 • 60 kg • 1 set • 8 reps</i></span>
+                    <span class="ax-chev is-open">›</span>
+                  </div>
+                  <div class="ax-detail">
+                    <div class="ax-set">
+                      <div class="ax-set-head"><span>Set 1</span><span class="ax-set-x">×</span></div>
+                      <div class="ax-set-line">
+                        <span class="ax-field ax-tap"><b>60</b><i>kg</i></span>
+                        <span class="ax-times">×</span>
+                        <span class="ax-field ax-field--reps"><b>8</b><i>reps</i></span>
+                      </div>
+                    </div>
+                    <div class="ax-addset">+ Add Set</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4 - three sets in, card complete -->
+              <div class="ax-screen" data-ax-screen="4">
+                <div class="ax-appbar"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
+                <div class="ax-card">
+                  <div class="ax-daytitle">Today</div>
+                  <div class="ax-logbtn">+ Log an exercise</div>
+                  <div class="ax-entry is-complete">
+                    <span class="ax-row-icon"><img src="exercise-icons/001_flat_bench_press.svg" alt=""><span class="ax-check">✓</span></span>
+                    <span class="ax-entry-info"><b>Flat Bench Press</b><i>18:42 • 60 kg • 3 sets • 8, 8, 6 reps</i></span>
+                    <span class="ax-chev">›</span>
+                  </div>
+                  <div class="ax-entry is-complete">
+                    <span class="ax-row-icon"><img src="exercise-icons/002_incline_bench_press.svg" alt=""><span class="ax-check">✓</span></span>
+                    <span class="ax-entry-info"><b>Incline Bench Press</b><i>18:56 • 45 kg • 3 sets • 10, 10, 9 reps</i></span>
+                    <span class="ax-chev">›</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
