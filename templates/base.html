@@ -41,11 +41,10 @@
   <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
   <!-- Shared "what could I log next" rules (RepCheckSuggestions): this
-       hour's habitual foods, recent foods, recent exercises. The home
-       page's empty-day suggestions, the food search sheet and the
-       exercise picker all read them from here so the rules can't drift
-       apart. Not deferred -- the nutrition/workout page scripts call into
-       it during their first synchronous render. -->
+       hour's habitual foods, recent foods, recent exercises. The food
+       search sheet and the exercise picker both read them from here so
+       the rules can't drift apart. Not deferred -- the nutrition/workout
+       page scripts call into it during their first synchronous render. -->
   <script src="{{ asset_url('suggestions.js') }}"></script>
   <!-- Shared mascot + empty-state block (RepCheckMascot), used by the
        Hyrox leaderboard, both exercise pickers, the food search sheet,
