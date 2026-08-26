@@ -150,15 +150,6 @@
       "home.macros.remainingToday": "Remaining today",
       "home.macros.left": "{n} left",
 
-      "home.suggest.title": "Suggestions",
-      "home.suggest.sub": "Based on what you've logged before.",
-      "home.suggest.noFood": "No food logged today",
-      "home.suggest.noWorkout": "No workout logged today",
-      "home.suggest.fromPlan": "From today's plan",
-      "home.suggest.fromHistory": "You've logged these before",
-      "home.suggest.firstFood": "Log your first meal",
-      "home.suggest.firstWorkout": "Log your first workout",
-      "home.suggest.buildPlan": "Build my plan",
 
       "weight.backToNutrition": "← Back to Nutrition",
       "weight.loggingHistoryTitle": "Logging History",
@@ -1044,15 +1035,6 @@
       "home.macros.remainingToday": "คงเหลือวันนี้",
       "home.macros.left": "เหลืออีก {n}",
 
-      "home.suggest.title": "คำแนะนำ",
-      "home.suggest.sub": "อ้างอิงจากสิ่งที่คุณเคยบันทึกไว้",
-      "home.suggest.noFood": "วันนี้ยังไม่ได้บันทึกอาหาร",
-      "home.suggest.noWorkout": "วันนี้ยังไม่ได้บันทึกการออกกำลังกาย",
-      "home.suggest.fromPlan": "จากแผนของวันนี้",
-      "home.suggest.fromHistory": "คุณเคยบันทึกสิ่งเหล่านี้ไว้",
-      "home.suggest.firstFood": "บันทึกมื้อแรกของคุณ",
-      "home.suggest.firstWorkout": "บันทึกการออกกำลังกายครั้งแรกของคุณ",
-      "home.suggest.buildPlan": "สร้างแผนของฉัน",
 
       "weight.backToNutrition": "← กลับไปหน้าโภชนาการ",
       "weight.loggingHistoryTitle": "ประวัติการบันทึก",
