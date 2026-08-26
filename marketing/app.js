@@ -106,6 +106,63 @@
         video.currentTime = 0;
       }
     });
+    // Same rule for the workout log's scripted screen: it only runs while it
+    // is the one showing, so it isn't looping behind screens you can't see.
+    if (wlScreen) {
+      if (screens.indexOf(wlScreen) === i) wlPlay();
+      else wlStop();
+    }
+  }
+
+  // ---------- workout log: act out the add-exercise flow ----------
+  // Feature 04 is about logging a set, so its screen does exactly that on a
+  // loop: empty day, tap "+ Log an exercise", the exercise lands, then the
+  // weight and the reps count up into it. Beats are data-wl on the screen
+  // (styles.css does the revealing); the numbers are the only text written
+  // here, and only into elements that already exist.
+  var wlScreen = $('.screen[data-wl]', whatSection);
+  var wlTimers = [];
+  var WL_WEIGHT = 30;
+  var WL_REPS = 10;
+
+  function wlClear() {
+    wlTimers.forEach(clearTimeout);
+    wlTimers = [];
+  }
+  function wlAt(ms, fn) { wlTimers.push(setTimeout(fn, ms)); }
+  function wlSet(beat, weight, reps) {
+    if (!wlScreen) return;
+    wlScreen.setAttribute("data-wl", String(beat));
+    wlScreen.querySelector(".wl-weight").textContent = String(weight);
+    wlScreen.querySelector(".wl-reps").textContent = String(reps);
+  }
+
+  function wlStop() {
+    wlClear();
+    // Park on the finished set rather than the empty day: a paused screen
+    // should still show what the feature does, not a blank one.
+    wlSet(3, WL_WEIGHT, WL_REPS);
+  }
+
+  function wlPlay() {
+    if (!wlScreen) return;
+    wlClear();
+    // Reduced motion gets the end state, held. No loop, no counting.
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      wlSet(3, WL_WEIGHT, WL_REPS);
+      return;
+    }
+    wlSet(0, 0, 0);
+    wlAt(900, function () { wlScreen.setAttribute("data-wl", "1"); });
+    wlAt(1350, function () { wlSet(2, 0, 0); });
+    // Weight first, then reps -- the order you actually type them in.
+    for (var w = 1; w <= WL_WEIGHT; w++) {
+      (function (v) { wlAt(1900 + v * 20, function () { wlSet(3, v, 0); }); })(w);
+    }
+    for (var r = 1; r <= WL_REPS; r++) {
+      (function (v) { wlAt(2650 + v * 55, function () { wlSet(3, WL_WEIGHT, v); }); })(r);
+    }
+    wlAt(6400, wlPlay);
   }
 
   featureBtns.forEach(function (b, i) {

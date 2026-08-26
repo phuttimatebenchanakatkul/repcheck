@@ -122,13 +122,38 @@
             </div>
           </div>
 
-          <div class="screen screen--video" data-screen="3">
-            <video id="workoutlog-demo" muted playsinline loop
-                   preload="metadata" poster="assets/workoutlog-demo-poster.jpg"
-                   aria-label="Screen recording of RepCheck logging a workout: today's plan lists the day's curls, an exercise is logged, Barbell Bicep Curl is filled in at 30 kg for 10 then 8 reps, and the workout AI reads the last sessions back with a progressive-overload plan.">
-              <source src="assets/workoutlog-demo.webm" type="video/webm">
-              <source src="assets/workoutlog-demo.mp4" type="video/mp4">
-            </video>
+          <!-- The workout log acts out its own flow: the empty day, the tap on
+               "+ Log an exercise", then the weight and reps going in. app.js
+               steps data-wl through 0..3 while this screen is the one showing;
+               everything below is the finished state, revealed as it goes. -->
+          <div class="screen" data-screen="3" data-wl="0">
+            <div class="scr-head"><b>Workout Log</b><span class="avatar">J</span></div>
+            <div class="card">
+              <div class="row"><b class="card-title">Today's plan</b><span class="pill">Edit split</span></div>
+              <p class="sub">Monday · Full Body day</p>
+            </div>
+            <div class="card">
+              <div class="week week--labels"><div class="day"><span>M</span><span class="dot is-done">17</span></div><div class="day"><span>T</span><span class="dot is-done">18</span></div><div class="day"><span>W</span><span class="dot is-done">19</span></div><div class="day"><span>T</span><span class="dot">20</span></div><div class="day"><span>F</span><span class="dot is-done">21</span></div><div class="day"><span>S</span><span class="dot is-done">22</span></div><div class="day"><span>S</span><span class="dot is-today">23</span></div></div>
+              <div class="row"><span class="section-label">Today</span><span class="sub wl-count">1 exercise · 1 set</span></div>
+              <div class="cta-blue wl-log">+ Log an exercise</div>
+              <div class="empty wl-empty"><span class="blob"></span><b>Nothing logged yet</b><span class="sub">One exercise is all it takes to get going.</span></div>
+
+              <div class="wl-entry">
+                <div class="row">
+                  <div class="wl-entry-id"><span class="wl-icon"></span><span><b class="card-title">Barbell Bicep Curl</b><span class="sub wl-entry-sub">5:01 PM · 1 set logged</span></span></div>
+                  <span class="sub">⌄</span>
+                </div>
+                <div class="wl-set">
+                  <div class="row"><span class="date">SET 1</span><span class="sub">×</span></div>
+                  <div class="wl-fields">
+                    <span class="wl-field"><b class="wl-weight">0</b><span class="sub">kg</span></span>
+                    <span class="sub">×</span>
+                    <span class="wl-field"><b class="wl-reps">0</b><span class="sub">reps</span></span>
+                  </div>
+                </div>
+                <div class="wl-addset">+ Add Set</div>
+              </div>
+            </div>
           </div>
 
           <div class="screen" data-screen="4">

@@ -292,6 +292,63 @@ button { font: inherit; }
   object-fit: cover;
 }
 
+/* ---------- workout log walkthrough (feature 04's phone screen) ----------
+   The screen plays out the one thing the feature is about: an empty day, the
+   tap on "+ Log an exercise", then the weight and the reps going in. Built
+   from the app-screen components already defined above (.card, .cta-blue,
+   .empty, .sub, .date) -- these rules only add the set editor, which had no
+   equivalent yet, and the reveal that steps between the two states.
+
+   data-wl on the screen is the beat: 0 empty, 1 tapped, 2 exercise added,
+   3 weight and reps filled in. Everything is in the markup from the start
+   and revealed here, so no JS writes HTML. */
+.wl-entry, .wl-set, .wl-addset, .wl-count { display: none; }
+.wl-log { transition: transform .18s cubic-bezier(.2,.8,.2,1), filter .18s ease; }
+
+/* 1 -- the tap: the button presses in, nothing has landed yet. */
+.screen[data-wl="1"] .wl-log { transform: scale(.97); filter: brightness(1.25); }
+
+/* 2, 3 -- the empty state gives way to the logged exercise. */
+.screen[data-wl="2"] .wl-empty,
+.screen[data-wl="3"] .wl-empty { display: none; }
+.screen[data-wl="2"] .wl-entry,
+.screen[data-wl="3"] .wl-entry,
+.screen[data-wl="2"] .wl-set,
+.screen[data-wl="3"] .wl-set,
+.screen[data-wl="2"] .wl-addset,
+.screen[data-wl="3"] .wl-addset { display: flex; }
+.screen[data-wl="2"] .wl-count,
+.screen[data-wl="3"] .wl-count { display: inline; }
+.screen[data-wl="2"] .wl-entry { animation: wl-in .3s cubic-bezier(.2,.8,.2,1) both; }
+
+.wl-entry { flex-direction: column; gap: 10px; }
+.wl-entry-id { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.wl-entry-id > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wl-entry-sub { font-size: 10px; }
+.wl-icon { width: 30px; height: 30px; border-radius: 10px; background: var(--app-line); flex: none; }
+
+.wl-set { flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--app-line); }
+.wl-fields { display: flex; align-items: center; gap: 7px; }
+.wl-field {
+  flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 8px 10px; border-radius: 11px; background: var(--app-card);
+}
+.wl-field b { font-size: 15px; font-weight: 800; }
+.wl-addset {
+  justify-content: center; padding: 9px; border-radius: 11px;
+  border: 1px dashed var(--app-line); color: #6f9bff;
+  font-size: 11.5px; font-weight: 700; text-align: center;
+}
+
+@keyframes wl-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen[data-wl="2"] .wl-entry { animation: none; }
+  .screen[data-wl="1"] .wl-log { transform: none; filter: none; }
+}
+
 /* ---------- race walkthrough (section 04) ----------
    Same shape as the feature switcher above: hairline-separated rows on the
    left that go black when active, the phone on soft grey to the right. The
