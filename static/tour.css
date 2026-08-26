@@ -37,23 +37,11 @@
 
 /* Soft step (see softNav in tour.js): shown right after the user pressed an
    ACTION control, which usually opened a sheet. Drop the dim so that sheet
-   stays readable and usable -- the ring and the pulse still mark where to go
-   next. The tour is still refusing to let them leave the page; it just isn't
+   stays readable and usable -- the ring still marks where to go next. The
+   tour is still refusing to let them leave the page; it just isn't
    covering up the thing it told them to open. */
 .tour-overlay.is-soft .tour-spotlight { box-shadow: none; }
 .tour-overlay.is-soft .tour-card { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28); }
-.tour-spotlight.has-target::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: inherit;
-  animation: tour-pulse 1.7s ease-out infinite;
-}
-@keyframes tour-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 50%, transparent); }
-  70% { box-shadow: 0 0 0 13px color-mix(in srgb, var(--tour-accent) 0%, transparent); }
-  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour-accent) 0%, transparent); }
-}
 
 /* An explicit, bouncing arrow sitting in the gap between the card and the
    highlighted control, pointing straight at it -- proximity alone (the
@@ -186,7 +174,6 @@
   font-size: 13.5px; font-weight: 700; font-family: inherit;
   padding: 10px 18px;
   cursor: pointer;
-  box-shadow: 0 8px 18px -6px var(--tour-accent);
   transition: transform 0.1s ease;
 }
 .tour-next:active { transform: scale(0.96); }
@@ -244,7 +231,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tour-spotlight { transition: none; }
-  .tour-spotlight.has-target::after { animation: none; }
   .tour-card { animation: none; }
   .tour-mini-dot { animation: none; }
   .tour-arrow.is-visible, .tour-arrow.is-up.is-visible { animation: none; }

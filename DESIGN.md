@@ -88,6 +88,16 @@ Elevation still belongs on things that actually sit above the page
 does not belong on a badge that is flush inside one. Ask before adding a glow
 back.
 
+As of v0.4.5.0 (`remove-glow-effects`) this is no longer a rule applied branch
+by branch: the remaining 48 colored halos were swept out of every sheet and
+template at once, along with the two animated ones (the chat dock's
+`ag-bar-breathe` pulse and the tour spotlight's `tour-pulse` ring). The rule is
+now enforced mechanically by `tests/test_no_colored_glow_shadows.py`, which
+fails on any *blurred* `box-shadow` painted in a chromatic color. Its one blind
+spot is documented in the test itself: a colored *zero-blur* ring is
+structurally identical to a focus ring, so an animated pulse built that way
+would still slip through — review keyframes by eye.
+
 The quick-actions sheet's tiles (`.qa-*` in `static/style.css`) go further and
 use FLAT accent fills rather than a gradient — fine, and increasingly the
 default for a dense grid of them.

@@ -756,9 +756,8 @@ input[type="file"], select {
 
 /* The pill: collapsed it's a small, quiet centered circle. On .is-open it
    widens into the full centered bar; overflow-hidden clips the input row
-   until it's grown. A slow, subtle breathing glow on the collapsed circle
-   so the dock doesn't read as just an inert icon -- recognizable as
-   something to tap, without any loud color or permanent motion once open. */
+   until it's grown. No glow on the collapsed circle: the border and the
+   caption underneath are what mark it as tappable. */
 .ag-bar {
   align-self: center;
   position: relative;
@@ -772,7 +771,6 @@ input[type="file"], select {
   backdrop-filter: blur(22px) saturate(1.6);
   border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  animation: ag-bar-breathe 3.6s ease-in-out infinite;
   transition: width 0.44s cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow 0.34s ease, border-color 0.2s ease,
               background-color 0.34s ease;
@@ -783,11 +781,6 @@ input[type="file"], select {
   background: color-mix(in srgb, var(--card-bg) 55%, transparent);
   border-color: color-mix(in srgb, var(--text) 12%, transparent);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22);
-  animation: none;
-}
-@keyframes ag-bar-breathe {
-  0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
-  50% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 5px color-mix(in srgb, var(--purple) 14%, transparent); }
 }
 
 /* Small persistent caption under the dock naming what it is -- the bare
@@ -1942,7 +1935,7 @@ html.an-result .mobile-tabbar { display: none; }
   width: 100%; padding: 14px 18px; border: none; border-radius: 999px;
   font-family: inherit; font-size: 14px; font-weight: 700;
   text-align: center; text-decoration: none; cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease,
+  transition: opacity 0.15s ease, transform 0.1s ease,
               border-color 0.15s ease, background-color 0.15s ease;
 }
 .an-btn:active { transform: scale(0.98); }
@@ -1950,11 +1943,10 @@ html.an-result .mobile-tabbar { display: none; }
 
 .an-btn-primary {
   background: linear-gradient(135deg, #4d7ff5, var(--blue));
-  box-shadow: 0 8px 20px rgba(47, 102, 232, 0.3);
   color: #fff;
   margin-top: 22px;
 }
-.an-btn-primary:hover { opacity: 0.92; box-shadow: 0 10px 24px rgba(47, 102, 232, 0.38); }
+.an-btn-primary:hover { opacity: 0.92; }
 
 .an-btn-secondary {
   background: var(--card-bg);
@@ -2009,7 +2001,6 @@ html.an-result .ag-bar {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 0 6px 0 14px;
   gap: 8px;
-  animation: none;                  /* no breathing glow: it is already visible */
 }
 html.an-result .ag-dock.is-open .ag-bar { width: 100%; height: auto; }
 /* The spark stops being the button and becomes the field's leading icon --

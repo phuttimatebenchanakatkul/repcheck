@@ -2,6 +2,29 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.0] - 2026-08-26
+
+### Changed
+
+- **Every colored glow is gone from the app.** The green halo under the days
+  you trained on the home screen, the amber one behind the streak pill and the
+  weekly check-in banner, the blue one under every primary button, the tinted
+  shadow behind each coaching and HYROX icon badge, the podium tints on the
+  leaderboard, the purple ring that slowly pulsed around the chat button, and
+  the glow that trailed the analysing scan line -- all removed. Screens read as
+  flatter and calmer, and an accent colour now means something because it is no
+  longer repeated as a halo around everything carrying it.
+- Buttons, chips and date circles still show which one is selected -- the fill,
+  the border and the "today" ring were always doing that job; only the halo
+  behind them is gone. Cards keep their ordinary drop shadow, so things that sit
+  above the page still look like they do.
+
+### Removed
+
+- The breathing purple pulse on the collapsed chat button and the pulsing ring
+  around the guided-tour spotlight. The tour still outlines whatever it is
+  pointing at, and the chat button keeps its border and caption.
+
 ## [0.4.4.0] - 2026-08-26
 
 ### Changed

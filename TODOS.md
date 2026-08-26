@@ -660,20 +660,6 @@
 
 ## Design
 
-### 42 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
-
-**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 42 tinted glows remain by this item's own grep (recounted 2026-08-21; `feat/onboarding-5-steps` removed one, on `.ob-result-hero-icon` — the rest of the drift from the original 46 came from other branches in passing), mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus two in `templates/home.html`.
-
-**Why:** The doc and the code now disagree, which is the same failure mode that produced the repeated one-off removals in the first place: a new badge gets built from whichever source the author happened to read. Finishing the sweep is what makes the rule self-enforcing.
-
-**How to find them:** `grep -rEn "box-shadow: 0 [0-9]+px [0-9]+px rgba\((31, 169, 113|185, 131, 42|47, 102, 232|124, 79, 224|232, 131, 47)" --include=*.css --include=*.html static/ templates/`
-
-**Context:** Counted during `/ship` on `feat/hyrox-pb-leaderboard`, which removed the glow from `.pb-trophy` and corrected DESIGN.md but deliberately did not touch the other 45 — an app-wide visual change does not belong in a PR about a leaderboard. Worth doing as one sweep with a before/after screenshot pass, not incrementally.
-
-**Effort:** M
-**Priority:** P3
-**Depends on:** None
-
 ### Two competing empty-state treatments ship side by side
 
 **What:** `static/mascot.js` covers four screens (Hyrox leaderboard, food search, both exercise pickers, challenges). Race history (`.hx-history-empty-rich`, a stopwatch emoji in an `--amber-bg` circle, `static/hyrox.js`) and the workout log (`.wl-empty`, a sprout emoji, `templates/workouts.html`) still use their own treatment. On the Hyrox page the two sit one tab apart.
@@ -749,3 +735,25 @@
 ## Completed
 
 <!-- Shipped items move here, newest first, with the version or date they landed. -->
+
+### Colored icon-badge glows swept out app-wide (was: 42 tinted glows still ship after DESIGN.md dropped the pattern)
+
+**What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 42 tinted glows remain by this item's own grep (recounted 2026-08-21; `feat/onboarding-5-steps` removed one, on `.ob-result-hero-icon` — the rest of the drift from the original 46 came from other branches in passing), mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus two in `templates/home.html`.
+
+**Why:** The doc and the code now disagree, which is the same failure mode that produced the repeated one-off removals in the first place: a new badge gets built from whichever source the author happened to read. Finishing the sweep is what makes the rule self-enforcing.
+
+**How to find them:** `grep -rEn "box-shadow: 0 [0-9]+px [0-9]+px rgba\((31, 169, 113|185, 131, 42|47, 102, 232|124, 79, 224|232, 131, 47)" --include=*.css --include=*.html static/ templates/`
+
+**Context:** Counted during `/ship` on `feat/hyrox-pb-leaderboard`, which removed the glow from `.pb-trophy` and corrected DESIGN.md but deliberately did not touch the other 45 — an app-wide visual change does not belong in a PR about a leaderboard. Worth doing as one sweep with a before/after screenshot pass, not incrementally.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+**Completed:** v0.4.5.0 (2026-08-26)
+
+**How it landed:** Done as one sweep on `remove-glow-effects`, as this item
+asked. The final count was 48, not 42 -- the grep here only covered five
+hard-coded rgba tints, so it missed `var(--tour-accent)`/`var(--blue)` glows,
+the two scan-line glows, and the podium rank tints. DESIGN.md is updated and
+`tests/test_no_colored_glow_shadows.py` now enforces the rule mechanically,
+which is the "self-enforcing" part this item was after.
