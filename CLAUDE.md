@@ -29,7 +29,8 @@ test is loaded straight from `static/*.js` and from inline `<script>` blocks in
 
 Some suites are source-level regex assertions against the real file rather than
 behavioural tests (see `tests/test_hyrox_flagged_copy_matches_behavior.py`,
-`tests/test_cross_user_name_escaping.py`). That is a deliberate tradeoff for
+`tests/test_cross_user_name_escaping.py`,
+`tests/test_no_colored_glow_shadows.py`). That is a deliberate tradeoff for
 hand-rolled JS with no module boundary -- when adding one, mutation-check it:
 break the thing it guards and confirm the test actually fails.
 
