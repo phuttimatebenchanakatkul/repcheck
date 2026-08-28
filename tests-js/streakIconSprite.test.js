@@ -2,7 +2,7 @@
 // <symbol> sprite defined once in base.html. That indirection has a silent
 // failure mode with no runtime error anywhere: if the sprite is deleted,
 // renamed, or moved out of base.html, every <use> resolves to nothing and all
-// four call sites render an empty 23px box. Nothing throws, no console
+// call sites render an empty 23px box. Nothing throws, no console
 // warning, no failing request -- the icons just quietly vanish. Same for the
 // .rc-icon rule that sizes them: without it the <svg> has no intrinsic size.
 //
@@ -28,10 +28,10 @@ const read = (...parts) => readFileSync(path.join(root, "..", ...parts), "utf-8"
 // Every place a streak icon is referenced. coaching.js is in this list because
 // it builds its badge as a JS template string and so cannot use a Jinja macro
 // -- the sprite is the only definition that reaches it, which is exactly why
-// deleting the sprite breaks it silently too.
+// deleting the sprite breaks it silently too. home.html is not in this list:
+// its hero no longer shows a streak, so it has no icon reference to pin.
 const CALL_SITES = [
   { file: ["templates", "streaks.html"], symbols: ["rc-flame", "rc-trophy"] },
-  { file: ["templates", "home.html"], symbols: ["rc-flame"] },
   { file: ["templates", "challenges.html"], symbols: ["rc-flame"] },
   { file: ["static", "coaching.js"], symbols: ["rc-flame"] },
 ];
@@ -72,7 +72,7 @@ describe("style.css sizes the streak icons", () => {
   });
 
   it("sizes .rc-icon in em so each call site scales from its own font-size", () => {
-    // The four call sites render at 22px, 13px, 13px and 12px purely because
+    // The remaining call sites render at 22px, 13px and 12px purely because
     // .rc-icon is relative. A px value here would flatten all four to one size.
     const rule = src.slice(src.search(/\.rc-icon\s*\{/));
     const body = rule.slice(0, rule.indexOf("}"));

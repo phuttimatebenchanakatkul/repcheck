@@ -11,25 +11,30 @@
 
 {% if current_user %}
 <!--
-  Hero: leads with today's date, the streak flame (the single most
-  motivating daily-return stat, promoted here from a buried mid-grid
-  tile), a plain-language headline for today ("Push Day" / "Rest day" /
-  "Let's get moving"), the week's activity dots, and ONE clear call to
-  action. Same var(--card-bg)/var(--text) theme-following surface as
-  every other card on the page (used to be a fixed dark gradient
-  regardless of light/dark mode).
+  Hero: the AI form check (templates/index.html, /analyze) as the page's
+  single lead action. This used to be a "today's plan" card (date, streak
+  flame, the week's activity dots and a "See today's plan" button) --
+  replaced wholesale at the owner's request, streak and all; the streak
+  still lives on /streaks and today's split is one tap away on the
+  Workouts tab.
+
+  The last-analysis row underneath is filled in by renderAnalyzeHero()
+  below from the same two sources the Analyze page's own "Recent
+  analyses" strip uses -- the server history API for logged-in users,
+  falling back to the local activity log -- so the two can never show a
+  different "last analysis". Empty (not a placeholder) until there is a
+  real analysis to name.
 -->
 <div class="hm-hero">
   <div class="hm-hero-top">
-    <div class="hm-hero-date" id="hm-hero-date"></div>
-    <a class="hm-streak-chip" id="hm-streak-chip" href="{{ url_for('streaks') }}">
-      <span class="hm-streak-flame"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg></span><span id="hm-streak-count"></span>
-    </a>
+    <span class="hm-hero-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+    </span>
   </div>
-  <div class="hm-hero-title" id="hm-hero-title"></div>
-  <div class="hm-hero-sub" id="hm-hero-sub"></div>
-  <div class="hm-hero-week" id="hm-hero-week"></div>
-  <a class="hm-hero-cta" id="hm-hero-cta" href="{{ url_for('workouts') }}"></a>
+  <div class="hm-hero-title" data-i18n="home.analyze.title">Analyze a workout</div>
+  <div class="hm-hero-sub" data-i18n="home.analyze.sub">Upload a set — AI scores your technique and counts your reps.</div>
+  <div id="hm-analyze-last"></div>
+  <a class="hm-hero-cta" href="{{ url_for('analyze_page') }}" data-i18n="home.analyze.cta">Upload a set</a>
 </div>
 
 <!-- Weekly check-in: shown ONLY when it's actually ready. The old
@@ -73,36 +78,42 @@
     margin-bottom: 18px;
   }
   .hm-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .hm-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
-  /* Neutral pill by default, same treatment as .hm-macro-card-pill below --
-     only turns amber once there's an actual streak to celebrate. */
-  .hm-streak-chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    background: var(--bg); color: var(--text-secondary);
-    border-radius: 999px; padding: 6px 13px; min-height: 44px; box-sizing: border-box;
-    font-size: 13px; font-weight: 800; text-decoration: none;
-    transition: transform 0.1s ease;
-  }
-  .hm-streak-chip:active { transform: scale(0.94); }
-  .hm-streak-chip.is-active {
-    background: linear-gradient(135deg, #f5a94e, #e8832f); color: #fff;
+  /* Same target glyph the Analyze page leads with (.an-hero-icon in
+     templates/index.html), so the card and the page it opens read as one
+     feature. */
+  .hm-hero-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 13px;
+    background: var(--bg); color: var(--blue);
   }
   .hm-hero-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; }
   .hm-hero-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 5px; }
-  .hm-hero-week { display: flex; justify-content: space-between; gap: 6px; margin-top: 18px; }
-  .hm-hero-day { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; }
-  .hm-hero-day-letter { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
-  .hm-hero-day-num {
-    width: 34px; height: 34px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--border); color: var(--text-secondary);
-    font-size: 13px; font-weight: 700;
+
+  /* Last analysis: a quiet row, not a second headline -- the card's job
+     is still the CTA underneath it. Tappable (opening the stored report)
+     only in the server-history branch, which is the only one that has an
+     id to open; the local-log fallback renders the same row as a plain
+     <div>, so both share these styles. */
+  .hm-hero-last {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 16px; padding: 11px 13px;
+    background: var(--bg); border-radius: 14px;
+    color: inherit; text-decoration: none;
+    transition: transform 0.1s ease;
   }
-  .hm-hero-day.has-activity .hm-hero-day-num { background: linear-gradient(135deg, #29b87e, #1fa971); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.4); }
-  /* A ring instead of an inverted fill -- same "today" treatment
-     logging_history.html's .lh-circle.is-today already uses, so it reads
-     correctly regardless of what's underneath it. */
-  .hm-hero-day.is-today .hm-hero-day-num { box-shadow: 0 0 0 2px var(--blue); }
+  a.hm-hero-last:active { transform: scale(0.98); }
+  .hm-hero-last-text { min-width: 0; flex: 1; }
+  /* Both are <span>s inside a <span> wrapper (so the whole row can be an
+     <a> in the server-history branch) -- without this they sit on one
+     line and the name's ellipsis never applies. */
+  .hm-hero-last-label, .hm-hero-last-name { display: block; }
+  .hm-hero-last-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+  .hm-hero-last-name { font-size: 14px; font-weight: 800; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hm-hero-last-meta { flex-shrink: 0; display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
+  .hm-hero-last-score {
+    background: var(--card-bg); color: var(--text);
+    border-radius: 999px; padding: 4px 9px; font-size: 11.5px; font-weight: 800;
+  }
   .hm-hero-cta {
     display: block; text-align: center; margin-top: 18px;
     background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
@@ -186,7 +197,6 @@
   @media (max-width: 720px) {
     .hm-hero { padding: 18px; }
     .hm-hero-title { font-size: 23px; }
-    .hm-hero-day-num { width: 30px; height: 30px; font-size: 12px; }
   }
 </style>
 
@@ -194,10 +204,21 @@
   (function () {
     const t = RepCheckI18n.t;
 
-    // Same formatter static/streak.js uses internally, so this page's day
-    // boundaries (today, the week strip) can't drift from what the streak
-    // itself counts.
+    // Same formatter static/streak.js uses internally, so "today" on this
+    // page can't drift from the day boundary the streak itself counts.
     const toIsoDate = RepCheckStreak.toIsoDate;
+
+    // Exercise labels are not library-controlled: a user can create a
+    // custom exercise (POST /api/custom-exercises, which only trims and
+    // caps the name at 60 chars) and analyze it, so the label arrives
+    // here as author-controlled text and lands in innerHTML below. Same
+    // sink and same fix as templates/index.html's own escapeHtml().
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text === null || text === undefined ? "" : text;
+      return div.innerHTML;
+    }
+
     function loadJson(key, fallback) {
       try {
         const parsed = JSON.parse(localStorage.getItem(key));
@@ -205,38 +226,14 @@
       } catch (err) { return fallback; }
     }
 
-    // The workout log used to be read here too, purely to decide which
-    // days count toward the streak -- that now lives behind
-    // RepCheckStreak (which reads it, and every other feature's log,
-    // itself). This copy is only for the macro card below.
+    // Only the macro card below reads this -- the hero used to check the
+    // workout log too, to decide which days counted toward its streak
+    // strip, but that whole card is the Analyze one now.
     const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
     // No "calories" field on purpose -- it's never stored directly (see
     // nutrition.html/coaching.js), always derived from protein/fat/carbs
     // below so it can't drift out of sync with the macro targets.
     const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
-
-    // "Did the user use RepCheck that day" -- any feature, not just the
-    // workout/nutrition logs this page used to check on its own. The rule
-    // and the streak maths both live in static/streak.js now so the home
-    // hero, the challenges hero and the streaks page can't disagree.
-    const hasActivityOn = RepCheckStreak.hasActivityOn;
-    const computeStreak = RepCheckStreak.current;
-
-    // ---------- Today's planned split (mirrors workouts.html's own logic) ----------
-    const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-    function loadSplitPlan() {
-      return loadJson("repcheck_split_plan_v1", null);
-    }
-    function getTodaysSplitInfo() {
-      const plan = loadSplitPlan();
-      if (!plan || !plan.schedule || !plan.days) return null;
-      const weekdayKey = WEEKDAY_KEYS[new Date().getDay()];
-      const label = plan.schedule[weekdayKey];
-      if (!label || label === "Rest") return null;
-      const day = plan.days.find((d) => d.label === label);
-      if (!day) return null;
-      return { label, exercises: day.exercises };
-    }
 
     // sumMacrosForDay() lives in static/nutrition_macros.js -- shared with
     // full_stats.html so the two can't silently drift from each other (or
@@ -421,57 +418,101 @@
       });
     }
 
-    // ---------- Hero ----------
-    function renderHero() {
-      const dateEl = document.getElementById("hm-hero-date");
-      if (!dateEl) return; // logged-out visitors have no hero
+    // ---------- Analyze hero ----------
+    // The card's static copy comes from data-i18n in the markup above;
+    // the only thing rendered here is the "last analysis" row, which
+    // needs data.
+    //
+    // Two sources, in the same order and with the same fallback as the
+    // Analyze page's own "Recent analyses" strip (templates/index.html):
+    // the server history API when logged in -- the only source with a
+    // score and a stored report to reopen -- and the local activity log
+    // (repcheck_analyze_log_v1, written by that page after every
+    // analysis) when the fetch fails or returns nothing. Neither source
+    // having an entry means nothing is drawn at all: a "no analyses yet"
+    // placeholder would just repeat the subtitle above it.
+    const ANALYZE_LOG_KEY = "repcheck_analyze_log_v1";
+    const HISTORY_LIST_URL = "{{ url_for('analyze_history_page') }}";
 
-      const locale = RepCheckI18n.locale();
-      dateEl.textContent = new Date().toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" });
+    let analyzeServerLatest = null;
 
-      const streak = computeStreak();
-      document.getElementById("hm-streak-count").textContent = t("home.streakCount", { n: streak });
-      document.getElementById("hm-streak-chip").classList.toggle("is-active", streak > 0);
+    // SQLite's created_at is "YYYY-MM-DD HH:MM:SS" in UTC -- same
+    // conversion index.html does, so the relative label below is in the
+    // user's local time rather than a day out.
+    function historyTimestamp(createdAt) {
+      return new Date(createdAt.replace(" ", "T") + "Z").getTime();
+    }
 
-      const titleEl = document.getElementById("hm-hero-title");
-      const subEl = document.getElementById("hm-hero-sub");
-      const ctaEl = document.getElementById("hm-hero-cta");
-      const splitInfo = getTodaysSplitInfo();
-      if (splitInfo) {
-        titleEl.textContent = /day$/i.test(splitInfo.label.trim())
-          ? splitInfo.label
-          : `${splitInfo.label} ${t("home.workouts.dayLabelSuffix")}`;
-        subEl.textContent = t("home.hero.exercisesPlanned", { n: splitInfo.exercises.length });
-        ctaEl.textContent = t("home.hero.cta");
-      } else if (loadSplitPlan()) {
-        titleEl.textContent = t("home.workouts.restDayTitle");
-        subEl.textContent = t("home.workouts.restDaySub");
-        ctaEl.textContent = t("home.hero.cta");
-      } else {
-        titleEl.textContent = t("home.hero.noPlanTitle");
-        subEl.textContent = t("home.hero.noPlanSub");
-        ctaEl.textContent = t("home.hero.ctaBuild");
+    // Shared with the Analyze page's strip via the i18n keys, not code --
+    // the strings are the same "Today / Yesterday / N days ago" ladder.
+    function relativeDateLabel(timestamp) {
+      const days = Math.floor((Date.now() - timestamp) / 86400000);
+      if (days <= 0) return t("analyze.today");
+      if (days === 1) return t("analyze.yesterday");
+      if (days < 7) return t("analyze.daysAgo", { n: days });
+      return new Date(timestamp).toLocaleDateString(RepCheckI18n.locale(), { month: "short", day: "numeric" });
+    }
+
+    function localLatestAnalysis() {
+      const log = loadJson(ANALYZE_LOG_KEY, []);
+      if (!Array.isArray(log) || !log.length) return null;
+      return log.slice().sort((a, b) => b.analyzedAt - a.analyzedAt)[0];
+    }
+
+    function renderAnalyzeHero() {
+      const mount = document.getElementById("hm-analyze-last");
+      if (!mount) return; // logged-out visitors have no hero
+
+      const entry = analyzeServerLatest;
+      if (entry) {
+        const hasScore = entry.overall_score !== null && entry.overall_score !== undefined;
+        // /analyze/history/<id> -- the page-level counterpart to the
+        // strip's in-place detail view, and a plain link so it works
+        // without any of that page's JS.
+        const href = `${HISTORY_LIST_URL}/${encodeURIComponent(entry.id)}`;
+        mount.innerHTML = `
+          <a class="hm-hero-last" href="${href}">
+            <span class="hm-hero-last-text">
+              <span class="hm-hero-last-label">${t("home.analyze.lastAnalysis")}</span>
+              <span class="hm-hero-last-name">${escapeHtml(entry.exercise_label)}</span>
+            </span>
+            <span class="hm-hero-last-meta">
+              ${hasScore ? `<span class="hm-hero-last-score">${entry.overall_score}/100</span>` : ""}
+              <span>${relativeDateLabel(historyTimestamp(entry.created_at))}</span>
+            </span>
+          </a>
+        `;
+        return;
       }
 
-      // Monday-first week strip: today highlighted, past days with any
-      // logged activity filled green.
-      const todayIso = toIsoDate(new Date());
-      const heroLetters = ["M", "T", "W", "T", "F", "S", "S"];
-      const monday = new Date();
-      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-      document.getElementById("hm-hero-week").innerHTML = heroLetters.map((letter, i) => {
-        const d = new Date(monday);
-        d.setDate(d.getDate() + i);
-        const iso = toIsoDate(d);
-        const isToday = iso === todayIso;
-        const active = !isToday && iso <= todayIso && hasActivityOn(iso);
-        return `
-          <div class="hm-hero-day ${isToday ? "is-today" : ""} ${active ? "has-activity" : ""}">
-            <div class="hm-hero-day-letter">${letter}</div>
-            <div class="hm-hero-day-num">${d.getDate()}</div>
-          </div>
-        `;
-      }).join("");
+      // Local fallback: an exercise and a date, no score and nothing to
+      // open (the log only records what was analyzed, not the result), so
+      // this branch is a plain row rather than a link.
+      const local = localLatestAnalysis();
+      if (!local) { mount.innerHTML = ""; return; }
+      mount.innerHTML = `
+        <div class="hm-hero-last">
+          <span class="hm-hero-last-text">
+            <span class="hm-hero-last-label">${t("home.analyze.lastAnalysis")}</span>
+            <span class="hm-hero-last-name">${escapeHtml(local.exercise)}</span>
+          </span>
+          <span class="hm-hero-last-meta"><span>${relativeDateLabel(local.analyzedAt)}</span></span>
+        </div>
+      `;
+    }
+
+    async function loadAnalyzeHistory() {
+      if (!window.REPCHECK_LOGGED_IN) return;
+      try {
+        const response = await fetch("{{ url_for('api_analyze_history') }}");
+        const data = await response.json();
+        // The API returns newest first (get_analyze_results' own order),
+        // so entry 0 is the latest.
+        if (data.ok && data.entries && data.entries.length) analyzeServerLatest = data.entries[0];
+      } catch (err) {
+        // falls back to the local log in renderAnalyzeHero()
+      }
+      renderAnalyzeHero();
     }
 
     // ---------- Weekly check-in banner (nutrition coaching) ----------
@@ -505,7 +546,7 @@
     }
 
     function renderAll() {
-      renderHero();
+      renderAnalyzeHero();
       renderCheckinBanner();
       renderMacroCard();
     }
@@ -516,10 +557,10 @@
     // Fired by base.html's shared "Log weight" sheet right after a
     // successful save.
     document.addEventListener("repcheck:weight-logged", renderCheckinBanner);
-    // The streak's back-fill of server-side activity (challenge attempts
-    // and friends) resolves after this first render -- redraw the hero so
-    // the flame and the week dots pick those days up.
-    document.addEventListener(RepCheckStreak.UPDATED_EVENT, renderHero);
+    // Resolves after the first render above, which drew the local-log
+    // fallback (or nothing) -- redraw once the server's own history,
+    // scores included, lands.
+    loadAnalyzeHistory();
 
     // ---------- Personalized greeting ----------
     // "Hey {first name} 👋" instead of the static page heading. The h1

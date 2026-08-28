@@ -6,6 +6,10 @@
 // navigation. Each page wires this by listening for
 // RepCheckStreak.UPDATED_EVENT and re-running its own render function.
 //
+// (home.html used to be in this list. Its hero showed the streak flame and
+// a week strip; that whole card was replaced by the Analyze one, so there
+// is no streak display left on Home to keep fresh.)
+//
 // This is a source-contract test (regex against the shipped template),
 // same approach as tests-js/streakMarkCallSites.test.js -- it can't drive
 // the actual async back-fill without a browser, but it pins the wiring so
@@ -21,11 +25,9 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const read = (...parts) => readFileSync(path.join(root, "..", ...parts), "utf-8");
 
 describe("pages redraw when the streak's server back-fill lands", () => {
-  it("home.html listens for RepCheckStreak.UPDATED_EVENT and calls renderHero", () => {
-    expect(read("templates", "home.html")).toMatch(
-      /document\.addEventListener\(RepCheckStreak\.UPDATED_EVENT,\s*renderHero\)/
-    );
-  });
+  // home.html is deliberately absent: its hero is the Analyze card now
+  // and shows no streak at all, so it has nothing to redraw. Challenges
+  // and the Streaks page are the remaining displays.
 
   it("challenges.html listens for RepCheckStreak.UPDATED_EVENT and calls renderHeroTop", () => {
     expect(read("templates", "challenges.html")).toMatch(
