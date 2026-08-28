@@ -23,9 +23,8 @@
 workflows:
   ios-release:
     name: RepCheck iOS release
-    # macOS is not optional: CocoaPods and xcodebuild only run there. This is
-    # the reason the build cannot happen on the Windows machine this repo is
-    # developed on.
+    # macOS is not optional: xcodebuild only runs there. This is the reason
+    # the build cannot happen on the Windows machine this repo is developed on.
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -34,14 +33,17 @@ workflows:
         # Must match capacitor.config.json's appId exactly, or signing fails
         # with a provisioning-profile mismatch that reads like a cert problem.
         BUNDLE_ID: "com.benchanakatkul.repcheck"
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        # A .xcodeproj, NOT a .xcworkspace. Capacitor 8 wires plugins in
+        # with Swift Package Manager, so `cap add ios` writes a Package.swift
+        # and never generates a Podfile or a workspace. Building --workspace
+        # here fails with "Path ios/App/App.xcworkspace does not exist".
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
       # Capacitor 8's CLI hard-requires Node >= 22 and exits [fatal] on 20,
       # which killed the `cap add ios` step. Keep this >= the engines floor of
       # whatever @capacitor/cli version package.json pins.
       node: 22
       xcode: latest
-      cocoapods: default
 
     # Name of the App Store Connect API key you added under Codemagic's
     # Settings -> Integrations. Rename here if you called it something other
@@ -148,7 +150,7 @@ workflows:
       - name: Build the signed ipa
         script: |
           xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
+            --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
 
     artifacts:

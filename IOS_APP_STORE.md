@@ -80,9 +80,16 @@ These are required regardless of the wrapper and can all be done on Windows.
 
 ## What requires a Mac -- and how it is handled
 
-`npx cap add ios` runs `pod install`, which is macOS-only, so the native Xcode
-project cannot be generated on the Windows machine this repo is developed on.
-`ios/` is therefore gitignored and treated as build output.
+`xcodebuild` is macOS-only, so the app cannot be compiled on the Windows
+machine this repo is developed on. `ios/` is gitignored and treated as build
+output, regenerated on the CI Mac every run.
+
+Capacitor 8 wires its plugins in with Swift Package Manager rather than
+CocoaPods, so `cap add ios` writes a `Package.swift` and produces
+`ios/App/App.xcodeproj` with **no Podfile and no `.xcworkspace`**. Build
+tooling that expects the CocoaPods-era workspace path fails with
+`Path "ios/App/App.xcworkspace" does not exist` -- which is exactly how
+build 5 died.
 
 `codemagic.yaml` covers this: it rents a macOS runner, regenerates the iOS
 project, writes the `Info.plist` usage strings, runs both test suites, and
