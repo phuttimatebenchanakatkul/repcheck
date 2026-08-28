@@ -39,14 +39,11 @@ workflows:
       node: 20
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.benchanakatkul.repcheck
 
     # Name of the App Store Connect API key you added under Codemagic's
-    # Teams -> Integrations -> Developer Portal. Rename here if you called
-    # it something other than "appstore". Without this, ios_signing above
-    # has no credentials to fetch a provisioning profile with.
+    # Settings -> Integrations. Rename here if you called it something other
+    # than "appstore". This is what puts the APP_STORE_CONNECT_* variables in
+    # the build environment, which the signing step below authenticates with.
     integrations:
       app_store_connect: appstore
 
@@ -131,9 +128,22 @@ workflows:
           python3 -m pip install --quiet -r requirements-dev.txt || true
           python3 -m pytest -q || true   # see IOS_APP_STORE.md: needs ffmpeg/zbar on the runner
 
+      - name: Set up code signing
+        script: |
+          # Deliberately scripted rather than declared via `ios_signing:` in
+          # the environment block. The declarative form only FETCHES existing
+          # signing files, so on a bundle id that has never been built it dies
+          # with "No matching profiles found ... distribution type app_store"
+          # -- before any of the steps above even run. --create makes the
+          # distribution certificate and the provisioning profile instead of
+          # expecting someone to have made them by hand on a Mac.
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID"             --type IOS_APP_STORE             --create
+          keychain add-certificates
+          xcode-project use-profiles
+
       - name: Build the signed ipa
         script: |
-          xcode-project use-profiles
           xcode-project build-ipa \
             --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
