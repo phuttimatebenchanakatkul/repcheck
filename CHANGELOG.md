@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.4.0] - 2026-08-28
+
+### Changed
+
+- **The iPhone build pipeline is now armed.** With the Apple account verified,
+  the signing and TestFlight upload steps in the build config are live rather
+  than commented out, so a build can actually produce a signed app and send it
+  to TestFlight once the account-side setup is done.
+- The build now installs RepCheck's own 1024x1024 App Store icon over the
+  placeholder the tooling ships. Apple rejects uploads whose icon has a
+  transparency channel, and the placeholder has one, so this would otherwise
+  have failed at upload with a message that does not mention the icon.
+- Each build stamps its own version and build number automatically. Apple
+  refuses any upload whose build number is not higher than the last one, which
+  is the most common way a second TestFlight upload fails.
+
 ## [0.4.3.0] - 2026-08-25
 
 ### Added
