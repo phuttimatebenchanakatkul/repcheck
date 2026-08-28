@@ -2,6 +2,15 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.1] - 2026-08-28
+
+### Fixed
+
+- The first iPhone build failed before it started, with "no matching profiles
+  found". The build was set up to look for Apple's signing files rather than to
+  create them, and on an app that has never been built there is nothing to find.
+  It now creates them on the first run.
+
 ## [0.4.5.0] - 2026-08-28
 
 ### Changed
