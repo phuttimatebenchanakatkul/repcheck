@@ -2,6 +2,15 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.4] - 2026-08-28
+
+### Fixed
+
+- The iPhone build reached the real compile step and then refused to sign the
+  app. It now pins the app identifier into the Xcode project rather than
+  trusting it to already be set, and prints what it found so the next failure
+  explains itself.
+
 ## [0.4.5.3] - 2026-08-28
 
 ### Fixed
