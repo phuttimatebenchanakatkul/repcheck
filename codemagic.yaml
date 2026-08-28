@@ -36,7 +36,10 @@ workflows:
         BUNDLE_ID: "com.benchanakatkul.repcheck"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-      node: 20
+      # Capacitor 8's CLI hard-requires Node >= 22 and exits [fatal] on 20,
+      # which killed the `cap add ios` step. Keep this >= the engines floor of
+      # whatever @capacitor/cli version package.json pins.
+      node: 22
       xcode: latest
       cocoapods: default
 

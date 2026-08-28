@@ -2,6 +2,13 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.2] - 2026-08-28
+
+### Fixed
+
+- The iPhone build was running an older version of Node than the app tooling
+  needs, and stopped as soon as it tried to generate the iOS project.
+
 ## [0.4.5.1] - 2026-08-28
 
 ### Fixed
