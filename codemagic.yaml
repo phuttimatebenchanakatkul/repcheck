@@ -143,9 +143,33 @@ workflows:
           # distribution certificate and the provisioning profile instead of
           # expecting someone to have made them by hand on a Mac.
           keychain initialize
-          app-store-connect fetch-signing-files "$BUNDLE_ID"             --type IOS_APP_STORE             --create
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
           keychain add-certificates
-          xcode-project use-profiles
+
+          # Force the target's bundle id to match the profile just fetched.
+          # use-profiles matches profiles to targets BY BUNDLE ID, and when
+          # nothing matches it does nothing and still exits 0 -- so the build
+          # carries on and dies later at archive time with the much less
+          # helpful '"App" requires a provisioning profile'. That is exactly
+          # how build 6 failed. Capacitor is supposed to seed this from appId
+          # in capacitor.config.json; this makes it true rather than assumed.
+          /usr/bin/sed -i '' \
+            "s/PRODUCT_BUNDLE_IDENTIFIER = [^;]*;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" \
+            "$XCODE_PROJECT/project.pbxproj"
+
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+
+          # Diagnostics. If signing still fails at archive, these answer
+          # "which bundle id, which profile, did they match" without another
+          # round trip through a failed build.
+          echo "--- bundle ids in the project ---"
+          grep -o 'PRODUCT_BUNDLE_IDENTIFIER = [^;]*;' "$XCODE_PROJECT/project.pbxproj" | sort -u
+          echo "--- provisioning profiles on the machine ---"
+          ls -1 "$HOME/Library/MobileDevice/Provisioning Profiles/" 2>/dev/null || echo "(none)"
+          echo "--- resolved signing settings ---"
+          xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings 2>/dev/null \
+            | grep -E 'PRODUCT_BUNDLE_IDENTIFIER|PROVISIONING_PROFILE|CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM' \
+            | sort -u || true
 
       - name: Build the signed ipa
         script: |
