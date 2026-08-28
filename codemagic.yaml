@@ -5,15 +5,17 @@
 # and upload it to App Store Connect. Codemagic rents that Mac and watches
 # this repo, which is what makes the whole thing possible from Windows.
 #
-# NOT usable until three things exist -- all of them need the Apple Developer
-# membership that is still pending:
+# The signing and publishing blocks below are live. They depend on three
+# things that only exist inside your Apple account -- do these before the
+# first build, or it fails at the signing step:
 #
-#   1. A bundle id registered at developer.apple.com (must equal appId in
-#      capacitor.config.json -- com.repcheck.app).
-#   2. An App Store Connect API key (Users and Access -> Integrations -> Keys),
-#      added to Codemagic under a team integration.
-#   3. An "App Store Connect" distribution certificate, which Codemagic can
-#      generate for you once the key above is connected.
+#   1. Register the bundle id com.benchanakatkul.repcheck at developer.apple.com
+#      (must equal appId in capacitor.config.json, exactly).
+#   2. Create an App Store Connect API key (Users and Access -> Integrations
+#      -> Keys, Admin role) and add it to Codemagic as a team integration
+#      named "appstore" (Teams -> Integrations -> Developer Portal).
+#   3. Create the app record in App Store Connect with that same bundle id.
+#      Codemagic uploads to an existing record; it cannot create one.
 #
 # Then connect this repo at codemagic.io and pick the ios-release workflow.
 # See IOS_APP_STORE.md for the full sequence.
@@ -31,18 +33,22 @@ workflows:
       vars:
         # Must match capacitor.config.json's appId exactly, or signing fails
         # with a provisioning-profile mismatch that reads like a cert problem.
-        BUNDLE_ID: "com.repcheck.app"
+        BUNDLE_ID: "com.benchanakatkul.repcheck"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
       node: 20
       xcode: latest
       cocoapods: default
-      # Uncomment once the App Store Connect key is added in Codemagic.
-      # ios_signing:
-      #   distribution_type: app_store
-      #   bundle_identifier: com.repcheck.app
-      # groups:
-      #   - appstore_credentials
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.benchanakatkul.repcheck
+
+    # Name of the App Store Connect API key you added under Codemagic's
+    # Teams -> Integrations -> Developer Portal. Rename here if you called
+    # it something other than "appstore". Without this, ios_signing above
+    # has no credentials to fetch a provisioning profile with.
+    integrations:
+      app_store_connect: appstore
 
     triggering:
       events:
@@ -83,6 +89,40 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'RepCheck lets you pick an existing photo of a meal instead of taking a new one.'" "$PLIST" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'RepCheck lets you pick an existing photo of a meal instead of taking a new one.'" "$PLIST"
 
+      - name: Install the App Store icon
+        script: |
+          # Capacitor's template ships a placeholder icon. Uploading with it
+          # is an immediate App Store Connect rejection ("missing or invalid
+          # app icon"), and the placeholder is a 1024 PNG *with* alpha, which
+          # is separately rejected. native/AppIcon-1024.png is generated from
+          # static/logo-mark.png as RGB with no alpha channel.
+          ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          if [ ! -d "$ICONSET" ]; then
+            echo "No $ICONSET -- cap add ios layout changed; fix this step." >&2
+            exit 1
+          fi
+          # Overwrite every size the template declares. The source is 1024, so
+          # scale down per declared filename rather than copying blindly: a
+          # wrong-sized image in an asset catalog fails the build, not the
+          # upload, and the error does not name the file.
+          for f in "$ICONSET"/*.png; do
+            sips -s format png -z 1024 1024 native/AppIcon-1024.png --out "$f" >/dev/null
+          done
+          sips -g pixelWidth -g hasAlpha "$ICONSET"/*.png | head -20
+
+      - name: Set the version and build number
+        script: |
+          # CFBundleShortVersionString takes at most three components, so it
+          # comes from package.json (the npm-valid translation of VERSION, per
+          # CLAUDE.md) rather than from the 4-digit VERSION file itself.
+          SHORT_VERSION=$(node -p "require('./package.json').version")
+          cd ios/App
+          agvtool new-marketing-version "$SHORT_VERSION"
+          # App Store Connect rejects any upload whose build number is not
+          # higher than every previous one for this version. $BUILD_NUMBER is
+          # Codemagic's own per-project counter, which only ever increases.
+          agvtool new-version -all "$BUILD_NUMBER"
+
       - name: Run the test suites
         script: |
           # The same two suites CLAUDE.md gates shipping on. A build that
@@ -103,13 +143,13 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
 
     publishing:
-      # Uncomment once the App Store Connect API key is connected. Leave
-      # submit_to_app_store false until you have deliberately decided to
-      # start a review -- TestFlight first, always.
-      # app_store_connect:
-      #   auth: integration
-      #   submit_to_testflight: true
-      #   submit_to_app_store: false
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Deliberately false. TestFlight first, always -- flip this only once
+        # you have installed the build on a device and decided to start a
+        # review. App Review is a human queue you cannot cheaply back out of.
+        submit_to_app_store: false
       email:
         recipients:
           - jamesbenchanakatkul@gmail.com
