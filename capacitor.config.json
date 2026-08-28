@@ -1,5 +1,5 @@
 {
-  "appId": "com.repcheck.app",
+  "appId": "com.benchanakatkul.repcheck",
   "appName": "RepCheck",
   "webDir": "native/www",
   "server": {

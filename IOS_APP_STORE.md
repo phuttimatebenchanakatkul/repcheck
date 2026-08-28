@@ -92,7 +92,7 @@ Apple never pulls from GitHub; a CI Mac builds and uploads on your behalf.
 Before it can run, three things need the active membership:
 
 1. A bundle id registered at developer.apple.com, matching `appId` in
-   `capacitor.config.json` (`com.repcheck.app`).
+   `capacitor.config.json` (`com.benchanakatkul.repcheck`).
 2. An App Store Connect API key (Users and Access -> Integrations -> Keys),
    added to Codemagic.
 3. An App Store distribution certificate, which Codemagic generates once the
@@ -111,7 +111,7 @@ None of this can be done from the repo, and all of it needs you signed in.
 1. **App Store Connect -> Business**: accept the Program License Agreement.
    Payment is not enough; uploads stay blocked until it is accepted.
 2. **developer.apple.com -> Identifiers**: register the bundle id
-   `com.repcheck.app`. It must match `appId` in `capacitor.config.json`
+   `com.benchanakatkul.repcheck`. It must match `appId` in `capacitor.config.json`
    exactly, and it is permanent -- a typo is not reusable.
 3. **App Store Connect -> Apps -> +**: create the app record using that same
    bundle id. Codemagic uploads into an existing record; it cannot create one.
@@ -145,7 +145,7 @@ None of this can be done from the repo, and all of it needs you signed in.
 4. Accept the Program License Agreement in App Store Connect (Business tab).
    Payment alone is not enough -- app creation and uploads stay blocked until
    someone accepts it.
-5. Register the bundle id `com.repcheck.app`. Permanent; never reusable.
+5. Register the bundle id `com.benchanakatkul.repcheck`. Permanent; never reusable.
 6. Connect this repo at codemagic.io, add the App Store Connect API key, and
    uncomment the signing blocks in `codemagic.yaml`.
 7. First TestFlight build. Expect the first one to fail on something small.

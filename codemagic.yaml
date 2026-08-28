@@ -9,7 +9,7 @@
 # things that only exist inside your Apple account -- do these before the
 # first build, or it fails at the signing step:
 #
-#   1. Register the bundle id com.repcheck.app at developer.apple.com
+#   1. Register the bundle id com.benchanakatkul.repcheck at developer.apple.com
 #      (must equal appId in capacitor.config.json, exactly).
 #   2. Create an App Store Connect API key (Users and Access -> Integrations
 #      -> Keys, Admin role) and add it to Codemagic as a team integration
@@ -33,7 +33,7 @@ workflows:
       vars:
         # Must match capacitor.config.json's appId exactly, or signing fails
         # with a provisioning-profile mismatch that reads like a cert problem.
-        BUNDLE_ID: "com.repcheck.app"
+        BUNDLE_ID: "com.benchanakatkul.repcheck"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
       node: 20
@@ -41,7 +41,7 @@ workflows:
       cocoapods: default
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.repcheck.app
+        bundle_identifier: com.benchanakatkul.repcheck
 
     # Name of the App Store Connect API key you added under Codemagic's
     # Teams -> Integrations -> Developer Portal. Rename here if you called

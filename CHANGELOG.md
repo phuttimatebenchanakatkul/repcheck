@@ -14,6 +14,10 @@ All notable changes to RepCheck are recorded here, newest first.
   placeholder the tooling ships. Apple rejects uploads whose icon has a
   transparency channel, and the placeholder has one, so this would otherwise
   have failed at upload with a message that does not mention the icon.
+- The app's internal identifier changed from `com.repcheck.app` to
+  `com.benchanakatkul.repcheck`. These are unique across every Apple developer
+  worldwide and the original was already taken. It is never shown to anyone
+  using the app.
 - Each build stamps its own version and build number automatically. Apple
   refuses any upload whose build number is not higher than the last one, which
   is the most common way a second TestFlight upload fails.
