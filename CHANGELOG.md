@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.4.0] - 2026-08-28
+## [0.4.5.0] - 2026-08-28
 
 ### Changed
 
@@ -21,6 +21,19 @@ All notable changes to RepCheck are recorded here, newest first.
 - Each build stamps its own version and build number automatically. Apple
   refuses any upload whose build number is not higher than the last one, which
   is the most common way a second TestFlight upload fails.
+
+## [0.4.4.0] - 2026-08-26
+
+### Changed
+
+- **Suggestions now live where you actually log things, not on the home page.**
+  The home screen no longer shows a "Suggestions" card on days with nothing
+  logged. The same suggestions were already waiting inside the two search
+  sheets -- open the food log's add sheet and it opens on your recent foods
+  plus what you usually eat around this hour; open the workout log's exercise
+  picker and it opens on your favourites, your custom exercises, today's
+  planned split, and what you logged recently. That is where you are already
+  headed when you want to log something, so the home page stops repeating it.
 
 ## [0.4.3.0] - 2026-08-25
 

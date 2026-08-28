@@ -1,6 +1,6 @@
 /**
- * RepCheckSuggestions -- "here's what you could log" suggestions for a day
- * with nothing on it yet.
+ * RepCheckSuggestions -- "here's what you could log" suggestions for the
+ * food and workout log search sheets.
  *
  * EVERY suggestion here is derived from data the user actually has: foods
  * they have logged before (at this time of day, or most recently) and
@@ -10,12 +10,11 @@
  * instead of a made-up pick.
  *
  * The two food rules (recent-first, and this hour's habitual "top picks")
- * were already implemented inline in templates/nutrition.html, and the
- * exercise one in templates/workouts.html, for their respective add
- * sheets. They live here now so the home page can reuse the SAME rules
- * rather than growing a third and fourth hand-copied variant -- those
- * templates call straight into this file (passing their own live in-memory
- * log, which is newer than localStorage mid-session).
+ * and the exercise one live here rather than inline in
+ * templates/nutrition.html and templates/workouts.html, so the two search
+ * sheets share one definition instead of each growing its own copy --
+ * those templates call straight into this file, passing their own live
+ * in-memory log, which is newer than localStorage mid-session.
  *
  *   repcheck_nutrition_log_v1  date -> [{ food, addedAt, ... }]
  *   repcheck_workout_log_v2    date -> [{ exercise, addedAt, ... }]
@@ -90,13 +89,6 @@
     return names;
   }
 
-  // A day counts as "logged" only once it has at least one entry -- an
-  // empty array is what deleting the last entry of a day leaves behind
-  // (same rule as static/streak.js).
-  function hasEntriesOn(log, iso) {
-    return Array.isArray(log[iso]) && log[iso].length > 0;
-  }
-
   /**
    * Foods the user genuinely tends to eat AROUND `hour` -- not just
    * anything logged there once. A food qualifies only if it was logged in
@@ -137,37 +129,11 @@
     return recentNames(allEntries(resolveLog(log, WORKOUT_LOG_KEY)), "exercise", limit);
   }
 
-  /**
-   * What to offer someone who hasn't logged food yet: this hour's habits
-   * first (the strongest signal of what they're about to eat), then their
-   * most recent foods, deduped. Empty for a user with no food history --
-   * there is nothing true to suggest, so callers show a first-log CTA.
-   */
-  function foodsForHour(hour, limit, log) {
-    var resolved = resolveLog(log, NUTRITION_LOG_KEY);
-    var seen = {};
-    return topPicksForHour(hour, limit, resolved)
-      .concat(recentFoods(limit, resolved))
-      .filter(function (name) { return seen[name] ? false : (seen[name] = true); })
-      .slice(0, limit);
-  }
-
-  function hasFoodOn(iso, log) {
-    return hasEntriesOn(resolveLog(log, NUTRITION_LOG_KEY), iso);
-  }
-
-  function hasWorkoutOn(iso, log) {
-    return hasEntriesOn(resolveLog(log, WORKOUT_LOG_KEY), iso);
-  }
-
   window.RepCheckSuggestions = {
     toIsoDate: toIsoDate,
-    hasFoodOn: hasFoodOn,
-    hasWorkoutOn: hasWorkoutOn,
     topPicksForHour: topPicksForHour,
     recentFoods: recentFoods,
     recentExercises: recentExercises,
-    foodsForHour: foodsForHour,
     TOP_PICK_MIN_DAYS: TOP_PICK_MIN_DAYS,
   };
 })();
