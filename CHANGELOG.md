@@ -2,6 +2,14 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.3] - 2026-08-28
+
+### Fixed
+
+- The iPhone build got all the way to the final compile and then failed
+  looking for a project file that the tooling no longer creates. Corrected,
+  along with the notes that described the old layout.
+
 ## [0.4.5.2] - 2026-08-28
 
 ### Fixed
