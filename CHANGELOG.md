@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.8.0] - 2026-08-29
+## [0.4.9.0] - 2026-08-29
 
 ### Fixed
 
@@ -14,6 +14,17 @@ All notable changes to RepCheck are recorded here, newest first.
   the sign-in back to the app when Safari closes, and you land where you
   started, logged in.
 - Signing in with Google on the website is completely unchanged.
+
+## [0.4.8.0] - 2026-08-29
+
+### Changed
+
+- The barcode scanner now fills the screen instead of sitting in a small box
+  near the top of the sheet, and a Scan / Upload photo switch sits under it.
+  A bigger preview puts more pixels on the bars, which is what decides whether
+  a barcode reads at all, and the switch means a code that will not scan live
+  can be read from a photo -- taken now, or one already in the library --
+  without hunting for the fallback.
 
 ## [0.4.7.0] - 2026-08-29
 

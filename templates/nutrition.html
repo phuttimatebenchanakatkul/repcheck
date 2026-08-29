@@ -181,6 +181,10 @@
   <input type="file" id="af-camera-input" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="af-upload-input" accept="image/*" style="display:none;">
   <input type="file" id="af-barcode-input" accept="image/*" capture="environment" style="display:none;">
+  <!-- Same decode path as af-barcode-input, minus "capture": the scanner's
+       photo mode offers both "take one now" and "pick the one already in
+       the library", and only the second needs the gallery picker. -->
+  <input type="file" id="af-barcode-upload-input" accept="image/*" style="display:none;">
 </div>
 
 <!-- Confirm-amount step shown before logging a food picked from search/
@@ -842,22 +846,48 @@
     to { opacity: 1; transform: scale(1); }
   }
 
-  /* ---------- Live barcode scanner (in-app camera feed) ---------- */
+  /* ---------- Live barcode scanner (in-app camera feed) ----------
+     The camera fills the sheet rather than sitting in a 4:3 card near the
+     top. A barcode read is a numbers game -- more pixels on the bars means
+     more frames that decode -- and a preview the size of the screen is both
+     easier to aim with and what every native scanner looks like. The mode
+     switch below it (live camera vs. a photo from the library) is the same
+     segmented control the food sheet uses for Recent/Favorites/Custom.
+     Nothing here is a fixed aspect any more, so the crop maths in JS
+     measures the real box instead of assuming 4:3 (see scannerBoxRect). */
+  .af-scanner-screen {
+    display: flex;
+    flex-direction: column;
+    /* Full-screen sheet (every phone): the body has a definite height, so
+       100% fills it exactly. Desktop, where the sheet is only as tall as
+       its content, has no such height to inherit -- min-height is what
+       makes the preview big there rather than collapsing to the video's
+       own minimum. */
+    height: 100%;
+    min-height: 62vh;
+    /* Cancels .af-modal-body's padding so the feed goes edge to edge; the
+       controls below re-add their own. */
+    margin: -4px -22px -22px;
+  }
   .af-scanner-wrap {
     position: relative;
+    flex: 1;
+    min-height: 200px;
     width: 100%;
-    aspect-ratio: 4 / 3;
-    border-radius: 14px;
     overflow: hidden;
     background: #000;
-    margin-bottom: 4px;
   }
   .af-scanner-video { width: 100%; height: 100%; object-fit: cover; }
   .af-scanner-frame {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: 78%; height: 34%;
+    /* Barcode-shaped, not box-shaped: tying the height to the width keeps
+       the guide the same on a tall full-screen feed as it was in the old
+       4:3 card, instead of stretching into a window most of the frame. */
+    width: 78%;
+    aspect-ratio: 5 / 2;
+    max-height: 34%;
     border: 2px solid var(--blue);
     border-radius: 10px;
     box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35);
@@ -866,12 +896,29 @@
   .af-scanner-hint {
     position: absolute;
     bottom: 14px; left: 0; right: 0;
+    padding: 0 18px;
     text-align: center;
     color: #fff;
     font-size: 12px;
     font-weight: 600;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
     pointer-events: none;
+  }
+  .af-scanner-controls {
+    flex-shrink: 0;
+    padding: 12px 22px calc(14px + env(safe-area-inset-bottom));
+    background: var(--card-bg);
+  }
+  .af-scanner-seg { margin: 0 0 12px; }
+  .af-scanner-controls .af-actions { margin-top: 0; }
+  /* Photo mode stands in for the feed, so it takes the same space rather
+     than letting the controls jump up the screen on every mode switch. */
+  .af-scanner-photo-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 20px 22px;
   }
   /* ---------- Macro donut + micronutrients (scan results, log-food popup) ---------- */
   .mn-donut-row { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
@@ -1870,6 +1917,9 @@
     }
     .af-modal-header { padding: 14px 16px 8px; }
     .af-modal-body { padding: 4px 16px 16px; }
+    .af-scanner-screen { margin: -4px -16px -16px; min-height: 0; }
+    .af-scanner-photo-pane { padding: 20px 16px; }
+    .af-scanner-controls { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
     .af-tile { padding: 15px 8px; font-size: 12.5px; gap: 9px; }
     .af-tile-icon { width: 44px; height: 44px; border-radius: 13px; }
     .af-primary-cta-icon { width: 46px; height: 46px; border-radius: 14px; }
@@ -2549,6 +2599,8 @@
   afCameraInput.addEventListener("change", () => { if (afCameraInput.files[0]) useAfImage(afCameraInput.files[0]); });
   afUploadInput.addEventListener("change", () => { if (afUploadInput.files[0]) useAfImage(afUploadInput.files[0]); });
   afBarcodeInput.addEventListener("change", () => { if (afBarcodeInput.files[0]) useBarcodeImage(afBarcodeInput.files[0]); });
+  const afBarcodeUploadInput = document.getElementById("af-barcode-upload-input");
+  afBarcodeUploadInput.addEventListener("change", () => { if (afBarcodeUploadInput.files[0]) useBarcodeImage(afBarcodeUploadInput.files[0]); });
 
   let afImageBlob = null;   // the photo (captured or uploaded) waiting to be analyzed
   let afPreviewUrl = null;  // object URL for the preview <img>, revoked on close
@@ -3109,31 +3161,86 @@
     else renderAfChoice();
   }
 
-  function renderBarcodeScannerUI(hint) {
-    // The still-photo route runs a product lookup and takes over the modal,
-    // so it is only offered when a lookup is what the scan is for. Filling a
-    // form field has no use for it -- that field can just be typed into.
+  function openBarcodeUploadInput() {
+    document.getElementById("af-barcode-upload-input").click();
+  }
+
+  // Shared chrome for both scanner modes: whatever fills the sheet, then the
+  // Scan / Upload photo segmented control and Cancel pinned underneath it.
+  //
+  // The still-photo route runs a product lookup and takes over the modal, so
+  // it is only offered when a lookup is what the scan is for. Filling a form
+  // field has no use for it -- that field can just be typed into -- so the
+  // switch is left out entirely there rather than offering a mode that would
+  // hijack the screen the caller is waiting to get back.
+  function renderBarcodeScannerScreen(mode, innerHtml) {
     const offerPhoto = !barcodeScanHandlers;
     afModalBody.innerHTML = `
+      <div class="af-scanner-screen">
+        ${innerHtml}
+        <div class="af-scanner-controls">
+          ${offerPhoto ? `
+          <div class="nl-scope-seg af-scanner-seg">
+            <button type="button" data-scan-mode="live" class="${mode === "live" ? "is-active" : ""}">Scan</button>
+            <button type="button" data-scan-mode="photo" class="${mode === "photo" ? "is-active" : ""}">Upload photo</button>
+          </div>` : ""}
+          <div class="af-actions">
+            <button type="button" class="af-secondary-btn" id="af-scanner-cancel-btn" style="flex:1;">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById("af-scanner-cancel-btn").addEventListener("click", cancelBarcodeScan);
+    afModalBody.querySelectorAll("[data-scan-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => switchBarcodeScanMode(btn.dataset.scanMode));
+    });
+  }
+
+  function renderBarcodeScannerUI(hint) {
+    renderBarcodeScannerScreen("live", `
       <div class="af-scanner-wrap">
         <video id="af-scanner-video" class="af-scanner-video" autoplay playsinline muted></video>
         <div class="af-scanner-frame"></div>
         <div class="af-scanner-hint" id="af-scanner-hint">${hint}</div>
       </div>
-      <div class="af-actions">
-        <button type="button" class="af-secondary-btn" id="af-scanner-cancel-btn" style="flex:1;">Cancel</button>
-        ${offerPhoto ? `<button type="button" class="af-secondary-btn" id="af-scanner-photo-btn" style="flex:1;">Take photo</button>` : ""}
-      </div>
-    `;
-    document.getElementById("af-scanner-cancel-btn").addEventListener("click", cancelBarcodeScan);
-    // Escape hatch: a still photo gets the server's full (slower, more
-    // thorough) decode cascade, which can catch a code the quick per-frame
-    // pass keeps missing.
-    if (offerPhoto) document.getElementById("af-scanner-photo-btn").addEventListener("click", () => {
-      stopLiveBarcodeScan();
-      openBarcodePhotoInput();
-    });
+    `);
     return document.getElementById("af-scanner-video");
+  }
+
+  // Photo mode. Both routes end in the same server-side decode, which runs a
+  // fuller (slower) cascade than the per-frame pass and so can catch a code
+  // the live loop keeps missing.
+  function renderBarcodePhotoPane() {
+    renderBarcodeScannerScreen("photo", `
+      <div class="af-scanner-photo-pane">
+        <div class="af-choice-intro">Use a photo of the barcode instead.</div>
+        <div class="af-tile-grid">
+          <button type="button" class="af-tile af-tile-wide af-tile-purple" id="af-barcode-take-photo-btn">
+            <span class="af-tile-title">Take photo</span>
+          </button>
+          <button type="button" class="af-tile af-tile-wide" id="af-barcode-choose-photo-btn">
+            <span class="af-tile-title">Choose from library</span>
+          </button>
+        </div>
+      </div>
+    `);
+    document.getElementById("af-barcode-take-photo-btn")
+      .addEventListener("click", openBarcodePhotoInput);
+    document.getElementById("af-barcode-choose-photo-btn")
+      .addEventListener("click", openBarcodeUploadInput);
+  }
+
+  function switchBarcodeScanMode(mode) {
+    if (mode === "photo") {
+      stopLiveBarcodeScan();
+      renderBarcodePhotoPane();
+      // Opened from inside the tap that switched mode, while the user
+      // activation a file picker needs is still live -- the pane's own
+      // buttons are what the user comes back to if they dismiss it.
+      openBarcodeUploadInput();
+      return;
+    }
+    startLiveBarcodeScan();
   }
 
   // Shown when the camera itself is unavailable (permission denied, or a
@@ -3284,31 +3391,56 @@
   // taller than the guide box and spilled past the visible area entirely.
   // (A 16:9 landscape test stream hides this, because there the two roughly
   // coincide.) Derive the sample from the displayed geometry instead.
+  // Measured, not assumed. The preview used to be a fixed 4:3 card, so its
+  // shape and its guide were known constants; now it fills whatever height
+  // the sheet has, which differs between a phone, a tablet and a desktop
+  // window. Hard-coding either one again would put the sampled crop
+  // somewhere other than the box the user is aiming through -- the exact bug
+  // the percentages below were introduced to fix. The fallbacks are the old
+  // constants, for a call that somehow runs with no scanner on screen.
   const SCANNER_BOX_ASPECT = 4 / 3;
   const SCANNER_GUIDE_W = 0.78;  // .af-scanner-frame width, fraction of the box
   const SCANNER_GUIDE_H = 0.34;  // .af-scanner-frame height
 
-  function visibleVideoRect(vw, vh) {
+  function scannerBoxGeometry() {
+    const wrap = document.querySelector(".af-scanner-wrap");
+    const frame = wrap && wrap.querySelector(".af-scanner-frame");
+    if (wrap && frame) {
+      const bw = wrap.clientWidth, bh = wrap.clientHeight;
+      const fw = frame.offsetWidth, fh = frame.offsetHeight;
+      if (bw > 0 && bh > 0 && fw > 0 && fh > 0) {
+        return {
+          aspect: bw / bh,
+          guideW: Math.min(1, fw / bw),
+          guideH: Math.min(1, fh / bh),
+        };
+      }
+    }
+    return { aspect: SCANNER_BOX_ASPECT, guideW: SCANNER_GUIDE_W, guideH: SCANNER_GUIDE_H };
+  }
+
+  function visibleVideoRect(vw, vh, boxAspect) {
     const videoAspect = vw / vh;
-    if (videoAspect > SCANNER_BOX_ASPECT) {
+    if (videoAspect > boxAspect) {
       // wider than the box: sides are cropped away
-      const w = vh * SCANNER_BOX_ASPECT;
+      const w = vh * boxAspect;
       return { x: (vw - w) / 2, y: 0, w: w, h: vh };
     }
     // taller than the box (every portrait phone stream): top and bottom go
-    const h = vw / SCANNER_BOX_ASPECT;
+    const h = vw / boxAspect;
     return { x: 0, y: (vh - h) / 2, w: vw, h: h };
   }
 
   function captureBarcodeFrame(video, canvas, ctx, mode) {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    const vis = visibleVideoRect(vw, vh);
+    const geom = scannerBoxGeometry();
+    const vis = visibleVideoRect(vw, vh, geom.aspect);
     if (mode === "crop") {
       // Exactly the guide the user lines the barcode up with, at the sensor's
       // own resolution, plus a small margin for a barcode overlapping its edge.
-      const cw = Math.min(vw, Math.round(vis.w * SCANNER_GUIDE_W * 1.1));
-      const ch = Math.min(vh, Math.round(vis.h * SCANNER_GUIDE_H * 1.35));
+      const cw = Math.min(vw, Math.round(vis.w * geom.guideW * 1.1));
+      const ch = Math.min(vh, Math.round(vis.h * geom.guideH * 1.35));
       const sx = Math.round(vis.x + (vis.w - cw) / 2);
       const sy = Math.round(vis.y + (vis.h - ch) / 2);
       canvas.width = cw;
