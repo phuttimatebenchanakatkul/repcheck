@@ -41,7 +41,7 @@ export function offsetLeftFor(index) {
  * Builds base.html's tab bar in jsdom with `activeIndex` marked active,
  * stubs the layout geometry, then evaluates the real nav.js against it.
  */
-export function loadNav({ activeIndex = 0 } = {}) {
+export function loadNav({ activeIndex = 0, saveData = false, fetchThrows = false } = {}) {
   document.body.innerHTML = `
     <nav class="mobile-tabbar">
       <div class="mt-pill">
@@ -74,6 +74,9 @@ export function loadNav({ activeIndex = 0 } = {}) {
   });
 
   const windowListeners = {};
+  // nav.js warms the next page on pointerdown, so the stub window needs a
+  // fetch to record (and, for the Data Saver case, a navigator.connection).
+  const fetches = [];
   const windowStub = {
     addEventListener(type, handler) {
       (windowListeners[type] = windowListeners[type] || []).push(handler);
@@ -84,6 +87,12 @@ export function loadNav({ activeIndex = 0 } = {}) {
     // assignment doesn't throw -- tests read it back to confirm the tab
     // that was actually released on.
     location: { href: "" },
+    fetch(url, options) {
+      fetches.push({ url, options });
+      if (fetchThrows) throw new Error("refused");
+      return { catch: () => {} };
+    },
+    navigator: { connection: saveData ? { saveData: true } : null },
   };
 
   // eslint-disable-next-line no-new-func
@@ -113,6 +122,8 @@ export function loadNav({ activeIndex = 0 } = {}) {
       clientX: offsetLeftFor(index) + ITEM_WIDTH / 2,
       clientY: 748 + ITEM_HEIGHT / 2,
     }),
+    /** Every page nav.js warmed, in order: [{url, options}]. */
+    fetches,
     /** The x the bubble is currently translated to, as a number. */
     x: () => {
       const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(

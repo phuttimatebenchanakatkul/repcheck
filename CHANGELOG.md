@@ -2,6 +2,23 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.12.3] - 2026-08-29
+
+### Fixed
+
+- Less black between screens. A screen recording of seven tab switches showed
+  every one of them blanking the phone completely -- for between a twelfth and
+  a fifth of a second each -- and a trip to the server for the next screen was
+  sitting inside that gap. The bottom bar now starts fetching the next screen
+  the moment your thumb touches a tab, about a tenth of a second before the tap
+  actually goes anywhere, so the screen is usually already on the phone by the
+  time it is needed. It is the same request the tap was going to make, only
+  earlier: it is only made on a real press of a tab you are not already on,
+  once per screen, and never when Data Saver is on.
+  Pages are also reusable for five seconds now, without asking the server,
+  which is what lets that head start count for anything. A deploy is still
+  never more than those five seconds away.
+
 ## [0.4.12.2] - 2026-08-29
 
 ### Fixed

@@ -23,26 +23,47 @@ renders a fully self-consistent old version of the app. Observed on
 the production URL while the TestFlight build kept showing the scrolling
 one, with the deploy status reading "live" the whole time.
 
-The freshness rule is therefore absolute: the device asks the server before
-reusing a page, every single time. WHAT enforces it changed in v0.4.11.1.
-It was `no-store`, which also meant every tab tap re-downloaded a ~300 KB
-page in full, even one just visited -- turning the smooth tab navigation of
-v0.4.9.1 back into something that reads as a refresh. It is now `no-cache`
-plus an ETag: same mandatory revalidation, but an unchanged page answers
-304 with no body. So the assertions below pin three things, and losing any
-one of them silently gives back either the stale-deploy bug or the refresh:
+The rule that matters is therefore: a page must never be reusable for longer
+than it takes to notice a deploy. What enforces it has been sharpened twice.
 
-  1. HTML must revalidate on every reuse (no-cache, and never no-store,
-     which would cost the download again).
-  2. HTML must carry the ETag that lets that revalidation answer 304.
-  3. /static must keep its own revalidation, or every asset would refetch
+  v0.4.9.2 made it `no-store` -- never keep the page at all. That fixed the
+  staleness and made every tab tap re-download a ~300 KB page in full, even
+  one just visited.
+
+  v0.4.11.1 made it `no-cache` plus an ETag -- keep it, but ask every time.
+  Same freshness, and an unchanged page answers 304 with no body.
+
+  v0.4.12.3 gave it a five-second window (`private, max-age=5,
+  must-revalidate`). Measured on a phone, every tab switch blacked the
+  screen out for 83-215ms with a network round trip inside that gap;
+  static/nav.js now starts fetching the next page on pointerdown, ~100ms
+  ahead of the click, and under ask-every-time that head start bought
+  nothing because the navigation asked again anyway. Five seconds is the
+  hand-off, not a cache policy: long enough to carry a warmed page into the
+  navigation that follows it, short enough that a deploy is never further
+  away than that.
+
+So the assertions below pin four things, and losing any one of them silently
+gives back either the stale-deploy bug or the black gap between screens:
+
+  1. HTML must state its freshness explicitly, and any window must stay
+     small -- absent is the original bug, open-ended is the same bug.
+  2. That window must stay big enough for nav.js's warm-up to land.
+  3. HTML must carry the ETag that lets a revalidation answer 304.
+  4. /static must keep its own revalidation, or every asset would refetch
      in full on every page load instead of 304-ing.
 """
+
+import re
 
 import app as app_module
 from app import app as flask_app
 
 HTML_PATHS = ("/login", "/signup", "/privacy", "/terms")
+# The longest a page may be reusable without asking the server. Long enough
+# to hand a warmed page to the navigation that follows it, short enough that
+# a deploy is never further away than that.
+MAX_FRESHNESS_SECONDS = 10
 
 
 def _client():
@@ -50,7 +71,14 @@ def _client():
     return flask_app.test_client()
 
 
-def test_rendered_pages_must_be_revalidated_before_reuse():
+def test_rendered_pages_carry_an_explicit_bounded_freshness_rule():
+    """Explicit and short. Never absent, never open-ended.
+
+    Absent is the original bug: with no freshness information and no
+    validator, iOS's NSURLCache invents its own heuristic and can hold a page
+    for as long as it likes. Open-ended is the same bug written down. The
+    five-second window is deliberate and is covered by its own test below.
+    """
     client = _client()
     # Logged out, so these render without any database setup. /login and
     # /signup are the ones that actually bit: they are the first screen the
@@ -60,19 +88,49 @@ def test_rendered_pages_must_be_revalidated_before_reuse():
         response = client.get(path)
         assert response.status_code == 200, f"{path} did not render"
         cache_control = response.headers.get("Cache-Control", "")
-        assert "no-cache" in cache_control, (
-            f"{path} must send Cache-Control: no-cache, which means "
-            '"cache it, but ask the server before every reuse". Without an '
-            "explicit rule the response has no freshness information AND no "
-            "validator, which lets iOS's NSURLCache serve a stored copy "
-            "without asking at all -- and because asset_url()'s ?v= "
-            "cache-busting lives inside this HTML, a stale page pins every "
-            f"stylesheet and script to its old version too. Got: {cache_control!r}"
+        max_age = re.search(r"max-age=(\d+)", cache_control)
+        assert "no-cache" in cache_control or max_age, (
+            f"{path} must state its freshness explicitly. Without a rule the "
+            "response has no freshness information AND no validator, which "
+            "lets iOS's NSURLCache serve a stored copy without asking at all "
+            "-- and because asset_url()'s ?v= cache-busting lives inside this "
+            "HTML, a stale page pins every stylesheet and script to its old "
+            f"version too. Got: {cache_control!r}"
         )
+        if max_age:
+            assert int(max_age.group(1)) <= MAX_FRESHNESS_SECONDS, (
+                f"{path} may be reusable without asking the server for at "
+                f"most {MAX_FRESHNESS_SECONDS}s -- long enough to hand a "
+                "warmed page to the navigation that follows it, and short "
+                "enough that a deploy is never more than that away. Got: "
+                f"{cache_control!r}"
+            )
         assert "must-revalidate" in cache_control, (
-            f"{path} must send must-revalidate, so a cache cannot fall back "
-            "to serving the stored copy when the revalidation itself fails."
+            f"{path} must send must-revalidate, so a cache cannot serve the "
+            "stored copy past its window when the revalidation itself fails."
         )
+
+
+def test_the_freshness_window_is_long_enough_to_hand_off_a_warmed_page():
+    """static/nav.js fetches the next page on pointerdown; this is the catch.
+
+    Measured on a phone (iphonecookie.mp4): 7 tab switches, every one of them
+    blacking the screen out completely for 83-215ms, with a network round
+    trip for the next page's HTML inside that gap. nav.js starts that fetch
+    on pointerdown, ~100ms before the click that navigates -- but under a
+    revalidate-every-time rule the navigation asks the server again anyway
+    and the head start buys nothing. A small window is what lets the
+    navigation use the response that is already there.
+    """
+    client = _client()
+    cache_control = client.get("/login").headers.get("Cache-Control", "")
+    max_age = re.search(r"max-age=(\d+)", cache_control)
+    assert max_age and int(max_age.group(1)) >= 2, (
+        "Pages need a freshness window of at least a couple of seconds or "
+        "the pointerdown warm-up in static/nav.js is wasted: the navigation "
+        "that follows revalidates and pays for the round trip anyway. Got: "
+        f"{cache_control!r}"
+    )
 
 
 def test_rendered_pages_are_not_re_downloaded_when_nothing_changed():
@@ -124,16 +182,22 @@ def test_rendered_pages_are_never_no_store():
         )
 
 
-def test_the_logged_out_redirect_revalidates_too():
+def test_the_logged_out_redirect_is_bounded_too():
     """`/` 302s to /login, and a cached redirect is just as sticky."""
     client = _client()
     response = client.get("/")
     assert response.status_code == 302, "expected the auth gate to redirect"
     cache_control = response.headers.get("Cache-Control", "")
-    assert "no-cache" in cache_control and "no-store" not in cache_control, (
-        "The redirect that fronts the whole app must be revalidated before "
-        "reuse. It is the first request the iOS shell makes on launch. Got: "
-        f"{cache_control!r}"
+    max_age = re.search(r"max-age=(\d+)", cache_control)
+    assert "no-store" not in cache_control, (
+        f"The redirect must not be no-store either. Got: {cache_control!r}"
+    )
+    assert "no-cache" in cache_control or (
+        max_age and int(max_age.group(1)) <= MAX_FRESHNESS_SECONDS
+    ), (
+        "The redirect that fronts the whole app must not be reusable beyond "
+        "the same short window as a page. It is the first request the iOS "
+        f"shell makes on launch. Got: {cache_control!r}"
     )
 
 

@@ -111,6 +111,38 @@
     return null;
   }
 
+  // ---- Warm the next page while the thumb is still down -------------------
+  // Between two documents there is nothing on screen: not the page, not this
+  // bar. Measured on a phone, every tab switch blacked the screen out for
+  // 83-215ms, and a network round trip for the next page's HTML sits inside
+  // that gap. pointerdown lands ~100ms before the click that navigates, so
+  // fetching here means the response is usually already in the cache by the
+  // time the navigation asks for it (app.py gives pages a five-second
+  // freshness window, which exists for exactly this hand-off).
+  //
+  // Same URL, same credentials, so this is the request the navigation was
+  // going to make anyway rather than an extra one -- as long as it is not
+  // wasted. Fired whenever the bubble lands on a real, non-active tab --
+  // pointerdown for a plain press, pointermove below for one dragged onto
+  // mid-gesture -- and remembered per URL so landing on the same tab twice
+  // does not refetch. Skipped entirely on Data Saver, where the user has
+  // said not to spend bytes on maybes.
+  var warmed = Object.create(null);
+
+  function warm(item) {
+    if (typeof window.fetch !== "function") return;
+    var href = item.getAttribute("href");
+    if (!href || warmed[href]) return;
+    var conn = window.navigator && window.navigator.connection;
+    if (conn && conn.saveData) return;
+    warmed[href] = true;
+    try {
+      window.fetch(href, { credentials: "same-origin" }).catch(function () {});
+    } catch (err) {
+      /* A refused fetch must never cost the tap its navigation. */
+    }
+  }
+
   // ---- Drag-to-switch: slide a held finger along the bar ----------------
   // The tabs are real <a href> elements, so a plain tap already navigates
   // on its own via the browser's native click. This layer only handles the
@@ -165,6 +197,7 @@
       if (item !== activeItem()) {
         pending = item;
         place(item, true);
+        warm(item);
       }
     },
     { passive: true }
@@ -172,7 +205,10 @@
 
   // Follows the finger for the lifetime of the drag it started with,
   // sliding the bubble to whichever tab the finger is currently over --
-  // including back to the active tab if the finger returns to it.
+  // including back to the active tab if the finger returns to it. A tab
+  // dragged onto mid-gesture gets the same warm() pointerdown gives the
+  // one initially pressed, since a drag that lands on it is just as
+  // likely to end there as a press on it would have been.
   window.addEventListener(
     "pointermove",
     function (event) {
@@ -183,6 +219,7 @@
       if (item) {
         pending = item === activeItem() ? null : item;
         place(item, true);
+        if (item !== activeItem()) warm(item);
       } else {
         pending = null;
         place(activeItem(), true);
