@@ -147,8 +147,11 @@
       } catch (err) { return fallback; }
     }
 
-    const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
-    const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
+    // `let`, not `const`: account_sync.js can rewrite these keys after this
+    // line has run, and the re-render handler below re-reads them rather
+    // than reloading the page.
+    let nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
+    let nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
 
     // sumMacrosForDay() lives in static/nutrition_macros.js -- shared with
     // home.html so the two can't silently drift from each other (or from
@@ -341,6 +344,15 @@
     renderAll();
     document.addEventListener("repcheck:language-changed", renderAll);
     document.addEventListener("repcheck:units-changed", renderAll);
+    // account_sync.js pulled newer values off the account. Re-read the two
+    // cached keys and redraw; preventDefault() tells it this page handled
+    // the change, so it doesn't fall back to reloading.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
+      nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
+      renderAll();
+      event.preventDefault();
+    });
   })();
 </script>
 {% endblock %}

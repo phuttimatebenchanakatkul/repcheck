@@ -202,6 +202,14 @@
     // asynchronously on the session's first page load, so both the totals
     // and the calendar need a redraw once it lands.
     document.addEventListener(RepCheckStreak.UPDATED_EVENT, render);
+    // account_sync.js pulled newer logs off the account. Everything here
+    // renders through RepCheckStreak, which re-reads localStorage on every
+    // call, so a plain render() is enough; preventDefault() tells
+    // account_sync.js this page handled it rather than letting it reload.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      render();
+      event.preventDefault();
+    });
   })();
 </script>
 {% endblock %}

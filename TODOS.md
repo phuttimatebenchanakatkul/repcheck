@@ -746,20 +746,12 @@
 **Priority:** P3
 **Depends on:** None
 
-## Navigation
-
-### account_sync.js reloads the page after hydration, which reads as a spontaneous refresh
-
-**What:** `static/account_sync.js` calls `location.reload()` (around line 704) when the `/api/sync` hydration pull finds server values that differ from what this device had, so the page re-renders against them. It is guarded by a `repcheck_hydrated_reload` sessionStorage flag, so it fires at most once per browser session, and it is skipped while a modal is open.
-
-**Why:** It is a real, full document reload in the middle of using the app -- the one thing in the codebase that literally refreshes the page on its own. Once per *session* is not once per app install: the iOS build is a Capacitor WKWebView, and sessionStorage does not survive the app being killed and relaunched, so a user who closes and reopens RepCheck can meet it again and again. It is the most likely remaining source of a visible "it refreshed" moment now that tab switching itself no longer reloads.
-
-**Context:** Found while investigating the "it shows a refresh sign every time I switch pages" report that produced v0.4.6.1's navigation work. Deliberately not changed there: the reload exists so the page re-renders against freshly hydrated localStorage, and removing it without replacing that re-render is a data-correctness change, not a motion one. A proper fix re-renders in place (the pages already have render functions) or moves hydration ahead of first paint, rather than reloading.
-
-**Effort:** M
-**Priority:** P2
-**Depends on:** None
-
 ## Completed
 
 <!-- Shipped items move here, newest first, with the version or date they landed. -->
+
+### account_sync.js reloads the page after hydration, which reads as a spontaneous refresh
+
+`static/account_sync.js`'s post-hydration `location.reload()` now only fires when no page claims the cancelable `repcheck:data-hydrated` event it dispatches instead. Every page rendering synced data (nutrition, workouts, home, hyrox, coach, weight/logging history, streaks, challenges, the coaching card, analyze) now listens and re-renders in place; the reload survives as a guarded fallback for anything that doesn't. Source-level coverage in `tests/test_hydration_rerender_coverage.py` fails if a page reads a rendered key without a handler, or has a handler that never calls `preventDefault()`, or claims the event but never re-reads the changed key.
+
+**Completed:** v0.4.10.3 (2026-08-29)

@@ -501,6 +501,18 @@
 
     renderMessages();
     document.addEventListener("repcheck:language-changed", renderMessages);
+    // account_sync.js merged in turns from another device's copy of this
+    // conversation. Re-read the thread and redraw; preventDefault() tells it
+    // this page handled the change rather than letting it reload.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      const keys = (event.detail && event.detail.keys) || [];
+      if (keys.includes(STORAGE_KEY)) {
+        history = loadHistory();
+        renderMessages();
+        scrollToBottom();
+      }
+      event.preventDefault();
+    });
   })();
 </script>
 {% endblock %}

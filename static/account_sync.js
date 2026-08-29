@@ -23,11 +23,24 @@
  *      same session gets adopted onto the account — anything else that's
  *      local-only is treated as stale leftover from a previous browser
  *      session and cleared, never pushed). If anything actually changed,
- *      the page reloads once so the page's own (synchronous,
- *      localStorage-reading) render code picks up the correct values —
- *      avoids having to convert every page's initial render to be async.
+ *      the page is asked to re-render in place (see below); only if
+ *      nothing on the page can do that does it fall back to reloading.
  *
  * Must load before any other page script that reads/writes these keys.
+ *
+ * Dispatches "repcheck:data-hydrated" on `document` when hydration changed
+ * something worth re-rendering. `detail.keys` lists which keys changed. The
+ * event is CANCELABLE, and that is the whole protocol: a page that re-reads
+ * its state and redraws calls preventDefault() to say "handled, don't
+ * reload". Anything left unclaimed falls back to a single guarded
+ * location.reload(), because the alternative is leaving the user looking at
+ * data that is now wrong.
+ *
+ * That fallback used to be the ONLY behaviour, and it is the one thing in
+ * the app that visibly refreshes the page by itself. It is guarded to once
+ * per session, but sessionStorage does not survive a Capacitor app
+ * relaunch, so on the iOS build a user could meet it again on every cold
+ * start. Every page that renders from these keys should handle the event.
  *
  * Dispatches "repcheck:sync-hydrated" on `document` once the load-time
  * /api/sync pull has settled (success or failure) -- static/streak.js
@@ -475,7 +488,15 @@
       nativeSetItem(OWNER_KEY, currentOwnerId);
 
       var serverValues = data.values || {};
-      var needsReload = false;
+      // Which keys hydration actually changed in a way the page can see.
+      // This used to be a bare `needsReload` boolean; it is a list now so
+      // the re-render event can tell a page WHICH of its keys moved, and a
+      // page that renders from one key doesn't have to redraw because an
+      // unrelated one changed.
+      var hydratedKeys = [];
+      function markHydrated(key) {
+        if (hydratedKeys.indexOf(key) === -1) hydratedKeys.push(key);
+      }
       var writeTimes = loadWriteTimes();
       var now = Date.now();
 
@@ -570,7 +591,7 @@
             // Only worth a reload if the merge actually surfaced turns this
             // device didn't have -- the widget renders from localStorage at
             // init, so an unchanged/empty thread has nothing to re-render.
-            if (Array.isArray(mergedThread.history) && mergedThread.history.length) needsReload = true;
+            if (Array.isArray(mergedThread.history) && mergedThread.history.length) markHydrated(key);
           }
           if (!hasServer || encodeForStorage(serverValues[key]) !== mergedThreadRaw) {
             pushToServer(key, mergedThreadRaw);
@@ -604,7 +625,7 @@
             // Normalizing a missing key to "[]" changes nothing visible,
             // and reloading for it made every brand-new account's very
             // first page load flash-reload for no reason.
-            if (mergedList.length) needsReload = true;
+            if (mergedList.length) markHydrated(key);
           }
           if (!hasServer || encodeForStorage(serverValues[key]) !== mergedRaw) {
             pushToServer(key, mergedRaw); // server was missing some -> bring it up to the union
@@ -631,7 +652,7 @@
             // Reload only when the merge actually surfaced entries (e.g.
             // another device's logs, or adopting the account's data on a
             // fresh browser) -- not for an empty normalization.
-            if (logHasEntries(mergedLog)) needsReload = true;
+            if (logHasEntries(mergedLog)) markHydrated(key);
           }
           if (!hasServer || encodeForStorage(serverValues[key]) !== mergedLogRaw) {
             pushToServer(key, mergedLogRaw); // bring the server up to the merged log
@@ -646,7 +667,7 @@
               pushToServer(key, localRaw);
             } else {
               nativeSetItem(key, encoded); // from the server — don't push it right back
-              needsReload = true;
+              markHydrated(key);
             }
           }
         } else if (localRaw !== null) {
@@ -680,26 +701,46 @@
         }
       }
 
-      // Forcing a reload while the user has an open modal (search, "add
-      // to log" amount confirm, a wizard, ...) yanks the page out from
-      // under whatever they were mid-way through -- including a food
-      // they'd just picked but hadn't hit "Add to log" on yet, or were
-      // about to. Every modal in this app follows the same "*-overlay"
-      // element that's display:none until open, so this is a generic
-      // enough check to skip the reload for now and let it happen on a
-      // later, less disruptive page load instead (this hydration pull
-      // itself already applied the server values via nativeSetItem
-      // above -- only the *reload* is being deferred, so the page just
-      // finishes catching up to them on next navigation rather than
-      // right now).
+      if (!hydratedKeys.length) return;
+
+      // Re-rendering the page underneath an open modal (search, "add to
+      // log" amount confirm, a wizard, ...) yanks it out from under
+      // whatever the user is mid-way through -- including a food they'd
+      // just picked but hadn't hit "Add to log" on yet. Every modal in
+      // this app follows the same "*-overlay" element that's display:none
+      // until open, so this is a generic enough check to leave the screen
+      // alone for now and let a later, less disruptive page load catch it
+      // up (the hydration pull itself already applied the server values
+      // via nativeSetItem above -- only the redraw is being deferred).
       var hasOpenModal = Array.prototype.some.call(
         document.querySelectorAll('[class*="-overlay"]'),
         function (el) { return getComputedStyle(el).display !== "none"; }
       );
-
-      if (needsReload && hasOpenModal) {
+      if (hasOpenModal) {
         sessionStorage.removeItem("repcheck_hydrated_reload");
-      } else if (needsReload && !sessionStorage.getItem("repcheck_hydrated_reload")) {
+        return;
+      }
+
+      // Ask the page to redraw itself from the values just written. A
+      // listener that re-reads its state and re-renders calls
+      // preventDefault(), and dispatchEvent then returns false.
+      var handled = !document.dispatchEvent(new CustomEvent("repcheck:data-hydrated", {
+        cancelable: true,
+        detail: { keys: hydratedKeys.slice() },
+      }));
+      if (handled) {
+        // The page is now showing the hydrated data. Clear the guard so a
+        // genuinely unhandled hydration later in the same session can still
+        // fall back to a reload.
+        sessionStorage.removeItem("repcheck_hydrated_reload");
+        return;
+      }
+
+      // Nothing claimed it -- a page that renders from one of these keys
+      // but has no handler yet, so it is currently showing stale data.
+      // Reloading is the blunt fix, and the visible one; it stays guarded
+      // to once per session so it can't loop.
+      if (!sessionStorage.getItem("repcheck_hydrated_reload")) {
         sessionStorage.setItem("repcheck_hydrated_reload", "1");
         location.reload();
       }
