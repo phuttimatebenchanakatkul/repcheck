@@ -2978,7 +2978,13 @@ def api_nav_state():
     # The iOS shell is the case this exists for; a desktop browser hitting it
     # is noise worth telling apart at a glance.
     agent = "ios-app" if "RepCheck" in request.headers.get("User-Agent", "") else "browser"
-    app.logger.info("NAV_STATE %s agent=%s", state, agent)
+    # warning, not info: under gunicorn the app logger's effective level
+    # leaves INFO on the floor, so the line is written and then dropped and
+    # the logs stay empty -- which reads as "the phone never reported", the
+    # exact wrong answer. Verified against production, not assumed: a probe
+    # logged at INFO never appeared, and every other log call in this file is
+    # a warning for the same reason.
+    app.logger.warning("NAV_STATE %s agent=%s", state, agent)
     return ("", 204)
 
 
