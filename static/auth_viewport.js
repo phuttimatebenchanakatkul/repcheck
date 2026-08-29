@@ -56,6 +56,15 @@
   // brought along. Beyond this, hauling it into view would push the field you
   // are typing in off the top of the screen -- the field wins.
   var SUBMIT_REACH = 200;
+  // Shorter than the shortest phone iOS 18 runs (a 375x667 SE) by a wide
+  // margin, so a real screen never trips it -- this only rejects garbage.
+  // visualViewport.height reads back 0 if it is measured before the browser
+  // has laid the page out, and a 0-height "visible strip" would compute a
+  // reveal that throws the card clean off the screen (v0.4.10.1 caught the
+  // same measurement pinning <body> to height:0 back when a height was
+  // written at all). Keeping the last good position is always the safer
+  // reading of a measurement this implausible.
+  var MIN_USABLE_HEIGHT = 200;
 
   // How far the content is currently moved to reveal a field. Never positive:
   // revealing means moving UP, and the resting position is the design's own.
@@ -104,6 +113,7 @@
   // the layout viewport, so they can be compared directly.
   function revealFocused() {
     if (framed() || !focused || !focused.getBoundingClientRect) return;
+    if (!(vv.height > MIN_USABLE_HEIGHT)) return;
 
     var stripTop = Math.max(0, Math.round(vv.offsetTop));
     var stripBottom = stripTop + vv.height;

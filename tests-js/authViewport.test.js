@@ -141,6 +141,20 @@ describe("auth viewport sync", () => {
     expect(phone.window.pageYOffset).toBe(0);
   });
 
+  it("keeps the last good position rather than trusting a zero-height measurement", () => {
+    const phone = loadAuthViewport();
+    phone.tap("password", KEYBOARD);
+    const settled = phone.body.style.transform;
+
+    // A pre-layout race: visualViewport measures back 0 before the browser has
+    // laid anything out. A 0-height "visible strip" would compute a reveal that
+    // throws the card clean off the screen, with no later event guaranteed to
+    // correct it.
+    phone.keyboard({ height: 0, offsetTop: 120 });
+
+    expect(phone.body.style.transform).toBe(settled);
+  });
+
   it("leaves the desktop device frame alone", () => {
     // Above 721px <body> IS the simulated phone -- a fixed-size transformed box
     // -- so moving it would slide the phone around the desk.

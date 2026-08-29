@@ -35,6 +35,12 @@
         {% if not google_enabled %}<span class="auth-oauth-badge">setup needed</span>{% endif %}
       </a>
 
+      <a class="auth-oauth-btn auth-apple-btn" data-apple-signin href="{{ url_for('auth.apple_login', next=next) if next else url_for('auth.apple_login') }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.05 12.54c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.71-3.19-1.73-1.36-.14-2.65.8-3.34.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.18-1.54 2.67-.39 6.62 1.11 8.79.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.71.71 2.87.69 1.19-.02 1.94-1.08 2.66-2.15.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.53zM14.86 5.6c.61-.74 1.02-1.77.91-2.8-.88.04-1.94.59-2.57 1.32-.56.65-1.05 1.7-.92 2.7.98.08 1.98-.5 2.58-1.22z"/></svg>
+        Sign up with Apple
+        {% if not apple_enabled %}<span class="auth-oauth-badge">setup needed</span>{% endif %}
+      </a>
+
       <div class="auth-divider"><span>or</span></div>
 
       <form method="post" action="{{ url_for('auth.signup') }}" class="auth-form">
@@ -61,8 +67,8 @@
   <script src="{{ asset_url('auth_viewport.js') }}"></script>
   <script src="{{ asset_url('native.js') }}"></script>
   <script>
-    // Inside the iOS shell the Google button cannot be a plain link. Google
-    // refuses OAuth in an embedded webview, and Capacitor hands off-origin
+    // Inside the iOS shell neither OAuth button can be a plain link. Google
+    // and Apple both refuse OAuth in an embedded webview, and Capacitor hands off-origin
     // navigations to Safari -- so tapping it used to complete sign-in in a
     // browser the app cannot read, leaving the user looking at the website
     // and still logged out in the app. RepCheckNative.signInWithGoogle runs
@@ -72,12 +78,19 @@
     // In a browser signInWithGoogle returns false and the link is left
     // entirely alone, which is the behaviour that shipped before this.
     (function () {
-      var button = document.querySelector('[data-google-signin]');
-      if (!button || !window.RepCheckNative) return;
-      button.addEventListener('click', function (event) {
-        if (window.RepCheckNative.signInWithGoogle(button.getAttribute('href'))) {
-          event.preventDefault();
-        }
+      if (!window.RepCheckNative) return;
+      var providers = [
+        ['[data-google-signin]', window.RepCheckNative.signInWithGoogle],
+        ['[data-apple-signin]', window.RepCheckNative.signInWithApple],
+      ];
+      providers.forEach(function (entry) {
+        var button = document.querySelector(entry[0]);
+        if (!button || typeof entry[1] !== 'function') return;
+        button.addEventListener('click', function (event) {
+          if (entry[1](button.getAttribute('href'))) {
+            event.preventDefault();
+          }
+        });
       });
     })();
   </script>

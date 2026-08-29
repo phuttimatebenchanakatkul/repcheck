@@ -233,3 +233,29 @@ def test_visual_viewport_sync_moves_to_the_focused_field():
         "not say WHICH field you tapped, and on a pinned page nothing else "
         "will bring a keyboard-covered field into view."
     )
+
+
+def test_visual_viewport_sync_rejects_a_zero_height_measurement():
+    """The script must not act on a height nobody could type into.
+
+    The script measures before the browser is guaranteed to have laid the page
+    out, and in that race visualViewport.height can read back 0. In v0.4.10.1,
+    where a height was still written onto <body>, that pinned the locked,
+    overflow:hidden card to `height: 0` and the whole screen vanished. No
+    height is written any more, but the same measurement now defines the strip
+    the keyboard leaves visible -- and a 0-height strip computes a reveal that
+    throws the card clean off the screen instead. Same bad reading, same lack
+    of any guaranteed later event to correct it.
+
+    Covered behaviourally in tests-js/authViewport.test.js (a 0-height resize
+    after the keyboard is already up leaves the settled position alone); this
+    is the source-level guard that the rejection does not quietly get dropped.
+    """
+    src = read("static/auth_viewport.js")
+    assert re.search(r"vv\.height\s*>\s*\w", src), (
+        "auth_viewport.js must reject an implausibly small visualViewport."
+        "height before acting on it. Without a lower bound, a pre-layout "
+        "measurement of 0 makes the visible strip zero-height and the auth "
+        "card is moved off the screen, with no guaranteed later event to fix "
+        "it."
+    )

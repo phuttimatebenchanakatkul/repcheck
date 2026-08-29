@@ -1,31 +1,45 @@
-"""The pieces of native Google sign-in that only exist as wiring.
+"""The pieces of native Google and Apple sign-in that only exist as wiring.
 
 The behaviour is covered properly elsewhere -- tests/test_native_google_handoff.py
-for the server, tests-js/native-google-signin.test.js for the bridge. What
-neither can see is whether the parts are actually connected, because every
-one of these regressions is invisible in a browser and only shows up in a
-TestFlight build:
+and tests/test_apple_oauth_callback.py for the server,
+tests-js/native-google-signin.test.js for the bridge. What none of them can
+see is whether the parts are actually connected, because every one of these
+regressions is invisible in a browser and only shows up in a TestFlight
+build:
 
-- the auth pages not loading native.js, so the button stays a plain link
-- the button losing its hook, same result
+- the auth pages not loading native.js, so the buttons stay plain links
+- a button losing its hook, same result
 - the Info.plist step not registering repcheck://, so iOS has no idea the
   app owns the scheme and the callback redirect goes nowhere
 - the plugins disappearing from package.json, so `cap sync` never copies
   them into the Xcode project
 
+Both providers need identical wiring for identical reasons: neither Google
+nor Apple will authorize inside an embedded webview, so both run in
+SFSafariViewController and both come home over repcheck://.
+
 Source-level regex assertions against the real files, the same tradeoff
 tests/test_native_bridge_wiring.py already makes and for the same reason.
 
-Mutation-checked: dropping the script tag, the data-google-signin attribute,
-the URL-scheme build step, or either plugin fails this file.
+Mutation-checked: dropping the script tag, either data-*-signin attribute,
+either provider's lookup, the URL-scheme build step, or either plugin fails
+this file.
 """
 
 import json
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 
 AUTH_PAGES = ("templates/login.html", "templates/signup.html")
+
+# (button class, hook attribute, bridge entry point)
+PROVIDERS = (
+    ("auth-google-btn", "data-google-signin", "signInWithGoogle"),
+    ("auth-apple-btn", "data-apple-signin", "signInWithApple"),
+)
 
 
 def read(relative):
@@ -37,39 +51,42 @@ def test_auth_pages_load_the_bridge():
     base.html, so they do not inherit its native.js include."""
     for page in AUTH_PAGES:
         assert "asset_url('native.js')" in read(page), (
-            f"{page} must load static/native.js, or signInWithGoogle does not "
-            "exist and the Google button stays a plain link that signs the "
-            "user into Safari instead of the app"
+            f"{page} must load static/native.js, or the sign-in entry points "
+            "do not exist and both OAuth buttons stay plain links that sign "
+            "the user into Safari instead of the app"
         )
 
 
-def test_the_google_button_is_hooked_up():
+@pytest.mark.parametrize("button_class,hook,entry_point", PROVIDERS)
+def test_the_oauth_button_is_hooked_up(button_class, hook, entry_point):
     for page in AUTH_PAGES:
         source = read(page)
         # Anchored to the <a>, not just "the string appears somewhere": the
-        # querySelector below also contains data-google-signin, so a looser
-        # check still passes with the attribute stripped off the button --
-        # which is exactly the regression this is here to catch.
-        assert 'auth-google-btn" data-google-signin' in source, (
-            f"{page} lost the data-google-signin attribute on the Google button"
+        # provider table below also contains the attribute name, so a looser
+        # check still passes with it stripped off the button -- which is
+        # exactly the regression this is here to catch.
+        assert f'{button_class}" {hook}' in source, (
+            f"{page} lost the {hook} attribute on the {button_class} button"
         )
-        assert "querySelector('[data-google-signin]')" in source, (
-            f"{page} no longer looks the button up"
-        )
-        assert "signInWithGoogle" in source, f"{page} no longer calls signInWithGoogle"
+        assert f"'[{hook}]'" in source, f"{page} no longer looks that button up"
+        assert entry_point in source, f"{page} no longer calls {entry_point}"
         assert "preventDefault" in source, (
             f"{page} must suppress the plain link when the bridge takes over, "
-            "or the webview navigates to Google as well as the in-app browser"
+            "or the webview navigates to the provider as well as the in-app browser"
         )
 
 
-def test_the_bridge_exposes_the_sign_in_entry_point():
+@pytest.mark.parametrize("button_class,hook,entry_point", PROVIDERS)
+def test_the_bridge_exposes_the_sign_in_entry_point(button_class, hook, entry_point):
     source = read("static/native.js")
-    assert "signInWithGoogle: signInWithGoogle" in source, (
-        "signInWithGoogle must stay on the RepCheckNative export, it is what "
+    assert f"{entry_point}: {entry_point}" in source, (
+        f"{entry_point} must stay on the RepCheckNative export, it is what "
         "the auth pages call"
     )
-    assert "appUrlOpen" in source, (
+
+
+def test_the_bridge_listens_for_the_callback():
+    assert "appUrlOpen" in read("static/native.js"), (
         "without the appUrlOpen listener the repcheck:// callback is never "
         "received and sign-in dead-ends in the browser"
     )
@@ -100,7 +117,7 @@ def test_the_capacitor_plugins_are_declared():
     package = json.loads(read("package.json"))
     dependencies = package["dependencies"]
     for plugin in ("@capacitor/browser", "@capacitor/app"):
-        assert plugin in dependencies, f"{plugin} is required for native Google sign-in"
+        assert plugin in dependencies, f"{plugin} is required for native OAuth sign-in"
 
 
 def test_native_complete_is_reachable_without_a_session():
@@ -109,4 +126,13 @@ def test_native_complete_is_reachable_without_a_session():
         "auth.native_complete must be in _PUBLIC_ENDPOINTS, or the app "
         "bounces to /login before it can redeem its token and can never "
         "sign in at all"
+    )
+
+
+def test_apple_endpoints_are_reachable_without_a_session():
+    """Same reasoning: the sign-in flow itself cannot require a session."""
+    source = read("app.py")
+    assert '"auth.apple_login", "auth.apple_callback"' in source, (
+        "the Apple sign-in endpoints must be in _PUBLIC_ENDPOINTS, or a "
+        "logged-out visitor is bounced to /login before the flow can start"
     )

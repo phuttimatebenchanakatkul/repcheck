@@ -332,6 +332,7 @@ _PUBLIC_ENDPOINTS = frozenset({
     "auth.signup_page", "auth.signup",
     "auth.logout",
     "auth.google_login", "auth.google_callback",
+    "auth.apple_login", "auth.apple_callback",
     # The iOS shell redeems its one-time sign-in token here, and by
     # definition it has no session yet -- that is the whole point of the
     # request. Gating it makes the endpoint that establishes the session

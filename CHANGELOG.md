@@ -2,6 +2,56 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.10.2] - 2026-08-29
+
+### Fixed
+
+- The keyboard no longer squashes the log in / sign up screen into the strip
+  above it. The screen was resizing itself to whatever the keyboard left over,
+  which squeezed the card and cut it off mid-field, and left iOS's little
+  arrows-and-tick bar sitting against a hard edge with the app stopping dead
+  underneath it. The screen now stays full size and the keyboard simply covers
+  part of it.
+- Tapping a field goes to that field: tap Email and the screen moves to Email,
+  tap Password and it moves to Password. It brings the Log in / Sign up button
+  up with the last field too, so the button you are heading for is never left
+  behind the keyboard.
+
+## [0.4.10.1] - 2026-08-29
+
+### Fixed
+
+- auth_viewport.js -- which repositions the pinned log in / sign up card
+  under the on-screen keyboard -- could pin the card to a height of zero if
+  it measured the viewport before the browser had finished its first layout,
+  collapsing the whole screen with nothing left to correct it. It now ignores
+  any measurement below a real phone's shortest possible height and keeps the
+  last good geometry instead.
+
+## [0.4.10.0] - 2026-08-29
+
+### Added
+
+- **"Continue with Apple" on the login and signup pages, and in the iPhone
+  app.** A real Sign in with Apple flow this time, not the placeholder button
+  that was pulled in 0.2.3.0 for going nowhere. Tapping it signs you in with
+  your Apple ID, including Apple's Hide My Email addresses, which arrive
+  verified and work like any other address. If you already have a RepCheck
+  account under the same verified email, the Apple login takes you into that
+  account rather than making a second one. Apple hands over your name exactly
+  once, on the very first sign-in, so that is when it is saved; you can change
+  it in Settings afterwards.
+- Inside the iPhone app the Apple button gets the same treatment the Google
+  button got in 0.4.9.0: it opens in Safari and hands a one-time token back to
+  the app over the repcheck:// link, instead of signing you into a browser the
+  app cannot read. This is also App Store groundwork -- Apple requires apps that
+  offer another provider's sign-in to offer Sign in with Apple too.
+- The button shows a "setup needed" badge and stays inert until
+  `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`
+  are set (see `.env.example` for where each one comes from in the Apple
+  developer portal). Nothing about the existing email/password or Google
+  sign-in changes while those are unset.
+
 ## [0.4.9.3] - 2026-08-29
 
 ### Fixed
