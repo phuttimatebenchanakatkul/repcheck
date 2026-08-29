@@ -1074,6 +1074,15 @@
   loadServerHistory();
   preselectLastExercise();
   document.addEventListener("repcheck:language-changed", renderRecentAnalyses);
+  // account_sync.js pulled newer values off the account. The recent strip
+  // prefers the server-backed history it already fetches itself, and falls
+  // back to the local analyze log -- so redrawing is enough, nothing here
+  // caches the log. preventDefault() tells account_sync.js this page handled
+  // the change rather than letting it reload.
+  document.addEventListener("repcheck:data-hydrated", (event) => {
+    renderRecentAnalyses();
+    event.preventDefault();
+  });
 
   videoInput.addEventListener("change", updateFileDropDisplay);
 

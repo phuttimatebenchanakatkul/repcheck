@@ -31,7 +31,7 @@ def account_sync_js():
 def reconcile_fn_body():
     src = account_sync_js()
     start = src.index("function reconcileOneSyncKey(key) {")
-    end = src.index("// Forcing a reload while the user has an open modal")
+    end = src.index("if (!hydratedKeys.length) return;")
     assert end > start, "reconcileOneSyncKey() extraction markers moved -- update this test"
     return src[start:end]
 
