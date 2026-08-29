@@ -25,6 +25,30 @@ All notable changes to RepCheck are recorded here, newest first.
   are set (see `.env.example` for where each one comes from in the Apple
   developer portal). Nothing about the existing email/password or Google
   sign-in changes while those are unset.
+## [0.4.9.3] - 2026-08-29
+
+### Fixed
+
+- Tapping a field on log in or sign up no longer slides the whole screen up out
+  of sight, so you can see what you are typing again. Holding those screens
+  still (0.4.7.0) pinned them to the phone, and iOS shifts what you can SEE
+  when the keyboard opens without telling a pinned screen it moved -- so the
+  card ended up above the top of the display, leaving a black screen with just
+  the keyboard bar on it. The screen now follows the visible part of the phone,
+  and the field you tapped is brought into view.
+
+## [0.4.9.2] - 2026-08-29
+
+### Fixed
+
+- The iPhone app could keep showing an old version of a screen after a deploy,
+  even though the deploy had landed and the website was already updated. Pages
+  were sent with no caching instructions at all, so iOS was free to decide for
+  itself how long to hold on to them -- and the version stamps that force fresh
+  styling live inside those pages, so a held-back page also pinned every
+  stylesheet and script to its old version. It looked exactly like a deploy that
+  never shipped. Pages are now marked as never-store, so the app always picks up
+  the current version on launch.
 
 ## [0.4.9.1] - 2026-08-29
 

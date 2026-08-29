@@ -528,6 +528,48 @@ def inject_asset_url():
     return {"asset_url": asset_url}
 
 
+@app.after_request
+def never_store_html(response):
+    # asset_url() above cache-busts every stylesheet and script, but the
+    # busted URLs only exist INSIDE the HTML -- so the scheme is only as
+    # fresh as the page carrying them, and nothing was keeping that page
+    # fresh. Flask serves /static with `Cache-Control: no-cache` plus an
+    # ETag and Last-Modified, so assets revalidate properly; a rendered
+    # template went out with no Cache-Control, no Expires, no ETag and no
+    # Last-Modified at all. A response with neither freshness information
+    # nor a validator is exactly the case where a cache gets to invent its
+    # own heuristic, and iOS's URL loading system (the NSURLCache behind
+    # WKWebView, which is what the App Store build's webview uses to load
+    # the live site) does: it can serve a stored copy without asking the
+    # server at all.
+    #
+    # The failure mode that caused this is nastier than a plain stale
+    # page, because every individual asset is behaving correctly. Stale
+    # HTML carries the OLD ?v= values, so the device revalidates exactly
+    # the files it already has, gets 304s, and displays a fully
+    # self-consistent old version of the app. It looks like the deploy
+    # never landed -- v0.4.7.0's non-scrolling auth screen was live and
+    # verified on the production URL while the TestFlight build kept
+    # showing the scrolling one.
+    #
+    # no-store rather than no-cache: with no validator on these responses
+    # a revalidation is a full refetch anyway, so no-cache would cost the
+    # same and promise less. It also keeps pages carrying progress photos,
+    # weight history and check-in data out of the on-disk cache, which is
+    # the right default for this app regardless of the bug.
+    #
+    # Deliberately scoped to HTML by mimetype: /static must keep its
+    # ETag/no-cache revalidation, and the JSON API responses are already
+    # fetched fresh by the callers that need them.
+    if response.mimetype == "text/html":
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+        # Pragma/Expires are ignored by anything modern, but cost one
+        # header each and cover intermediaries that predate Cache-Control.
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Shared reference libraries, served as cacheable JS instead of inlined HTML
 # ---------------------------------------------------------------------------

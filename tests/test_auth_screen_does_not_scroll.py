@@ -177,3 +177,32 @@ def test_visual_viewport_sync_does_not_resize_the_desktop_device_frame():
         "fixed-size, transformed box), so writing a viewport height onto it "
         "would resize the simulated phone itself rather than its contents."
     )
+
+
+def test_visual_viewport_sync_follows_the_offset_not_just_the_height():
+    """Height alone puts the card at the right size in the wrong place.
+
+    Tapping a field does two things on iOS, not one: the visual viewport
+    shrinks for the keyboard AND slides down inside the layout viewport to
+    clear the focused field (visualViewport.offsetTop goes positive). <body>
+    is position:fixed, which anchors it to the LAYOUT viewport, so it does not
+    come along -- the whole card slides up off the top of the screen and you
+    are typing into a field you cannot see, which is exactly what shipped in
+    0.4.7.0. Translating <body> down by offsetTop is what puts it back.
+
+    The behaviour is covered against a simulated phone in
+    tests-js/authViewport.test.js; this is the source-level guard that the
+    offset half does not quietly get dropped again.
+    """
+    src = read("static/auth_viewport.js")
+    assert "offsetTop" in src, (
+        "auth_viewport.js must read visualViewport.offsetTop. Without it the "
+        "pinned card sits above the visible strip whenever iOS scrolls the "
+        "visual viewport to clear the keyboard -- the field you are typing "
+        "into is off the top of the screen."
+    )
+    assert "translateY" in src, (
+        "auth_viewport.js must translate <body> by that offset. `top` would "
+        "fight the `inset: 0` auth.css owns, so the transform is the write "
+        "that moves a fixed box back under the visible strip."
+    )
