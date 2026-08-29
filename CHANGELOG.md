@@ -2,6 +2,24 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.7.0] - 2026-08-29
+
+### Fixed
+
+- The log in and sign up screens no longer scroll or bounce. They were a normal
+  scrolling page, so on a phone -- and in the iPhone app, which loads these same
+  screens -- you could drag the whole thing around and it would rubber-band back.
+  They now sit still.
+- Sign up no longer runs off the bottom of a smaller iPhone. It was 47px taller
+  than a 375x667 screen, and taller again once an error message was showing, so
+  the Sign up button could sit below the fold. The layout tightens on shorter
+  screens and whenever an error is on screen, and both pages now fit every
+  iPhone size Apple still supports.
+- The Sign up and Log in buttons stay reachable with the keyboard open. Holding
+  the page still would otherwise have hidden them behind the keyboard with no
+  way to scroll down to them, so the screen now sizes itself to the part of the
+  phone the keyboard leaves visible.
+
 ## [0.4.5.8] - 2026-08-29
 
 ### Fixed
