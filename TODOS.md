@@ -754,4 +754,4 @@
 
 `static/account_sync.js`'s post-hydration `location.reload()` now only fires when no page claims the cancelable `repcheck:data-hydrated` event it dispatches instead. Every page rendering synced data (nutrition, workouts, home, hyrox, coach, weight/logging history, streaks, challenges, the coaching card, analyze) now listens and re-renders in place; the reload survives as a guarded fallback for anything that doesn't. Source-level coverage in `tests/test_hydration_rerender_coverage.py` fails if a page reads a rendered key without a handler, or has a handler that never calls `preventDefault()`, or claims the event but never re-reads the changed key.
 
-**Completed:** v0.4.10.2 (2026-08-29)
+**Completed:** v0.4.10.3 (2026-08-29)
