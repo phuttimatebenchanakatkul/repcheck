@@ -1,4 +1,4 @@
-// The quick-actions sheet used to stack the five action tiles AND the "More"
+// The quick-actions sheet used to stack the four action tiles AND the "More"
 // pages (Coach/Friends/Settings/...) in one column, which pushed it past its
 // 88%-height cap and made it scroll on short phones. It now holds two panes
 // and mounts only one at a time.
@@ -48,10 +48,10 @@ describe("quick-actions sliding More pane", () => {
     expect(openBtn().getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("shows exactly five action buttons and no More links until asked", () => {
-    // The whole point of the redesign: five buttons, and the More pages are
-    // reachable but not on screen.
-    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(5);
+  it("shows exactly four action buttons and no More links until asked", () => {
+    // The whole point of the redesign: a fixed set of buttons, and the More
+    // pages are reachable but not on screen.
+    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(4);
     expect(more().hidden).toBe(true);
   });
 
@@ -93,7 +93,7 @@ describe("quick-actions sliding More pane", () => {
     expect(actions().hidden).toBe(false);
     expect(more().hidden).toBe(true);
     expect(openBtn().getAttribute("aria-expanded")).toBe("false");
-    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(5);
+    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(4);
   });
 
   it("ignores a second tap while a slide is still running", () => {
@@ -207,7 +207,7 @@ describe("quick-actions sliding More pane", () => {
     fab().click(); // reopen
 
     expect(actions().hidden).toBe(false);
-    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(5);
+    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(4);
   });
 
   it("does not throw when the sheet markup is absent", () => {

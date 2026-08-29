@@ -1,12 +1,13 @@
-"""The "+" quick-actions sheet: five buttons, and no glow.
+"""The "+" quick-actions sheet: four buttons, and no glow.
 
 Three constraints keep getting re-broken by hand, so they are pinned here as
 source-level assertions (same approach as test_barcode_entry_points.py --
 base.html's markup and static/style.css have no other harness):
 
-  1. Exactly FIVE action tiles. The sheet used to carry six tiles AND a
+  1. Exactly FOUR action tiles. The sheet used to carry six tiles AND a
      labelled list of the "More" pages stacked underneath, which pushed it
-     past its 88%-height cap and made it scroll on short phones.
+     past its 88%-height cap and made it scroll on short phones. Challenges
+     was the fifth, dropped when the feature was hidden from the app.
   2. The More pages are present but NOT on the actions pane -- they live on
      a second pane that is `hidden` until asked for.
   3. No glow. A tinted or dark box-shadow under the tiles reads as a halo on
@@ -55,12 +56,12 @@ def _more_pane(base_html):
     return base_html[start:end]
 
 
-def test_actions_pane_has_exactly_five_tiles(base_html):
+def test_actions_pane_has_exactly_four_tiles(base_html):
     tiles = re.findall(r'class="qa-tile[ "]', _actions_pane(base_html))
-    assert len(tiles) == 5, (
-        f"expected 5 action tiles in the quick-actions sheet, found {len(tiles)}. "
-        "Five is the whole point of the redesign -- if a sixth action is genuinely "
-        "needed, something has to move into the More pane."
+    assert len(tiles) == 4, (
+        f"expected 4 action tiles in the quick-actions sheet, found {len(tiles)}. "
+        "If a fifth action is genuinely needed, something has to move into the "
+        "More pane."
     )
 
 
@@ -70,16 +71,20 @@ def test_log_a_workout_is_not_a_quick_action(base_html):
     assert "mobile.logWorkout" not in _actions_pane(base_html)
 
 
-def test_the_five_tiles_are_the_expected_actions(base_html):
+def test_the_four_tiles_are_the_expected_actions(base_html):
     pane = _actions_pane(base_html)
     for key in (
         "mobile.scanMeal",
         "mobile.analyzeLift",
         "mobile.logWeight",
         "mobile.scanBarcode",
-        "mobile.challenges",
     ):
         assert key in pane, f"{key} is missing from the quick-actions tiles"
+
+
+def test_challenges_is_not_a_quick_action(base_html):
+    # Hidden from the app: no tile here.
+    assert "mobile.challenges" not in _actions_pane(base_html)
 
 
 def test_more_pages_are_not_on_the_actions_pane(base_html):

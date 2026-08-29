@@ -559,7 +559,7 @@
     <div class="mt-sheet qa-sheet" id="mt-fab-sheet">
       <div class="mt-sheet-handle"></div>
 
-      <!-- Two panes that slide over each other. Pane 1 is the five action
+      <!-- Two panes that slide over each other. Pane 1 is the four action
            tiles; pane 2 is the "More" pages (Coach/Friends/Settings/...).
            Only one is ever mounted, so the sheet never grows tall enough to
            scroll -- the old design stacked both and overflowed on short
@@ -586,10 +586,6 @@
               <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
               <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
             </button>
-            <a href="{{ url_for('challenges') }}" class="qa-tile qa-pink qa-tile-wide">
-              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg></span>
-              <span class="qa-tile-title" data-i18n="mobile.challenges">Challenges</span>
-            </a>
           </div>
 
           <!-- Deliberately quiet: a text row, not a tile, so it never

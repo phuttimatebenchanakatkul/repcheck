@@ -89,7 +89,7 @@
   {% set next_path = ('/friends?add=' + add_code) if add_code else '' %}
   <div class="fr-card">
     <div class="fr-card-title" data-i18n="friends.loginTitle">Log in to see friends</div>
-    <div class="fr-card-sub" data-i18n="friends.loginSub">Friends, leaderboards, and challenges are tied to your account.</div>
+    <div class="fr-card-sub" data-i18n="friends.loginSub">Friends are tied to your account.</div>
     {% if add_code %}
       <div class="fr-card-sub" style="margin-top:-6px; color:var(--blue);">You scanned a friend code ({{ add_code }}) — log in and it'll be added automatically.</div>
     {% endif %}
@@ -131,7 +131,6 @@
 <div class="fr-card">
   <div class="fr-card-title" data-i18n="friends.yourFriends.title">Your friends</div>
   <div class="fr-friend-list" id="fr-friend-list"></div>
-  <div class="fr-card-sub" style="margin-top:14px; margin-bottom:0;"><span data-i18n="friends.movedPrefix">Challenges and leaderboards moved to </span><a href="{{ url_for('challenges') }}" data-i18n="challenges.title">Challenges</a><span data-i18n="friends.movedSuffix"> — this page is just for adding people.</span></div>
 </div>
 
 <script>
