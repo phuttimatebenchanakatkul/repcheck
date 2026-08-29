@@ -100,6 +100,55 @@ workflows:
           fi
           npx cap sync ios
 
+      - name: Hide the WKWebView's native scroll indicators
+        script: |
+          # CSS cannot do this. `*::-webkit-scrollbar { display: none; }` is
+          # the standard web fix and it does NOT work in WKWebView -- Apple's
+          # own webview ignores the pseudo-element entirely (a known,
+          # long-standing WKWebView limitation, not a CSS mistake on our
+          # side). The only real fix is the native UIScrollView property
+          # underneath the webview, which has no capacitor.config.json
+          # equivalent (unlike contentInset) -- Capacitor does not expose it.
+          #
+          # SceneDelegate.swift is where the template instantiates the
+          # webview's owner (CAPBridgeViewController) and makes it visible,
+          # so it is also where the scroll view exists to configure. Verified
+          # against the actual template Capacitor 8 ships (extracted from
+          # this repo's own pinned node_modules/@capacitor/cli, not assumed):
+          # the three lines matched below are its exact, unmodified content.
+          # `webView` is `public fileprivate(set)` on CAPBridgeViewController,
+          # so reading it from here (a different module) is valid Swift.
+          SCENE_DELEGATE="ios/App/App/SceneDelegate.swift"
+          python3 - "$SCENE_DELEGATE" <<'PYEOF'
+          import sys, textwrap
+          path = sys.argv[1]
+          with open(path) as f:
+              content = f.read()
+          old = textwrap.dedent("""\
+              window = UIWindow(windowScene: windowScene)
+              window?.rootViewController = CAPBridgeViewController()
+              window?.makeKeyAndVisible()""")
+          old = "\n".join("        " + line for line in old.splitlines())
+          new = textwrap.dedent("""\
+              window = UIWindow(windowScene: windowScene)
+              let bridgeViewController = CAPBridgeViewController()
+              window?.rootViewController = bridgeViewController
+              window?.makeKeyAndVisible()
+              bridgeViewController.webView?.scrollView.showsVerticalScrollIndicator = false
+              bridgeViewController.webView?.scrollView.showsHorizontalScrollIndicator = false""")
+          new = "\n".join("        " + line for line in new.splitlines())
+          if old not in content:
+              sys.stderr.write(
+                  f"{path} no longer matches the expected SceneDelegate.swift "
+                  "template -- cap add ios's layout changed; fix this step "
+                  "rather than silently skipping it.\n"
+              )
+              sys.exit(1)
+          with open(path, "w") as f:
+              f.write(content.replace(old, new))
+          print(f"Patched {path}")
+          PYEOF
+
       - name: Set the Info.plist usage strings
         script: |
           # iOS kills the app on first camera use if these are missing, and
