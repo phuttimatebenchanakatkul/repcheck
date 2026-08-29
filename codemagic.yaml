@@ -44,6 +44,17 @@ workflows:
       # whatever @capacitor/cli version package.json pins.
       node: 22
       xcode: latest
+      # Uses the distribution certificate stored in Codemagic under
+      # Settings -> Code signing identities, together with the appstore
+      # API key integration below, to fetch or create the provisioning
+      # profile for this bundle id. Build 8 proved the scripted
+      # alternative cannot do this: app-store-connect fetch-signing-files
+      # --create refuses with "Cannot save Signing Certificates without
+      # certificate private key" and then exits 0, leaving the build to
+      # die later at archive with a misleading error.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.benchanakatkul.repcheck
 
     # Name of the App Store Connect API key you added under Codemagic's
     # Settings -> Integrations. Rename here if you called it something other
@@ -133,39 +144,18 @@ workflows:
           python3 -m pip install --quiet -r requirements-dev.txt || true
           python3 -m pytest -q || true   # see IOS_APP_STORE.md: needs ffmpeg/zbar on the runner
 
-      - name: Set up code signing
+      - name: Report the signing state
         script: |
-          # Deliberately scripted rather than declared via `ios_signing:` in
-          # the environment block. The declarative form only FETCHES existing
-          # signing files, so on a bundle id that has never been built it dies
-          # with "No matching profiles found ... distribution type app_store"
-          # -- before any of the steps above even run. --create makes the
-          # distribution certificate and the provisioning profile instead of
-          # expecting someone to have made them by hand on a Mac.
-          keychain initialize
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
-          keychain add-certificates
-
-          # Force the target's bundle id to match the profile just fetched.
-          # use-profiles matches profiles to targets BY BUNDLE ID, and when
-          # nothing matches it does nothing and still exits 0 -- so the build
-          # carries on and dies later at archive time with the much less
-          # helpful '"App" requires a provisioning profile'. That is exactly
-          # how build 6 failed. Capacitor is supposed to seed this from appId
-          # in capacitor.config.json; this makes it true rather than assumed.
-          /usr/bin/sed -i '' \
-            "s/PRODUCT_BUNDLE_IDENTIFIER = [^;]*;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" \
-            "$XCODE_PROJECT/project.pbxproj"
-
-          xcode-project use-profiles --project "$XCODE_PROJECT"
-
-          # Diagnostics. If signing still fails at archive, these answer
-          # "which bundle id, which profile, did they match" without another
-          # round trip through a failed build.
+          # Codemagic's own signing setup has already run by this point.
+          # These three blocks are what turned build 8 from a guess into a
+          # diagnosis, so they stay: they answer which bundle id, which
+          # profile, and whether the two actually got bound together.
           echo "--- bundle ids in the project ---"
           grep -o 'PRODUCT_BUNDLE_IDENTIFIER = [^;]*;' "$XCODE_PROJECT/project.pbxproj" | sort -u
           echo "--- provisioning profiles on the machine ---"
           ls -1 "$HOME/Library/MobileDevice/Provisioning Profiles/" 2>/dev/null || echo "(none)"
+          echo "--- signing certificates in the keychain ---"
+          security find-identity -v -p codesigning 2>/dev/null || echo "(none)"
           echo "--- resolved signing settings ---"
           xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings 2>/dev/null \
             | grep -E 'PRODUCT_BUNDLE_IDENTIFIER|PROVISIONING_PROFILE|CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM' \
