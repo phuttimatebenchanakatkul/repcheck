@@ -64,6 +64,61 @@
 
   var WILL_SWAP = "repcheck:page-will-swap";
   var SWAPPED = "repcheck:page-swapped";
+  // How long the outgoing screen takes to fade. Short enough that it never
+  // feels like waiting, long enough to read as one screen replacing another
+  // rather than a hard cut.
+  var LEAVE_MS = 110;
+  // Pages already fetched this session, for the back/forward gesture only.
+  // Swiping back is a request to see the screen you just left, and that is
+  // what the browser's own back/forward cache would give you for free if
+  // these were separate documents -- instantly, with no network. Going
+  // FORWARD deliberately does not read this: tapping Nutrition asks for
+  // Nutrition as it is now, not as it was.
+  //
+  // The server's HTML is cached, not a snapshot of the live DOM, so restoring
+  // goes down exactly the same path as arriving fresh -- parse, swap, run the
+  // page's scripts. A snapshot would have to re-run those scripts against a
+  // DOM they had already rendered into, and render them twice.
+  var pageCache = Object.create(null);
+  var cacheOrder = [];
+  var CACHE_MAX = 8;
+
+  var reduceMotion = false;
+  try {
+    reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch (err) {
+    /* No matchMedia: animate. */
+  }
+
+  function remember(url, html) {
+    var key = pathOf(url);
+    if (!pageCache[key]) cacheOrder.push(key);
+    pageCache[key] = html;
+    while (cacheOrder.length > CACHE_MAX) delete pageCache[cacheOrder.shift()];
+  }
+
+  function pathOf(url) {
+    var a = document.createElement("a");
+    a.href = url;
+    return a.pathname + a.search;
+  }
+
+  /** Which way the screen should travel: the tab order is the map. */
+  function directionTo(url) {
+    var items = [].slice.call(pill.querySelectorAll(".mt-item"));
+    var from = -1;
+    var to = -1;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].classList.contains("is-active")) from = i;
+      if (samePage(items[i].getAttribute("href"), url)) to = i;
+    }
+    if (from === -1 || to === -1) return 1;
+    return to >= from ? 1 : -1;
+  }
+
+  function wait(ms) {
+    return new Promise(function (resolve) { window.setTimeout(resolve, ms); });
+  }
 
   // Records for the page currently on screen. The first set comes from
   // base.html, which brackets its content block with the same recorder and
@@ -183,11 +238,108 @@
     document.dispatchEvent(new CustomEvent(SWAPPED, { detail: { url: window.location.href } }));
   }
 
+  /** Puts a fetched page on screen. Everything here is synchronous, so the
+   *  screen never sits half-swapped. */
+  function render(html, url, options) {
+    var doc = new DOMParser().parseFromString(html, "text/html");
+    var incoming = doc.querySelector("main.main");
+    if (!incoming) throw new Error("no main");
+
+    document.dispatchEvent(new CustomEvent(WILL_SWAP, { detail: { url: url } }));
+    scope.release(pageRecords);
+    pageRecords = null;
+
+    main.innerHTML = incoming.innerHTML;
+    document.title = doc.title;
+    syncNav(doc);
+    if (!(options && options.replace)) window.history.pushState({ repcheckNav: true }, "", url);
+    window.scrollTo(0, 0);
+
+    runInlineScripts(main);
+    reinit();
+    return incoming;
+  }
+
+  // Two frames, and a timer under them. The second frame is not superstition:
+  // the start class has to be painted before it is removed, or the browser
+  // coalesces both styles into one change and there is nothing to animate
+  // from.
+  //
+  // The timer is the part that matters for correctness. A hidden page gets no
+  // frames AT ALL -- the app in the background, iOS mid-transition, a webview
+  // that has not been shown yet -- so a swap that happens then would leave
+  // the start class on forever and the screen sitting at opacity 0. Caught
+  // exactly that way: driving the app with the browser pane hidden left every
+  // swapped-in screen invisible, and the class still on <main> afterwards.
+  // Whichever comes first wins; the removal runs once.
+  function afterPaint(fn) {
+    var done = false;
+    function once() {
+      if (done) return;
+      done = true;
+      fn();
+    }
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(function () {
+        window.requestAnimationFrame(once);
+      });
+    }
+    window.setTimeout(once, 80);
+  }
+
+  function enter(direction) {
+    if (reduceMotion) return;
+    // Start the new screen offset the way it arrived from, then let it
+    // settle. The class carries `transition: none` so this start state is not
+    // itself animated -- removing it after a paint is what animates.
+    main.classList.add(direction > 0 ? "pn-enter-right" : "pn-enter-left");
+    afterPaint(function () {
+      main.classList.remove("pn-enter-right", "pn-enter-left");
+    });
+  }
+
+  function clearMotion() {
+    main.classList.remove("pn-leave-left", "pn-leave-right", "pn-enter-left", "pn-enter-right");
+  }
+
+  // Coming back to a page that was hidden mid-swap: whatever the transition
+  // was in the middle of, the screen must be readable now. Cheap, and the
+  // last line of defence against a screen stuck at opacity 0.
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) clearMotion();
+  });
+
   function swap(url, options) {
     var mine = ++token;
-    var push = !(options && options.replace);
+    var opts = options || {};
+    var direction = opts.direction || directionTo(url);
 
-    return window
+    // The back/forward gesture is already animating a snapshot of where it is
+    // going. Anything asynchronous here lands after that animation and reads
+    // as the screen refreshing itself underneath the gesture, so a page this
+    // session has already fetched goes up immediately -- no network, no
+    // transition of ours competing with the system's.
+    if (opts.fromHistory) {
+      var stored = pageCache[pathOf(url)];
+      if (stored) {
+        try {
+          clearMotion();
+          render(stored, url, opts);
+          return Promise.resolve();
+        } catch (err) {
+          hardNav(url);
+          return Promise.resolve();
+        }
+      }
+    }
+
+    // Fade the outgoing screen straight away, before the response is back, so
+    // the tap is answered immediately rather than after a round trip.
+    if (!opts.fromHistory && !reduceMotion) {
+      main.classList.add(direction > 0 ? "pn-leave-left" : "pn-leave-right");
+    }
+
+    var fetched = window
       .fetch(url, { credentials: "same-origin", headers: { "X-RepCheck-Nav": "1" } })
       .then(function (response) {
         if (!response.ok) throw new Error("status " + response.status);
@@ -195,8 +347,11 @@
         // somewhere other than where we asked to go: let the browser take it.
         if (response.redirected && !samePage(response.url, url)) throw new Error("redirected");
         return response.text();
-      })
-      .then(function (html) {
+      });
+
+    return Promise.all([fetched, opts.fromHistory ? null : wait(LEAVE_MS)])
+      .then(function (results) {
+        var html = results[0];
         if (mine !== token) return; // A later tap already won.
         var doc = new DOMParser().parseFromString(html, "text/html");
         var incoming = doc.querySelector("main.main");
@@ -204,23 +359,16 @@
 
         return loadAssets(incoming).then(function () {
           if (mine !== token) return;
-
-          document.dispatchEvent(new CustomEvent(WILL_SWAP, { detail: { url: url } }));
-          scope.release(pageRecords);
-          pageRecords = null;
-
-          main.innerHTML = incoming.innerHTML;
-          document.title = doc.title;
-          syncNav(doc);
-          if (push) window.history.pushState({ repcheckNav: true }, "", url);
-          window.scrollTo(0, 0);
-
-          runInlineScripts(main);
-          reinit();
+          remember(url, html);
+          clearMotion();
+          enter(direction);
+          render(html, url, opts);
         });
       })
       .catch(function () {
-        if (mine === token) hardNav(url);
+        if (mine !== token) return;
+        clearMotion();
+        hardNav(url);
       });
   }
 
@@ -245,12 +393,41 @@
     swap(href);
   });
 
-  // Back and forward. Only entries this file pushed are swapped; anything
-  // else belongs to a document the browser has to load itself.
+  // Back and forward -- including the iOS edge-swipe, which is where this
+  // matters most. That gesture animates a snapshot of the screen it is
+  // heading to and then hands over; anything asynchronous here lands after
+  // the animation has finished and reads as the screen refreshing itself.
+  // Hence `fromHistory`, which serves a page this session already has
+  // immediately, without a fetch and without a transition of ours fighting
+  // the system's. Only entries this file pushed are swapped; anything else
+  // belongs to a document the browser has to load itself.
   window.addEventListener("popstate", function (event) {
     if (!event.state || !event.state.repcheckNav) return;
-    swap(window.location.href, { replace: true });
+    swap(window.location.href, { replace: true, fromHistory: true });
   });
+
+  // The screen the app opened on is the one you land on when you swipe back,
+  // and it is the one page this file never fetched -- the browser did, before
+  // any of this ran. Ask for it once, quietly, so that first swipe back is
+  // instant like every other one. It answers 304 from the copy the browser
+  // already holds, so it costs a round trip and no body.
+  window.setTimeout(function () {
+    window
+      .fetch(window.location.href, {
+        credentials: "same-origin",
+        headers: { "X-RepCheck-Nav": "1" },
+      })
+      .then(function (response) {
+        if (response.ok && !response.redirected) return response.text();
+        return null;
+      })
+      .then(function (html) {
+        if (html) remember(window.location.href, html);
+      })
+      .catch(function () {
+        /* The cache is an optimisation; missing it costs a fetch later. */
+      });
+  }, 1200);
 
   // The entry the app was loaded into has no state of ours, so a back from
   // the first swapped page would otherwise not be recognised as ours.
