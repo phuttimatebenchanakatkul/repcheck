@@ -23,6 +23,28 @@ const NUTRITION = page({
 });
 
 describe("pagenav", () => {
+  it("says it is running, so a phone can be diagnosed without a console", async () => {
+    // Everything below is silent when it declines: the tabs stay ordinary
+    // links and the app still works. That cost three wrong fixes -- a screen
+    // recording showed the iPhone app doing full page loads an hour after
+    // this shipped, with the right scripts on the page, and there was no way
+    // to tell WHICH bail-out fired. So it says so, once per page.
+    const nav = loadPageNav({ startHref: "/home", routes: {} });
+
+    expect(nav.state()).toBe("on");
+    expect(nav.beacons).toEqual(["/api/nav-state?s=on"]);
+  });
+
+  it("says WHY when it declines, instead of failing silently", async () => {
+    // No tab bar in the document: nothing to intercept. The report is the
+    // difference between "we know" and another round of guessing.
+    document.body.innerHTML = '<div class="app"><main class="main"></main></div>';
+    const nav = loadPageNav({ startHref: "/home", routes: {}, noPill: true });
+
+    expect(nav.state()).toBe("off:no-pill");
+    expect(nav.beacons).toEqual(["/api/nav-state?s=off%3Ano-pill"]);
+  });
+
   it("swaps the screen in place instead of navigating", async () => {
     const nav = loadPageNav({
       startHref: "/home",
