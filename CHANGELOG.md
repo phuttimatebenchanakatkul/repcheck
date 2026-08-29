@@ -2,6 +2,14 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.5] - 2026-08-29
+
+### Fixed
+
+- The iPhone build could never sign the app, because no signing certificate
+  had ever been created for it. The build now uses a stored certificate rather
+  than trying and silently failing to make one each run.
+
 ## [0.4.5.4] - 2026-08-28
 
 ### Fixed
