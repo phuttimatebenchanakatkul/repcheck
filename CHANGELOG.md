@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.10.2] - 2026-08-29
+## [0.4.10.3] - 2026-08-29
 
 ### Fixed
 
@@ -15,6 +15,17 @@ All notable changes to RepCheck are recorded here, newest first.
   redraws itself in place with the new data instead; the reload still exists
   as a fallback for anything that doesn't handle it, so nothing is ever left
   showing data that's known to be wrong.
+
+## [0.4.10.1] - 2026-08-29
+
+### Fixed
+
+- auth_viewport.js -- which repositions the pinned log in / sign up card
+  under the on-screen keyboard -- could pin the card to a height of zero if
+  it measured the viewport before the browser had finished its first layout,
+  collapsing the whole screen with nothing left to correct it. It now ignores
+  any measurement below a real phone's shortest possible height and keeps the
+  last good geometry instead.
 
 ## [0.4.10.0] - 2026-08-29
 

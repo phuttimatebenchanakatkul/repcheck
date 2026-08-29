@@ -206,3 +206,27 @@ def test_visual_viewport_sync_follows_the_offset_not_just_the_height():
         "fight the `inset: 0` auth.css owns, so the transform is the write "
         "that moves a fixed box back under the visible strip."
     )
+
+
+def test_visual_viewport_sync_rejects_a_zero_height_measurement():
+    """sync() must not pin the card to a height nobody could type into.
+
+    sync() runs once on load, before the browser is guaranteed to have laid
+    the page out, and in that race visualViewport.height can read back 0.
+    Pinning a locked, overflow:hidden <body> to `height: 0` makes the whole
+    card disappear, with no later resize/scroll event guaranteed to fire and
+    correct it -- a stricter version of the same "trust the measurement" bug
+    the offset fix above exists to guard against.
+
+    Covered behaviourally in tests-js/authViewport.test.js (a real 0-height
+    resize after the keyboard is already up leaves the prior geometry in
+    place); this is the source-level guard that the rejection does not
+    quietly get dropped.
+    """
+    src = read("static/auth_viewport.js")
+    assert re.search(r"vv\.height\s*>\s*\w", src), (
+        "auth_viewport.js must reject an implausibly small visualViewport."
+        "height before writing it onto <body>. Without a lower bound, a "
+        "pre-layout measurement of 0 collapses the pinned auth card to "
+        "nothing, with no guaranteed later event to fix it."
+    )
