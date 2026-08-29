@@ -66,6 +66,13 @@
        (repcheck_pending_tour) -- see static/tour.js. -->
   <link rel="stylesheet" href="{{ asset_url('tour.css') }}">
   <script src="{{ asset_url('tour.js') }}" defer></script>
+  <!-- Bottom tab bar motion: the gliding active bubble, moved on
+       pointerdown so the bar answers the thumb without waiting for the
+       next page. Deferred because it needs the tab bar in the DOM and
+       nothing reads it at parse time; the bar renders its own static
+       highlight until this runs, so there is no flash of an unstyled
+       bar in between. -->
+  <script src="{{ asset_url('nav.js') }}" defer></script>
 </head>
 <body>
   <!--

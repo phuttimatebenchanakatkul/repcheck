@@ -1021,6 +1021,10 @@ input[type="file"], select {
   }
   @media (prefers-reduced-motion: reduce) {
     .mobile-tabbar { transition: none; }
+    /* The bubble still moves to the right tab, it just gets there
+       without travelling. */
+    .mt-indicator { transition: none; }
+    .mt-item { transition: none; }
   }
   .mt-pill {
     flex: 1;
@@ -1032,11 +1036,37 @@ input[type="file"], select {
     border-radius: 999px;
     padding: 5px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    /* Anchors .mt-indicator, whose offsets nav.js measures against the
+       pill (offsetLeft/offsetTop), so this must be the offset parent. */
+    position: relative;
     /* Named so the pill holds perfectly still across page navigations
        (see the View Transitions block below) while the active bubble
        glides to its new slot -- no cross-fade flicker on the bar itself. */
     view-transition-name: mt-pill;
   }
+
+  /* The active bubble, once nav.js has taken it over. It exists as its own
+     element purely so it can be MOVED: a background on the active <a> can
+     only blink from one tab to the next, whereas this slides on the
+     compositor, and slides the instant the thumb lands rather than after
+     the next page has loaded. Sized and positioned entirely from JS. */
+  .mt-indicator {
+    position: absolute;
+    top: 0; left: 0;
+    border-radius: 999px;
+    background: var(--sidebar-active);
+    pointer-events: none;
+    /* Slight overshoot so it settles like the rest of the app's motion
+       (same curve family as the "+" and the quick-action tiles) rather
+       than arriving with a mechanical stop. */
+    transition: transform 0.34s cubic-bezier(0.34, 1.32, 0.64, 1),
+                width 0.34s cubic-bezier(0.34, 1.32, 0.64, 1),
+                height 0.34s cubic-bezier(0.34, 1.32, 0.64, 1);
+  }
+  /* Hidden until nav.js has actually measured and placed it, so it can
+     never flash at 0,0 during the gap between first paint and the
+     deferred script running. */
+  .mt-pill:not(.has-indicator) .mt-indicator { display: none; }
   /* Icon-only items; the active one sits in its own softly highlighted
      bubble inside the pill (like the mock's "Overview"). No labels — the
      bar stays uncluttered and the "+" carries everything else. */
@@ -1054,13 +1084,33 @@ input[type="file"], select {
     border: none;
     cursor: pointer;
     font-family: inherit;
+    /* Lifts the icons above .mt-indicator, which is painted behind them. */
+    position: relative;
+    z-index: 1;
+    /* The colour change is left to catch up on its own rather than
+       snapping, so a tapped tab lights up as the bubble arrives. */
+    transition: color 0.22s ease;
   }
+  /* Fallback highlight: what the active tab looks like when nav.js has
+     not run (script blocked, or the brief moment before the deferred
+     script executes). Identical geometry to .mt-indicator, so the
+     hand-off below is invisible. */
   .mt-item.is-active {
     background: var(--sidebar-active); color: var(--text);
     /* The star of the show: this bubble morphs from the old page's active
        slot to the new page's on every navigation (View Transitions). */
     view-transition-name: mt-active-bubble;
   }
+  /* Once nav.js owns the bubble, the static highlight has to go -- and so
+     does its view-transition-name. Two elements sharing one name makes the
+     browser abort the ENTIRE view transition (i.e. a hard cut back to
+     exactly the reload-looking navigation this is meant to remove), so the
+     name is handed over rather than duplicated. */
+  .mt-pill.has-indicator .mt-item.is-active {
+    background: none;
+    view-transition-name: none;
+  }
+  .mt-pill.has-indicator .mt-indicator { view-transition-name: mt-active-bubble; }
   .mt-item:active { transform: scale(0.9); }
 
   /* The "+" bubble: its own raised circle beside the pill — the most
