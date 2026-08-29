@@ -85,7 +85,11 @@
       key: "analyze",
       path: "/analyze",
       nav: [".mt-item[href='/analyze']", ".nav a[href='/analyze']"],
-      targets: ["#file-drop"]
+      // The analyze screen opens straight into a viewfinder now, so the
+      // control to point at is the shutter. #file-drop is still on the page
+      // but only as the camera-unavailable fallback, and pointing the tour
+      // at a hidden element leaves the step with nothing to highlight.
+      targets: ["#an-shutter", "#file-drop"]
     }
   ];
 

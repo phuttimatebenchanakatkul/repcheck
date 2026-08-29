@@ -4,52 +4,60 @@
 {% block heading %}Analyze your form{% endblock %}
 
 {% block content %}
-<div class="card" id="upload-view">
+{# Camera first. The analyze page opens straight into a live viewfinder with
+   two controls -- record, and switch lens -- because the thing people come
+   here to do is film the set they are in the middle of, and every step
+   between arriving and recording was a step spent not filming.
+
+   The upload dropzone below is no longer the way in; it is the fallback for
+   the cases where a viewfinder is impossible (permission denied, no camera,
+   a browser without MediaRecorder). Without it those users would have no way
+   to analyze anything at all. #}
+<div class="card an-capture-card" id="capture-view">
   {% if error %}
     <div class="error">{{ error }}</div>
   {% endif %}
 
-  <div class="an-hero">
-    <div class="an-hero-icon">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+  <div class="an-cam" id="an-cam">
+    <video id="an-cam-preview" class="an-cam-video" autoplay playsinline muted></video>
+    <div class="an-cam-timer" id="an-cam-timer" style="display:none;">
+      <span class="an-rec-live-dot"></span><span id="an-cam-elapsed">0:00</span>
     </div>
-    <div class="an-hero-title" data-i18n="analyze.heroTitle">See exactly what to fix</div>
+    <div class="an-cam-hint" id="an-cam-hint" data-i18n="analyze.recordHint">Prop your phone up so your whole body stays in frame for the full set.</div>
+
+    {# Overlaid on the preview, the way a camera app does it, rather than
+       stacked under it: one box to fit on screen instead of two, so the
+       shutter cannot end up below the fold (or behind the tab bar) on a
+       short window. #}
+    <div class="an-cam-controls" id="an-cam-controls">
+      {# Spacer, so the shutter sits dead centre with a single control
+         beside it rather than being pushed off-axis by the flip button. #}
+      <div class="an-cam-slot" aria-hidden="true"></div>
+      <button type="button" class="an-shutter" id="an-shutter" data-i18n-aria-label="analyze.startRecording" aria-label="Start recording">
+        <span class="an-shutter-core" id="an-shutter-core"></span>
+      </button>
+      <div class="an-cam-slot">
+        <button type="button" class="an-cam-flip" id="an-cam-flip" data-i18n-aria-label="analyze.flipCamera" aria-label="Flip camera">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-7.5-4"/><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 7.5 4"/><path d="M19.5 3v4h-4"/><path d="M4.5 21v-4h4"/></svg>
+        </button>
+      </div>
+    </div>
   </div>
 
-  <form id="analyze-form" enctype="multipart/form-data">
-    <div class="field">
-      <label for="video" data-i18n="analyze.videoLabel">Video</label>
-      <div class="file-drop" id="file-drop">
-        <input type="file" id="video" name="video" accept="video/*" required class="file-drop-input">
-        <div class="file-drop-icon" id="file-drop-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-        </div>
-        <div class="file-drop-text">
-          <div class="file-drop-title" id="file-drop-title" data-i18n="analyze.dropTitle">Click to upload or drag and drop</div>
-          <div class="file-drop-sub" id="file-drop-sub" data-i18n="analyze.dropSub">MP4, MOV, AVI, or MKV</div>
-        </div>
+  {# Only ever shown when the viewfinder above cannot run. #}
+  <div class="an-cam-fallback" id="an-cam-fallback" style="display:none;">
+    <div class="an-cam-fallback-msg" id="an-cam-fallback-msg"></div>
+    <div class="file-drop" id="file-drop">
+      <input type="file" id="video" name="video" accept="video/*" class="file-drop-input">
+      <div class="file-drop-icon" id="file-drop-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      </div>
+      <div class="file-drop-text">
+        <div class="file-drop-title" id="file-drop-title" data-i18n="analyze.dropTitle">Click to upload or drag and drop</div>
+        <div class="file-drop-sub" id="file-drop-sub" data-i18n="analyze.dropSub">MP4, MOV, AVI, or MKV</div>
       </div>
     </div>
-
-    <div class="field">
-      <label data-i18n="analyze.exerciseLabel">Exercise</label>
-      <input type="hidden" id="exercise" name="exercise" required>
-
-      <button type="button" class="ex-picker-btn" id="ex-picker-btn">
-        <span class="ex-picker-plus">+</span>
-        <span data-i18n="analyze.chooseExercise">Choose an exercise</span>
-      </button>
-
-      <div class="selected-exercise-chip" id="selected-exercise-chip" style="display:none;">
-        <div class="exercise-icon" id="selected-exercise-icon"></div>
-        <span id="selected-exercise-label"></span>
-        <button type="button" class="change-exercise-btn" id="change-exercise-btn" data-i18n="analyze.changeExercise">Change</button>
-        <button type="button" class="clear-exercise-btn" id="clear-exercise-btn" data-i18n-aria-label="analyze.clearExercise" aria-label="Clear selected exercise">&times;</button>
-      </div>
-    </div>
-
-    <button type="submit" class="btn-primary" id="submit-btn" data-i18n="analyze.submit">Analyze my form</button>
-  </form>
+  </div>
 
   <div class="an-recent" id="an-recent" style="display:none;">
     <div class="an-recent-title-row">
@@ -89,6 +97,34 @@
   </div>
 </div>
 
+{# Review. What you just filmed, looping, and the two things still missing
+   before it can be graded: which exercise it is (the same bottom-sheet
+   search the rest of the app uses) and the go button. Deliberately a
+   separate view rather than a modal -- the clip is the subject of the
+   screen, not something layered over another one. #}
+<div class="card" id="review-view" style="display:none;">
+  <div class="an-review-stage">
+    <video id="an-review-video" class="an-review-video" autoplay loop muted playsinline></video>
+    <button type="button" class="an-retake" id="an-retake" data-i18n="analyze.retake">Retake</button>
+  </div>
+
+  <input type="hidden" id="exercise" name="exercise">
+
+  <button type="button" class="ex-picker-btn" id="ex-picker-btn">
+    <span class="ex-picker-plus">+</span>
+    <span data-i18n="analyze.chooseExercise">Choose an exercise</span>
+  </button>
+
+  <div class="selected-exercise-chip" id="selected-exercise-chip" style="display:none;">
+    <div class="exercise-icon" id="selected-exercise-icon"></div>
+    <span id="selected-exercise-label"></span>
+    <button type="button" class="change-exercise-btn" id="change-exercise-btn" data-i18n="analyze.changeExercise">Change</button>
+    <button type="button" class="clear-exercise-btn" id="clear-exercise-btn" data-i18n-aria-label="analyze.clearExercise" aria-label="Clear selected exercise">&times;</button>
+  </div>
+
+  <button type="button" class="btn-primary an-analyze-btn" id="submit-btn" data-i18n="analyze.submit">Analyze workout</button>
+</div>
+
 <div class="card" id="analyzing-view" style="display:none;">
   <div class="video-wrap">
     <video id="preview-video" muted loop autoplay playsinline></video>
@@ -104,14 +140,6 @@
 <div id="result-view" style="display:none;"></div>
 
 <style>
-  .an-hero { text-align: center; padding: 2px 4px 16px; }
-  .an-hero-icon {
-    width: 44px; height: 44px; margin: 0 auto 10px; border-radius: 50%;
-    background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .an-hero-title { font-size: 17px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.01em; }
-
   .file-drop {
     position: relative;
     display: flex;
@@ -159,6 +187,122 @@
     color: var(--text-secondary);
     margin-top: 2px;
   }
+
+  /* ---------- Viewfinder ---------- */
+  /* The card is the camera on this screen, so it gives up the padding that
+     would otherwise frame a form. */
+  .an-capture-card { padding: 0; overflow: hidden; }
+  .an-capture-card .error { margin: 14px 14px 0; }
+
+  .an-cam {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    /* Capped so the whole viewfinder -- controls included, since they are
+       overlaid on it -- clears the floating tab bar on a short window. A
+       record button you have to scroll to find is not a record button. svh
+       (the small viewport, i.e. with the mobile browser chrome showing)
+       keeps that true while the address bar is still on screen. */
+    max-height: calc(100vh - 300px);
+    max-height: calc(100svh - 300px);
+    min-height: 260px;
+    background: #000;
+    overflow: hidden;
+  }
+  /* `cover`, not `contain`: a letterboxed viewfinder reads as a broken
+     camera, and the recorded file keeps the sensor's full frame either way
+     -- the crop is preview-only. */
+  .an-cam-video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* The front camera is a mirror to the person using it; an unmirrored
+     preview makes people correct their position the wrong way. Only the
+     preview is flipped -- the recorded clip must stay true, or every
+     left/right note in the analysis would be backwards. */
+  .an-cam.is-front .an-cam-video { transform: scaleX(-1); }
+  .an-cam-timer {
+    position: absolute; top: 12px; left: 12px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55); color: #fff;
+    font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  .an-rec-live-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+    animation: an-live-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes an-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .an-cam-hint {
+    /* Above the controls, which own the bottom of the frame. */
+    position: absolute; left: 12px; right: 12px; bottom: 92px;
+    padding: 8px 12px; border-radius: 12px;
+    background: rgba(0, 0, 0, 0.5); color: #fff;
+    font-size: 12px; font-weight: 600; line-height: 1.35; text-align: center;
+  }
+  .an-cam-hint.is-warning { background: rgba(209, 69, 59, 0.9); }
+
+  .an-cam-controls {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 14px 20px 16px;
+    /* Enough scrim to keep white controls legible over a bright gym floor,
+       without hiding the bottom of the frame the user is composing. */
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0));
+  }
+  /* Equal-width flanks keep the shutter centred whatever sits beside it. */
+  .an-cam-slot { flex: 1 1 0; display: flex; justify-content: flex-start; }
+  .an-cam-slot:last-child { justify-content: flex-end; }
+  .an-cam-flip {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: none; background: rgba(0, 0, 0, 0.45); color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .an-cam-flip:active { transform: scale(0.94); }
+  .an-cam-flip:disabled { opacity: 0.4; cursor: default; }
+  .an-shutter {
+    width: 68px; height: 68px; border-radius: 50%; flex-shrink: 0;
+    border: 4px solid #fff; background: none; padding: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.12s ease;
+  }
+  .an-shutter:active { transform: scale(0.94); }
+  .an-shutter:disabled { opacity: 0.45; cursor: default; }
+  .an-shutter-core {
+    width: 52px; height: 52px; border-radius: 50%; background: var(--red);
+    transition: width 0.18s ease, height 0.18s ease, border-radius 0.18s ease;
+  }
+  /* Recording: the disc becomes the stop square, which is the whole state
+     indicator the control needs. */
+  .an-shutter.is-recording .an-shutter-core { width: 26px; height: 26px; border-radius: 6px; }
+
+  .an-cam-fallback { padding: 16px 14px 4px; }
+  .an-cam-fallback-msg {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    margin-bottom: 12px; line-height: 1.4; text-align: center;
+  }
+
+  /* ---------- Review ---------- */
+  .an-review-stage { position: relative; border-radius: 14px; overflow: hidden; background: #000; margin-bottom: 14px; }
+  .an-review-video {
+    display: block; width: 100%; object-fit: contain; background: #000;
+    /* Leaves room for the exercise picker and the Analyze button under it:
+       both have to be reachable without scrolling, or the screen looks like
+       a video player with the actions hidden off the bottom. */
+    max-height: calc(100vh - 440px);
+    max-height: calc(100svh - 440px);
+    min-height: 220px;
+  }
+  .an-retake {
+    position: absolute; top: 10px; left: 10px;
+    /* 44px is the app's tap-target floor (.log-sheet-close, .an-cam-flip) and
+       Apple's HIG minimum -- this ships inside the iOS app, and a pill sized
+       to its 12px label would be half that. */
+    min-height: 44px; padding: 0 16px; border-radius: 999px; border: none;
+    display: inline-flex; align-items: center;
+    background: rgba(0, 0, 0, 0.55); color: #fff;
+    font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+  }
+  .an-retake:active { transform: scale(0.96); }
+  .an-analyze-btn { margin-top: 14px; }
 
   .ex-picker-btn {
     display: flex;
@@ -390,6 +534,7 @@
 </style>
 
 <script src="{{ asset_url('analyze_chat_widget.js') }}"></script>
+<script src="{{ asset_url('video_recorder.js') }}"></script>
 <!-- Cacheable copies of the shared exercise libraries (see LIBRARY_ASSETS in
      app.py) rather than a fresh inline copy on every visit. Classic scripts,
      so they are evaluated before the deferred module below reads them. -->
@@ -438,9 +583,10 @@
     localStorage.setItem(ANALYZE_LOG_KEY, JSON.stringify(log.slice(-50)));
   }
 
-  const form = document.getElementById("analyze-form");
   const exerciseInput = document.getElementById("exercise");
-  const uploadView = document.getElementById("upload-view");
+  const captureView = document.getElementById("capture-view");
+  const reviewView = document.getElementById("review-view");
+  const submitBtn = document.getElementById("submit-btn");
   const analyzingView = document.getElementById("analyzing-view");
   const resultView = document.getElementById("result-view");
   const previewVideo = document.getElementById("preview-video");
@@ -765,7 +911,8 @@
       const response = await fetch(`/api/analyze/history/${id}`);
       const data = await response.json();
       if (!data.ok) return;
-      uploadView.style.display = "none";
+      captureView.style.display = "none";
+      reviewView.style.display = "none";
       showResult(data);
       RepCheck.scrollToTop();
     } catch (err) {
@@ -1046,15 +1193,82 @@
   clearExerciseBtn.addEventListener("click", clearSelectedExercise);
   changeExerciseBtn.addEventListener("click", openExerciseModal);
 
-  // ---------- File dropzone ----------
+  // ---------- Viewfinder ----------
+  //
+  // The analyze page opens the camera itself. Everything below is the state
+  // machine between "arrived on the page" and "a clip is ready to grade":
+  //
+  //   capture  -- live preview, shutter + flip, nothing else
+  //   review   -- that clip looping, pick the exercise, Analyze workout
+  //
+  // The upload dropzone is the fallback branch of capture, shown only where
+  // a viewfinder is impossible (permission denied, no camera, no
+  // MediaRecorder). It feeds the same review view, so there is exactly one
+  // path from "we have a video" to "it got analyzed".
+  const camWrap = document.getElementById("an-cam");
+  const camPreview = document.getElementById("an-cam-preview");
+  const camTimer = document.getElementById("an-cam-timer");
+  const camElapsed = document.getElementById("an-cam-elapsed");
+  const camHint = document.getElementById("an-cam-hint");
+  const camControls = document.getElementById("an-cam-controls");
+  const camFallback = document.getElementById("an-cam-fallback");
+  const camFallbackMsg = document.getElementById("an-cam-fallback-msg");
+  const shutter = document.getElementById("an-shutter");
+  const flipBtn = document.getElementById("an-cam-flip");
+  const reviewVideo = document.getElementById("an-review-video");
+  const retakeBtn = document.getElementById("an-retake");
+
   const fileDrop = document.getElementById("file-drop");
   const videoInput = document.getElementById("video");
   const fileDropTitle = document.getElementById("file-drop-title");
   const fileDropSub = document.getElementById("file-drop-sub");
 
+  // Below this the recorder often hasn't written a valid container yet, and
+  // ffmpeg fails on it with an error the user can't act on. Also comfortably
+  // under trim_video.py's MIN_USABLE_SECONDS floor, which rejects clips too
+  // short to judge a set from.
+  const MIN_RECORDING_MS = 4000;
+  // The pipeline skips the first 5s and grades the next 60, so anything past
+  // this is bytes uploaded to be thrown away.
+  const MAX_RECORDING_MS = 90000;
+
+  let camSession = null;
+  let camTickTimer = null;
+  let camAutoStopTimer = null;
+  let recordedFile = null;
+  let reviewUrl = null;
+  // Set while getUserMedia is in flight, so a second open (a retake racing
+  // the visibility handler) cannot leave two live streams behind.
+  let camOpening = null;
+
   function formatFileSize(bytes) {
     const mb = bytes / (1024 * 1024);
     return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  function selectedVideo() {
+    return recordedFile || videoInput.files[0] || null;
+  }
+
+  function formatElapsed(ms) {
+    const total = Math.floor(ms / 1000);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+  }
+
+  function setHint(key, isWarning) {
+    camHint.textContent = RepCheckI18n.t(key);
+    camHint.classList.toggle("is-warning", Boolean(isWarning));
+  }
+
+  // Swap the viewfinder for the upload dropzone. Not reversible within a
+  // page load: the reasons it fires (declined permission, no camera, a
+  // browser without MediaRecorder) do not change without the user doing
+  // something outside the app.
+  function showCameraFallback(messageKey) {
+    camWrap.style.display = "none";
+    camControls.style.display = "none";
+    camFallbackMsg.textContent = RepCheckI18n.t(messageKey);
+    camFallback.style.display = "block";
   }
 
   function updateFileDropDisplay() {
@@ -1084,7 +1298,170 @@
     event.preventDefault();
   });
 
-  videoInput.addEventListener("change", updateFileDropDisplay);
+  // Turn the viewfinder on. Safe to call when it is already running.
+  function openCamera() {
+    if (!window.RepCheckRecorder || !RepCheckRecorder.isSupported()) {
+      showCameraFallback("analyze.cameraUnsupported");
+      return Promise.resolve(null);
+    }
+    if (camSession) return Promise.resolve(camPreview.srcObject);
+    if (camOpening) return camOpening;
+    const session = RepCheckRecorder.createSession();
+    camOpening = session.open("environment").then(
+      (stream) => {
+        camOpening = null;
+        camSession = session;
+        camPreview.srcObject = stream;
+        camPreview.play().catch(() => {});
+        camWrap.classList.toggle("is-front", session.facingMode() === "user");
+        setHint("analyze.recordHint", false);
+        return stream;
+      },
+      () => {
+        camOpening = null;
+        // Denied, or no camera at all. Both leave uploading as a working way
+        // to get a set analyzed, so this offers that rather than dead-ending.
+        showCameraFallback("analyze.cameraDenied");
+        return null;
+      }
+    );
+    return camOpening;
+  }
+
+  // Turn the viewfinder off and drop any half-finished recording.
+  function closeCamera() {
+    clearCamTimers();
+    if (camSession) camSession.cancel();
+    camSession = null;
+    camPreview.srcObject = null;
+    resetShutter();
+  }
+
+  function clearCamTimers() {
+    if (camTickTimer) clearInterval(camTickTimer);
+    if (camAutoStopTimer) clearTimeout(camAutoStopTimer);
+    camTickTimer = camAutoStopTimer = null;
+  }
+
+  function resetShutter() {
+    shutter.classList.remove("is-recording");
+    shutter.setAttribute("aria-label", RepCheckI18n.t("analyze.startRecording"));
+    camTimer.style.display = "none";
+    camElapsed.textContent = "0:00";
+    flipBtn.disabled = false;
+  }
+
+  function startRecording() {
+    if (!camSession) return;
+    // Pinned, so the completion handler below can only ever tear down the
+    // session it belongs to. Without this, a take cancelled by closeCamera()
+    // resolves late and would null out whatever session openCamera() has
+    // since put in its place -- leaving a live preview with a dead shutter.
+    const session = camSession;
+    let capture;
+    try {
+      capture = camSession.start();
+    } catch (error) {
+      setHint("analyze.recordFailed", true);
+      return;
+    }
+    shutter.classList.add("is-recording");
+    shutter.setAttribute("aria-label", RepCheckI18n.t("analyze.stopRecording"));
+    // The lens cannot change mid-take: flip() tears the stream down, and the
+    // MediaRecorder is bound to the stream it was handed.
+    flipBtn.disabled = true;
+    camTimer.style.display = "flex";
+    setHint("analyze.recordingHint", false);
+    camTickTimer = setInterval(() => {
+      if (camSession) camElapsed.textContent = formatElapsed(camSession.elapsedMs());
+    }, 250);
+    camAutoStopTimer = setTimeout(() => {
+      if (camSession) camSession.stop();
+    }, MAX_RECORDING_MS);
+
+    capture.then((file) => {
+      if (camSession !== session) return; // superseded -- not ours to tear down
+      clearCamTimers();
+      camSession = null;
+      camPreview.srcObject = null;
+      resetShutter();
+      if (file) showReview(file);
+    });
+  }
+
+  function stopRecording() {
+    if (!camSession || !camSession.isRecording()) return;
+    // Stopping in the first moments yields a container with no frames in it
+    // yet, which fails at the trim step with an error about the video rather
+    // than about the tap that caused it. Say so and keep recording instead --
+    // a disabled stop button explains nothing.
+    if (camSession.elapsedMs() < MIN_RECORDING_MS) {
+      setHint("analyze.recordLonger", true);
+      return;
+    }
+    camSession.stop();
+  }
+
+  function showReview(file) {
+    recordedFile = file;
+    // A failure message from the previous clip must not survive onto the
+    // next one -- it would be reporting on a video that no longer exists.
+    const staleError = reviewView.querySelector(".error");
+    if (staleError) staleError.remove();
+    if (reviewUrl) URL.revokeObjectURL(reviewUrl);
+    reviewUrl = URL.createObjectURL(file);
+    reviewVideo.src = reviewUrl;
+    reviewVideo.load();
+    // muted + loop + playsinline are on the element; play() is still called
+    // because a src swapped in after load does not always autoplay on iOS.
+    reviewVideo.play().catch(() => {});
+    captureView.style.display = "none";
+    reviewView.style.display = "block";
+    RepCheck.scrollToTop();
+  }
+
+  // Throw the clip away and go back to a live viewfinder.
+  function backToCapture() {
+    reviewVideo.pause();
+    reviewVideo.removeAttribute("src");
+    reviewVideo.load();
+    if (reviewUrl) { URL.revokeObjectURL(reviewUrl); reviewUrl = null; }
+    recordedFile = null;
+    videoInput.value = "";
+    updateFileDropDisplay();
+    reviewView.style.display = "none";
+    captureView.style.display = "block";
+    openCamera();
+  }
+
+  shutter.addEventListener("click", () => {
+    if (!camSession) return;
+    if (camSession.isRecording()) stopRecording();
+    else startRecording();
+  });
+
+  flipBtn.addEventListener("click", async () => {
+    if (!camSession || camSession.isRecording()) return;
+    flipBtn.disabled = true;
+    try {
+      camPreview.srcObject = await camSession.flip();
+      camPreview.play().catch(() => {});
+      camWrap.classList.toggle("is-front", camSession.facingMode() === "user");
+    } catch (error) {
+      setHint("analyze.cameraDenied", true);
+    }
+    flipBtn.disabled = false;
+  });
+
+  retakeBtn.addEventListener("click", backToCapture);
+
+  // The upload fallback feeds the same review view, so a chosen file and a
+  // recorded one are indistinguishable from here on.
+  videoInput.addEventListener("change", () => {
+    const file = videoInput.files[0];
+    updateFileDropDisplay();
+    if (file) showReview(file);
+  });
 
   ["dragenter", "dragover"].forEach((evt) => {
     fileDrop.addEventListener(evt, (event) => {
@@ -1100,13 +1477,20 @@
   });
   fileDrop.addEventListener("drop", (event) => {
     const file = event.dataTransfer.files[0];
-    if (file) {
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      videoInput.files = dt.files;
-      updateFileDropDisplay();
-    }
+    if (file) showReview(file);
   });
+
+  // A page holding the camera open while the user is somewhere else is a
+  // battery drain and a privacy surprise -- the indicator light stays on.
+  // Release it whenever this page stops being the visible one, and bring it
+  // back when it returns (but never over a clip waiting to be analyzed).
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) closeCamera();
+    else if (captureView.style.display !== "none") openCamera();
+  });
+  window.addEventListener("pagehide", closeCamera);
+
+  openCamera();
 
   const STATUS_MESSAGE_KEYS = [
     "analyze.status1",
@@ -1323,7 +1707,7 @@
     `;
   }
 
-  function resetToUpload() {
+  function resetToCapture() {
     stopCycleStatus();
     stopPoseLoop();
     if (previewVideo.src) {
@@ -1334,15 +1718,15 @@
     // results (the toggle lives in the topbar, outside #result-view).
     if (window.__agCleanup) { window.__agCleanup(); window.__agCleanup = null; }
     if (window.__anBarCleanup) { window.__anBarCleanup(); window.__anBarCleanup = null; }
-    // Must come off with the results, or the upload form keeps the
+    // Must come off with the results, or the capture screen keeps the
     // full-bleed layout and loses its tab bar.
     document.documentElement.classList.remove("an-result");
     resultView.style.display = "none";
     resultView.innerHTML = "";
     analyzingView.style.display = "none";
-    uploadView.style.display = "block";
-    form.reset();
-    updateFileDropDisplay();
+    // Back to a live viewfinder, ready for the next set -- which also drops
+    // the clip that was just graded, so the next recording starts clean.
+    backToCapture();
     preselectLastExercise();
     // Re-fetch so a just-finished analysis shows up in the strip (the
     // server saved it during the analyze request).
@@ -1359,13 +1743,13 @@
     // This page never navigates -- the result swaps in over the upload
     // form -- so the results-only chrome (full-bleed layout, hidden tab
     // bar, bottom-docked ask bar) has to be toggled by class here and
-    // taken off again in resetToUpload. A page-level rule would either
+    // taken off again in resetToCapture. A page-level rule would either
     // strand it on the upload view or never apply at all.
     document.documentElement.classList.add("an-result");
     RepCheck.scrollToTop();
-    document.getElementById("reset-btn").addEventListener("click", resetToUpload);
+    document.getElementById("reset-btn").addEventListener("click", resetToCapture);
     const backBtn = document.getElementById("an-back");
-    if (backBtn) backBtn.addEventListener("click", resetToUpload);
+    if (backBtn) backBtn.addEventListener("click", resetToCapture);
 
     // Fixed bar over paper would be white-on-white past the video; swap it
     // to an opaque header once the stage scrolls by. Mirrors result.html.
@@ -1378,7 +1762,7 @@
       syncBar();
       const offScroll = RepCheck.onScroll(syncBar);
       window.addEventListener("resize", syncBar);
-      // resetToUpload() wipes #result-view, so drop the listeners with it.
+      // resetToCapture() wipes #result-view, so drop the listeners with it.
       window.__anBarCleanup = () => {
         offScroll();
         window.removeEventListener("resize", syncBar);
@@ -1423,19 +1807,29 @@
     });
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const videoInput = document.getElementById("video");
-    const file = videoInput.files[0];
-    if (!file || !exerciseInput.value) {
+  // No <form> and no submit event: there is nothing here a browser could
+  // usefully submit on its own (the clip is a File in memory, not an input
+  // value), and a required-but-empty input silently swallowing the submit
+  // event is exactly the failure that shape invites.
+  submitBtn.addEventListener("click", async () => {
+    const file = selectedVideo();
+    if (!file) return;
+    // Nothing can be graded without knowing the movement, so an unset
+    // exercise opens the picker rather than making the button look broken.
+    if (!exerciseInput.value) {
+      openExerciseModal();
       return;
     }
 
     const objectUrl = URL.createObjectURL(file);
     previewVideo.src = objectUrl;
 
-    uploadView.style.display = "none";
+    // The camera is not needed again until the user comes back for another
+    // set, and holding it through a 30-second analysis is a lit indicator
+    // light over a screen that is not filming anything.
+    closeCamera();
+    reviewView.style.display = "none";
+    captureView.style.display = "none";
     analyzingView.style.display = "block";
     cycleStatus();
     poseWanted = true;
@@ -1457,12 +1851,7 @@
       stopPoseLoop();
 
       if (!response.ok || !data.ok) {
-        analyzingView.style.display = "none";
-        uploadView.style.display = "block";
-        const errorBox = uploadView.querySelector(".error") || document.createElement("div");
-        errorBox.className = "error";
-        errorBox.textContent = data.error || RepCheckI18n.t("analyze.somethingWrong");
-        uploadView.insertBefore(errorBox, uploadView.firstChild);
+        showAnalyzeError(data.error || RepCheckI18n.t("analyze.somethingWrong"));
         return;
       }
 
@@ -1471,9 +1860,22 @@
     } catch (err) {
       stopCycleStatus();
       stopPoseLoop();
-      analyzingView.style.display = "none";
-      uploadView.style.display = "block";
+      showAnalyzeError(RepCheckI18n.t("analyze.somethingWrong"));
     }
   });
+
+  // A failed analysis must land back on the clip, not on a fresh viewfinder:
+  // the recording is still perfectly good, and sending the user back to the
+  // camera would ask them to film the set again to retry.
+  function showAnalyzeError(message) {
+    analyzingView.style.display = "none";
+    reviewView.style.display = "block";
+    const errorBox = reviewView.querySelector(".error") || document.createElement("div");
+    errorBox.className = "error";
+    errorBox.textContent = message;
+    reviewView.insertBefore(errorBox, reviewView.firstChild);
+    reviewVideo.play().catch(() => {});
+    RepCheck.scrollToTop();
+  }
 </script>
 {% endblock %}
