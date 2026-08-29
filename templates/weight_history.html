@@ -567,6 +567,18 @@
       lhRender();
     });
 
+    // Same refresh, but triggered by account_sync.js having pulled newer
+    // weigh-ins off the account (logged on another device, or this browser
+    // adopting the account's history). preventDefault() tells it this page
+    // handled the change; without a handler it falls back to reloading.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      weightLog = loadWeightLog();
+      allDates = Object.keys(weightLog).sort();
+      renderInitial();
+      lhRender();
+      event.preventDefault();
+    });
+
     document.getElementById("lh-prev").addEventListener("click", () => {
       lhViewMonth -= 1;
       if (lhViewMonth < 0) { lhViewMonth = 11; lhViewYear -= 1; }

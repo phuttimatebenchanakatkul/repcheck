@@ -2,6 +2,46 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.10.4] - 2026-08-29
+
+### Fixed
+
+- The keyboard no longer squashes the log in / sign up screen into the strip
+  above it. The screen was resizing itself to whatever the keyboard left over,
+  which squeezed the card and cut it off mid-field, and left iOS's little
+  arrows-and-tick bar sitting against a hard edge with the app stopping dead
+  underneath it. The screen now stays full size and the keyboard simply covers
+  part of it.
+- Tapping a field goes to that field: tap Email and the screen moves to Email,
+  tap Password and it moves to Password. It brings the Log in / Sign up button
+  up with the last field too, so the button you are heading for is never left
+  behind the keyboard.
+
+## [0.4.10.3] - 2026-08-29
+
+### Fixed
+
+- The one place left in the app that visibly refreshed the page on its own.
+  After pulling in data saved from another device, the sync layer used to
+  just reload -- guarded to once per browser session, but that guard doesn't
+  survive the iPhone app being closed and reopened, so it could resurface on
+  every cold start. Every page that shows synced data (food log, workout log,
+  home, HYROX, coach, weight and logging history, streaks, challenges) now
+  redraws itself in place with the new data instead; the reload still exists
+  as a fallback for anything that doesn't handle it, so nothing is ever left
+  showing data that's known to be wrong.
+
+## [0.4.10.1] - 2026-08-29
+
+### Fixed
+
+- auth_viewport.js -- which repositions the pinned log in / sign up card
+  under the on-screen keyboard -- could pin the card to a height of zero if
+  it measured the viewport before the browser had finished its first layout,
+  collapsing the whole screen with nothing left to correct it. It now ignores
+  any measurement below a real phone's shortest possible height and keeps the
+  last good geometry instead.
+
 ## [0.4.10.0] - 2026-08-29
 
 ### Added
@@ -25,6 +65,7 @@ All notable changes to RepCheck are recorded here, newest first.
   are set (see `.env.example` for where each one comes from in the Apple
   developer portal). Nothing about the existing email/password or Google
   sign-in changes while those are unset.
+
 ## [0.4.9.3] - 2026-08-29
 
 ### Fixed
