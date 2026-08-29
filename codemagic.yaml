@@ -44,17 +44,27 @@ workflows:
       # whatever @capacitor/cli version package.json pins.
       node: 22
       xcode: latest
-      # Uses the distribution certificate stored in Codemagic under
-      # Settings -> Code signing identities, together with the appstore
-      # API key integration below, to fetch or create the provisioning
-      # profile for this bundle id. Build 8 proved the scripted
-      # alternative cannot do this: app-store-connect fetch-signing-files
-      # --create refuses with "Cannot save Signing Certificates without
-      # certificate private key" and then exits 0, leaving the build to
-      # die later at archive with a misleading error.
+      # MANUAL signing, referencing identities stored in Codemagic under
+      # Settings -> Code signing identities by their reference names.
+      #
+      # The automatic form -- distribution_type + bundle_identifier, letting
+      # Codemagic resolve signing files through the appstore API key -- was
+      # tried in builds 1, 9, 10, 11 and 12 and fails instantly every time
+      # with:
+      #
+      #   No matching profiles found for bundle identifier
+      #   "com.benchanakatkul.repcheck" and distribution type "app_store"
+      #
+      # It fails before any script runs, so it produces no log to debug. The
+      # profile does exist in the Apple portal (App Store type, App ID
+      # PPC3AN25T3.com.benchanakatkul.repcheck), and retrying ruled out
+      # propagation delay. Naming both files explicitly removes the guesswork
+      # about what that resolution step is actually looking at.
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.benchanakatkul.repcheck
+        certificates:
+          - repcheck-distribution
+        provisioning_profiles:
+          - repcheck-appstore
 
     # Name of the App Store Connect API key you added under Codemagic's
     # Settings -> Integrations. Rename here if you called it something other
