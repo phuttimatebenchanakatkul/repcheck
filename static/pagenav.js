@@ -64,10 +64,6 @@
 
   var WILL_SWAP = "repcheck:page-will-swap";
   var SWAPPED = "repcheck:page-swapped";
-  // How long the outgoing screen takes to fade. Short enough that it never
-  // feels like waiting, long enough to read as one screen replacing another
-  // rather than a hard cut.
-  var LEAVE_MS = 110;
   // Pages already fetched this session, for the back/forward gesture only.
   // Swiping back is a request to see the screen you just left, and that is
   // what the browser's own back/forward cache would give you for free if
@@ -114,10 +110,6 @@
     }
     if (from === -1 || to === -1) return 1;
     return to >= from ? 1 : -1;
-  }
-
-  function wait(ms) {
-    return new Promise(function (resolve) { window.setTimeout(resolve, ms); });
   }
 
   // Records for the page currently on screen. The first set comes from
@@ -252,7 +244,6 @@
     main.innerHTML = incoming.innerHTML;
     document.title = doc.title;
     syncNav(doc);
-    if (!(options && options.replace)) window.history.pushState({ repcheckNav: true }, "", url);
     window.scrollTo(0, 0);
 
     runInlineScripts(main);
@@ -299,7 +290,7 @@
   }
 
   function clearMotion() {
-    main.classList.remove("pn-leave-left", "pn-leave-right", "pn-enter-left", "pn-enter-right");
+    main.classList.remove("pn-enter-left", "pn-enter-right");
   }
 
   // Coming back to a page that was hidden mid-swap: whatever the transition
@@ -333,10 +324,27 @@
       }
     }
 
-    // Fade the outgoing screen straight away, before the response is back, so
-    // the tap is answered immediately rather than after a round trip.
-    if (!opts.fromHistory && !reduceMotion) {
-      main.classList.add(direction > 0 ? "pn-leave-left" : "pn-leave-right");
+    // The history entry goes in FIRST, while the screen you are leaving is
+    // still fully drawn. That ordering is the whole fix for "it refreshes
+    // when I swipe back".
+    //
+    // iOS snapshots the page when a navigation commits and shows that
+    // snapshot during the back-swipe. The push used to happen down in
+    // render(), and the outgoing screen was faded to opacity 0 before that by
+    // a leave animation -- so the snapshot iOS stored for the screen you were
+    // leaving was a blank one, and swiping back slid that blank in before
+    // popstate restored the content. Nothing was reloading; it looked exactly
+    // like it was.
+    //
+    // The leave animation is gone entirely rather than merely reordered
+    // around the snapshot. Ordering would leave the fix resting on when
+    // exactly WebKit takes the snapshot, which is not ours to know or to
+    // depend on; never fading the outgoing screen means no snapshot of it can
+    // ever be blank, whenever it is taken. The tap is still answered
+    // instantly -- the tab bubble moves on pointerdown, before this even runs
+    // -- and only the arriving screen is animated.
+    if (!opts.fromHistory) {
+      window.history.pushState({ repcheckNav: true }, "", url);
     }
 
     var fetched = window
@@ -349,9 +357,8 @@
         return response.text();
       });
 
-    return Promise.all([fetched, opts.fromHistory ? null : wait(LEAVE_MS)])
-      .then(function (results) {
-        var html = results[0];
+    return fetched
+      .then(function (html) {
         if (mine !== token) return; // A later tap already won.
         var doc = new DOMParser().parseFromString(html, "text/html");
         var incoming = doc.querySelector("main.main");

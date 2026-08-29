@@ -313,39 +313,53 @@ describe("pagenav", () => {
     expect(nav.requests.filter((r) => r.url === "/nutrition")).toHaveLength(2);
   });
 
-  it("answers the tap before the page has arrived", async () => {
-    // The outgoing screen starts leaving immediately, so the tap feels
-    // answered rather than ignored until the round trip finishes.
-    const nav = loadPageNav({ startHref: "/home", routes: { "/nutrition": NUTRITION } });
+  it("never fades the screen it is leaving", async () => {
+    // Not a taste rule. iOS snapshots the page when a navigation commits and
+    // replays that snapshot during the back-swipe, so a screen faded out at
+    // commit time is stored BLANK -- and swiping back to it slid a blank
+    // screen in, which is what "it still refreshes when I swipe back" was.
+    // The history entry also goes in while the screen is still whole, so
+    // whenever the snapshot is taken it catches a real screen.
+    const nav = loadPageNav({
+      startHref: "/home",
+      startMain: '<h1 id="heading">Hey James</h1>',
+      routes: { "/nutrition": NUTRITION },
+    });
 
     document.querySelector('.mt-item[href="/nutrition"]').dispatchEvent(
       new window.MouseEvent("click", { bubbles: true, cancelable: true })
     );
 
-    expect(nav.main().className).toContain("pn-leave-");
+    // Mid-navigation: the URL has already changed, and the outgoing screen is
+    // untouched -- no class, nothing to fade it.
+    expect(nav.historyEntries.at(-1).url).toBe("/nutrition");
+    expect(nav.main().className).toBe("main");
+    expect(nav.main().textContent).toContain("Hey James");
+
     await nav.settle();
-    // ...and the class is gone once the new screen is in place, or the screen
-    // would sit there faded out.
-    expect(nav.main().className).not.toContain("pn-leave-");
+    expect(nav.main().textContent).toContain("Nutrition Log");
   });
 
-  it("moves the screen the way the tab order does", async () => {
+  it("brings the new screen in from the side the tab order says", async () => {
     const nav = loadPageNav({
       startHref: "/nutrition",
       routes: { "/home": page({ href: "/home" }), "/hyrox": page({ href: "/hyrox" }) },
     });
+    const seen = [];
+    // The enter class is set and then removed a frame later, so it is caught
+    // by watching rather than by looking afterwards.
+    const observer = new window.MutationObserver(() => seen.push(nav.main().className));
+    observer.observe(nav.main(), { attributes: true, attributeFilter: ["class"] });
 
-    document.querySelector('.mt-item[href="/home"]').dispatchEvent(
-      new window.MouseEvent("click", { bubbles: true, cancelable: true })
-    );
-    // Home sits left of Nutrition, so the screen travels rightwards.
-    expect(nav.main().className).toContain("pn-leave-right");
-    await nav.settle();
+    // Home sits left of Nutrition, so its screen arrives from the left.
+    await nav.tap("/home");
+    expect(seen.join(" ")).toContain("pn-enter-left");
 
-    document.querySelector('.mt-item[href="/hyrox"]').dispatchEvent(
-      new window.MouseEvent("click", { bubbles: true, cancelable: true })
-    );
-    expect(nav.main().className).toContain("pn-leave-left");
+    seen.length = 0;
+    // HYROX sits right of Home, so it arrives from the right.
+    await nav.tap("/hyrox");
+    expect(seen.join(" ")).toContain("pn-enter-right");
+    observer.disconnect();
   });
 
   it("never leaves the new screen faded out when there are no frames", async () => {

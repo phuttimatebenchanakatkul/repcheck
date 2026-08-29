@@ -1383,14 +1383,20 @@ input[type="file"], select {
 /* ---------- Tab-to-tab motion (static/pagenav.js) -------------------------
    Tapping a tab no longer loads a document -- pagenav.js replaces the
    contents of <main> in place -- so the transition between screens is ours
-   to draw rather than the browser's. The old screen slides a little way out
-   and fades, the new one arrives from the side it came from in the tab
-   order: tapping rightwards moves the screen leftwards, the way a row of
-   pages behaves.
+   to draw rather than the browser's. The ARRIVING screen slides in from the
+   side it came from in the tab order: tapping rightwards brings the next
+   screen in from the right, the way a row of pages behaves.
 
-   Small distances on purpose (14px, 110ms out). This runs on every tab tap,
-   many times a session, and motion that reads as elegant once reads as slow
-   the twentieth time.
+   Only the arriving screen is animated. The one you are leaving is never
+   faded, and that is a correctness rule rather than a taste one: iOS
+   snapshots the page when a navigation commits and replays that snapshot
+   during the back-swipe, so a screen that was faded out at commit time is
+   stored blank -- and swiping back to it slid a blank screen in, which read
+   as the app reloading. Nothing to fade means nothing blank to store.
+
+   Small distance on purpose (14px). This runs on every tab tap, many times a
+   session, and motion that reads as elegant once reads as slow the twentieth
+   time.
 
    The enter classes carry `transition: none` so the start position is not
    itself animated -- pagenav.js sets them, lets a frame paint, then removes
@@ -1399,12 +1405,10 @@ input[type="file"], select {
    No `will-change` here, deliberately: it would make .main a containing
    block for position:fixed descendants permanently, quietly re-anchoring any
    fixed element a page renders inside <main>. The transform does that too,
-   but only for the ~120ms a transition is actually running. */
+   but only for the ~160ms a transition is actually running. */
 .main {
   transition: opacity 0.16s ease, transform 0.16s ease;
 }
-.main.pn-leave-left { opacity: 0; transform: translateX(-14px); }
-.main.pn-leave-right { opacity: 0; transform: translateX(14px); }
 .main.pn-enter-left,
 .main.pn-enter-right { opacity: 0; transition: none; }
 .main.pn-enter-left { transform: translateX(-14px); }
@@ -1415,8 +1419,6 @@ input[type="file"], select {
    pair of braces, for a preference that changes mid-session. */
 @media (prefers-reduced-motion: reduce) {
   .main,
-  .main.pn-leave-left,
-  .main.pn-leave-right,
   .main.pn-enter-left,
   .main.pn-enter-right {
     transition: none;
