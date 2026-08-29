@@ -298,6 +298,14 @@
 
     render();
     document.addEventListener("repcheck:language-changed", render);
+    // account_sync.js pulled newer values off the account. renderGrid()
+    // re-reads both logs from localStorage on every call, so a plain
+    // render() is enough; preventDefault() tells account_sync.js this page
+    // handled the change rather than letting it reload.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      render();
+      event.preventDefault();
+    });
   })();
 </script>
 {% endblock %}

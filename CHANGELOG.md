@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.10.2] - 2026-08-29
+## [0.4.10.4] - 2026-08-29
 
 ### Fixed
 
@@ -16,6 +16,20 @@ All notable changes to RepCheck are recorded here, newest first.
   tap Password and it moves to Password. It brings the Log in / Sign up button
   up with the last field too, so the button you are heading for is never left
   behind the keyboard.
+
+## [0.4.10.3] - 2026-08-29
+
+### Fixed
+
+- The one place left in the app that visibly refreshed the page on its own.
+  After pulling in data saved from another device, the sync layer used to
+  just reload -- guarded to once per browser session, but that guard doesn't
+  survive the iPhone app being closed and reopened, so it could resurface on
+  every cold start. Every page that shows synced data (food log, workout log,
+  home, HYROX, coach, weight and logging history, streaks, challenges) now
+  redraws itself in place with the new data instead; the reload still exists
+  as a fallback for anything that doesn't handle it, so nothing is ever left
+  showing data that's known to be wrong.
 
 ## [0.4.10.1] - 2026-08-29
 

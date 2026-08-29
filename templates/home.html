@@ -209,11 +209,18 @@
     // days count toward the streak -- that now lives behind
     // RepCheckStreak (which reads it, and every other feature's log,
     // itself). This copy is only for the macro card below.
-    const nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
+    // `let`, not `const`: account_sync.js can rewrite these keys after this
+    // line has already run, and the re-render handler at the bottom of this
+    // block re-reads them rather than reloading the page.
+    let nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
     // No "calories" field on purpose -- it's never stored directly (see
     // nutrition.html/coaching.js), always derived from protein/fat/carbs
     // below so it can't drift out of sync with the macro targets.
-    const nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
+    let nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
+    function reloadStoredState() {
+      nutritionLog = loadJson("repcheck_nutrition_log_v1", {});
+      nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
+    }
 
     // "Did the user use RepCheck that day" -- any feature, not just the
     // workout/nutrition logs this page used to check on its own. The rule
@@ -513,6 +520,15 @@
     renderAll();
     document.addEventListener("repcheck:language-changed", renderAll);
     document.addEventListener("repcheck:units-changed", renderAll);
+    // account_sync.js pulled newer values off the account (another device
+    // logged a meal, or this is a fresh browser adopting the account's
+    // data). Re-read and redraw instead of letting it reload the page --
+    // calling preventDefault() is what tells it this page handled it.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      reloadStoredState();
+      renderAll();
+      event.preventDefault();
+    });
     // Fired by base.html's shared "Log weight" sheet right after a
     // successful save.
     document.addEventListener("repcheck:weight-logged", renderCheckinBanner);
