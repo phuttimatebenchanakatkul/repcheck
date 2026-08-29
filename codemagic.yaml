@@ -154,10 +154,19 @@ workflows:
           python3 -m pip install --quiet -r requirements-dev.txt || true
           python3 -m pytest -q || true   # see IOS_APP_STORE.md: needs ffmpeg/zbar on the runner
 
-      - name: Report the signing state
+      - name: Apply the profiles and report the signing state
         script: |
-          # Codemagic's own signing setup has already run by this point.
-          # These three blocks are what turned build 8 from a guess into a
+          # Codemagic's "Set up code signing identities" step installs the
+          # certificate and the .mobileprovision on the machine, but it does
+          # NOT bind them to the Xcode target or write the export options
+          # plist. use-profiles does both. Without it the project stays on
+          # CODE_SIGN_STYLE=Automatic with CODE_SIGN_IDENTITY="iPhone
+          # Developer", and build-ipa dies on its default
+          # --export-options-plist path not existing -- which is how build 13
+          # failed, several steps after the thing that was actually missing.
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+
+          # These blocks are what turned build 8 from a guess into a
           # diagnosis, so they stay: they answer which bundle id, which
           # profile, and whether the two actually got bound together.
           echo "--- bundle ids in the project ---"
@@ -166,6 +175,8 @@ workflows:
           ls -1 "$HOME/Library/MobileDevice/Provisioning Profiles/" 2>/dev/null || echo "(none)"
           echo "--- signing certificates in the keychain ---"
           security find-identity -v -p codesigning 2>/dev/null || echo "(none)"
+          echo "--- export options plist ---"
+          ls -l "$HOME/export_options.plist" || echo "(missing -- build-ipa will fail)"
           echo "--- resolved signing settings ---"
           xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings 2>/dev/null \
             | grep -E 'PRODUCT_BUNDLE_IDENTIFIER|PROVISIONING_PROFILE|CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM' \

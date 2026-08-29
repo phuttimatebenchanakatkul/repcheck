@@ -2,6 +2,13 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.7] - 2026-08-29
+
+### Fixed
+
+- The iPhone build had the right signing files but never told Xcode to use
+  them, so the final packaging step had nothing to work from.
+
 ## [0.4.5.6] - 2026-08-29
 
 ### Fixed
