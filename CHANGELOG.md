@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.10.3] - 2026-08-29
+
+### Changed
+
+- Test coverage only -- no change to how the app behaves. The Sign in with
+  Apple suite now signs a real key instead of stubbing that step out, which
+  closes the one gap a fully green suite could still hide: the client secret
+  Apple requires is an ES256 JWT, ES256 needs PyJWT's crypto extra, and
+  installing PyJWT without it satisfies the import and then fails at the
+  first real sign-in. Dropping the extra from requirements.txt now breaks
+  the suite instead of only breaking production. Also covers Apple's token
+  endpoint being unreachable or answering with an error body, and a
+  malformed name blob in the callback -- both of which land after the user
+  has already authenticated, where a crash has no way through it.
+
 ## [0.4.10.1] - 2026-08-29
 
 ### Fixed
