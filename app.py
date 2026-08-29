@@ -529,7 +529,7 @@ def inject_asset_url():
 
 
 @app.after_request
-def never_store_html(response):
+def revalidate_html(response):
     # asset_url() above cache-busts every stylesheet and script, but the
     # busted URLs only exist INSIDE the HTML -- so the scheme is only as
     # fresh as the page carrying them, and nothing was keeping that page
@@ -552,21 +552,69 @@ def never_store_html(response):
     # verified on the production URL while the TestFlight build kept
     # showing the scrolling one.
     #
-    # no-store rather than no-cache: with no validator on these responses
-    # a revalidation is a full refetch anyway, so no-cache would cost the
-    # same and promise less. It also keeps pages carrying progress photos,
-    # weight history and check-in data out of the on-disk cache, which is
-    # the right default for this app regardless of the bug.
+    # no-cache WITH a validator, not no-store. The first version of this fix
+    # was `no-store`, on the reasoning that a revalidation of a response with
+    # no validator is a full refetch anyway, so no-cache would cost the same
+    # and promise less. That reasoning was right about the cost and wrong to
+    # accept it: the answer is to add the validator, not to give up caching.
+    #
+    # no-store made every screen change a fresh download of the whole page.
+    # These pages are big -- /nutrition and /workouts are ~300 KB of HTML
+    # each -- and the iPhone app fetches them over the network on every
+    # single tap of the tab bar, so tapping Home, then Workouts, then Home
+    # again re-downloaded Home in full. That is what turned the smooth tab
+    # navigation of v0.4.9.1 back into something that reads as a page
+    # refresh: the cross-document view transition can only cross-fade once
+    # the next document arrives, and it was waiting on a full download every
+    # time. It also disqualifies a page from the back/forward cache, so even
+    # going back re-fetched and re-rendered instead of restoring instantly.
+    #
+    # `no-cache` does NOT mean "do not cache" -- it means "cache it, but
+    # revalidate with the origin before every reuse". Paired with the ETag
+    # below, an unchanged screen comes back as a 304 with no body: the
+    # freshness guarantee is identical (the device still asks the server
+    # every single time, so it can never render a stale page or the stale
+    # ?v= asset URLs inside it, which is the whole point of this handler),
+    # and what changes is that the answer can now be "nothing changed" in a
+    # few hundred bytes instead of a few hundred kilobytes.
+    #
+    # `private` keeps these out of any shared cache -- they are per-user
+    # pages -- and `must-revalidate` forbids serving them stale if the
+    # revalidation itself fails. The tradeoff no-store bought and this gives
+    # back: rendered pages carrying weight history, check-in data and photo
+    # URLs are now written to the app's own on-disk cache, inside its
+    # sandbox, the same way every other web app on the phone works.
     #
     # Deliberately scoped to HTML by mimetype: /static must keep its
     # ETag/no-cache revalidation, and the JSON API responses are already
     # fetched fresh by the callers that need them.
     if response.mimetype == "text/html":
-        response.headers["Cache-Control"] = "no-store, must-revalidate"
-        # Pragma/Expires are ignored by anything modern, but cost one
-        # header each and cover intermediaries that predate Cache-Control.
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+        response.headers["Cache-Control"] = "no-cache, private, must-revalidate"
+        # Pragma and Expires predate Cache-Control and can only say "stale",
+        # never "revalidate this" -- an intermediary that honours them would
+        # refetch in full, which is the behaviour being removed here. The
+        # explicit Cache-Control above is what every cache in this app's path
+        # (WKWebView's NSURLCache, Render's proxy) actually reads.
+        response.headers.pop("Pragma", None)
+        response.headers.pop("Expires", None)
+        # Every page here is per-user. `private` already bars a shared cache
+        # from storing it, and this says the same thing in the terms a cache
+        # keys on, so nothing can key one user's page under a URL another
+        # user asks for. (A private cache keys on URL alone, but it lives on
+        # one device behind one login, and the mandatory revalidation above
+        # catches an account switch anyway: the ETag will not match.)
+        response.headers.add("Vary", "Cookie")
+        # The validator that makes the 304 possible. Skipped when the
+        # response carries a Set-Cookie (a login, a session refresh): a 304
+        # is a headers-only reply and a client is not obliged to apply the
+        # cookie from one, so those always answer in full.
+        if (
+            response.status_code == 200
+            and not response.direct_passthrough
+            and "Set-Cookie" not in response.headers
+        ):
+            response.add_etag()
+            response.make_conditional(request)
     return response
 
 
