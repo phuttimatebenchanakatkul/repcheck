@@ -2,6 +2,14 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.8] - 2026-08-29
+
+### Fixed
+
+- Every iPhone build arrived at Apple flagged as missing export compliance and
+  had to have a questionnaire answered by hand before anyone could install it.
+  The build now declares this itself.
+
 ## [0.4.5.7] - 2026-08-29
 
 ### Fixed
