@@ -2946,6 +2946,42 @@ def _analyze_created_at_ms(created_at_str):
     return int(dt.timestamp() * 1000)
 
 
+@app.route("/api/nav-state", methods=["GET", "POST"])
+def api_nav_state():
+    """One line in the server log saying whether in-place navigation is on.
+
+    Built because there was no other way to find out. static/pagenav.js
+    replaces the tab bar's page loads with an in-place swap, and every way it
+    can decline to do that -- an unsupported browser, a missing element, a
+    thrown error -- is silent by design: the tabs simply stay ordinary links
+    and everything still works. That is the right behaviour and it is
+    untraceable, and on a phone there is no console to ask.
+
+    A screen recording (slop.mp4) showed the iPhone app still doing full page
+    loads on every tab tap, an hour after the swap layer went live, with the
+    correct scripts served on the page. Which of the bail-outs fired -- or
+    whether pagenav.js threw on that WebKit -- could not be determined from
+    here at all. So the page says which, once per load, and the answer lands
+    in the Render logs where it can be read without touching the phone.
+
+    POST as well as GET, and that is not decoration: the page sends this with
+    navigator.sendBeacon, which is a POST. GET-only answered 405 and the
+    report never arrived -- silence that looks exactly like "the phone never
+    reported", which is the one answer this endpoint must never give by
+    accident. Caught by running it, not by reading it.
+
+    Deliberately minimal: no user id, no page, no body. The state string is
+    capped and stripped of newlines so a log line stays a log line.
+    """
+    state = (request.args.get("s") or "")[:120]
+    state = re.sub(r"[^\x20-\x7e]", "", state).strip() or "unknown"
+    # The iOS shell is the case this exists for; a desktop browser hitting it
+    # is noise worth telling apart at a glance.
+    agent = "ios-app" if "RepCheck" in request.headers.get("User-Agent", "") else "browser"
+    app.logger.info("NAV_STATE %s agent=%s", state, agent)
+    return ("", 204)
+
+
 @app.route("/api/analyze/history", methods=["GET"])
 def api_analyze_history():
     # The Analyze page's "Recent analyses" strip for logged-in users:

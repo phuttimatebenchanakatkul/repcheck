@@ -41,26 +41,64 @@
 (function (window, document) {
   "use strict";
 
-  var scope = window.RepCheckNavScope;
-  if (!scope) return;
-  if (!window.fetch || !window.DOMParser || !window.history || !window.history.pushState) return;
-
-  var main = document.querySelector("main.main");
-  var pill = document.querySelector(".mt-pill");
-  if (!main || !pill) return;
-
-  try {
-    // The guided tour drives its own navigation between pages and expects
-    // each step to land in a freshly loaded document. Leave it entirely alone.
-    if (window.localStorage && window.localStorage.getItem("repcheck_pending_tour")) return;
-    // Escape hatch. If swapping ever misbehaves on a device, this turns the
-    // tabs back into ordinary links from the device itself -- no deploy, no
-    // waiting for a fix to reach the App Store build:
-    //   localStorage.setItem("repcheck_no_swap", "1")
-    if (window.localStorage && window.localStorage.getItem("repcheck_no_swap")) return;
-  } catch (err) {
-    /* No localStorage is not a reason to bail out of navigation. */
+  // ---- Say whether this ran, and if not, why ------------------------------
+  // Every way this file can decline to work is silent by design: the tabs stay
+  // ordinary links and the app still works. That is right, and it is
+  // untraceable. A screen recording (slop.mp4) showed the iPhone app still
+  // doing a full page load on every tab tap an hour after this shipped, with
+  // the correct scripts served on the page -- and there was no way from here
+  // to tell which bail-out fired, or whether this file threw on that WebKit.
+  // A phone has no console to ask. So it reports, once per page, and the
+  // answer lands in the server log. See /api/nav-state in app.py.
+  var reported = false;
+  function report(state) {
+    if (reported) return;
+    reported = true;
+    try {
+      var url = "/api/nav-state?s=" + encodeURIComponent(state);
+      if (window.navigator && window.navigator.sendBeacon) window.navigator.sendBeacon(url);
+      else if (window.fetch) window.fetch(url, { credentials: "same-origin" });
+    } catch (err) {
+      /* A diagnostic that breaks the thing it is diagnosing is worse than
+         no diagnostic. */
+    }
   }
+
+  function start() {
+    var scope = window.RepCheckNavScope;
+    if (!scope) return "off:no-scope";
+    if (!window.fetch) return "off:no-fetch";
+    if (!window.DOMParser) return "off:no-domparser";
+    if (!window.history || !window.history.pushState) return "off:no-pushstate";
+
+    var main = document.querySelector("main.main");
+    if (!main) return "off:no-main";
+    var pill = document.querySelector(".mt-pill");
+    if (!pill) return "off:no-pill";
+
+    try {
+      // Escape hatch. If swapping ever misbehaves on a device, this turns the
+      // tabs back into ordinary links from the device itself -- no deploy, no
+      // waiting for a fix to reach the App Store build:
+      //   localStorage.setItem("repcheck_no_swap", "1")
+      if (window.localStorage && window.localStorage.getItem("repcheck_no_swap")) {
+        return "off:disabled";
+      }
+    } catch (err) {
+      /* No localStorage is not a reason to bail out of navigation. */
+    }
+
+    install(scope, main, pill);
+    return "on";
+  }
+
+  // The guided tour used to bail out here too, whenever repcheck_pending_tour
+  // was set. That was a permanent, invisible kill switch on a key nothing
+  // clears if a tour is abandoned, and it was not even needed: the tour
+  // drives its own navigation with location.href, which this file does not
+  // touch. Only tab-bar clicks are intercepted.
+
+  function install(scope, main, pill) {
 
   var WILL_SWAP = "repcheck:page-will-swap";
   var SWAPPED = "repcheck:page-swapped";
@@ -436,12 +474,30 @@
       });
   }, 1200);
 
-  // The entry the app was loaded into has no state of ours, so a back from
-  // the first swapped page would otherwise not be recognised as ours.
-  try {
-    window.history.replaceState({ repcheckNav: true }, "", window.location.href);
-  } catch (err) {
-    /* Some webviews refuse replaceState on a fresh entry; swapping still
-       works, only the back button falls through to a real navigation. */
+    // The entry the app was loaded into has no state of ours, so a back from
+    // the first swapped page would otherwise not be recognised as ours.
+    try {
+      window.history.replaceState({ repcheckNav: true }, "", window.location.href);
+    } catch (err) {
+      /* Some webviews refuse replaceState on a fresh entry; swapping still
+         works, only the back button falls through to a real navigation. */
+    }
   }
+
+  // An exception anywhere above leaves the tabs as ordinary links, which is
+  // the old behaviour and safe -- but it must not also leave us guessing.
+  // The message goes in the report.
+  var state;
+  try {
+    state = start();
+  } catch (err) {
+    state = "off:error:" + ((err && err.message) || String(err)).slice(0, 80);
+  }
+  // Also on the element, for anyone with an inspector in front of them.
+  try {
+    document.documentElement.setAttribute("data-pagenav", state);
+  } catch (err) {
+    /* Not worth failing over. */
+  }
+  report(state);
 })(window, document);
