@@ -2,6 +2,26 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.13.1] - 2026-08-29
+
+### Fixed
+
+- Swiping back to a previous screen no longer reloads it. The swipe was going
+  off to the server for a screen the app had already had a moment earlier, and
+  because the phone animates the swipe first and hands over afterwards, that
+  trip landed late and looked like the screen refreshing itself under your
+  thumb. Screens you have already visited are now kept for the session and put
+  straight back, with nothing to wait for. Tapping a tab still asks the server,
+  so a tab always shows what is actually there.
+
+### Changed
+
+- Screens now slide as they change. The one you are leaving fades out towards
+  the side you are heading, the new one arrives from the other side -- so
+  moving through the tabs reads as one row of pages rather than a screen being
+  replaced. Small and quick on purpose; this happens dozens of times a
+  session. Turned off entirely if you have Reduce Motion on.
+
 ## [0.4.13.0] - 2026-08-29
 
 ### Changed
