@@ -146,6 +146,32 @@ workflows:
           # Codemagic's own per-project counter, which only ever increases.
           agvtool new-version -all "$BUILD_NUMBER"
 
+      - name: Register the repcheck:// URL scheme
+        script: |
+          # How the app gets control back after Google sign-in. The flow runs
+          # in SFSafariViewController -- Google rejects embedded webviews --
+          # and that browser has its own cookie jar, so the session it
+          # establishes is useless to the app. auth.py's callback instead
+          # redirects to repcheck://auth?token=..., iOS routes that here, and
+          # static/native.js redeems the token for a session in the webview.
+          #
+          # Without this key iOS does not know the app owns the scheme, the
+          # redirect goes nowhere, and sign-in dead-ends in the browser --
+          # which is the bug this whole path exists to fix.
+          #
+          # Delete-then-add rather than Set: PlistBuddy cannot Set an array
+          # element that does not exist yet, and the project is regenerated
+          # from scratch every build, so this has to work on a plist that has
+          # never had the key.
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string $BUNDLE_ID" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string repcheck" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes" "$PLIST"
+
       - name: Declare exempt encryption
         script: |
           # Without this key every upload lands in App Store Connect as

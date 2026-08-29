@@ -29,14 +29,24 @@ export function readSource() {
  *   majority of RepCheck's users are on and the one that must never break.
  * @param {Function} options.fetch  stub for window.fetch, used when turning
  *   a captured photo into a File.
+ * @param {Function} options.assign  stub for window.location.assign. The
+ *   Google sign-in handoff navigates the webview by assigning a URL, so
+ *   tests assert on where it sent the user.
  */
-export function loadNative({ capacitor = null, fetch: fetchStub } = {}) {
+export function loadNative({ capacitor = null, fetch: fetchStub, assign } = {}) {
   const windowStub = {
     Capacitor: capacitor || undefined,
     fetch: fetchStub || (() => Promise.reject(new Error("fetch not stubbed"))),
     // The real File is fine here -- jsdom provides it, and the point of the
     // conversion is that downstream code receives a genuine File.
     File: globalThis.File,
+    // Navigation is a side effect the sign-in path is judged on, so it is
+    // always stubbed rather than left to jsdom, which refuses to navigate.
+    location: {
+      origin: "https://repcheck.test",
+      href: "https://repcheck.test/login",
+      assign: assign || (() => {}),
+    },
   };
   const documentStub = {};
 

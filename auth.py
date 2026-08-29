@@ -40,7 +40,9 @@ from flask import (
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from database import (
+    consume_native_auth_token,
     create_local_user,
+    create_native_auth_token,
     create_oauth_user,
     get_user_by_email,
     get_user_by_id,
@@ -71,6 +73,10 @@ APPLE_KEYS_URL = "https://appleid.apple.com/auth/keys"
 APPLE_ISSUER = "https://appleid.apple.com"
 APPLE_STATE_COOKIE = "apple_oauth_state"
 APPLE_STATE_MAX_AGE = 600
+# Custom URL scheme the iOS shell registers (see the Info.plist step in
+# codemagic.yaml). Only ever used to hand a one-time token back to the app
+# after Google sign-in finishes in the external browser.
+NATIVE_URL_SCHEME = "repcheck"
 
 
 
@@ -198,6 +204,16 @@ def google_login():
         session["oauth_next"] = next_url
     else:
         session.pop("oauth_next", None)
+    # The iOS shell cannot run this flow in its own webview -- Google rejects
+    # embedded webviews -- so it opens SFSafariViewController instead. That
+    # browser has a separate cookie jar, which means the session this flow is
+    # about to establish belongs to the browser and not to the app. Remember
+    # that we are in that case so the callback hands a token back to the app
+    # rather than just redirecting to a page the user will never see.
+    if request.args.get("native") == "1":
+        session["oauth_native"] = True
+    else:
+        session.pop("oauth_native", None)
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": url_for("auth.google_callback", _external=True),
@@ -259,8 +275,41 @@ def google_callback():
             )
             user = get_user_by_id(user_id)
 
+    next_url = session.pop("oauth_next", None)
+
+    if session.pop("oauth_native", None):
+        # Deliberately do NOT call _login_session here. This request is being
+        # served to SFSafariViewController, so a session cookie set now lands
+        # in the browser's jar, where the app can never use it -- that is the
+        # exact bug this path exists to fix. Hand back a single-use token and
+        # let the webview redeem it for a session of its own.
+        token = create_native_auth_token(user["id"], next_url)
+        return redirect(f"{NATIVE_URL_SCHEME}://auth?token={token}")
+
     _login_session(user)
-    return redirect(session.pop("oauth_next", None) or url_for("home"))
+    return redirect(next_url or url_for("home"))
+
+
+@auth_bp.route("/auth/native-complete")
+def native_complete():
+    """Trade a one-time token from the iOS shell for a real session.
+
+    Requested by the app's own webview, so the cookie set here is the one the
+    app will actually use. An invalid, expired, or already-redeemed token is
+    not an error worth explaining -- it is either a stale link or someone
+    else's token -- so it lands on the login page like any other signed-out
+    visit.
+    """
+    claim = consume_native_auth_token(request.args.get("token"))
+    if not claim:
+        return redirect(url_for("auth.login_page"))
+
+    user = get_user_by_id(claim["user_id"])
+    if not user:
+        return redirect(url_for("auth.login_page"))
+
+    _login_session(user)
+    return redirect(_safe_next(claim["next_url"]) or url_for("home"))
 
 
 
@@ -403,7 +452,16 @@ def apple_login():
 
     nonce = secrets.token_urlsafe(16)
     next_url = _safe_next(request.args.get("next", ""))
-    state = _apple_state_serializer().dumps({"nonce": nonce, "next": next_url})
+    # The iOS shell runs this in SFSafariViewController for the same reason
+    # the Google flow does -- Apple will not authorize inside an embedded
+    # webview, and a session cookie set for that browser lands in a jar the
+    # app cannot read. The Google flow parks the flag in the session; this
+    # one cannot (the callback is a cross-site POST that carries no session
+    # cookie), so it rides in the signed state alongside `next`.
+    native = request.args.get("native") == "1"
+    state = _apple_state_serializer().dumps(
+        {"nonce": nonce, "next": next_url, "native": native}
+    )
     params = {
         "client_id": APPLE_CLIENT_ID,
         "redirect_uri": url_for("auth.apple_callback", _external=True),
@@ -501,5 +559,14 @@ def apple_callback():
             )
             user = get_user_by_id(user_id)
 
+    next_url = _safe_next(state.get("next"))
+
+    if state.get("native"):
+        # Deliberately no _login_session here: see the same branch in the
+        # Google callback. The cookie would belong to the browser, not the
+        # app, so hand back a single-use token for the webview to redeem.
+        token = create_native_auth_token(user["id"], next_url)
+        return _clear_apple_state(redirect(f"{NATIVE_URL_SCHEME}://auth?token={token}"))
+
     _login_session(user)
-    return _clear_apple_state(redirect(state.get("next") or url_for("home")))
+    return _clear_apple_state(redirect(next_url or url_for("home")))

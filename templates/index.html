@@ -390,6 +390,13 @@
 </style>
 
 <script src="{{ asset_url('analyze_chat_widget.js') }}"></script>
+<!-- Cacheable copies of the shared exercise libraries (see LIBRARY_ASSETS in
+     app.py) rather than a fresh inline copy on every visit. Classic scripts,
+     so they are evaluated before the deferred module below reads them. -->
+<script src="{{ library_url('exercise_library') }}"></script>
+<script src="{{ library_url('exercise_icons') }}"></script>
+<script src="{{ library_url('exercise_categories') }}"></script>
+<script src="{{ library_url('exercise_videos') }}"></script>
 <script type="module">
   import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
 
@@ -402,10 +409,14 @@
     [27, 29], [29, 31], [28, 30], [30, 32],
   ];
 
-  const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
-  const EXERCISE_ICONS = {{ exercise_icons | tojson }};
-  const EXERCISE_CATEGORIES = {{ exercise_categories | default({}, true) | tojson }};
-  const EXERCISE_VIDEOS = {{ exercise_videos | tojson }};
+  // Resolved from the shared library assets rather than from what this
+  // particular render happened to pass -- which is also why the old
+  // `| default({}, true)` guard on the categories is gone: the error-path
+  // render of this template used to omit some of them.
+  const EXERCISE_LIBRARY = RepCheckLib.exercise_library;
+  const EXERCISE_ICONS = RepCheckLib.exercise_icons;
+  const EXERCISE_CATEGORIES = RepCheckLib.exercise_categories;
+  const EXERCISE_VIDEOS = RepCheckLib.exercise_videos;
   const ANALYZE_LOG_KEY = "repcheck_analyze_log_v1";
 
   // Small stroke-based glyphs (viewBox 0 0 24 24, stroke=currentColor) for

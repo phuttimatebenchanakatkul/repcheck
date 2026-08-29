@@ -65,10 +65,11 @@ def _stub_claims(monkeypatch, claims):
     monkeypatch.setattr(auth, "_verify_apple_id_token", lambda id_token: claims)
 
 
-def _start_flow(client, next_param=None):
+def _start_flow(client, next_param=None, native=False):
     """Run the real /auth/apple leg so the state token and its nonce cookie
     are the genuine article, then hand back the state to post with."""
-    url = "/auth/apple" + (f"?next={next_param}" if next_param else "")
+    query = [q for q in (f"next={next_param}" if next_param else "", "native=1" if native else "") if q]
+    url = "/auth/apple" + ("?" + "&".join(query) if query else "")
     response = client.get(url, base_url="https://localhost")
     assert response.status_code == 302
     location = response.headers["Location"]
@@ -214,3 +215,44 @@ def test_button_is_marked_setup_needed_when_credentials_are_missing(client, monk
 
     assert "auth-apple-btn" in body
     assert "setup needed" in body
+
+
+def test_the_ios_shell_gets_a_token_instead_of_a_cookie(client, monkeypatch):
+    """?native=1 means the flow is running in SFSafariViewController, whose
+    cookie jar the app cannot read. Setting a session here would look like a
+    successful sign-in and leave the app logged out, so the callback has to
+    hand back a one-time token over the repcheck:// scheme instead. The flag
+    cannot ride in the session the way the Google flow parks it -- Apple's
+    callback is a cross-site POST that carries no session cookie -- so it
+    travels inside the signed state."""
+    _stub_claims(monkeypatch, {"sub": "apple-sub-10", "email": "shell@example.com", "email_verified": True})
+
+    response = _callback(client, _start_flow(client, native=True))
+
+    assert response.status_code == 302
+    location = response.headers["Location"]
+    assert location.startswith(f"{auth.NATIVE_URL_SCHEME}://auth?token="), location
+    with client.session_transaction() as session:
+        assert "user_id" not in session, (
+            "a session cookie set here belongs to the in-app browser, not the "
+            "app -- that is the exact bug this path exists to avoid"
+        )
+
+    token = location.split("token=", 1)[1]
+    redeem = client.get(f"/auth/native-complete?token={token}", base_url="https://localhost")
+    assert redeem.status_code == 302
+    with client.session_transaction() as session:
+        assert database.get_user_by_id(session["user_id"])["auth_provider"] == "apple"
+
+
+def test_a_browser_sign_in_still_gets_a_session(client, monkeypatch):
+    """The native flag must be opt-in -- without it, the ordinary web flow
+    still sets a cookie rather than bouncing to a repcheck:// URL no browser
+    can follow."""
+    _stub_claims(monkeypatch, {"sub": "apple-sub-11", "email": "web@example.com", "email_verified": True})
+
+    response = _callback(client, _start_flow(client))
+
+    assert not response.headers["Location"].startswith(auth.NATIVE_URL_SCHEME)
+    with client.session_transaction() as session:
+        assert "user_id" in session
