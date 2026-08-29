@@ -27,31 +27,11 @@
   .st-save-btn:hover { opacity: 0.88; }
   .st-status { font-size: 12px; margin-left: 10px; }
 
-  /* Plans */
-  .st-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .st-plan {
-    border: 1px solid var(--border); border-radius: 14px; padding: 16px;
-    background: var(--bg); position: relative;
+  .st-logout-btn {
+    padding: 10px 18px; border-radius: 999px; border: 1px solid var(--red); cursor: pointer;
+    background: none; color: var(--red); font-size: 13px; font-weight: 700; font-family: inherit;
   }
-  .st-plan.is-current { border-color: var(--green); }
-  .st-plan.is-pro { border-color: var(--blue); }
-  .st-plan-name { font-size: 14px; font-weight: 800; }
-  .st-plan-price { font-size: 22px; font-weight: 700; margin: 6px 0 2px; }
-  .st-plan-price span { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
-  .st-plan-alt { font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; }
-  .st-plan-badge {
-    position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 700;
-    padding: 3px 9px; border-radius: 999px;
-  }
-  .st-plan.is-current .st-plan-badge { background: var(--green-bg); color: var(--green); }
-  .st-plan.is-pro .st-plan-badge { background: var(--blue-bg); color: var(--blue); }
-  .st-plan ul { margin: 0 0 12px; padding-left: 18px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
-  .st-upgrade-btn {
-    width: 100%; padding: 10px; border-radius: 999px; border: none; cursor: pointer;
-    background: var(--blue); color: #fff; font-size: 13px; font-weight: 700; font-family: inherit;
-  }
-  .st-upgrade-btn:hover { opacity: 0.9; }
-  .st-plan-note { font-size: 11px; color: var(--text-secondary); margin-top: 10px; }
+  .st-logout-btn:hover { background: var(--red); color: #fff; }
 
   /* Units */
   .st-unit-row {
@@ -67,10 +47,6 @@
     background: none; color: var(--text-secondary); font-size: 12px; font-weight: 700; font-family: inherit;
   }
   .st-seg button.is-active { background: var(--text); color: var(--bg); }
-
-  @media (max-width: 640px) {
-    .st-plans { grid-template-columns: 1fr; }
-  }
 
   /* Delete-account card. Deliberately the last card on the page and
      visually separated -- it is the only irreversible control in
@@ -97,7 +73,7 @@
 {% if not current_user %}
   <div class="st-card">
     <div class="st-card-title" data-i18n="settings.loginTitle">Log in to manage settings</div>
-    <div class="st-card-sub" data-i18n="settings.loginSub">Your account, subscription, and unit preferences live on your account.</div>
+    <div class="st-card-sub" data-i18n="settings.loginSub">Your account and unit preferences live on your account.</div>
     <a href="{{ url_for('auth.login_page') }}" class="st-save-btn" style="display:inline-block; text-decoration:none;" data-i18n="sidebar.login">Log in</a>
   </div>
 {% else %}
@@ -153,39 +129,12 @@
   <button type="button" class="st-save-btn" id="st-replay-tour" data-i18n="settings.help.replay">Replay the tour</button>
 </div>
 
-<div class="st-card" id="subscription">
-  <div class="st-card-title" data-i18n="settings.subscription.title">Subscription</div>
-  <div class="st-card-sub" data-i18n="settings.subscription.sub">Compare your current plan with RepCheck Pro.</div>
-  <div class="st-plans">
-    <div class="st-plan is-current">
-      <span class="st-plan-badge" data-i18n="settings.subscription.currentPlan">CURRENT PLAN</span>
-      <div class="st-plan-name" data-i18n="settings.subscription.free">Free</div>
-      <div class="st-plan-price">฿0 <span data-i18n="settings.subscription.perMonth">/ month</span></div>
-      <div class="st-plan-alt" data-i18n="settings.subscription.freeAlt">Everything you're using today.</div>
-      <ul>
-        <li data-i18n="settings.subscription.featureLogging">Workout &amp; nutrition logging</li>
-        <li data-i18n="settings.subscription.featureCoaching">Personalized coaching targets</li>
-        <li data-i18n="settings.subscription.featureFormLimited">Form analysis (limited daily)</li>
-        <li data-i18n="settings.subscription.featureChatLimited">Coach chat (limited daily)</li>
-        <li data-i18n="settings.subscription.featureFriends">Friends &amp; challenges</li>
-      </ul>
-    </div>
-    <div class="st-plan is-pro">
-      <span class="st-plan-badge" data-i18n="settings.subscription.pro">PRO</span>
-      <div class="st-plan-name" data-i18n="settings.subscription.proName">RepCheck Pro</div>
-      <div class="st-plan-price">฿149 <span data-i18n="settings.subscription.perMonth">/ month</span></div>
-      <div class="st-plan-alt" data-i18n="settings.subscription.proAlt">or ฿999 / year (save ~44%)</div>
-      <ul>
-        <li data-i18n="settings.subscription.featureFormUnlimited">Unlimited form analysis</li>
-        <li data-i18n="settings.subscription.featureChatUnlimited">Unlimited coach chat</li>
-        <li data-i18n="settings.subscription.featurePriority">Priority AI processing</li>
-        <li data-i18n="settings.subscription.featureInsights">Advanced coaching insights</li>
-        <li data-i18n="settings.subscription.featureEarlyAccess">Early access to new features</li>
-      </ul>
-      <button type="button" class="st-upgrade-btn" id="st-upgrade-btn" data-i18n="settings.subscription.upgrade">Upgrade to Pro</button>
-      <div class="st-plan-note" id="st-upgrade-note"></div>
-    </div>
-  </div>
+<div class="st-card" id="logout">
+  <div class="st-card-title" data-i18n="settings.logout.title">Log out</div>
+  <div class="st-card-sub" data-i18n="settings.logout.sub">Sign out of RepCheck on this device.</div>
+  <form method="post" action="{{ url_for('auth.logout') }}">
+    <button type="submit" class="st-logout-btn" data-i18n="sidebar.logout">Log out</button>
+  </form>
 </div>
 
 <!-- Gender lives in the coaching profile, not the account row: it's an input
@@ -330,11 +279,6 @@
     if (emailManagedHintEl) {
       emailManagedHintEl.textContent = t("settings.account.emailManagedBy", { provider: emailManagedHintEl.dataset.provider });
     }
-
-    // ---------- Subscription (no payment processing wired up) ----------
-    document.getElementById("st-upgrade-btn").addEventListener("click", () => {
-      document.getElementById("st-upgrade-note").textContent = t("settings.subscription.notConnected");
-    });
 
     // ---------- Units ----------
     function paintUnits() {
