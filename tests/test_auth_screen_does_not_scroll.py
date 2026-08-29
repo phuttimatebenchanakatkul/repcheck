@@ -139,21 +139,18 @@ def test_error_state_tightening_is_not_behind_a_height_breakpoint():
 
 
 def test_auth_pages_load_the_visual_viewport_sync():
-    """The pin needs a keyboard-aware height or the submit button strands.
+    """A locked page cannot scroll to the field you tapped. This script moves it.
 
     iOS shrinks the VISUAL viewport for the on-screen keyboard and leaves the
-    layout viewport alone. `position: fixed` + `inset: 0` measures the layout
-    one, so with the keyboard up <body> is still full-phone-height, still
-    centring against that height, and the submit button sits behind the
-    keyboard -- with nothing to scroll, because .auth-wrap's `max-height: 100%`
-    resolves against a <body> that never shrank. Pinning the page without this
-    script converts "does not scroll" into "cannot reach the button", which is
-    a worse bug than the one being fixed.
+    layout viewport alone, and `position: fixed` + `inset: 0` measures the
+    layout one. So with the keyboard up the page has no idea part of it is
+    covered, and being pinned, it has nothing to scroll to the field either --
+    pinning the page without this script converts "does not scroll" into
+    "cannot reach the field", which is the worse bug.
 
-    Verified in the browser at 375x667: with the visible strip simulated at
-    380px, .auth-wrap gains 254px of internal scroll and the button is
-    reachable; with no keyboard it writes back the height the page already had
-    and nothing moves.
+    Behaviour lives in tests-js/authViewport.test.js, against a simulated
+    phone: full size preserved, focused field revealed, submit button brought
+    along when it is close enough to follow.
     """
     for rel in AUTH_TEMPLATES:
         assert "auth_viewport.js" in read(rel), (
@@ -164,35 +161,59 @@ def test_auth_pages_load_the_visual_viewport_sync():
         )
 
 
-def test_visual_viewport_sync_does_not_resize_the_desktop_device_frame():
+def test_visual_viewport_sync_leaves_the_desktop_device_frame_alone():
     src = read("static/auth_viewport.js")
-    assert "visualViewport" in src and "style.height" in src, (
-        "auth_viewport.js must drive <body>'s height from visualViewport -- an "
-        "explicit height is the one property that beats `inset: 0`'s bottom on "
-        "a fixed-position box."
+    assert "visualViewport" in src, (
+        "auth_viewport.js must drive its position from visualViewport -- that "
+        "is the only API that reports what the keyboard leaves visible."
     )
     assert "min-width: 721px" in src, (
-        "auth_viewport.js must skip the resize above 721px. There style.css "
+        "auth_viewport.js must skip everything above 721px. There style.css "
         "draws the app inside a device frame where <body> IS the phone (a "
-        "fixed-size, transformed box), so writing a viewport height onto it "
-        "would resize the simulated phone itself rather than its contents."
+        "fixed-size, transformed box), so moving it would slide the simulated "
+        "phone around the desk rather than its contents."
     )
 
 
-def test_visual_viewport_sync_follows_the_offset_not_just_the_height():
-    """Height alone puts the card at the right size in the wrong place.
+def test_visual_viewport_sync_never_shrinks_the_screen():
+    """The keyboard overlays a full-size screen; it does not squeeze it.
 
-    Tapping a field does two things on iOS, not one: the visual viewport
-    shrinks for the keyboard AND slides down inside the layout viewport to
-    clear the focused field (visualViewport.offsetTop goes positive). <body>
-    is position:fixed, which anchors it to the LAYOUT viewport, so it does not
-    come along -- the whole card slides up off the top of the screen and you
-    are typing into a field you cannot see, which is exactly what shipped in
-    0.4.7.0. Translating <body> down by offsetTop is what puts it back.
+    v0.4.9.3 wrote visualViewport.height onto <body> so the content would
+    re-centre inside the strip above the keyboard. That worked and looked
+    wrong: the card was squeezed into a band and cut off mid-field, with iOS's
+    arrows/tick accessory bar butted against a hard edge instead of sitting
+    over the app. The screen now keeps the full height `inset: 0` gives it and
+    the keyboard draws on top, so the card renders at the size the layout
+    budget in this file's docstring was measured at.
+
+    Behaviour is covered in tests-js/authViewport.test.js; this guards the
+    height write not creeping back in.
+    """
+    src = read("static/auth_viewport.js")
+    assert "style.height" not in src, (
+        "auth_viewport.js must not write <body>'s height. Sizing the page to "
+        "visualViewport.height re-centres the card into the strip above the "
+        "keyboard, which squeezes it and clips whichever field the strip ends "
+        "on -- the screen is meant to stay full size and let the keyboard "
+        "overlay it."
+    )
+
+
+def test_visual_viewport_sync_moves_to_the_focused_field():
+    """Tap Email, go to Email. Tap Password, go to Password.
+
+    Tapping a field does two things on iOS: the visual viewport shrinks for
+    the keyboard AND slides down inside the layout viewport (offsetTop goes
+    positive). <body> is position:fixed, anchored to the LAYOUT viewport, so
+    it does not come along -- uncompensated, the card slides off the top of the
+    screen and you type into a field you cannot see, which is what shipped in
+    0.4.7.0. And with the page pinned there is no scroll to bring a covered
+    field up either. Both are the same write: translate <body> by offsetTop
+    plus however far the focused field needs to lift.
 
     The behaviour is covered against a simulated phone in
-    tests-js/authViewport.test.js; this is the source-level guard that the
-    offset half does not quietly get dropped again.
+    tests-js/authViewport.test.js; this is the source-level guard that neither
+    half quietly gets dropped.
     """
     src = read("static/auth_viewport.js")
     assert "offsetTop" in src, (
@@ -202,7 +223,13 @@ def test_visual_viewport_sync_follows_the_offset_not_just_the_height():
         "into is off the top of the screen."
     )
     assert "translateY" in src, (
-        "auth_viewport.js must translate <body> by that offset. `top` would "
-        "fight the `inset: 0` auth.css owns, so the transform is the write "
-        "that moves a fixed box back under the visible strip."
+        "auth_viewport.js must translate <body>. `top` would fight the "
+        "`inset: 0` auth.css owns, so the transform is the write that both "
+        "puts a fixed box back under the visible strip and lifts it to the "
+        "field you tapped."
+    )
+    assert "focusin" in src, (
+        "auth_viewport.js must react to focus. The visual viewport alone does "
+        "not say WHICH field you tapped, and on a pinned page nothing else "
+        "will bring a keyboard-covered field into view."
     )
