@@ -8,6 +8,18 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
+  /* Same reasoning as .app's padding-top in style.css: contentInset used to
+     be "always" in capacitor.config.json, which pushed this whole page down
+     by the safe-area amount at the native level -- for free, but at the cost
+     of a black gutter where the WKWebView's own background showed through
+     instead of this page's. Now that it is "never", the RepCheck wordmark
+     sits flush against whatever this padding actually is, so a flat 24px
+     is not enough clearance from a notch/Dynamic Island above or the home
+     indicator below on a real iPhone. env() is 0px anywhere that is not an
+     Apple device with an inset (a browser, or the desktop device frame in
+     style.css), so max() is a no-op everywhere else. */
+  padding-top: max(24px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
 }
 
 .auth-wrap {
@@ -185,7 +197,17 @@
    window is under 836. */
 @media (max-height: 740px),
        (min-width: 721px) and (max-height: 836px) {
-  .auth-body { padding: 16px; }
+  /* padding-top/bottom re-asserted on top of the shorthand: `padding: 16px`
+     alone would win the cascade (later rule, same specificity) and wipe out
+     .auth-body's max()-based safe-area clearance above, silently reopening
+     the notch/home-indicator gap on exactly the short screens this block
+     targets -- which is also every device with a Dynamic Island, since
+     those are all under the 836px desktop-frame threshold here. */
+  .auth-body {
+    padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
   .auth-logo { height: 38px; margin-bottom: 16px; }
   .auth-card { padding: 24px 22px; }
   .auth-sub { margin-bottom: 18px; }
@@ -207,7 +229,15 @@
    supposed to cover. Every breakpoint invites another phone to land just above
    it. The error state is inherently the denser one, so tightening it on every
    screen height is both simpler and the thing that actually holds. */
-.auth-has-error { padding: 12px; }
+.auth-has-error {
+  padding: 12px;
+  /* Same reason as the compact block above: without these, this rule's own
+     `padding: 12px` shorthand would wipe .auth-body's safe-area clearance
+     right back out, and this one applies at every height, not just short
+     ones. */
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+}
 .auth-has-error .auth-logo { height: 34px; margin-bottom: 12px; }
 .auth-has-error .auth-card { padding: 20px 22px; }
 .auth-has-error .auth-sub { margin-bottom: 12px; }
