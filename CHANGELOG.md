@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.11.0] - 2026-08-29
+
+### Fixed
+
+- The iPhone app no longer shows a black bar above the status bar and below
+  the home indicator. The webview was configured to let iOS pad the page
+  itself around the notch/Dynamic Island and home indicator, and the app's
+  own background never got to paint that gap -- so iOS's own background
+  showed through instead, on every screen. RepCheck now draws all the way to
+  the edges, with the app's own content kept clear of the notch and home
+  indicator instead.
+- A pre-existing, unrelated bug turned up while fixing the above: on every
+  real iPhone, a narrow-screen style rule was silently overriding the
+  spacing that kept content from being hidden behind the floating tab bar.
+  Confirmed live and fixed.
+
 ## [0.4.10.4] - 2026-08-29
 
 ### Fixed
