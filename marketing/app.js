@@ -154,15 +154,19 @@
     }
     wlSet(0, 0, 0);
     wlAt(900, function () { wlScreen.setAttribute("data-wl", "1"); });
-    wlAt(1350, function () { wlSet(2, 0, 0); });
+    // The exercise picker: sheet slides up, a row gets tapped, sheet slides
+    // back down as the exercise lands -- see it before it just appears.
+    wlAt(1350, function () { wlScreen.setAttribute("data-wl", "picker"); });
+    wlAt(2000, function () { wlScreen.setAttribute("data-wl", "picked"); });
+    wlAt(2350, function () { wlSet(2, 0, 0); });
     // Weight first, then reps -- the order you actually type them in.
     for (var w = 1; w <= WL_WEIGHT; w++) {
-      (function (v) { wlAt(1900 + v * 20, function () { wlSet(3, v, 0); }); })(w);
+      (function (v) { wlAt(2350 + v * 20, function () { wlSet(3, v, 0); }); })(w);
     }
     for (var r = 1; r <= WL_REPS; r++) {
-      (function (v) { wlAt(2650 + v * 55, function () { wlSet(3, WL_WEIGHT, v); }); })(r);
+      (function (v) { wlAt(3100 + v * 55, function () { wlSet(3, WL_WEIGHT, v); }); })(r);
     }
-    wlAt(6400, wlPlay);
+    wlAt(6650, wlPlay);
   }
 
   featureBtns.forEach(function (b, i) {
