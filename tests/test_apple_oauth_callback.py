@@ -51,7 +51,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "APPLE_CLIENT_ID", "com.repcheck.web")
     monkeypatch.setattr(auth, "APPLE_TEAM_ID", "TEAMID1234")
     monkeypatch.setattr(auth, "APPLE_KEY_ID", "KEYID12345")
-    monkeypatch.setattr(auth, "APPLE_PRIVATE_KEY", "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----")
+    # Only ever checked for truthiness here: _apple_client_secret, the one
+    # thing that would actually parse a key, is stubbed on the next line.
+    monkeypatch.setattr(auth, "APPLE_PRIVATE_KEY", "not-a-real-p8-key")
     monkeypatch.setattr(auth, "_apple_client_secret", lambda: "fake-client-secret")
     monkeypatch.setattr(auth.requests, "post", lambda *a, **k: _FakeResponse({"id_token": "fake-id-token"}))
     flask_app.config["TESTING"] = True
