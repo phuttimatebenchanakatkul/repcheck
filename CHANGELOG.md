@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.5.0.3] - 2026-08-29
+## [0.5.0.4] - 2026-08-29
 
 ### Changed
 
@@ -21,6 +21,15 @@ All notable changes to RepCheck are recorded here, newest first.
   `marketing/assets/`, one level deeper than the old negation reached, so a
   future new clip with a new filename in that folder would otherwise be
   silently dropped by `git add`.
+
+## [0.5.0.3] - 2026-08-29
+
+### Fixed
+
+- The report added in 0.5.0.2 never reached the logs: it was written at a
+  level the live server discards, so it looked exactly like a phone that had
+  said nothing. Sent at a level that survives now, and checked against the
+  real server rather than assumed.
 
 ## [0.5.0.2] - 2026-08-29
 

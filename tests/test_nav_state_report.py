@@ -39,6 +39,27 @@ def test_the_state_is_logged(caplog):
     )
 
 
+def test_the_line_survives_the_production_log_level():
+    """Logged at WARNING, because INFO does not survive to Render's logs.
+
+    Under gunicorn the app logger's effective level leaves INFO on the floor:
+    the line is written and dropped, and the logs stay empty -- which reads as
+    "the phone never reported", the exact wrong answer for a diagnostic whose
+    whole job is to distinguish that from "reported off". Verified against
+    production, not assumed: a probe logged at INFO never appeared. Every
+    other log call in app.py is a warning for the same reason.
+    """
+    import inspect
+
+    import app as app_module
+
+    source = inspect.getsource(app_module.api_nav_state)
+    assert "logger.warning" in source, (
+        "NAV_STATE must be logged at warning level or it will not reach the "
+        "production logs, and this endpoint is only useful there."
+    )
+
+
 def test_a_beacon_post_is_accepted(caplog):
     """navigator.sendBeacon sends a POST, and the page sends this with it.
 
