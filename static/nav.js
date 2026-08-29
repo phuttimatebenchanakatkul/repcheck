@@ -101,6 +101,37 @@
     return null;
   }
 
+  // ---- Warm the next page while the thumb is still down -------------------
+  // Between two documents there is nothing on screen: not the page, not this
+  // bar. Measured on a phone, every tab switch blacked the screen out for
+  // 83-215ms, and a network round trip for the next page's HTML sits inside
+  // that gap. pointerdown lands ~100ms before the click that navigates, so
+  // fetching here means the response is usually already in the cache by the
+  // time the navigation asks for it (app.py gives pages a five-second
+  // freshness window, which exists for exactly this hand-off).
+  //
+  // Same URL, same credentials, so this is the request the navigation was
+  // going to make anyway rather than an extra one -- as long as it is not
+  // wasted. Fired on pointerdown, which is a real press on a real tab, and
+  // remembered per URL so a repeated press does not refetch. Skipped
+  // entirely on Data Saver, where the user has said not to spend bytes on
+  // maybes.
+  var warmed = Object.create(null);
+
+  function warm(item) {
+    if (typeof window.fetch !== "function") return;
+    var href = item.getAttribute("href");
+    if (!href || warmed[href]) return;
+    var conn = window.navigator && window.navigator.connection;
+    if (conn && conn.saveData) return;
+    warmed[href] = true;
+    try {
+      window.fetch(href, { credentials: "same-origin" }).catch(function () {});
+    } catch (err) {
+      /* A refused fetch must never cost the tap its navigation. */
+    }
+  }
+
   pill.addEventListener(
     "pointerdown",
     function (event) {
@@ -108,6 +139,7 @@
       if (!item || item === activeItem()) return;
       pending = item;
       place(item, true);
+      warm(item);
     },
     { passive: true }
   );

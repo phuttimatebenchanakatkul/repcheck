@@ -607,14 +607,14 @@ def revalidate_html(response):
     # time. It also disqualifies a page from the back/forward cache, so even
     # going back re-fetched and re-rendered instead of restoring instantly.
     #
-    # `no-cache` does NOT mean "do not cache" -- it means "cache it, but
-    # revalidate with the origin before every reuse". Paired with the ETag
-    # below, an unchanged screen comes back as a 304 with no body: the
-    # freshness guarantee is identical (the device still asks the server
-    # every single time, so it can never render a stale page or the stale
-    # ?v= asset URLs inside it, which is the whole point of this handler),
-    # and what changes is that the answer can now be "nothing changed" in a
-    # few hundred bytes instead of a few hundred kilobytes.
+    # Caching a page and revalidating it does NOT mean serving a stale one.
+    # Paired with the ETag below, an unchanged screen comes back as a 304
+    # with no body: outside the five-second window described further down,
+    # the device still asks the server before every reuse, so it cannot
+    # render a stale page or the stale ?v= asset URLs inside it -- which is
+    # the whole point of this handler -- and what changed is that the answer
+    # can now be "nothing changed" in a few hundred bytes instead of a few
+    # hundred kilobytes.
     #
     # `private` keeps these out of any shared cache -- they are per-user
     # pages -- and `must-revalidate` forbids serving them stale if the
@@ -626,8 +626,27 @@ def revalidate_html(response):
     # Deliberately scoped to HTML by mimetype: /static must keep its
     # ETag/no-cache revalidation, and the JSON API responses are already
     # fetched fresh by the callers that need them.
+    # The five-second window, and why it is not a hole. Measured from the
+    # phone (7 tab switches, iphonecookie.mp4): every one blacked the screen
+    # out completely for 83-215ms. Between two documents there is nothing on
+    # screen at all -- not the page, not the bottom bar -- and under plain
+    # `no-cache` that gap contains a full network round trip to the server
+    # before the new page can even begin to paint. static/nav.js now starts
+    # fetching the next page on pointerdown, while the thumb is still down;
+    # this window is what lets the navigation that follows ~100ms later use
+    # that response instead of asking again.
+    #
+    # Five seconds is chosen to be long enough to cover thumb-down to
+    # navigation and nothing else. The bug v0.4.9.2 fixed was a page cached
+    # by iOS's own heuristic for as long as it liked -- the app showing a
+    # screen from before a deploy, indefinitely, with no way to correct it.
+    # The worst case here is a page fetched 4.9 seconds ago being shown once
+    # more; every navigation after that revalidates. These pages are also
+    # mostly a shell -- the food log, workout log and totals are rendered on
+    # the device from localStorage and /api/sync -- so a five-second-old
+    # shell is not five-second-old data.
     if response.mimetype == "text/html":
-        response.headers["Cache-Control"] = "no-cache, private, must-revalidate"
+        response.headers["Cache-Control"] = "private, max-age=5, must-revalidate"
         # Pragma and Expires predate Cache-Control and can only say "stale",
         # never "revalidate this" -- an intermediary that honours them would
         # refetch in full, which is the behaviour being removed here. The
