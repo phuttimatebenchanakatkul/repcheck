@@ -31,6 +31,21 @@ All notable changes to RepCheck are recorded here, newest first.
   said nothing. Sent at a level that survives now, and checked against the
   real server rather than assumed.
 
+## [0.5.0.4] - 2026-08-29
+
+### Fixed
+
+- The phone reported back, and it said the in-place screen switching IS
+  running -- and yet it reported twice for one tab tap, which it can only do
+  if the tab tap loaded a whole new screen anyway. So it starts up fine and
+  then gives up part-way through every switch, silently, exactly as before.
+  It now says why it gave up -- the server said no, the answer came back as
+  the login page, whatever it was -- instead of only saying that it started.
+- The phone was also being logged as a desktop browser, because the check
+  looked for the app's name in something that does not carry it. It is
+  recognised properly now, which matters when the whole point is telling the
+  phone's report apart from everyone else's.
+
 ## [0.5.0.2] - 2026-08-29
 
 ### Fixed

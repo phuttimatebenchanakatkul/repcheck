@@ -50,10 +50,14 @@
   // to tell which bail-out fired, or whether this file threw on that WebKit.
   // A phone has no console to ask. So it reports, once per page, and the
   // answer lands in the server log. See /api/nav-state in app.py.
-  var reported = false;
+  // Each distinct state is reported once. Repeats are dropped -- a tab tapped
+  // five times must not write five identical lines -- but a NEW state always
+  // gets through, because "started on, then every swap failed" is the shape
+  // of the actual bug and both halves have to be visible.
+  var reportedStates = {};
   function report(state) {
-    if (reported) return;
-    reported = true;
+    if (reportedStates[state]) return;
+    reportedStates[state] = true;
     try {
       var url = "/api/nav-state?s=" + encodeURIComponent(state);
       if (window.navigator && window.navigator.sendBeacon) window.navigator.sendBeacon(url);
@@ -388,10 +392,15 @@
     var fetched = window
       .fetch(url, { credentials: "same-origin", headers: { "X-RepCheck-Nav": "1" } })
       .then(function (response) {
-        if (!response.ok) throw new Error("status " + response.status);
+        if (!response.ok) throw new Error("status-" + response.status);
         // Logged out, onboarding, or anything else that redirected us
         // somewhere other than where we asked to go: let the browser take it.
-        if (response.redirected && !samePage(response.url, url)) throw new Error("redirected");
+        // The destination is named in the reason -- "did the fetch come back
+        // as the login page" is the difference between a session problem and
+        // a routing one, and guessing between those has cost enough already.
+        if (response.redirected && !samePage(response.url, url)) {
+          throw new Error("redirect-to-" + pathOf(response.url));
+        }
         return response.text();
       });
 
@@ -410,9 +419,14 @@
           render(html, url, opts);
         });
       })
-      .catch(function () {
+      .catch(function (err) {
         if (mine !== token) return;
         clearMotion();
+        // A swap that falls back is a full page load, which is the very thing
+        // this file exists to remove -- and until now it did so as quietly as
+        // it declines to start. The reason goes out before the navigation
+        // takes the page away with it.
+        report("swap-failed:" + ((err && err.message) || String(err)).slice(0, 60));
         hardNav(url);
       });
   }
