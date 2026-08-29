@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.10.4] - 2026-08-29
+
+### Changed
+
+- The form-analysis demo on the pre-launch site is a new recording. The old
+  clip stuttered and cut away from the parts that make the point. The new one
+  is a single unbroken run of a tricep pushdown analysis: pick the video, pick
+  the exercise, watch the pose tracking work, read the score and the rep-by-rep
+  report. Nothing of the phone itself is on screen -- the iOS status bar,
+  Safari's address bar and toolbar, the home indicator and the stretch where
+  the keyboard covered the exercise picker are all gone, so the frame is the
+  app and only the app. The ~46 seconds the analysis actually spent processing
+  is trimmed to its last 10 seconds, which is the part worth watching, and the
+  clip is encoded at the recording's full native resolution rather than the
+  downscaled pass the old one shipped with.
+
 ## [0.4.10.3] - 2026-08-29
 
 ### Fixed
