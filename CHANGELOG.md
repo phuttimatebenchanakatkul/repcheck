@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.12.0] - 2026-08-29
+
+### Fixed
+
+- Removed the thin scroll indicator bar that flashed along the right edge of
+  every screen in the iPhone app. It could not be turned off from the
+  website's own styling -- the technique that works everywhere else on the
+  web does not work inside the app's webview -- so it now gets switched off
+  at the native level when the app is built instead.
+
 ## [0.4.11.1] - 2026-08-29
 
 ### Fixed
