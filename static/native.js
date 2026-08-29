@@ -229,13 +229,18 @@
   }
 
   /**
-   * Start Google sign-in from inside the shell.
+   * Start a third-party sign-in from inside the shell.
+   *
+   * Provider-agnostic on purpose: Google and Apple hit the exact same
+   * problem in the shell (their pages will not run in an embedded webview,
+   * and Capacitor hands the navigation to Safari, whose cookie jar the app
+   * cannot read) and therefore take the exact same way out.
    *
    * Returns true if it took over, false if the caller should let the plain
    * link proceed -- which is what happens in every browser, and also if the
    * Browser plugin is missing because the native project was not synced.
    */
-  function signInWithGoogle(href) {
+  function signInWithProvider(href, fallbackPath) {
     if (!isNative()) return false;
     var Browser = plugin("Browser");
     if (!Browser || typeof Browser.open !== "function") return false;
@@ -244,7 +249,7 @@
 
     // Tell the server this is the shell, so the callback hands back a token
     // instead of setting a cookie in a browser the app cannot read.
-    var url = String(href || "/auth/google");
+    var url = String(href || fallbackPath);
     url += (url.indexOf("?") === -1 ? "?" : "&") + "native=1";
 
     try {
@@ -263,6 +268,14 @@
     return true;
   }
 
+  function signInWithGoogle(href) {
+    return signInWithProvider(href, "/auth/google");
+  }
+
+  function signInWithApple(href) {
+    return signInWithProvider(href, "/auth/apple");
+  }
+
   // The listener has to exist before the user ever taps the button.
   bindAuthListener();
 
@@ -274,6 +287,7 @@
     openLibrary: openLibrary,
     haptic: haptic,
     signInWithGoogle: signInWithGoogle,
+    signInWithApple: signInWithApple,
     // Exposed for tests: the pure parts, so the conversion and the
     // cancel/error split can be exercised without a plugin.
     _internals: {

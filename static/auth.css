@@ -109,8 +109,14 @@
   cursor: pointer;
   font-family: inherit;
   margin-bottom: 10px;
+  white-space: nowrap;
 }
 .auth-oauth-btn:hover { border-color: var(--text-secondary); }
+
+/* Apple's brand guidelines want their own button styling; the shared
+   .auth-oauth-btn already is one of the allowed forms (white with an
+   outline in light mode, black in dark), and the mark is drawn with
+   currentColor so it flips with the text. Nothing extra to add. */
 .auth-oauth-badge {
   font-size: 10px;
   font-weight: 700;
