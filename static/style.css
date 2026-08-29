@@ -1249,15 +1249,6 @@ input[type="file"], select {
   }
   .qa-tile-title { font-size: 13.5px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
 
-  /* The odd 5th tile fills the last row as a centered ROW (icon beside
-     title) rather than a stretched square: it saves ~36px of height, which
-     is what keeps the actions pane clear of the sheet's max-height cap. */
-  .qa-tile-wide {
-    grid-column: 1 / -1;
-    flex-direction: row; justify-content: center; gap: 12px; padding: 14px;
-  }
-  .qa-tile-wide .qa-tile-icon { width: 42px; height: 42px; border-radius: 13px; }
-
   /* ---------- Sliding panes ----------
      The "More" pages used to sit in a labelled list UNDER the action tiles,
      which made the sheet tall enough to scroll on short phones. They now
@@ -1315,7 +1306,6 @@ input[type="file"], select {
   .qa-amber .qa-tile-icon { background: var(--amber); }
   .qa-red .qa-tile-icon { background: var(--red); }
   .qa-purple .qa-tile-icon { background: var(--purple); }
-  .qa-pink .qa-tile-icon { background: var(--pink); }
 
   .qa-cancel {
     width: 100%; margin-top: 12px; padding: 13px;
