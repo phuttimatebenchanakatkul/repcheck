@@ -2,6 +2,27 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.1] - 2026-08-29
+
+### Fixed
+
+- Swiping back really does stop refreshing now. The last attempt fixed the
+  wrong half: the screen was already being restored instantly, but the phone
+  was showing a blank one on the way there. iOS takes a picture of the screen
+  when you leave it and replays that picture during the back-swipe -- and the
+  screen was being faded out for the transition at exactly that moment, so the
+  picture it kept was of a screen mid-fade. Swiping back slid that blank in,
+  which is what looked like a reload. The screen you are leaving is no longer
+  faded at all, so there is nothing blank for the phone to keep, whenever it
+  takes the picture.
+
+### Changed
+
+- Only the arriving screen animates now. It slides in from the side the tab
+  order says, the one you are leaving simply stays put until it is replaced.
+  Tabs also change slightly faster as a result -- the old fade-out had to
+  finish before the new screen could go up.
+
 ## [0.5.0.0] - 2026-08-29
 
 ### Added
@@ -38,6 +59,7 @@ All notable changes to RepCheck are recorded here, newest first.
   length is now read from the video itself.
 - A recording made anywhere except an iPhone was rejected on upload with a
   message naming a file format the user had never chosen.
+
 ## [0.4.13.1] - 2026-08-29
 
 ### Fixed
