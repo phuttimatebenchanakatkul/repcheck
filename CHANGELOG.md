@@ -2,6 +2,15 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.12.1] - 2026-08-29
+
+### Fixed
+
+- The RepCheck wordmark on the onboarding screens is visible again in dark
+  mode. It shares its logo file with the header wordmark but never got the
+  same dark-theme color flip, so it rendered as black text on a black
+  background.
+
 ## [0.4.12.0] - 2026-08-29
 
 ### Fixed

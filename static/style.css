@@ -221,10 +221,13 @@ html.pc-sheet-active .app {
   display: block;
 }
 
-/* The logo file is a black wordmark with a transparent background, so
-   inverting it (black -> white, alpha untouched) is all that's needed to
-   read cleanly against the dark theme too. */
-:root[data-theme="dark"] .brand-logo {
+/* Both classes point at the same logo file, a black wordmark with a
+   transparent background, so inverting it (black -> white, alpha
+   untouched) is all that's needed to read cleanly against the dark
+   theme too. Only apply this to that wordmark -- reusing either class
+   name on a different image would invert its colors too. */
+:root[data-theme="dark"] .brand-logo,
+:root[data-theme="dark"] .ob-logo {
   filter: invert(1);
 }
 
