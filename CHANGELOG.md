@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.6.0] - 2026-08-29
+
+### Fixed
+
+- **"Continue with Google" now signs you into the iPhone app.** Before, tapping
+  it took you through the whole Google flow and then dropped you on the
+  website, still logged out in the app. Google does not allow its sign-in
+  screen inside an app's own browser, so the flow has to happen in Safari --
+  and the app could not see the account you had just signed into. It now hands
+  the sign-in back to the app when Safari closes, and you land where you
+  started, logged in.
+- Signing in with Google on the website is completely unchanged.
+
 ## [0.4.5.8] - 2026-08-29
 
 ### Fixed
