@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.11.2] - 2026-08-29
+
+### Changed
+
+- **Rounder top corners on every bottom sheet.** "Scan a barcode", "Analyze
+  a food photo", the split editor, and the other slide-up sheets now round
+  their top corners more (22px → 34px), including on phones, where a
+  leftover rule used to square them off at the exact viewport this app is
+  used on most.
+
 ## [0.4.11.1] - 2026-08-29
 
 ### Fixed
