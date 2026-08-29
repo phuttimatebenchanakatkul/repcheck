@@ -3478,6 +3478,23 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     const root = document.getElementById("hyrox-root");
-    if (root) new HyroxApp(root);
+    if (!root) return;
+    const app = new HyroxApp(root);
+
+    // account_sync.js pulled newer values off the account -- races logged on
+    // another device, or this browser adopting the account's history. The
+    // constructor read HISTORY_KEY into this.history before that pull
+    // finished, so re-read it and redraw. preventDefault() tells
+    // account_sync.js the page handled it; without a handler here it falls
+    // back to reloading the whole page, which is what this used to do.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      const keys = (event.detail && event.detail.keys) || [];
+      if (keys.includes(HISTORY_KEY)) {
+        const history = loadJson(HISTORY_KEY, []);
+        app.history = Array.isArray(history) ? history : [];
+      }
+      app.render();
+      event.preventDefault();
+    });
   });
 })();

@@ -389,6 +389,14 @@
     }
     document.addEventListener("repcheck:language-changed", renderHeroTop);
     document.addEventListener(RepCheckStreak.UPDATED_EVENT, renderHeroTop);
+    // account_sync.js pulled newer logs off the account. The streak chip
+    // renders through RepCheckStreak, which re-reads localStorage on every
+    // call; preventDefault() tells account_sync.js this page handled it
+    // rather than letting it reload.
+    document.addEventListener("repcheck:data-hydrated", (event) => {
+      renderHeroTop();
+      event.preventDefault();
+    });
     renderHeroTop();
 
     // ---------- Today's rotating exercise + hero icon ----------
