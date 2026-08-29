@@ -258,6 +258,130 @@ describe("pagenav", () => {
     expect(nav.hardNavs).toEqual([]);
   });
 
+  it("restores a swiped-back page with no fetch at all", async () => {
+    // The iOS edge-swipe animates a snapshot of the screen it is heading to
+    // and then hands over. A fetch here lands after that animation has
+    // finished and reads as the screen refreshing itself underneath the
+    // gesture -- which is exactly what it was reported as. A page this
+    // session already has goes up immediately instead.
+    const nav = loadPageNav({
+      startHref: "/home",
+      startMain: '<h1 id="heading">Hey James</h1>',
+      routes: {
+        "/nutrition": NUTRITION,
+        "/home": page({ href: "/home", body: '<h1 id="heading">Hey James</h1>' }),
+      },
+    });
+    await nav.tap("/nutrition");
+    await nav.tap("/home");
+    const requestsBefore = nav.requests.length;
+
+    await nav.back("/nutrition");
+
+    expect(nav.main().textContent).toContain("Nutrition Log");
+    expect(nav.requests).toHaveLength(requestsBefore);
+    expect(nav.hardNavs).toEqual([]);
+  });
+
+  it("fetches a swiped-back page it has never seen", async () => {
+    // Deep-linked in, or swiped back past what the cache still holds. Better
+    // a fetch than an empty screen.
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: { "/nutrition": NUTRITION },
+    });
+
+    await nav.back("/nutrition");
+
+    expect(nav.requests.map((r) => r.url)).toEqual(["/nutrition"]);
+    expect(nav.main().textContent).toContain("Nutrition Log");
+  });
+
+  it("does not serve a tapped tab from the back/forward cache", async () => {
+    // Going back asks for the screen you left; tapping Nutrition asks for
+    // Nutrition as it is NOW. Serving a tap from the cache would show a food
+    // log missing whatever was logged on another device since.
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: { "/nutrition": NUTRITION, "/home": page({ href: "/home" }) },
+    });
+
+    await nav.tap("/nutrition");
+    await nav.tap("/home");
+    await nav.tap("/nutrition");
+
+    expect(nav.requests.filter((r) => r.url === "/nutrition")).toHaveLength(2);
+  });
+
+  it("answers the tap before the page has arrived", async () => {
+    // The outgoing screen starts leaving immediately, so the tap feels
+    // answered rather than ignored until the round trip finishes.
+    const nav = loadPageNav({ startHref: "/home", routes: { "/nutrition": NUTRITION } });
+
+    document.querySelector('.mt-item[href="/nutrition"]').dispatchEvent(
+      new window.MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+
+    expect(nav.main().className).toContain("pn-leave-");
+    await nav.settle();
+    // ...and the class is gone once the new screen is in place, or the screen
+    // would sit there faded out.
+    expect(nav.main().className).not.toContain("pn-leave-");
+  });
+
+  it("moves the screen the way the tab order does", async () => {
+    const nav = loadPageNav({
+      startHref: "/nutrition",
+      routes: { "/home": page({ href: "/home" }), "/hyrox": page({ href: "/hyrox" }) },
+    });
+
+    document.querySelector('.mt-item[href="/home"]').dispatchEvent(
+      new window.MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+    // Home sits left of Nutrition, so the screen travels rightwards.
+    expect(nav.main().className).toContain("pn-leave-right");
+    await nav.settle();
+
+    document.querySelector('.mt-item[href="/hyrox"]').dispatchEvent(
+      new window.MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+    expect(nav.main().className).toContain("pn-leave-left");
+  });
+
+  it("never leaves the new screen faded out when there are no frames", async () => {
+    // A hidden page gets no requestAnimationFrame callbacks at all -- the app
+    // in the background, iOS mid-transition -- so a swap that lands then
+    // would keep the enter class forever and the screen would sit at opacity
+    // 0. Found by driving the real app with the browser pane hidden: every
+    // swapped-in screen was invisible, class still on <main>.
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: { "/nutrition": NUTRITION },
+      noFrames: true,
+    });
+
+    await nav.tap("/nutrition");
+
+    expect(nav.main().className).not.toContain("pn-enter-");
+    expect(nav.main().textContent).toContain("Nutrition Log");
+  });
+
+  it("does not animate for someone who asked for less motion", async () => {
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: { "/nutrition": NUTRITION },
+      reduceMotion: true,
+    });
+
+    document.querySelector('.mt-item[href="/nutrition"]').dispatchEvent(
+      new window.MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+
+    expect(nav.main().className).not.toContain("pn-leave-");
+    await nav.settle();
+    expect(nav.main().textContent).toContain("Nutrition Log");
+  });
+
   it("swaps back on the back button", async () => {
     const nav = loadPageNav({
       startHref: "/home",

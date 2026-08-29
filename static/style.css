@@ -1380,6 +1380,51 @@ input[type="file"], select {
   .qa-panes, .qa-pane { transition: none; }
 }
 
+/* ---------- Tab-to-tab motion (static/pagenav.js) -------------------------
+   Tapping a tab no longer loads a document -- pagenav.js replaces the
+   contents of <main> in place -- so the transition between screens is ours
+   to draw rather than the browser's. The old screen slides a little way out
+   and fades, the new one arrives from the side it came from in the tab
+   order: tapping rightwards moves the screen leftwards, the way a row of
+   pages behaves.
+
+   Small distances on purpose (14px, 110ms out). This runs on every tab tap,
+   many times a session, and motion that reads as elegant once reads as slow
+   the twentieth time.
+
+   The enter classes carry `transition: none` so the start position is not
+   itself animated -- pagenav.js sets them, lets a frame paint, then removes
+   them, and THAT is what animates.
+
+   No `will-change` here, deliberately: it would make .main a containing
+   block for position:fixed descendants permanently, quietly re-anchoring any
+   fixed element a page renders inside <main>. The transform does that too,
+   but only for the ~120ms a transition is actually running. */
+.main {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.main.pn-leave-left { opacity: 0; transform: translateX(-14px); }
+.main.pn-leave-right { opacity: 0; transform: translateX(14px); }
+.main.pn-enter-left,
+.main.pn-enter-right { opacity: 0; transition: none; }
+.main.pn-enter-left { transform: translateX(-14px); }
+.main.pn-enter-right { transform: translateX(14px); }
+
+/* Asked for less motion: no slide, no fade, just the new screen. pagenav.js
+   also skips the classes entirely in that case -- this is the belt to that
+   pair of braces, for a preference that changes mid-session. */
+@media (prefers-reduced-motion: reduce) {
+  .main,
+  .main.pn-leave-left,
+  .main.pn-leave-right,
+  .main.pn-enter-left,
+  .main.pn-enter-right {
+    transition: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
 /* ---------- Ultra-smooth page-to-page nav (View Transitions API) ----------
    On a real browser navigation the active bottom-bar "bubble" morphs from
    its old slot straight to the new page's slot, so moving between pages

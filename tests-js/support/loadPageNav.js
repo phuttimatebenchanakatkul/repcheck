@@ -87,6 +87,10 @@ export function loadPageNav({
   routes = {},
   status = 200,
   redirectTo = null,
+  reduceMotion = false,
+  // A hidden page never runs a requestAnimationFrame callback. Set this to
+  // reproduce that: the swap must still finish.
+  noFrames = false,
 } = {}) {
   document.head.innerHTML = "<title>RepCheck</title>";
   document.body.innerHTML = shell(startHref, startMain);
@@ -123,6 +127,8 @@ export function loadPageNav({
     setInterval: (...args) => window.setInterval(...args),
     clearInterval: (id) => window.clearInterval(id),
     setTimeout: (...args) => window.setTimeout(...args),
+    requestAnimationFrame: (fn) => (noFrames ? 0 : window.setTimeout(fn, 16)),
+    matchMedia: (query) => ({ matches: reduceMotion && query.includes("reduce") }),
     history: {
       pushState: (state, _title, url) => {
         historyEntries.push({ state, url });
@@ -175,7 +181,10 @@ export function loadPageNav({
   // eslint-disable-next-line no-new-func
   new Function("window", "document", readSource("pagenav.js"))(windowStub, document);
 
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+  // Long enough to cover pagenav.js's leave animation (110ms) plus the two
+  // frames it waits before animating the new screen in. Shorter than that and
+  // every assertion here races the swap it is asserting about.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 200));
 
   return {
     window: windowStub,
