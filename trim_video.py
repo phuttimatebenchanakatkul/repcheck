@@ -152,7 +152,37 @@ def get_video_duration(path):
     try:
         return round(float(result.stdout.strip()), 1)
     except (ValueError, TypeError):
-        return None
+        return _duration_from_packets(ffprobe_path, path)
+
+
+def _duration_from_packets(ffprobe_path, path):
+    """Duration read off the video stream's packet timestamps, or None.
+
+    MediaRecorder -- the in-app recorder in static/video_recorder.js -- writes
+    a *streaming* container, so a recorded clip carries no duration in its
+    header at all and `format=duration` above comes back "N/A". That mattered
+    twice over: trim_video() skips its 5-second lead-in unless it can see the
+    source is too short for that, and run_pipeline() tells Gemini the clip is
+    a full DURATION_SECONDS long when nothing could measure it -- both of
+    which quietly mis-handle a perfectly good recording.
+
+    Walking the packet index is slower than reading a header, but it decodes
+    nothing and it works on exactly the files the header can't describe.
+    """
+    result = subprocess.run(
+        [ffprobe_path, "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    latest = None
+    for line in result.stdout.splitlines():
+        try:
+            pts = float(line.strip().rstrip(","))
+        except ValueError:
+            continue  # "N/A" for a packet with no timestamp -- skip, don't fail
+        if latest is None or pts > latest:
+            latest = pts
+    return None if latest is None else round(latest, 1)
 
 
 def main():

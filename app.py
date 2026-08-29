@@ -161,6 +161,12 @@ ANALYZE_VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 ANALYZE_HISTORY_KEEP = 20
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv"}
+# What the in-app recorder (static/video_recorder.js, used by the analyze and
+# challenge pages) can hand back on top of the formats above: MediaRecorder
+# writes webm in every browser except iOS Safari, which writes mp4. Kept
+# separate from ALLOWED_EXTENSIONS deliberately -- these are accepted, not
+# advertised, so the "MP4, MOV, AVI, or MKV" upload copy stays true.
+RECORDED_EXTENSIONS = {".webm"}
 ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_CONTENT_LENGTH = 300 * 1024 * 1024  # 300 MB
 
@@ -2136,13 +2142,13 @@ def api_challenge_submit(challenge_id):
     file = request.files.get("video")
     if not file or not file.filename:
         return jsonify({"ok": False, "error": "No video uploaded."}), 400
-    # .webm is deliberately allowed here (on top of ALLOWED_EXTENSIONS)
+    # RECORDED_EXTENSIONS is allowed here on top of ALLOWED_EXTENSIONS
     # because the in-app recorder uses MediaRecorder, which produces
     # video/webm in every major browser — the old check only allowed
     # upload-from-file extensions, so every in-app recorded attempt was
     # rejected before it ever reached the rep counter.
     ext = Path(secure_filename(file.filename)).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS and ext != ".webm":
+    if ext not in ALLOWED_EXTENSIONS | RECORDED_EXTENSIONS:
         return jsonify({"ok": False, "error": "Unsupported video format."}), 400
 
     raw_path = UPLOAD_DIR / f"challenge_{challenge_id}_{user['id']}_{uuid.uuid4().hex}{ext}"
@@ -2718,7 +2724,11 @@ def analyze():
         return fail("Please choose an exercise.")
 
     suffix = Path(video_file.filename).suffix.lower()
-    if suffix not in ALLOWED_EXTENSIONS:
+    # Same split as the challenge route above: a clip from the in-app
+    # recorder arrives as .webm (or .mp4 on iOS), which is accepted but not
+    # listed in the error -- nobody uploading a file by hand has a .webm to
+    # pick, and naming it would just make the message harder to act on.
+    if suffix not in ALLOWED_EXTENSIONS | RECORDED_EXTENSIONS:
         return fail(f"Unsupported file type '{suffix}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
 
     blocked, retry = _rate_limit_blocked("workout_analysis")
