@@ -125,7 +125,7 @@ def test_sheet_starts_offscreen_and_slides_in(modal_css):
 def test_sheet_has_top_rounded_corners_and_no_full_dialog_radius(modal_css):
     """A centered dialog rounds all four corners; a bottom sheet only the
     top two -- the bottom edge is meant to look flush with the viewport."""
-    assert "border-radius: 22px 22px 0 0;" in modal_css
+    assert "border-radius: 34px 34px 0 0;" in modal_css
 
 
 def test_overlay_tracks_the_real_visual_viewport_not_100vh(modal_css):
