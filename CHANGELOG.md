@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.11.3] - 2026-08-29
+## [0.4.12.1] - 2026-08-29
 
 ### Fixed
 
@@ -10,6 +10,16 @@ All notable changes to RepCheck are recorded here, newest first.
   mode. It shares its logo file with the header wordmark but never got the
   same dark-theme color flip, so it rendered as black text on a black
   background.
+
+## [0.4.12.0] - 2026-08-29
+
+### Fixed
+
+- Removed the thin scroll indicator bar that flashed along the right edge of
+  every screen in the iPhone app. It could not be turned off from the
+  website's own styling -- the technique that works everywhere else on the
+  web does not work inside the app's webview -- so it now gets switched off
+  at the native level when the app is built instead.
 
 ## [0.4.11.2] - 2026-08-29
 
