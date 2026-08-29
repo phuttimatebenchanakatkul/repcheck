@@ -30,6 +30,11 @@
   <script>
     window.REPCHECK_LOGGED_IN = {{ 'true' if current_user else 'false' }};
   </script>
+  <!-- Records what THIS page's own scripts bind to document/window, so
+       static/pagenav.js can release those bindings when it swaps the page
+       away. Must be in place before any page script runs, and page scripts
+       run inline in the body, so this one is neither deferred nor moved. -->
+  <script src="{{ asset_url('nav_scope.js') }}"></script>
   <!-- Loaded first and on every page: the iOS shell's photo/camera bridge
        (RepCheckNative). Everything else that opens a camera assumes it is
        already defined, and in a browser it is a few hundred bytes that
@@ -73,6 +78,13 @@
        highlight until this runs, so there is no flash of an unstyled
        bar in between. -->
   <script src="{{ asset_url('nav.js') }}" defer></script>
+  <!-- Tab switching without loading a document: fetches the next page and
+       puts its <main> in place of this one, so the shell -- this bar, the
+       sidebar, the sheets -- is never torn down and there is no blank
+       between screens. Deferred: it needs the tab bar and <main> in the DOM,
+       and until it runs the tabs are ordinary links that work exactly as
+       they always did. -->
+  <script src="{{ asset_url('pagenav.js') }}" defer></script>
 </head>
 <body>
   <!--
@@ -492,7 +504,14 @@
       </script>
       {% endif %}
 
+      <!-- Everything the page's own scripts bind to document/window between
+           these two markers is recorded, so pagenav.js can release it when
+           this page is swapped away. The shell's bindings (further down the
+           body, and in the head) sit outside the brackets deliberately: they belong
+           to the document, not to the page, and must survive every swap. -->
+      <script>if (window.RepCheckNavScope) window.RepCheckNavScope.start();</script>
       {% block content %}{% endblock %}
+      <script>if (window.RepCheckNavScope) window.RepCheckNavScope.stop();</script>
     </main>
   </div>
 

@@ -28,7 +28,13 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE_PATH = path.join(__dirname, "..", "..", "static", "hyrox.js");
 
-const BOOTSTRAP_MARKER = '\n  document.addEventListener("DOMContentLoaded"';
+// The boundary between the app and the code that starts it. It used to be
+// the `document.addEventListener("DOMContentLoaded"` line, until hyrox.js
+// grew a real bootstrap: static/pagenav.js swaps pages in without loading a
+// document, so this file is loaded once and has to boot against several DOMs
+// over a session, which DOMContentLoaded alone cannot do. hyrox.js carries
+// the matching comment and says not to remove it.
+const BOOTSTRAP_MARKER = "\n  // ---- Bootstrap ---";
 
 // Note: no trailing `})();` here -- extractSource returns just the
 // function BODY (everything between `(function () {` and its matching
@@ -44,17 +50,17 @@ export function extractSource() {
   const bootstrapIdx = source.indexOf(BOOTSTRAP_MARKER);
   if (iifeOpen === -1 || bootstrapIdx === -1) {
     throw new Error(
-      "loadHyroxApp: could not find the outer IIFE or the DOMContentLoaded " +
-        "bootstrap in static/hyrox.js -- the file was restructured and this " +
-        "harness needs updating (see BOOTSTRAP_MARKER in loadHyroxApp.js)."
+      "loadHyroxApp: could not find the outer IIFE or the bootstrap marker " +
+        "in static/hyrox.js -- the file was restructured and this harness " +
+        "needs updating (see BOOTSTRAP_MARKER in loadHyroxApp.js)."
     );
   }
   if (!source.includes("class HyroxApp {")) {
     throw new Error("loadHyroxApp: static/hyrox.js no longer defines `class HyroxApp {` -- update the harness.");
   }
-  // Body starts right after `(function () {`, ends right before the
-  // DOMContentLoaded bootstrap block (which is itself followed by the
-  // original `})();` we're deliberately dropping).
+  // Body starts right after `(function () {`, ends right before the bootstrap
+  // block (which is itself followed by the original `})();` we're
+  // deliberately dropping).
   const bodyStart = iifeOpen + openMarker.length;
   const body = source.slice(bodyStart, bootstrapIdx);
   return `${body}${RETURN_STMT}`;

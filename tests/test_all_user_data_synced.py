@@ -56,6 +56,11 @@ NOT_ACCOUNT_DATA = {
     # only ever ran once per account EVER, on whichever device happened to
     # sync it first, instead of once per session on every device.
     "repcheck_activity_seeded": "sync bookkeeping",
+    # Escape hatch for static/pagenav.js: turns tab switching back into
+    # ordinary page loads on ONE device. Deliberately not synced -- the whole
+    # point is to rescue the device that is misbehaving without a deploy, and
+    # syncing it would push that device's workaround onto every other one.
+    "repcheck_no_swap": "per-device escape hatch, not account data",
 }
 
 
