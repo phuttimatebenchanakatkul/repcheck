@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>RepCheck - Welcome</title>
   <script>
     (function () {
@@ -40,6 +40,14 @@
       color: var(--text);
       font-family: 'Inter', system-ui, sans-serif;
       padding: 24px 16px;
+      /* Same fix as .auth-body in static/auth.css: with capacitor.config.json's
+         contentInset now "never" (see that file), this page's own padding is
+         the only thing keeping the logo and wizard clear of a notch/Dynamic
+         Island above or the home indicator below -- a flat 24px was never
+         safe-area-aware to begin with. env() is 0px on anything that isn't
+         an Apple device with an inset, so max() changes nothing elsewhere. */
+      padding-top: max(24px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
     }
     .ob-wrap { width: 100%; max-width: 560px; transition: max-width 0.15s ease; }
     .ob-wrap.is-wide { max-width: 660px; }

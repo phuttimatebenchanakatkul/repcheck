@@ -5872,6 +5872,23 @@
     renderSummary();
   });
 
+  // account_sync.js pulled newer values off the account -- a meal logged on
+  // another device, or this browser adopting the account's history for the
+  // first time. `log`, `goals` and `favorites` were all read into these
+  // variables before that pull finished, so re-read them and redraw.
+  // preventDefault() tells account_sync.js the page handled it; without a
+  // handler here it falls back to reloading the whole page, which is what
+  // this used to do.
+  document.addEventListener("repcheck:data-hydrated", (event) => {
+    const keys = (event.detail && event.detail.keys) || [];
+    if (keys.includes(STORAGE_KEY)) log = loadLog();
+    if (keys.includes(GOALS_KEY)) goals = loadGoals();
+    if (keys.includes(FAVORITES_KEY)) favorites = loadFavorites();
+    renderTimeline();
+    renderSummary();
+    event.preventDefault();
+  });
+
   // ---------- Mobile FAB quick actions ("Scan a meal" / "Log today's
   // weight" land here with ?quick=... — see base.html's mt-fab-sheet). ----------
   (function handleQuickAction() {

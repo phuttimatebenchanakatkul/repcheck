@@ -980,8 +980,20 @@ input[type="file"], select {
   /* padding-bottom clears the floating tab bar: it sits at bottom:12px and
      the "+" bubble is 58px tall, so 12px of padding left the last ~58px of
      every scrollable page stranded behind it (the Home macros card was
-     visibly cut off). 12 + 58 + 12 of breathing room. */
-  .app { flex-direction: column; align-items: stretch; padding: 12px; gap: 12px; padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
+     visibly cut off). 12 + 58 + 12 of breathing room.
+
+     padding-top used to be able to stay a flat 12px because
+     capacitor.config.json's contentInset:"always" made iOS itself push the
+     whole page down by the safe-area amount before any CSS ran -- free
+     protection, but paid for with a native background gutter (a literal
+     black bar above the status bar/Dynamic Island) that the app's own
+     background never got to paint over. Now that contentInset is "never"
+     (see that file), this padding is the ONLY thing keeping the topbar's
+     title and avatar clear of the notch, so 12px alone is not enough on
+     any device with a taller status bar than that -- max() keeps the
+     plain 12px on a browser/desktop (env() is 0px there) while growing to
+     the real inset on an iPhone. */
+  .app { flex-direction: column; align-items: stretch; padding: 12px; padding-top: max(12px, env(safe-area-inset-top, 0px)); gap: 12px; padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
   /* Primary nav now lives in the fixed bottom tab bar instead -- the
      sidebar (brand logo + nav + account block) is the old mobile nav and
      is fully replaced by it. Previously only .nav/.account-block were
@@ -1315,7 +1327,25 @@ input[type="file"], select {
 }
 
 @media (max-width: 480px) {
-  .app { padding: 8px; }
+  /* Pre-existing bug, independent of the safe-area fix above: this rule and
+     the mobile `.app` rule (max-width:720px) both match on every real
+     iPhone in portrait -- the narrowest is 375px, the widest Pro Max is
+     430px, all comfortably under 480px. Same specificity, later source
+     order wins, so this flat `padding: 8px` was silently overwriting BOTH
+     the 82px floating-tab-bar clearance the mobile rule's own comment says
+     is required (verified live: a bare reproduction of these two rules at
+     390px computes padding-bottom: 8px, not the intended calc(82px + ...))
+     and the safe-area-inset-top clearance just added above -- on every
+     phone, not an edge case. Longhand-only here so this breakpoint keeps
+     doing what it evidently meant to do (tighten the horizontal edges to
+     8px on the narrowest phones) without silently reopening either of
+     those two invariants, which live in a different rule and would give no
+     visible signal here if broken again. */
+  .app {
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+  }
   .card { padding: 14px; border-radius: var(--radius-md); }
   .topbar h1 { font-size: 19px; }
   .mobile-tabbar { left: 8px; right: 8px; gap: 8px; }

@@ -645,6 +645,13 @@
       // button here flips to "ready" immediately instead of needing a
       // reload once that flag changes.
       document.addEventListener("repcheck:weight-logged", () => this.render());
+      // account_sync.js pulled newer values off the account (a meal logged
+      // on another device, an adjusted goal, this browser adopting the
+      // account's coaching profile). Deliberately does NOT preventDefault:
+      // this module only mounts on /nutrition, and that page's own handler
+      // is what claims the event -- this just makes sure the card redraws
+      // alongside the rest of the page rather than staying on pre-pull data.
+      document.addEventListener("repcheck:data-hydrated", () => this.render());
 
       this.applyTodaysDistributedGoalIfNeeded();
       this.maybeNotifyInactivity();

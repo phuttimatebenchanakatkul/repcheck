@@ -4739,6 +4739,21 @@
     renderTimeline();
   });
 
+  // account_sync.js pulled newer values off the account -- a workout logged
+  // on another device, or a split plan this browser hadn't seen. `log` was
+  // read into a variable before that pull finished, so re-read it; the split
+  // plan is re-read by renderTodaysPlanCard() itself via loadSplitPlan().
+  // preventDefault() tells account_sync.js the page handled it; without a
+  // handler here it falls back to reloading the whole page, which is what
+  // this used to do.
+  document.addEventListener("repcheck:data-hydrated", (event) => {
+    const keys = (event.detail && event.detail.keys) || [];
+    if (keys.includes(STORAGE_KEY)) log = loadLog();
+    renderTimeline();
+    renderTodaysPlanCard();
+    event.preventDefault();
+  });
+
   // Mobile FAB's "Log a workout" quick action (?quick=log — see
   // base.html's mt-fab-sheet) opens the add-exercise modal immediately,
   // logging at the current time on today's date.
