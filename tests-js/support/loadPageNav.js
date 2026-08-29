@@ -91,11 +91,21 @@ export function loadPageNav({
   // A hidden page never runs a requestAnimationFrame callback. Set this to
   // reproduce that: the swap must still finish.
   noFrames = false,
+  // Renders the shell without a tab bar, to exercise pagenav.js declining.
+  noPill = false,
 } = {}) {
   document.head.innerHTML = "<title>RepCheck</title>";
-  document.body.innerHTML = shell(startHref, startMain);
+  document.documentElement.removeAttribute("data-pagenav");
+  document.body.innerHTML = noPill
+    ? '<div class="app"><main class="main"></main></div>'
+    : shell(startHref, startMain);
 
   const requests = [];
+  // pagenav.js reports whether it is running to /api/nav-state. That is a
+  // diagnostic, not a page fetch, so it is kept out of `requests` -- every
+  // assertion about how many pages were fetched would otherwise have to know
+  // about it.
+  const beacons = [];
   const hardNavs = [];
   const historyEntries = [];
   const loadedAssets = [];
@@ -106,6 +116,10 @@ export function loadPageNav({
   let current = startHref;
   const windowStub = {
     fetch: (url, options) => {
+      if (String(url).startsWith("/api/nav-state")) {
+        beacons.push(String(url));
+        return Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve("") });
+      }
       requests.push({ url, options });
       const html = routes[url];
       const response = {
@@ -189,6 +203,10 @@ export function loadPageNav({
   return {
     window: windowStub,
     requests,
+    /** The /api/nav-state reports pagenav.js sent, in order. */
+    beacons,
+    /** What it told the server about itself, e.g. "on" or "off:no-pill". */
+    state: () => document.documentElement.getAttribute("data-pagenav"),
     hardNavs,
     historyEntries,
     loadedAssets,
