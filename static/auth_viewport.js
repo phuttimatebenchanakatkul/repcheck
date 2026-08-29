@@ -57,12 +57,23 @@
     return window.matchMedia("(min-width: 721px)").matches;
   }
 
+  // Shorter than the shortest phone iOS 18 runs (a 375x667 SE) by a wide
+  // margin, so a real screen never trips it -- this only rejects garbage.
+  var MIN_USABLE_HEIGHT = 200;
+
   function sync() {
     if (framed()) {
       body.style.height = "";
       body.style.transform = "";
       return;
     }
+    // Never pin to a height nobody could read or type into. This fires once
+    // with vv.height === 0 if sync() runs before the page has been laid out
+    // -- the initial call races the browser's own first layout -- and
+    // `height: 0` on a pinned, overflow:hidden <body> is an empty screen with
+    // no later event guaranteed to correct it. Keeping the last good geometry
+    // is always the safer reading of a measurement this implausible.
+    if (!(vv.height > MIN_USABLE_HEIGHT)) return;
     // `inset: 0` sets both top and bottom; an explicit height wins over bottom
     // for a fixed-position box, so this is the one property that has to change.
     body.style.height = vv.height + "px";

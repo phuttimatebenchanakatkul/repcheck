@@ -2,6 +2,17 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.10.1] - 2026-08-29
+
+### Fixed
+
+- auth_viewport.js -- which repositions the pinned log in / sign up card
+  under the on-screen keyboard -- could pin the card to a height of zero if
+  it measured the viewport before the browser had finished its first layout,
+  collapsing the whole screen with nothing left to correct it. It now ignores
+  any measurement below a real phone's shortest possible height and keeps the
+  last good geometry instead.
+
 ## [0.4.10.0] - 2026-08-29
 
 ### Added
