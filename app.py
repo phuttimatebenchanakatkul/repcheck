@@ -2977,7 +2977,14 @@ def api_nav_state():
     state = re.sub(r"[^\x20-\x7e]", "", state).strip() or "unknown"
     # The iOS shell is the case this exists for; a desktop browser hitting it
     # is noise worth telling apart at a glance.
-    agent = "ios-app" if "RepCheck" in request.headers.get("User-Agent", "") else "browser"
+    #
+    # Matched on the platform, not on an app name: Capacitor does not put one
+    # in the user agent unless appendUserAgent is configured, and it is not --
+    # so the first version of this check labelled the phone "browser" and
+    # nearly sent the whole investigation back to the start. iPad included
+    # because iPadOS is the same shell.
+    ua = request.headers.get("User-Agent", "")
+    agent = "ios" if ("iPhone" in ua or "iPad" in ua) else "other"
     # warning, not info: under gunicorn the app logger's effective level
     # leaves INFO on the floor, so the line is written and then dropped and
     # the logs stay empty -- which reads as "the phone never reported", the

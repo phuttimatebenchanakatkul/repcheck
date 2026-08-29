@@ -45,6 +45,38 @@ describe("pagenav", () => {
     expect(nav.beacons).toEqual(["/api/nav-state?s=off%3Ano-pill"]);
   });
 
+  it("says why a swap fell back, not just that it started", async () => {
+    // The shape of the real bug on the phone: pagenav reports "on", and then
+    // every swap falls back to a page load anyway. Reporting only at startup
+    // makes those two indistinguishable, which is a diagnostic that confirms
+    // the wrong half.
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: { "/nutrition": NUTRITION },
+      redirectTo: "/login",
+    });
+
+    await nav.tap("/nutrition");
+
+    expect(nav.hardNavs).toEqual(["/nutrition"]);
+    expect(nav.beacons).toContain("/api/nav-state?s=swap-failed%3Aredirect-to-%2Flogin");
+  });
+
+  it("does not repeat a state it has already reported", async () => {
+    // A tab tapped five times must not write five identical log lines.
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: { "/nutrition": NUTRITION, "/home": page({ href: "/home" }) },
+      status: 500,
+    });
+
+    await nav.tap("/nutrition");
+    await nav.tap("/nutrition");
+
+    const failures = nav.beacons.filter((b) => b.indexOf("swap-failed") !== -1);
+    expect(failures).toHaveLength(1);
+  });
+
   it("swaps the screen in place instead of navigating", async () => {
     const nav = loadPageNav({
       startHref: "/home",

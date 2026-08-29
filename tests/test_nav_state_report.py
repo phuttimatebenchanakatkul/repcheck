@@ -86,15 +86,27 @@ def test_a_declined_state_says_why(caplog):
     )
 
 
-def test_the_ios_app_is_distinguishable_from_a_browser(caplog):
+def test_the_phone_is_distinguishable_from_a_desk(caplog):
+    """Matched on the platform, not on an app name.
+
+    Capacitor does not put an app name in the user agent unless
+    appendUserAgent is configured, and it is not -- so the first version of
+    this check looked for "RepCheck", labelled the actual phone "browser",
+    and nearly sent the investigation back to the start.
+    """
     client = _client()
-    with caplog.at_level(logging.INFO):
-        client.get("/api/nav-state?s=on", headers={"User-Agent": "RepCheck/1 (iPhone)"})
-        client.get("/api/nav-state?s=on", headers={"User-Agent": "Mozilla/5.0 (Macintosh)"})
-    assert "agent=ios-app" in caplog.text and "agent=browser" in caplog.text, (
-        "The iPhone app is the case this exists for; a desktop browser "
-        "hitting it is noise worth telling apart at a glance."
+    iphone = (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 "
+        "(KHTML, like Gecko) Mobile/15E148"
     )
+    with caplog.at_level(logging.INFO):
+        client.get("/api/nav-state?s=on", headers={"User-Agent": iphone})
+        client.get("/api/nav-state?s=on", headers={"User-Agent": "Mozilla/5.0 (Macintosh)"})
+    assert "agent=ios" in caplog.text, (
+        "A real iOS webview user agent -- which carries no app name -- must "
+        "be recognised as the phone."
+    )
+    assert "agent=other" in caplog.text
 
 
 def test_a_state_cannot_forge_extra_log_lines(caplog):
