@@ -2,6 +2,26 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.2] - 2026-08-29
+
+### Changed
+
+- `main`'s `marketing/` directory is the live pre-launch site's source again.
+  It had quietly drifted out of sync: the Render static site has actually
+  been deploying from a separate `marketing-analyze-demo` branch for a while,
+  so merges to `main` weren't reaching production. That branch's content
+  (hero video, nutrition demo, nav, copy) is now folded into `main`, and the
+  Render service is being pointed back at `main` so the two stay in sync
+  going forward. The four tests that guarded the old design's specific
+  markup/CSS/JS (`test_marketing_contrast`, `test_marketing_kicker_not_overridden`,
+  `test_marketing_page_head`, `marketingWaitlist.test.js`) are removed, since
+  they asserted on implementation details of a page that no longer exists.
+- Widened the `*.mp4` gitignore negation from `marketing/*.mp4` to
+  `marketing/**/*.mp4` -- the incoming design's demo clips live under
+  `marketing/assets/`, one level deeper than the old negation reached, so a
+  future new clip with a new filename in that folder would otherwise be
+  silently dropped by `git add`.
+
 ## [0.5.0.1] - 2026-08-29
 
 ### Fixed
