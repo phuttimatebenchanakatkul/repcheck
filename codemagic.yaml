@@ -152,12 +152,16 @@ workflows:
           # "Missing Compliance" and cannot be given to a tester until someone
           # answers the export questionnaire by hand, per build.
           #
-          # false is the accurate answer, not a shortcut: the only cryptography
-          # in RepCheck is werkzeug password hashing (database.py) and secrets
-          # for token generation (auth.py), plus HTTPS, which is the operating
-          # system's own TLS. That is the standard Category 5 Part 2 exemption,
-          # so the app uses no NON-exempt encryption. Revisit this if custom
-          # crypto is ever added.
+          # false is the accurate answer, not a shortcut. The iOS binary is a
+          # Capacitor shell around a webview pointing at the live site, so it
+          # implements no encryption of its own -- it makes HTTPS requests
+          # using the operating system's TLS and nothing else. The password
+          # hashing in database.py and the token generation in auth.py run
+          # server-side in Python on Render; none of that code ships inside
+          # the app. Using only the OS's own encryption is the standard
+          # Category 5 Part 2 exemption, so the app uses no NON-exempt
+          # encryption. Revisit this if native crypto is ever added to the
+          # shell itself.
           PLIST="ios/App/App/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
