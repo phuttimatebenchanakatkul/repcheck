@@ -2,6 +2,13 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.5.6] - 2026-08-29
+
+### Fixed
+
+- The iPhone build now signs the app with a named certificate and profile
+  rather than asking Apple to work out which ones to use, which it could not.
+
 ## [0.4.5.5] - 2026-08-29
 
 ### Fixed
