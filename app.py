@@ -23,7 +23,9 @@ Requires:
     these, just with narrower product coverage.
 """
 
+import hashlib
 import html
+import json
 import mimetypes
 import os
 import re
@@ -319,6 +321,13 @@ def inject_current_user():
 # static assets they need. Everything else is gated (see require_login below).
 _PUBLIC_ENDPOINTS = frozenset({
     "static",
+    # The shared food/exercise libraries (see LIBRARY_ASSETS below). Same
+    # category as "static": generated from Python modules and a directory
+    # listing, identical for everyone, with nothing user-specific in them.
+    # Public so they behave like the static assets they are -- gating them
+    # would put a session lookup and a Vary: Cookie in front of a response
+    # that is deliberately cached for a year.
+    "library_asset",
     "auth.login_page", "auth.login",
     "auth.signup_page", "auth.signup",
     "auth.logout",
@@ -557,6 +566,101 @@ def never_store_html(response):
         # header each and cover intermediaries that predate Cache-Control.
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Shared reference libraries, served as cacheable JS instead of inlined HTML
+# ---------------------------------------------------------------------------
+# The food and exercise libraries are the same bytes for every user on every
+# request, but they used to be pasted into the page with `| tojson` -- so
+# /nutrition shipped ~155 KB of food library and images inside a ~490 KB HTML
+# document that carries no cache headers at all (Flask sends none for a
+# rendered template, and the pages vary by Cookie). Every single tab switch
+# re-downloaded and re-parsed all of it.
+#
+# That is what makes moving between pages feel like a refresh rather than a
+# navigation, and it is worst exactly where it hurts most: the iOS App Store
+# build is a WKWebView pointed at the live site, so each tap is a real
+# cellular download of the whole thing.
+#
+# Serving them as separate <script> files instead means they are fetched once
+# and then read from the HTTP cache forever. The URL carries a hash of the
+# content, so "forever" is safe -- editing a library changes the hash, which
+# changes the URL, which is a guaranteed cache miss. Same reasoning as
+# asset_url() above, but keyed on content rather than mtime because these are
+# generated from Python modules, not files on disk.
+#
+# They stay CLASSIC scripts loaded immediately before the page's own inline
+# script, so the globals are in place synchronously by the time it runs --
+# the page logic still reads them at first render and did not have to become
+# async to get this.
+LIBRARY_ASSETS = {
+    # name -> callable returning the JSON-serializable value
+    "food_library": lambda: FOOD_LIBRARY,
+    # Rebuilt per request (a directory listing), so newly sorted photos still
+    # show up without a restart -- the content hash simply changes with them.
+    "food_images": build_food_image_map,
+    "exercise_library": lambda: EXERCISE_LIBRARY,
+    "exercise_details": lambda: EXERCISE_DETAILS,
+    "exercise_videos": lambda: EXERCISE_VIDEOS,
+    "exercise_categories": lambda: EXERCISE_CATEGORIES,
+    "exercise_icons": lambda: EXERCISE_ICONS,
+    "unilateral_exercises": lambda: sorted(UNILATERAL_EXERCISES),
+    "bodyweight_exercises": lambda: sorted(BODYWEIGHT_EXERCISES),
+}
+
+# Libraries that can genuinely change while the process is running. Everything
+# else is a module-level constant, so re-serializing it would be pure waste --
+# and not a trivial amount of it, since library_url() needs the hash on every
+# page render and /workouts alone asks for seven of these.
+_DYNAMIC_LIBRARIES = frozenset({"food_images"})
+
+# name -> (hash, body). Populated on first use and reused after that, so the
+# big libraries are serialized once per process rather than once per request.
+_library_cache = {}
+
+
+def _library_asset(name):
+    """Return (version_hash, javascript_body) for a shared library."""
+    cached = _library_cache.get(name)
+    if cached and name not in _DYNAMIC_LIBRARIES:
+        return cached
+
+    payload = json.dumps(LIBRARY_ASSETS[name](), separators=(",", ":"))
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
+    if cached and cached[0] == digest:
+        return cached
+    # Namespaced under one object rather than assigned to a bare global,
+    # because the same library is consumed under different names by
+    # different pages (index.html and workouts.html both call it
+    # EXERCISE_LIBRARY) and a flat global would make those collide.
+    body = (
+        "window.RepCheckLib=window.RepCheckLib||{};"
+        f"window.RepCheckLib[{json.dumps(name)}]={payload};"
+    )
+    _library_cache[name] = (digest, body)
+    return _library_cache[name]
+
+
+def library_url(name):
+    return url_for("library_asset", name=name) + f"?v={_library_asset(name)[0]}"
+
+
+@app.context_processor
+def inject_library_url():
+    return {"library_url": library_url}
+
+
+@app.route("/lib/<name>.js")
+def library_asset(name):
+    if name not in LIBRARY_ASSETS:
+        abort(404)
+    body = _library_asset(name)[1]
+    response = app.response_class(body, mimetype="application/javascript")
+    # Safe to cache immutably: the ?v= hash above changes whenever the
+    # content does, so a stale copy can never be served under a live URL.
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
 
 
@@ -1069,16 +1173,13 @@ def api_onboarding_complete():
 
 @app.route("/analyze", methods=["GET"])
 def analyze_page():
+    # The exercise libraries this page needs are no longer passed in: it
+    # pulls them from RepCheckLib, which is served as its own cached script
+    # (see LIBRARY_ASSETS). Same for /workouts and /nutrition below.
     return render_template(
         "index.html",
-        exercise_library=EXERCISE_LIBRARY,
         active_nav="analyze",
         i18n_page="analyze",
-        exercise_icons=EXERCISE_ICONS,
-        exercise_videos=EXERCISE_VIDEOS,
-        # Feeds the picker's "Suggested" tab when the user has no split
-        # plan yet -- see getDefaultSuggestions() in index.html.
-        exercise_categories=EXERCISE_CATEGORIES,
     )
 
 
@@ -1087,26 +1188,19 @@ def workouts():
     return render_template(
         "workouts.html",
         active_nav="workouts",
-        exercise_library=WORKOUT_EXERCISES,
-        exercise_details=EXERCISE_DETAILS,
-        exercise_videos=EXERCISE_VIDEOS,
-        exercise_categories=EXERCISE_CATEGORIES,
-        exercise_icons=EXERCISE_ICONS,
-        unilateral_exercises=sorted(UNILATERAL_EXERCISES),
-        bodyweight_exercises=sorted(BODYWEIGHT_EXERCISES),
         i18n_page="workouts",
     )
 
 
 @app.route("/nutrition", methods=["GET"])
 def nutrition():
-    # Rebuilt on every request (cheap directory listing) so newly sorted
-    # photos show up immediately, without restarting the server.
+    # The food library and its image map come from RepCheckLib now. The image
+    # map is still rebuilt per render (a cheap directory listing, done while
+    # hashing the asset URL) so newly sorted photos still show up without a
+    # restart -- see _DYNAMIC_LIBRARIES.
     return render_template(
         "nutrition.html",
         active_nav="nutrition",
-        food_library=FOOD_LIBRARY,
-        food_images=build_food_image_map(),
         i18n_page="nutrition",
     )
 
@@ -2500,9 +2594,12 @@ def analyze():
     def fail(message):
         if wants_json:
             return jsonify({"ok": False, "error": message}), 400
+        # This render used to omit exercise_icons, which is why index.html
+        # carried a `| default({}, true)` guard on one of its libraries. The
+        # page reads all of them from RepCheckLib now, so an error render and
+        # a normal one can no longer disagree about what it got.
         return render_template(
-            "index.html", exercise_library=EXERCISE_LIBRARY, active_nav="analyze", i18n_page="analyze",
-            exercise_videos=EXERCISE_VIDEOS, exercise_categories=EXERCISE_CATEGORIES, error=message
+            "index.html", active_nav="analyze", i18n_page="analyze", error=message
         )
 
     video_file = request.files.get("video")

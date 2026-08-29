@@ -1938,6 +1938,14 @@
   }
 </style>
 
+<!-- The food library and its image map are the same bytes for every user on
+     every request -- ~155 KB that used to be re-sent inside this document on
+     every single navigation to /nutrition. Served as separately-cacheable
+     scripts instead (see LIBRARY_ASSETS in app.py). Classic scripts, so they
+     have already run by the time the block below reads them. -->
+<script src="{{ library_url('food_library') }}"></script>
+<script src="{{ library_url('food_images') }}"></script>
+
 <script type="module">
   // Loaded as a module so the ESM build works unmodified; exposed on
   // window for the classic <script> below (which the rest of this page's
@@ -1946,8 +1954,8 @@
   window.Pretext = { prepare, layout };
 </script>
 <script>
-  const FOOD_LIBRARY = {{ food_library | tojson }};
-  const FOOD_IMAGES = {{ food_images | tojson }};
+  const FOOD_LIBRARY = RepCheckLib.food_library;
+  const FOOD_IMAGES = RepCheckLib.food_images;
   const STORAGE_KEY = "repcheck_nutrition_log_v1";
   const GOALS_KEY = "repcheck_nutrition_goals_v1";
   const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];

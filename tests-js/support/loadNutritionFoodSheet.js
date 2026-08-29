@@ -46,9 +46,10 @@ const TEMPLATE_PATH = path.join(__dirname, "..", "..", "templates", "nutrition.h
 
 const REGIONS = [
   {
-    // FOOD_LIBRARY itself is a Jinja interpolation (`{{ food_library | tojson }}`)
-    // so it can't be extracted -- it's injected instead, and foodByName reads
-    // it. That makes "is this name in the library?" (the whole input to
+    // FOOD_LIBRARY isn't in this region at all -- the page reads it from
+    // RepCheckLib, which is served as its own cached script (see
+    // LIBRARY_ASSETS in app.py) -- so it's injected instead, and foodByName
+    // reads it. That makes "is this name in the library?" (the whole input to
     // relogRowEntry) a per-test fixture rather than a stubbed-out decision.
     name: "foodByName (the FOOD_LIBRARY lookup relogRowEntry branches on)",
     start: "  function foodByName(name) {",
