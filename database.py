@@ -16,7 +16,9 @@ import datetime
 import json
 import os
 import re
+import secrets
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -334,9 +336,85 @@ def init_db():
         # have no video. Probe-then-ALTER, same reasoning as friend_code.
         _add_column_if_missing(conn, "analyze_results", "video_filename", "TEXT")
 
+        # One-time handoff tokens for signing in inside the iOS shell.
+        #
+        # Google refuses OAuth in an embedded webview, so the native app runs
+        # the flow in SFSafariViewController instead. That browser has its own
+        # cookie jar, so the session it establishes is useless to the app's
+        # webview -- the user comes back "signed in" to a browser they can no
+        # longer see. The callback therefore mints a row here and hands the
+        # token to the app over a custom URL scheme; the webview redeems it
+        # for a session of its own. See auth.py's google_callback and
+        # native_complete.
+        #
+        # Rows are single-use and short-lived, and that is load-bearing rather
+        # than tidiness: a custom URL scheme is not exclusive on iOS, so
+        # another app that registers repcheck:// could receive the token. It
+        # is only useful for the seconds between the browser closing and the
+        # webview redeeming it, and only once.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS native_auth_tokens (
+                token TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                next_url TEXT,
+                created_at INTEGER NOT NULL
+            )
+        """)
+
 
 def _row_to_dict(row):
     return dict(row) if row else None
+
+
+# How long a native sign-in handoff token stays valid. The app redeems it
+# immediately -- this only has to cover the browser closing and one redirect,
+# so it is deliberately far shorter than any session.
+NATIVE_AUTH_TOKEN_TTL_SECONDS = 120
+
+
+def create_native_auth_token(user_id, next_url=None):
+    """Mint a single-use token the iOS shell can trade for a real session.
+
+    Returns the token string. Expired rows are cleared out on the way past so
+    the table cannot grow without bound; there is no other reaper.
+    """
+    token = secrets.token_urlsafe(32)
+    now = int(time.time())
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM native_auth_tokens WHERE created_at < ?",
+            (now - NATIVE_AUTH_TOKEN_TTL_SECONDS,),
+        )
+        conn.execute(
+            "INSERT INTO native_auth_tokens (token, user_id, next_url, created_at) VALUES (?, ?, ?, ?)",
+            (token, user_id, next_url, now),
+        )
+    return token
+
+
+def consume_native_auth_token(token):
+    """Redeem a handoff token exactly once.
+
+    Returns {"user_id": ..., "next_url": ...} or None. The DELETE is the
+    check: whoever gets rowcount 1 owns the token, so two requests racing the
+    same token cannot both be let in. An expired row deletes without being
+    honoured, which keeps expiry and consumption in one atomic step instead of
+    a read-then-delete that could be raced between the two.
+    """
+    if not token:
+        return None
+    cutoff = int(time.time()) - NATIVE_AUTH_TOKEN_TTL_SECONDS
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT user_id, next_url, created_at FROM native_auth_tokens WHERE token = ?",
+            (token,),
+        ).fetchone()
+        deleted = conn.execute(
+            "DELETE FROM native_auth_tokens WHERE token = ?", (token,)
+        ).rowcount
+    if not row or deleted != 1 or row["created_at"] < cutoff:
+        return None
+    return {"user_id": row["user_id"], "next_url": row["next_url"]}
 
 
 def get_user_by_id(user_id):
