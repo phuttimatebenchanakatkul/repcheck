@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.8.1] - 2026-08-29
+## [0.4.9.1] - 2026-08-29
 
 ### Changed
 
@@ -20,6 +20,19 @@ All notable changes to RepCheck are recorded here, newest first.
   Nutrition page dropped from 488 KB to 325 KB per visit, Workouts from 530 KB
   to 282 KB. That is a real saving on the iPhone app, which loads the live site
   over the network on every tap.
+
+## [0.4.9.0] - 2026-08-29
+
+### Fixed
+
+- **"Continue with Google" now signs you into the iPhone app.** Before, tapping
+  it took you through the whole Google flow and then dropped you on the
+  website, still logged out in the app. Google does not allow its sign-in
+  screen inside an app's own browser, so the flow has to happen in Safari --
+  and the app could not see the account you had just signed into. It now hands
+  the sign-in back to the app when Safari closes, and you land where you
+  started, logged in.
+- Signing in with Google on the website is completely unchanged.
 
 ## [0.4.8.0] - 2026-08-29
 

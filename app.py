@@ -332,6 +332,12 @@ _PUBLIC_ENDPOINTS = frozenset({
     "auth.signup_page", "auth.signup",
     "auth.logout",
     "auth.google_login", "auth.google_callback",
+    # The iOS shell redeems its one-time sign-in token here, and by
+    # definition it has no session yet -- that is the whole point of the
+    # request. Gating it makes the endpoint that establishes the session
+    # require a session, so it bounces to /login and the app can never
+    # sign in at all.
+    "auth.native_complete",
     # The privacy policy and terms have to be readable without an account:
     # App Store Connect needs a public privacy-policy URL, and App Review
     # opens it without logging in.

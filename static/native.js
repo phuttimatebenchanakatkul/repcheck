@@ -173,6 +173,99 @@
     }
   }
 
+  // ---- Google sign-in ----
+  //
+  // In a browser the "Continue with Google" button is an ordinary link and
+  // everything below is dead code. Inside the shell it cannot be: Google
+  // refuses OAuth in an embedded webview, and Capacitor sends off-origin
+  // navigations to Safari anyway -- which is what made the button appear to
+  // work and then dump the user on the website, signed in to a browser they
+  // could not see, because the session cookie went to Safari's jar.
+  //
+  // So the flow runs in SFSafariViewController (allowed by Google, and what
+  // the Browser plugin opens), the server hands back a one-time token over
+  // the repcheck:// scheme, and the webview redeems it for its own session.
+
+  var NATIVE_AUTH_SCHEME = "repcheck://auth";
+  var authListenerBound = false;
+
+  /** Pull ?token= out of the callback URL without needing a URL parser. */
+  function tokenFromUrl(url) {
+    var match = /[?&]token=([^&#]+)/.exec(String(url || ""));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  /**
+   * Listen for the shell being reopened by repcheck://auth?token=...
+   *
+   * Bound once, and bound as soon as this file runs rather than when the
+   * button is pressed: iOS can deliver the URL before any handler attached
+   * inside the click would exist, and a missed event strands the user on the
+   * login page with no way back.
+   */
+  function bindAuthListener() {
+    if (authListenerBound || !isNative()) return;
+    var App = plugin("App");
+    if (!App || typeof App.addListener !== "function") return;
+    authListenerBound = true;
+    App.addListener("appUrlOpen", function (event) {
+      var url = event && event.url;
+      if (!url || url.indexOf(NATIVE_AUTH_SCHEME) !== 0) return;
+      var token = tokenFromUrl(url);
+      if (!token) return;
+      var Browser = plugin("Browser");
+      // Close the sign-in browser before navigating. If it is left open the
+      // user lands back on a logged-in app hidden behind a stale Google page.
+      if (Browser && typeof Browser.close === "function") {
+        try {
+          var closing = Browser.close();
+          if (closing && typeof closing.catch === "function") closing.catch(function () {});
+        } catch (error) {
+          /* already closed by the user -- not a failure */
+        }
+      }
+      window.location.assign("/auth/native-complete?token=" + encodeURIComponent(token));
+    });
+  }
+
+  /**
+   * Start Google sign-in from inside the shell.
+   *
+   * Returns true if it took over, false if the caller should let the plain
+   * link proceed -- which is what happens in every browser, and also if the
+   * Browser plugin is missing because the native project was not synced.
+   */
+  function signInWithGoogle(href) {
+    if (!isNative()) return false;
+    var Browser = plugin("Browser");
+    if (!Browser || typeof Browser.open !== "function") return false;
+
+    bindAuthListener();
+
+    // Tell the server this is the shell, so the callback hands back a token
+    // instead of setting a cookie in a browser the app cannot read.
+    var url = String(href || "/auth/google");
+    url += (url.indexOf("?") === -1 ? "?" : "&") + "native=1";
+
+    try {
+      var opening = Browser.open({ url: new URL(url, window.location.origin).href });
+      if (opening && typeof opening.catch === "function") {
+        opening.catch(function () {
+          // Could not open the in-app browser: fall back to the plain link
+          // rather than leaving a button that silently does nothing.
+          window.location.assign(url);
+        });
+      }
+    } catch (error) {
+      window.location.assign(url);
+      return true;
+    }
+    return true;
+  }
+
+  // The listener has to exist before the user ever taps the button.
+  bindAuthListener();
+
   window.RepCheckNative = {
     isNative: isNative,
     platform: platform,
@@ -180,6 +273,7 @@
     openCamera: openCamera,
     openLibrary: openLibrary,
     haptic: haptic,
+    signInWithGoogle: signInWithGoogle,
     // Exposed for tests: the pure parts, so the conversion and the
     // cancel/error split can be exercised without a plugin.
     _internals: {
@@ -187,6 +281,8 @@
       isCancellation: isCancellation,
       photoToFile: photoToFile,
       extensionFor: extensionFor,
+      tokenFromUrl: tokenFromUrl,
+      bindAuthListener: bindAuthListener,
     },
   };
 })(window, document);
