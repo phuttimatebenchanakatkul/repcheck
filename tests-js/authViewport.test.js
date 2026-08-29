@@ -67,6 +67,19 @@ describe("auth viewport sync", () => {
     expect(calls).toBe(1);
   });
 
+  it("keeps the last good geometry rather than pinning to a zero-height measurement", () => {
+    const phone = loadAuthViewport({ layoutHeight: 812 });
+    phone.keyboard({ height: 476, offsetTop: 120 });
+
+    // A pre-layout race: sync() fires again before the browser has measured
+    // anything real. Trusting it would collapse the pinned card to nothing,
+    // with no later event guaranteed to correct it.
+    phone.keyboard({ height: 0, offsetTop: 0 });
+
+    expect(phone.body.style.height).toBe("476px");
+    expect(phone.body.style.transform).toBe("translateY(120px)");
+  });
+
   it("leaves the desktop device frame alone", () => {
     // Above 721px <body> IS the simulated phone -- a fixed-size transformed
     // box -- so writing a viewport height or a translate onto it would resize
