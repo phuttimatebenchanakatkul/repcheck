@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.10.4] - 2026-08-29
+
+### Fixed
+
+- The keyboard no longer squashes the log in / sign up screen into the strip
+  above it. The screen was resizing itself to whatever the keyboard left over,
+  which squeezed the card and cut it off mid-field, and left iOS's little
+  arrows-and-tick bar sitting against a hard edge with the app stopping dead
+  underneath it. The screen now stays full size and the keyboard simply covers
+  part of it.
+- Tapping a field goes to that field: tap Email and the screen moves to Email,
+  tap Password and it moves to Password. It brings the Log in / Sign up button
+  up with the last field too, so the button you are heading for is never left
+  behind the keyboard.
+
 ## [0.4.10.3] - 2026-08-29
 
 ### Fixed
@@ -50,6 +65,7 @@ All notable changes to RepCheck are recorded here, newest first.
   are set (see `.env.example` for where each one comes from in the Apple
   developer portal). Nothing about the existing email/password or Google
   sign-in changes while those are unset.
+
 ## [0.4.9.3] - 2026-08-29
 
 ### Fixed
