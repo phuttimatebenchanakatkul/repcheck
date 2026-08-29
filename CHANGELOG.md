@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.9.1] - 2026-08-29
+
+### Fixed
+
+- The iPhone app could keep showing an old version of a screen after a deploy,
+  even though the deploy had landed and the website was already updated. Pages
+  were sent with no caching instructions at all, so iOS was free to decide for
+  itself how long to hold on to them -- and the version stamps that force fresh
+  styling live inside those pages, so a held-back page also pinned every
+  stylesheet and script to its old version. It looked exactly like a deploy that
+  never shipped. Pages are now marked as never-store, so the app always picks up
+  the current version on launch.
+
 ## [0.4.9.0] - 2026-08-29
 
 ### Fixed
