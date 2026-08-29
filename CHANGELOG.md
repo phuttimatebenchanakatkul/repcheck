@@ -2,6 +2,24 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.12.2] - 2026-08-29
+
+### Fixed
+
+- Switching tabs no longer blanks the whole screen, tab bar and all, before
+  the next one appears. Every screen was asking the server about all thirteen
+  of its stylesheets and scripts before it could draw anything -- thirteen
+  network round trips, on every single tap, for files the phone already had
+  and that had not changed. Nothing could paint until the last one answered,
+  which is what made it look like the app was reloading itself.
+  Those files already have their version stamped into their address, so a
+  changed file is a different address and can never be mistaken for an old
+  one. The phone is now allowed to keep them and reuse them without asking,
+  the way it already did for the food and exercise libraries. A deploy still
+  arrives immediately: the screen itself is still checked with the server
+  every time, and it is the screen that names which version of each file to
+  use.
+
 ## [0.4.12.1] - 2026-08-29
 
 ### Fixed
