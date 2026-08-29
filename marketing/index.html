@@ -87,8 +87,13 @@
       <div class="hero-visual" aria-hidden="true">
         <div class="phone">
           <div class="phone-screen phone-screen--video">
-            <!-- No autoplay attribute on purpose: app.js starts playback so
-                 that no-JS and prefers-reduced-motion both degrade to the
+            <!-- Real capture of the form-analysis flow (triceps.mp4), cropped
+                 to the app viewport: the iOS status bar, Safari's bars and the
+                 home indicator are cropped off, the stretch where the keyboard
+                 covered the exercise picker is cut, and the ~46s the analysis
+                 spent processing is trimmed to its last 10s before the report
+                 lands. No autoplay attribute on purpose: app.js starts playback
+                 so that no-JS and prefers-reduced-motion both degrade to the
                  poster instead of an unstoppable loop. -->
             <video class="phone-video" src="demo.mp4" poster="demo-poster.jpg"
                    muted loop playsinline></video>
