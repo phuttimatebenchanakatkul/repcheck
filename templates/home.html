@@ -11,25 +11,37 @@
 
 {% if current_user %}
 <!--
-  Hero: leads with today's date, the streak flame (the single most
-  motivating daily-return stat, promoted here from a buried mid-grid
-  tile), a plain-language headline for today ("Push Day" / "Rest day" /
-  "Let's get moving"), the week's activity dots, and ONE clear call to
-  action. Same var(--card-bg)/var(--text) theme-following surface as
-  every other card on the page (used to be a fixed dark gradient
-  regardless of light/dark mode).
+  Hero: leads with today's date and a badge showing the most recent
+  form score, a fixed "Analyze a workout" headline/CTA (this is the
+  page's single most important action, not a rotating one), a week strip
+  of that day's form score (or a dash when nothing was analyzed), and a
+  direct link into the upload flow. Same var(--card-bg)/var(--text)
+  theme-following surface as every other card on the page.
 -->
 <div class="hm-hero">
   <div class="hm-hero-top">
     <div class="hm-hero-date" id="hm-hero-date"></div>
-    <a class="hm-streak-chip" id="hm-streak-chip" href="{{ url_for('streaks') }}">
-      <span class="hm-streak-flame"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg></span><span id="hm-streak-count"></span>
-    </a>
+    <div class="hm-hero-score-pill" id="hm-hero-score-pill" style="display: none;"></div>
   </div>
-  <div class="hm-hero-title" id="hm-hero-title"></div>
-  <div class="hm-hero-sub" id="hm-hero-sub"></div>
+  <div class="hm-hero-title" data-i18n="home.hero.analyzeTitle">Analyze a workout</div>
+  <div class="hm-hero-sub" data-i18n="home.hero.analyzeSub">Upload one set and I'll grade every rep.</div>
   <div class="hm-hero-week" id="hm-hero-week"></div>
-  <a class="hm-hero-cta" id="hm-hero-cta" href="{{ url_for('workouts') }}"></a>
+  <a class="hm-hero-cta" id="hm-hero-cta" href="{{ url_for('analyze_page') }}" data-i18n="home.hero.uploadCta">Upload a set</a>
+</div>
+
+<!-- Last analysis: the most recent stored analyze_results row, mirroring
+     the Analyze page's own "Recent analyses" strip. Hidden entirely
+     until there's at least one -- there's nothing useful to summarize
+     before that. -->
+<div class="hm-last-analysis" id="hm-last-analysis" style="display: none;">
+  <div class="hm-last-analysis-label" data-i18n="home.lastAnalysis.label">Last analysis</div>
+  <div class="hm-last-analysis-body">
+    <div>
+      <div class="hm-last-analysis-title" id="hm-last-analysis-title"></div>
+      <div class="hm-last-analysis-sub" id="hm-last-analysis-sub"></div>
+    </div>
+    <a class="hm-last-analysis-details" id="hm-last-analysis-details" data-i18n="home.lastAnalysis.details">Details ›</a>
+  </div>
 </div>
 
 <!-- Weekly check-in: shown ONLY when it's actually ready. The old
@@ -39,7 +51,14 @@
 
 {% endif %}
 
-<div class="hm-section-title" data-i18n="home.today">Today</div>
+<div class="hm-section-title-row">
+  <div class="hm-section-title" data-i18n="home.today">Today</div>
+  {% if current_user %}
+  <a class="hm-streak-chip" id="hm-streak-chip" href="{{ url_for('streaks') }}">
+    <span class="hm-streak-flame"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg></span><span id="hm-streak-count"></span>
+  </a>
+  {% endif %}
+</div>
 
 <!-- Calories & macros summary: bar-chart-style card (blue=calories,
      red=protein, amber=fat, green=carbs), same color coding as the
@@ -74,18 +93,14 @@
   }
   .hm-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .hm-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
-  /* Neutral pill by default, same treatment as .hm-macro-card-pill below --
-     only turns amber once there's an actual streak to celebrate. */
-  .hm-streak-chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    background: var(--bg); color: var(--text-secondary);
-    border-radius: 999px; padding: 6px 13px; min-height: 44px; box-sizing: border-box;
-    font-size: 13px; font-weight: 800; text-decoration: none;
-    transition: transform 0.1s ease;
-  }
-  .hm-streak-chip:active { transform: scale(0.94); }
-  .hm-streak-chip.is-active {
+  /* Last form score, amber like the weekly check-in banner -- this is the
+     card's one "look what you already did" signal, so it should read as
+     a small celebration rather than a neutral stat pill. */
+  .hm-hero-score-pill {
+    display: inline-flex; align-items: center;
     background: linear-gradient(135deg, #f5a94e, #e8832f); color: #fff;
+    border-radius: 999px; padding: 6px 13px; min-height: 44px; box-sizing: border-box;
+    font-size: 13px; font-weight: 800;
   }
   .hm-hero-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; }
   .hm-hero-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 5px; }
@@ -98,7 +113,6 @@
     background: var(--border); color: var(--text-secondary);
     font-size: 13px; font-weight: 700;
   }
-  .hm-hero-day.has-activity .hm-hero-day-num { background: linear-gradient(135deg, #29b87e, #1fa971); color: #fff; box-shadow: 0 4px 10px rgba(31, 169, 113, 0.4); }
   /* A ring instead of an inverted fill -- same "today" treatment
      logging_history.html's .lh-circle.is-today already uses, so it reads
      correctly regardless of what's underneath it. */
@@ -112,6 +126,23 @@
   }
   .hm-hero-cta:hover { opacity: 0.92; }
   .hm-hero-cta:active { transform: scale(0.98); }
+
+  /* ---------- Last analysis (hidden until there's at least one) ---------- */
+  .hm-last-analysis {
+    background: var(--card-bg); color: var(--text);
+    border-radius: 20px; box-shadow: var(--shadow);
+    padding: 18px; margin-bottom: 18px;
+  }
+  .hm-last-analysis-label { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+  .hm-last-analysis-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+  .hm-last-analysis-title { font-size: 16px; font-weight: 800; letter-spacing: -0.015em; }
+  .hm-last-analysis-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+  .hm-last-analysis-details {
+    flex-shrink: 0;
+    background: var(--bg); color: var(--text-secondary);
+    border-radius: 999px; padding: 8px 14px;
+    font-size: 12.5px; font-weight: 800; text-decoration: none;
+  }
 
   /* ---------- Weekly check-in banner (only rendered when ready) ---------- */
   .hm-checkin-banner {
@@ -127,7 +158,22 @@
   .hm-checkin-banner-arrow { margin-left: auto; display: flex; }
 
   /* ---------- Section titles ---------- */
-  .hm-section-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; margin: 0 4px 10px; }
+  .hm-section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 4px 10px; }
+  .hm-section-title { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; }
+  /* Neutral pill by default, same treatment as .hm-macro-card-pill --
+     only turns amber once there's an actual streak to celebrate. */
+  .hm-streak-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--card-bg); color: var(--text-secondary);
+    border-radius: 999px; padding: 6px 13px;
+    font-size: 12.5px; font-weight: 800; text-decoration: none;
+    box-shadow: var(--shadow);
+    transition: transform 0.1s ease;
+  }
+  .hm-streak-chip:active { transform: scale(0.94); }
+  .hm-streak-chip.is-active {
+    background: linear-gradient(135deg, #f5a94e, #e8832f); color: #fff;
+  }
 
   /* ---------- Calories & macros summary card: header + big number +
      4 color-coded bars (blue=calories, red=protein, amber=fat,
@@ -222,27 +268,16 @@
       nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
     }
 
-    // "Did the user use RepCheck that day" -- any feature, not just the
-    // workout/nutrition logs this page used to check on its own. The rule
-    // and the streak maths both live in static/streak.js now so the home
-    // hero, the challenges hero and the streaks page can't disagree.
-    const hasActivityOn = RepCheckStreak.hasActivityOn;
+    // "Did the user use RepCheck today" streak, shown as a small badge next
+    // to the "Today" section title (linking to /streaks) rather than in the
+    // hero -- the hero's top-right badge is the last form score now.
     const computeStreak = RepCheckStreak.current;
-
-    // ---------- Today's planned split (mirrors workouts.html's own logic) ----------
-    const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-    function loadSplitPlan() {
-      return loadJson("repcheck_split_plan_v1", null);
-    }
-    function getTodaysSplitInfo() {
-      const plan = loadSplitPlan();
-      if (!plan || !plan.schedule || !plan.days) return null;
-      const weekdayKey = WEEKDAY_KEYS[new Date().getDay()];
-      const label = plan.schedule[weekdayKey];
-      if (!label || label === "Rest") return null;
-      const day = plan.days.find((d) => d.label === label);
-      if (!day) return null;
-      return { label, exercises: day.exercises };
+    function renderStreakChip() {
+      const chipEl = document.getElementById("hm-streak-chip");
+      if (!chipEl) return;
+      const streak = computeStreak();
+      document.getElementById("hm-streak-count").textContent = t("home.streakCount", { n: streak });
+      chipEl.classList.toggle("is-active", streak > 0);
     }
 
     // sumMacrosForDay() lives in static/nutrition_macros.js -- shared with
@@ -428,40 +463,73 @@
       });
     }
 
-    // ---------- Hero ----------
-    function renderHero() {
+    // ---------- Hero: Analyze a workout ----------
+    // Server-backed (analyze_results), not localStorage -- the same data
+    // source as the Analyze page's own "Recent analyses" strip and
+    // /analyze/history, so this card can't disagree with either. Fetched
+    // once per render pass and reused for the score pill, the week strip
+    // and the "Last analysis" card below.
+    const ANALYZE_HISTORY_URL = "{{ url_for('api_analyze_history') }}";
+    function historyTimestamp(createdAt) {
+      // SQLite's created_at is "YYYY-MM-DD HH:MM:SS" in UTC -- same
+      // parsing templates/index.html's own history strip uses.
+      return new Date(createdAt.replace(" ", "T") + "Z").getTime();
+    }
+    async function fetchAnalyzeHistory() {
+      try {
+        const res = await fetch(ANALYZE_HISTORY_URL);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.ok ? data.entries : [];
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function renderLastAnalysis(latest) {
+      const mount = document.getElementById("hm-last-analysis");
+      if (!mount) return;
+      if (!latest) { mount.style.display = "none"; return; }
+      mount.style.display = "block";
+      document.getElementById("hm-last-analysis-title").textContent = latest.exercise_label;
+      document.getElementById("hm-last-analysis-sub").textContent = latest.reps ? t("home.lastAnalysis.reps", { n: latest.reps }) : "";
+      // Hardcoded path, not url_for -- this id only exists client-side
+      // (fetched above), same convention templates/index.html's own
+      // history strip already uses for the matching detail fetch.
+      document.getElementById("hm-last-analysis-details").href = `/analyze/history/${latest.id}`;
+    }
+
+    async function renderHero() {
+      renderStreakChip();
+
       const dateEl = document.getElementById("hm-hero-date");
       if (!dateEl) return; // logged-out visitors have no hero
 
       const locale = RepCheckI18n.locale();
       dateEl.textContent = new Date().toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" });
 
-      const streak = computeStreak();
-      document.getElementById("hm-streak-count").textContent = t("home.streakCount", { n: streak });
-      document.getElementById("hm-streak-chip").classList.toggle("is-active", streak > 0);
+      const entries = await fetchAnalyzeHistory();
+      const latest = entries[0];
 
-      const titleEl = document.getElementById("hm-hero-title");
-      const subEl = document.getElementById("hm-hero-sub");
-      const ctaEl = document.getElementById("hm-hero-cta");
-      const splitInfo = getTodaysSplitInfo();
-      if (splitInfo) {
-        titleEl.textContent = /day$/i.test(splitInfo.label.trim())
-          ? splitInfo.label
-          : `${splitInfo.label} ${t("home.workouts.dayLabelSuffix")}`;
-        subEl.textContent = t("home.hero.exercisesPlanned", { n: splitInfo.exercises.length });
-        ctaEl.textContent = t("home.hero.cta");
-      } else if (loadSplitPlan()) {
-        titleEl.textContent = t("home.workouts.restDayTitle");
-        subEl.textContent = t("home.workouts.restDaySub");
-        ctaEl.textContent = t("home.hero.cta");
-      } else {
-        titleEl.textContent = t("home.hero.noPlanTitle");
-        subEl.textContent = t("home.hero.noPlanSub");
-        ctaEl.textContent = t("home.hero.ctaBuild");
+      const pillEl = document.getElementById("hm-hero-score-pill");
+      if (pillEl) {
+        if (latest && latest.overall_score !== null && latest.overall_score !== undefined) {
+          pillEl.textContent = t("home.hero.formPill", { n: latest.overall_score });
+          pillEl.style.display = "inline-flex";
+        } else {
+          pillEl.style.display = "none";
+        }
       }
 
-      // Monday-first week strip: today highlighted, past days with any
-      // logged activity filled green.
+      // Monday-first week strip: today ringed, each day showing that
+      // day's most recent form score (its most recent entry, since
+      // entries are already newest-first) or a dash when nothing was
+      // analyzed that day.
+      const scoreByDay = new Map();
+      entries.forEach((entry) => {
+        const iso = toIsoDate(new Date(historyTimestamp(entry.created_at)));
+        if (!scoreByDay.has(iso)) scoreByDay.set(iso, entry.overall_score);
+      });
       const todayIso = toIsoDate(new Date());
       const heroLetters = ["M", "T", "W", "T", "F", "S", "S"];
       const monday = new Date();
@@ -471,14 +539,17 @@
         d.setDate(d.getDate() + i);
         const iso = toIsoDate(d);
         const isToday = iso === todayIso;
-        const active = !isToday && iso <= todayIso && hasActivityOn(iso);
+        const score = scoreByDay.get(iso);
+        const display = (score === undefined || score === null) ? "&mdash;" : score;
         return `
-          <div class="hm-hero-day ${isToday ? "is-today" : ""} ${active ? "has-activity" : ""}">
+          <div class="hm-hero-day ${isToday ? "is-today" : ""}">
             <div class="hm-hero-day-letter">${letter}</div>
-            <div class="hm-hero-day-num">${d.getDate()}</div>
+            <div class="hm-hero-day-num">${display}</div>
           </div>
         `;
       }).join("");
+
+      renderLastAnalysis(latest);
     }
 
     // ---------- Weekly check-in banner (nutrition coaching) ----------
@@ -520,6 +591,10 @@
     renderAll();
     document.addEventListener("repcheck:language-changed", renderAll);
     document.addEventListener("repcheck:units-changed", renderAll);
+    // The streak's back-fill of server-side activity (challenge attempts
+    // and friends) resolves after this first render -- redraw the chip so
+    // it picks those days up.
+    document.addEventListener(RepCheckStreak.UPDATED_EVENT, renderHero);
     // account_sync.js pulled newer values off the account (another device
     // logged a meal, or this is a fresh browser adopting the account's
     // data). Re-read and redraw instead of letting it reload the page --
@@ -532,10 +607,6 @@
     // Fired by base.html's shared "Log weight" sheet right after a
     // successful save.
     document.addEventListener("repcheck:weight-logged", renderCheckinBanner);
-    // The streak's back-fill of server-side activity (challenge attempts
-    // and friends) resolves after this first render -- redraw the hero so
-    // the flame and the week dots pick those days up.
-    document.addEventListener(RepCheckStreak.UPDATED_EVENT, renderHero);
 
     // ---------- Personalized greeting ----------
     // "Hey {first name} 👋" instead of the static page heading. The h1
