@@ -2,6 +2,23 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.2] - 2026-08-29
+
+### Fixed
+
+- The in-place screen switching added in 0.4.13.0 is not running on the iPhone
+  app, and a recording proved it: every tab tap there is still a full page
+  load, with the whole screen -- bottom bar included -- going black for around
+  a seventh of a second. It refuses to run when something is not right, and it
+  does so silently on purpose, so the app keeps working. That silence made it
+  impossible to find out why from here. Each screen now says whether it is
+  running, and if not what stopped it, so the answer can be read from the
+  server instead of guessed at.
+- One thing already found and removed: leaving the guided tour half-finished
+  switched the new navigation off permanently, on a note to itself that
+  nothing ever cleared. The tour never needed that; it moves between screens
+  its own way, which was never affected.
+
 ## [0.5.0.1] - 2026-08-29
 
 ### Fixed
