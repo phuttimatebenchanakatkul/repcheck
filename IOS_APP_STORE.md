@@ -36,6 +36,17 @@ because this project has no build step. Covered by `tests-js/native.test.js`
 (behaviour, in jsdom) and `tests/test_native_bridge_wiring.py` (that the call
 sites are actually plugged in).
 
+Lift recording is the second half of that defence and takes a different
+route: the analyze page opens a live viewfinder in the page itself
+(`static/video_recorder.js`, getUserMedia + MediaRecorder) rather than
+handing off to `@capacitor/camera`, because that plugin captures photos, not
+video. It still counts as real device capture, which is what 4.2 asks for --
+the shell grants `WKMediaCaptureType` outright in Capacitor's
+`WebViewDelegationHandler.swift`, so the only gate is iOS's own camera
+prompt, backed by the `NSCameraUsageDescription` string `codemagic.yaml`
+writes into `Info.plist`. No microphone permission is requested: form
+analysis is entirely visual and the trim step drops the audio track anyway.
+
 **Still to do, and blocked on the developer account:** push notifications need
 an APNs key, and HealthKit needs an entitlement -- neither can be requested
 without an active membership. The plugin packages are already in package.json
@@ -45,7 +56,8 @@ so `cap sync` picks them up once the native project exists.
 
 | Capability | Plugin | Replaces / adds |
 |---|---|---|
-| Camera + video capture | `@capacitor/camera` | the `<input capture>` fields in `templates/nutrition.html`, `templates/index.html`, `static/coaching.js` |
+| Photo capture | `@capacitor/camera` | the `<input capture>` fields in `templates/nutrition.html`, `static/coaching.js` |
+| Video capture | none -- `static/video_recorder.js` (getUserMedia + MediaRecorder) | the file picker that used to be the analyze page's only way in |
 | Push notifications | `@capacitor/push-notifications` | streak + check-in reminders (no web equivalent on iOS) |
 | HealthKit read/write | `@perfood/capacitor-healthkit` | bodyweight, workouts, active energy -- genuinely native, and a strong 4.2 argument for a fitness app |
 | Offline shell | `@capacitor/preferences` | last-logged-day cache so the app opens to something without a network |
@@ -132,8 +144,9 @@ None of this can be done from the repo, and all of it needs you signed in.
 6. Start the `ios-release` workflow. The first run usually fails on something
    small -- read the build log rather than guessing.
 7. When it goes green the build lands in TestFlight. Install it on your own
-   phone and confirm the camera flows actually open the native camera, which
-   is the whole Guideline 4.2 defence.
+   phone and confirm the camera flows actually open the native camera, and
+   that Analyze opens its viewfinder and records a set -- together those are
+   the whole Guideline 4.2 defence.
 
 ## Cost and time
 

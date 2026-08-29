@@ -2,6 +2,42 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.0] - 2026-08-29
+
+### Added
+
+- **Record your set in the app.** Opening Analyze now opens the camera. Two
+  controls, the way a camera app does it: the shutter, and a button to switch
+  between the front and back lens. Tap the shutter to start, tap it again when
+  the set is done. Until now the only way in was the file picker, which meant
+  leaving RepCheck, filming in the phone's camera app, coming back, and then
+  hunting for the clip -- four steps around the app to do the one thing the app
+  is for.
+- When you finish a take, the clip plays on a loop while you pick the exercise
+  from the same search sheet the rest of the app uses, then **Analyze workout**
+  sends it. Not happy with the take? Retake sits on the clip and puts you back
+  in front of a live camera.
+- The front camera mirrors itself in the preview, the way a mirror does, so you
+  can see where to stand. The recording itself is never mirrored -- if it were,
+  every left/right note in your form report would come back the wrong way round.
+
+### Changed
+
+- The upload box is no longer the way in. It is still there, and it still takes
+  MP4, MOV, AVI and MKV, but it now appears only when the camera cannot be used
+  at all -- permission declined, no camera on the device, or a browser too old
+  to record. It leads to the same review screen, so an uploaded clip and a
+  recorded one are analyzed identically.
+
+### Fixed
+
+- Recorded clips are measured correctly. A clip recorded in the browser carries
+  no length in its file header, so nothing could read how long it was: the
+  analysis skipped the first five seconds of a set that might only have lasted
+  eight, and told the AI it was looking at a full minute of footage. Its real
+  length is now read from the video itself.
+- A recording made anywhere except an iPhone was rejected on upload with a
+  message naming a file format the user had never chosen.
 ## [0.4.13.1] - 2026-08-29
 
 ### Fixed

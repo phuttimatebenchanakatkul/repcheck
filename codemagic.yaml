@@ -156,8 +156,8 @@ workflows:
           # actually for. Written here rather than by hand in Xcode so they
           # survive the project being regenerated above.
           PLIST="ios/App/App/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'RepCheck uses the camera to photograph your meals for calorie estimates, to scan barcodes, and to take your weekly progress photos.'" "$PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'RepCheck uses the camera to photograph your meals for calorie estimates, to scan barcodes, and to take your weekly progress photos.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'RepCheck uses the camera to record your lifts for form analysis, to photograph your meals for calorie estimates, to scan barcodes, and to take your weekly progress photos.'" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'RepCheck uses the camera to record your lifts for form analysis, to photograph your meals for calorie estimates, to scan barcodes, and to take your weekly progress photos.'" "$PLIST"
           /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'RepCheck lets you pick an existing photo of a meal instead of taking a new one.'" "$PLIST" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'RepCheck lets you pick an existing photo of a meal instead of taking a new one.'" "$PLIST"
 
