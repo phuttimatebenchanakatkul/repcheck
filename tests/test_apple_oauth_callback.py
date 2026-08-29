@@ -26,6 +26,7 @@ make the suite depend on the network and on live Apple credentials.
 
 import json
 
+import jwt
 import pytest
 
 import auth
@@ -258,3 +259,150 @@ def test_a_browser_sign_in_still_gets_a_session(client, monkeypatch):
     assert not response.headers["Location"].startswith(auth.NATIVE_URL_SCHEME)
     with client.session_transaction() as session:
         assert "user_id" in session
+
+
+# ---------- The client secret, actually signed ----------
+#
+# Every test above stubs _apple_client_secret, and the fixture's
+# APPLE_PRIVATE_KEY is the string "not-a-real-p8-key". That stub is the right
+# call for the branch-logic tests, but it leaves the one piece of this flow
+# with no coverage at all -- and it is the piece most likely to fail in
+# production rather than in review.
+
+
+def _generated_p8():
+    """A throwaway EC P-256 key in the PEM shape Apple's .p8 download uses."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    return key, pem
+
+
+@pytest.fixture
+def apple_credentials(monkeypatch):
+    """Real key, real signing -- deliberately NOT the stubbed `client` fixture."""
+    key, pem = _generated_p8()
+    monkeypatch.setattr(auth, "APPLE_CLIENT_ID", "com.repcheck.web")
+    monkeypatch.setattr(auth, "APPLE_TEAM_ID", "TEAMID1234")
+    monkeypatch.setattr(auth, "APPLE_KEY_ID", "KEYID12345")
+    monkeypatch.setattr(auth, "APPLE_PRIVATE_KEY", pem)
+    return key, pem
+
+
+def test_the_client_secret_is_a_real_signable_es256_jwt(apple_credentials):
+    """Signs with a real key instead of stubbing it out.
+
+    This covers the failure that survives a fully green suite: the client
+    secret is an ES256 JWT, ES256 needs PyJWT's crypto extra, and a plain
+    `pip install PyJWT` satisfies `import jwt` and then raises
+    NotImplementedError at the first real sign-in. requirements.txt pins
+    PyJWT[crypto] -- this asserts the pin is doing its job, so dropping the
+    extra breaks the suite instead of only breaking production.
+
+    The claims are Apple's documented shape. Getting iss or sub wrong is an
+    invalid_client from the token endpoint with no other symptom, which is
+    slow to diagnose against a live Apple account.
+    """
+    key, _ = apple_credentials
+
+    secret = auth._apple_client_secret()
+
+    header = jwt.get_unverified_header(secret)
+    assert header["alg"] == "ES256"
+    assert header["kid"] == "KEYID12345", (
+        "Apple selects the public key by kid; without it the signature "
+        "cannot be checked and every exchange fails"
+    )
+
+    claims = jwt.decode(
+        secret, key.public_key(), algorithms=["ES256"], audience=auth.APPLE_ISSUER
+    )
+    assert claims["iss"] == "TEAMID1234", "iss is the Team ID, not the Services ID"
+    assert claims["sub"] == "com.repcheck.web", "sub is the Services ID"
+    assert 0 < claims["exp"] - claims["iat"] <= 15777000, (
+        "Apple caps the client secret lifetime at 6 months and rejects longer"
+    )
+
+
+def test_a_p8_pasted_with_escaped_newlines_still_signs(monkeypatch):
+    """.env.example tells you to paste the .p8 with newlines as backslash-n.
+
+    Asserting the unescaping round-trips as a *string* would not prove much;
+    what matters is that the result still deserializes into a usable key.
+    """
+    key, pem = _generated_p8()
+    monkeypatch.setattr(auth, "APPLE_CLIENT_ID", "com.repcheck.web")
+    monkeypatch.setattr(auth, "APPLE_TEAM_ID", "TEAMID1234")
+    monkeypatch.setattr(auth, "APPLE_KEY_ID", "KEYID12345")
+    monkeypatch.setattr(auth, "APPLE_PRIVATE_KEY", pem.replace("\n", "\n"))
+
+    secret = auth._apple_client_secret()
+
+    jwt.decode(secret, key.public_key(), algorithms=["ES256"], audience=auth.APPLE_ISSUER)
+
+
+# ---------- Failure paths on the way back from Apple ----------
+
+
+def test_a_failed_token_exchange_does_not_sign_anyone_in(client, monkeypatch):
+    """Apple's token endpoint being unreachable must not become a login."""
+    state = _start_flow(client)
+
+    def _explode(*args, **kwargs):
+        raise auth.requests.RequestException("apple is unreachable")
+
+    monkeypatch.setattr(auth.requests, "post", _explode)
+    response = _callback(client, state)
+
+    assert response.status_code == 502
+    with client.session_transaction() as session:
+        assert "user_id" not in session
+
+
+def test_a_token_response_without_an_id_token_is_refused(client, monkeypatch):
+    """Apple answers 200 with an error body for a bad client secret.
+
+    raise_for_status does not fire, so without the KeyError guard this is an
+    unhandled 500 on a path users reach by tapping the button.
+    """
+    state = _start_flow(client)
+    monkeypatch.setattr(
+        auth.requests, "post", lambda *a, **k: _FakeResponse({"error": "invalid_client"})
+    )
+
+    response = _callback(client, state)
+
+    assert response.status_code == 502
+    with client.session_transaction() as session:
+        assert "user_id" not in session
+
+
+@pytest.mark.parametrize("case,blob", [
+    ("unparseable", "not json at all"),
+    ("name-is-a-string", '{"name": "Ada"}'),
+    ("name-is-null", '{"name": null}'),
+    ("top-level-is-a-list", '["not", "an", "object"]'),
+])
+def test_a_malformed_name_blob_falls_back_instead_of_500ing(client, monkeypatch, case, blob):
+    """The `user` field is attacker-shaped: it arrives in the POST body.
+
+    A crash here lands *after* Apple has authenticated the user, turning a
+    successful sign-in into a 500 with no way through it.
+    """
+    _stub_claims(monkeypatch, {
+        "sub": f"apple-name-{case}",
+        "email": f"{case}@example.com",
+        "email_verified": True,
+    })
+
+    response = _callback(client, _start_flow(client), user=blob)
+
+    assert response.status_code == 302
+    with client.session_transaction() as session:
+        assert database.get_user_by_id(session["user_id"])["name"] == "Apple User"
