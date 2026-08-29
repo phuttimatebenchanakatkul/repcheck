@@ -1,575 +1,357 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RepCheck — AI form checks, food logging and coaching in one app</title>
-<meta name="description" content="RepCheck watches your lifts on video, reads your meals from a photo, and turns both into a training week that adapts. Join the pre-launch waitlist.">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>RepCheck &mdash; your form, your food, your training week checked</title>
+<meta name="description" content="RepCheck watches your lifts on a phone video, reads your meals from a photo, and rewrites next week from what actually happened. Join the early-access waitlist.">
 <link rel="canonical" href="https://repcheck.app/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="RepCheck &mdash; your form, your food, your training week checked">
+<meta property="og:description" content="Film your set. RepCheck scores every rep against the movement's real standards and ranks the fixes.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="RepCheck — your form, your food, your whole week">
-<meta property="og:description" content="AI form analysis from a phone video, photo food logging, an adaptive coach and HYROX race prep. Join the pre-launch waitlist.">
 <meta property="og:url" content="https://repcheck.app/">
-<!-- summary, not summary_large_image: a large-image card with no og:image
-     renders blank when the link is shared. Bump it back up the moment a real
-     share image lands in this folder. -->
-<meta name="twitter:card" content="summary">
-<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="styles.css">
-<script>
-  // Applied before first paint so a chosen theme never flashes the other one.
-  try {
-    var t = localStorage.getItem('rc-theme');
-    if (t) document.documentElement.setAttribute('data-theme', t);
-  } catch (e) {}
-</script>
 </head>
 <body>
-
 <a class="skip-link" href="#waitlist">Skip to the waitlist</a>
 
-<header class="nav" id="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="#top" aria-label="RepCheck home">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
-      </span>
-      <span class="brand-word">RepCheck</span>
-    </a>
+<section class="hero" id="top">
+  <canvas class="dotfield" id="dotfield" aria-hidden="true" width="1280" height="899"></canvas>
 
+  <header class="nav">
+    <span class="brand">RepCheck</span>
     <nav class="nav-links" aria-label="Sections">
-      <a href="#features">Features</a>
-      <a href="#how">How it works</a>
-      <a href="#hyrox">HYROX</a>
-      <a href="#faq">FAQ</a>
+      <a href="#what" data-magnet="">What it does</a>
+      <a href="#feature-hyrox" data-magnet="">HYROX</a>
+      <a href="#waitlist" class="nav-cta" data-magnet="">Download</a>
     </nav>
+  </header>
 
-    <div class="nav-actions">
-      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
-        <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      </button>
-      <a class="btn btn-primary btn-sm" href="#waitlist">Join the waitlist</a>
+  <div class="hero-mid">
+    <h1>Your form, your food, your training week checked</h1>
+    <div class="hero-actions">
+      <a class="btn btn-dark btn-store" href="#" data-magnet="">
+        <svg class="btn-store-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.087 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zm3.435-3.14c.83-1.012 1.395-2.415 1.246-3.79-1.192.06-2.635.86-3.494 1.867-.77.9-1.442 2.335-1.26 3.66 1.279.08 2.622-.68 3.508-1.737z"/>
+        </svg>
+        Download with Apple
+      </a>
+      <a class="btn btn-light btn-store" href="#" data-magnet="">
+        <svg class="btn-store-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M3.609 1.814L13.792 12 3.61 22.186a1.993 1.993 0 0 1-.61-1.435V3.25c0-.598.271-1.11.61-1.436zm10.89 10.893l2.302 2.302-10.937 6.333a1.4 1.4 0 0 1-1.395.128l9.03-8.763zm3.199-3.198l2.807 1.623c.505.293.769.784.769 1.29 0 .506-.264.997-.769 1.29l-2.807 1.622L15.395 12l2.303-2.491zM4.366 2.06l10.937 6.333-2.302 2.302L2.971 1.932a1.4 1.4 0 0 1 1.395.128z"/>
+        </svg>
+        Download with Playstore
+      </a>
     </div>
   </div>
-</header>
 
-<main id="top">
+  <div class="hero-foot">
+    <p>RepCheck watches your lifts on a phone video, reads your meals from a photo, and rewrites next week from what actually happened. One app instead of five.</p>
+    <div class="meta"><span>Pre-launch · early access opening soon</span><span>Move your cursor</span></div>
+  </div>
+</section>
 
-  <!-- ================= HERO ================= -->
-  <section class="hero">
-    <div class="wrap hero-grid">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="dot"></span> Pre-launch — early access opening soon</p>
-        <h1>Your form, your food, your&nbsp;whole training week — checked.</h1>
-        <p class="lede">
-          RepCheck watches your lifts on a phone video, reads your meals from a photo,
-          and turns both into a plan that adjusts every week. One app instead of five.
-        </p>
+<section id="what" class="what">
+  <div class="strip"><span>01 — What it does</span><span>Six parts, one week</span></div>
+  <div class="what-grid">
+    <div class="feature-list">
+      <button class="feature is-active" type="button" data-feature="0">
+        <span class="feature-head"><span class="idx">01</span><span class="feature-title">It watches you lift</span></span>
+        <span class="feature-plain">Film your set on your phone. RepCheck watches it like a coach would and says which rep got messy — “rep 6, your knees caved in, push them out.”</span>
+      </button>
+      <button class="feature" type="button" data-feature="1">
+        <span class="feature-head"><span class="idx">02</span><span class="feature-title">It counts your food from a photo</span></span>
+        <span class="feature-plain">Snap a picture of your plate. It works out what's on it and how much energy is in it, so you don't have to look anything up.</span>
+      </button>
+      <button class="feature" type="button" data-feature="2">
+        <span class="feature-head"><span class="idx">03</span><span class="feature-title">It changes your plan every week</span></span>
+        <span class="feature-plain">You tell it what you want and by when. Every week it checks how it actually went and gives you new numbers to hit — easier or harder.</span>
+      </button>
+      <button class="feature" type="button" data-feature="3">
+        <span class="feature-head"><span class="idx">04</span><span class="feature-title">It plans your gym days</span></span>
+        <span class="feature-plain">It writes your week of workouts, then you tick off each exercise as you finish it. No more “what am I doing today?”</span>
+      </button>
+      <button class="feature" type="button" data-feature="4" id="feature-hyrox">
+        <span class="feature-head"><span class="idx">05</span><span class="feature-title">It gets you ready for HYROX</span></span>
+        <span class="feature-plain">HYROX is a race with 8 stations. It keeps your best time at each one and guesses how fast you'd finish the whole race today.</span>
+      </button>
+      <button class="feature" type="button" data-feature="5">
+        <span class="feature-head"><span class="idx">06</span><span class="feature-title">It keeps you going with friends</span></span>
+        <span class="feature-plain">Add your gym friends, race them for the week, and keep your streak alive. Miss a day and the number resets — so you don't.</span>
+      </button>
+      <p class="hint">Tap a feature to watch it in the phone →</p>
+    </div>
 
-        <form class="waitlist-form" id="waitlist-form-hero" novalidate>
-          <label class="sr-only" for="email-hero">Email address</label>
-          <input type="email" id="email-hero" name="email" inputmode="email" autocomplete="email"
-                 placeholder="you@example.com" required>
-          <button class="btn btn-primary" type="submit">Join the waitlist</button>
-          <p class="form-note" data-note>No spam, no drip sequence. One email when we open the doors.</p>
-        </form>
+    <div class="phone-stage">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="status"><span>15:29</span><span>5G</span></div>
 
-        <ul class="hero-ticks">
-          <li>Free while in early access</li>
-          <li>Works on any phone — no wearables</li>
-          <li>English &amp; ภาษาไทย</li>
-        </ul>
-      </div>
-
-      <div class="hero-visual" aria-hidden="true">
-        <div class="phone">
-          <div class="phone-screen phone-screen--video">
-            <!-- No autoplay attribute on purpose: app.js starts playback so
-                 that no-JS and prefers-reduced-motion both degrade to the
-                 poster instead of an unstoppable loop. -->
-            <video class="phone-video" src="demo.mp4" poster="demo-poster.jpg"
-                   muted loop playsinline></video>
+          <div class="screen is-active screen--video" data-screen="0">
+            <!-- preload=auto, unlike the others: this screen is the one showing
+                 on load, so it starts playing immediately. Left on metadata it
+                 streams while it plays and stalls through the first loop. -->
+            <video id="analyze-demo" muted playsinline loop
+                   preload="auto" poster="assets/analyze-demo-poster.jpg"
+                   aria-label="Screen recording of RepCheck analysing a tricep pushdown set: the clip is uploaded, the exercise picked, the set analysed, and a form report returned.">
+              <source src="assets/analyze-demo.webm" type="video/webm">
+              <source src="assets/analyze-demo.mp4" type="video/mp4">
+            </video>
           </div>
-        </div>
 
-        <div class="float-card float-card--food">
-          <span class="fc-icon fc-icon--blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a3 3 0 0 0 3 3v10M6 2v7M9 2v7M17 2c-1.5 2-2 4-2 7 0 2 1 3 2 3v10"/></svg>
-          </span>
-          <div><b>Pad thai, 1 plate</b><i>612 kcal · 24P / 78C / 21F</i></div>
-        </div>
-
-        <div class="float-card float-card--streak">
-          <span class="fc-icon fc-icon--amber">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.6.7-3 1.6-4.2C9.8 8.6 12 7 12 2z"/></svg>
-          </span>
-          <div><b>18-day streak</b><i>Longest yet</i></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= STATS ================= -->
-  <section class="stats">
-    <div class="wrap stats-grid">
-      <div><b>735</b><span>exercises in the library</span></div>
-      <div><b>744</b><span>foods, Thai dishes included</span></div>
-      <div><b>8</b><span>HYROX stations tracked</span></div>
-      <div><b>2</b><span>languages, EN &amp; TH</span></div>
-    </div>
-  </section>
-
-  <!-- ================= FEATURES ================= -->
-  <section class="section" id="features">
-    <div class="wrap">
-      <p class="kicker">Everything in one app</p>
-      <h2 class="section-title">Six things RepCheck does that your notes app doesn't</h2>
-      <p class="section-lede">Each one works on its own. Together they close the loop between what you lift, what you eat and what you do next week.</p>
-
-      <div class="feature-grid">
-        <article class="feature" style="--accent:var(--green); --accent-bg:var(--green-bg);">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
-          </span>
-          <h3>AI form analysis</h3>
-          <p>Film a set on your phone. RepCheck tracks your joints through every rep and tells you which one broke down, why, and the cue that fixes it — not a generic "keep your back straight".</p>
-        </article>
-
-        <article class="feature" style="--accent:var(--blue); --accent-bg:var(--blue-bg);">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg>
-          </span>
-          <h3>Photo &amp; barcode food logging</h3>
-          <p>Point the camera at your plate and get calories and macros back. Scan a barcode for anything packaged, or search a library of 744 foods that actually includes Thai dishes instead of guessing at "noodle bowl".</p>
-        </article>
-
-        <article class="feature" style="--accent:var(--purple); --accent-bg:var(--purple-bg);">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 1 4 4v1a4 4 0 0 1-1 8H9a4 4 0 0 1-1-8V7a4 4 0 0 1 4-4z"/><path d="M12 16v5"/></svg>
-          </span>
-          <h3>A coach that adjusts weekly</h3>
-          <p>Set a goal weight and a date. The coach sets your calories and macros, then rewrites them each week from what actually happened on the scale — not from a formula it ran once at signup.</p>
-        </article>
-
-        <article class="feature" style="--accent:var(--amber); --accent-bg:var(--amber-bg);">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5h12"/><path d="M6 19h12"/><path d="M8 5v14"/><path d="M16 5v14"/><path d="M3 9v6"/><path d="M21 9v6"/></svg>
-          </span>
-          <h3>Workout logging &amp; split planner</h3>
-          <p>Tell it your days, your equipment and your experience, and it builds the split. Log sets as you go, and every session feeds the same picture your coach is reading from.</p>
-        </article>
-
-        <article class="feature" style="--accent:var(--red); --accent-bg:var(--red-bg);">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
-          </span>
-          <h3>HYROX race prep</h3>
-          <p>All eight stations plus the runs, with your personal bests, a projected finish time and where you sit on the leaderboard. Log a real race result and see exactly which station cost you.</p>
-        </article>
-
-        <article class="feature" style="--accent:var(--pink); --accent-bg:var(--pink-bg);">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3.5"/><path d="M22 20v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.6a4 4 0 0 1 0 6.8"/></svg>
-          </span>
-          <h3>Friends, challenges &amp; streaks</h3>
-          <p>Add training partners by QR code, run a challenge against them, and let the streak counter do the nagging. The part that keeps you logging in week three, when motivation has left.</p>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= HOW IT WORKS ================= -->
-  <section class="section section--alt" id="how">
-    <div class="wrap">
-      <p class="kicker">How it works</p>
-      <h2 class="section-title">Three steps, then it runs itself</h2>
-
-      <ol class="steps">
-        <li>
-          <span class="step-n">1</span>
-          <h3>Tell it where you're starting</h3>
-          <p>Height, weight, training days, equipment, goal and a date. Two minutes, once. It hands you a split and a calorie target on the other side.</p>
-        </li>
-        <li>
-          <span class="step-n">2</span>
-          <h3>Log the day as it happens</h3>
-          <p>A photo of lunch. A set logged between rests. A video of the lift you're unsure about. Everything lands in the same place.</p>
-        </li>
-        <li>
-          <span class="step-n">3</span>
-          <h3>Get a week that reacts</h3>
-          <p>The weekly check-in reads your real weight trend, your logged sessions and your form scores, then adjusts next week's targets to match.</p>
-        </li>
-      </ol>
-    </div>
-  </section>
-
-  <!-- ================= DEEP DIVE ================= -->
-  <section class="section" id="analyze">
-    <div class="wrap split">
-      <div class="split-copy">
-        <p class="kicker kicker--green">Form analysis</p>
-        <h2>"Which rep went wrong?" — answered in about a minute</h2>
-        <p>Most form advice is generic because most form advice never saw your set. RepCheck does. It reads joint positions frame by frame, scores each rep against the movement's actual standards, and shows you where it fell apart.</p>
-        <ul class="check-list">
-          <li>Per-rep breakdown, not one blanket verdict on the whole set</li>
-          <li>Ranked fixes — the one that matters most sits at the top</li>
-          <li>Ask follow-up questions about your own analysis in chat</li>
-          <li>Every analysis is saved, so month three is comparable to week one</li>
-        </ul>
-      </div>
-      <div class="split-visual" aria-hidden="true">
-        <div class="panel">
-          <div class="panel-head"><span class="pill pill--green">Rep-by-rep</span><span class="panel-meta">Back squat · 8 reps</span></div>
-          <div class="bars">
-            <div class="bar" style="--h:88%"><span></span><i>1</i></div>
-            <div class="bar" style="--h:92%"><span></span><i>2</i></div>
-            <div class="bar" style="--h:90%"><span></span><i>3</i></div>
-            <div class="bar" style="--h:84%"><span></span><i>4</i></div>
-            <div class="bar" style="--h:72%"><span></span><i>5</i></div>
-            <div class="bar bar--warn" style="--h:58%"><span></span><i>6</i></div>
-            <div class="bar bar--warn" style="--h:51%"><span></span><i>7</i></div>
-            <div class="bar bar--warn" style="--h:46%"><span></span><i>8</i></div>
+          <div class="screen screen--video" data-screen="1">
+            <video id="foodlog-demo" muted playsinline loop
+                   preload="metadata" poster="assets/foodlog-demo-poster.jpg"
+                   aria-label="Screen recording of RepCheck logging a meal: a food is searched for, jasmine rice is picked, the portion is set to 252 g, and the day's calories and macros update.">
+              <source src="assets/foodlog-demo.webm" type="video/webm">
+              <source src="assets/foodlog-demo.mp4" type="video/mp4">
+            </video>
           </div>
-          <p class="panel-foot">Fatigue set in at rep 6. Cut the set there, or drop 5&nbsp;kg.</p>
-        </div>
-      </div>
-    </div>
-  </section>
 
-  <section class="section section--alt" id="nutrition">
-    <div class="wrap split split--rev">
-      <div class="split-copy">
-        <p class="kicker kicker--blue">Nutrition</p>
-        <h2>Logging food fast enough that you'll actually keep doing it</h2>
-        <p>Every food tracker dies the same death: it takes too long. RepCheck cuts logging to a photo, a barcode, or two taps on something you ate yesterday — and keeps the library stocked with the meals people around here actually eat.</p>
-        <ul class="check-list">
-          <li>Photo estimate with a portion size you can correct in one tap</li>
-          <li>Barcode scanning plus online lookup for packaged food</li>
-          <li>Save your own recipes and custom foods once, reuse forever</li>
-          <li>Macro rings, weekly stats and full history</li>
-        </ul>
-      </div>
-      <div class="split-visual split-visual--phone" aria-hidden="true">
-        <div class="phone">
-          <!-- Real capture of the food log, cropped to the app viewport: the
-               iOS status bar and Safari's bars are cropped off, and the stretch
-               where the keypad covered the screen is cut. No autoplay attribute
-               on purpose -- see the hero video's comment above. -->
-          <div class="phone-screen phone-screen--video">
-            <video class="phone-video" src="foodlog.mp4" poster="foodlog-poster.jpg"
-                   muted loop playsinline preload="metadata"></video>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="workouts">
-    <div class="wrap split">
-      <div class="split-copy">
-        <p class="kicker kicker--amber">Workout logging</p>
-        <h2>Log the set, then ask what to do with it next week</h2>
-        <p>Today's plan is already on screen when you open the app — your day, your exercises, in order. Tap one, type the weight and the reps, and the set is logged. The plan row ticks green so you can see what's left without counting.</p>
-        <ul class="check-list">
-          <li>The split is built from your days, equipment and experience</li>
-          <li>Weight × reps per set, as many sets as you actually did</li>
-          <li>Every session feeds the same picture your coach reads from</li>
-        </ul>
-
-        <div class="side-note">
-          <p class="side-note-title">Workout AI chat</p>
-          <p>Ask how to progress a lift and it reads the last four sessions you logged of that exact exercise, then answers with the plan: the weight to hold, the reps to hit, and when to put another 1.25–2.5&nbsp;kg on the bar.</p>
-        </div>
-      </div>
-      <div class="split-visual split-visual--phone" aria-hidden="true">
-        <div class="phone">
-          <!-- Real capture of the workout log, cropped to the app viewport: the
-               iOS status bar and Safari's bars are cropped off, and the stretches
-               where the keyboard covered the screen are cut. No autoplay attribute
-               on purpose -- see the hero video's comment above. -->
-          <div class="phone-screen phone-screen--video">
-            <video class="phone-video" src="workoutlog.mp4" poster="workoutlog-poster.jpg"
-                   muted loop playsinline preload="metadata"></video>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= ADD AN EXERCISE ================= -->
-  <!-- A screen-for-screen walkthrough of the real add-an-exercise flow in
-       the app (templates/workouts.html): the log button, the picker sheet,
-       the weight x reps set card, the finished entry. Every label inside the
-       mock is the app's own string from static/i18n.js -- if that copy
-       changes, this is a place that goes stale.
-
-       Progressive enhancement: the step buttons ship disabled and app.js
-       enables them, so with JS off this degrades to four written steps and
-       the first screen rather than four dead controls. The phone itself is
-       aria-hidden -- the step copy carries the substance. -->
-  <section class="section section--alt" id="add-exercise">
-    <div class="wrap">
-      <p class="kicker kicker--blue">Adding an exercise</p>
-      <h2 class="section-title">Four taps from opening the app to a logged set</h2>
-      <p class="section-lede">No forms, no "create workout" ceremony. Tap through it here — this is the flow exactly as it runs in the app.</p>
-
-      <div class="ax" id="ax">
-        <ol class="ax-steps" id="ax-steps">
-          <li>
-            <button type="button" class="ax-step is-active" data-ax-step="1" aria-pressed="true" disabled>
-              <span class="ax-step-n">1</span>
-              <span class="ax-step-body">
-                <span class="ax-step-title">Tap "+ Log an exercise"</span>
-                <span class="ax-step-text">Pick the day on the strip — today, or a past one you're backfilling — and hit the blue button sitting under it.</span>
-              </span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="ax-step" data-ax-step="2" aria-pressed="false" disabled>
-              <span class="ax-step-n">2</span>
-              <span class="ax-step-body">
-                <span class="ax-step-title">Pick it out of the sheet</span>
-                <span class="ax-step-text">Search the library, or take one off <b>All</b> / <b>Favorites</b> / <b>Recent</b> — your favorites, your own custom moves, today's split and what you lifted lately, in that order. Nothing matches what you typed? Create it under that exact name.</span>
-              </span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="ax-step" data-ax-step="3" aria-pressed="false" disabled>
-              <span class="ax-step-n">3</span>
-              <span class="ax-step-body">
-                <span class="ax-step-title">Type the weight and the reps</span>
-                <span class="ax-step-text">It lands in the day already open on Set 1. Weight × reps and that's the set logged — bodyweight moves drop the weight box, and anything one-sided gets its own left and right row.</span>
-              </span>
-            </button>
-          </li>
-          <li>
-            <button type="button" class="ax-step" data-ax-step="4" aria-pressed="false" disabled>
-              <span class="ax-step-n">4</span>
-              <span class="ax-step-body">
-                <span class="ax-step-title">Add sets until you're done</span>
-                <span class="ax-step-text">Each new set carries the weight forward and leaves the reps blank — that's the number that actually changes. Fill them all in and the card ticks green and folds back to one line.</span>
-              </span>
-            </button>
-          </li>
-        </ol>
-
-        <div class="ax-stage">
-          <div class="phone ax-phone" aria-hidden="true">
-            <div class="phone-screen ax-screen-wrap">
-
-              <!-- 1 - the day, with the log button -->
-              <div class="ax-screen is-active" data-ax-screen="1">
-                <div class="ax-appbar"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
-                <div class="ax-card">
-                  <div class="ax-dates">
-                    <span class="ax-date"><i>M</i><b class="is-done">17</b></span>
-                    <span class="ax-date"><i>T</i><b class="is-done">18</b></span>
-                    <span class="ax-date"><i>W</i><b class="is-done">19</b></span>
-                    <span class="ax-date"><i>T</i><b>20</b></span>
-                    <span class="ax-date"><i>F</i><b class="is-done">21</b></span>
-                    <span class="ax-date"><i>S</i><b class="is-done">22</b></span>
-                    <span class="ax-date"><i>S</i><b class="is-today">23</b></span>
-                  </div>
-                  <div class="ax-daytitle">Today</div>
-                  <div class="ax-logbtn ax-tap">+ Log an exercise</div>
-                  <div class="ax-empty">
-                    <span class="ax-empty-dot"></span>
-                    <b>Nothing logged yet</b>
-                    <i>One exercise is all it takes to get going.</i>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 2 - the picker sheet -->
-              <div class="ax-screen" data-ax-screen="2">
-                <div class="ax-appbar ax-appbar--dim"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
-                <div class="ax-card ax-card--dim">
-                  <div class="ax-daytitle">Today</div>
-                  <div class="ax-logbtn">+ Log an exercise</div>
-                </div>
-                <div class="ax-sheet">
-                  <span class="ax-sheet-handle"></span>
-                  <div class="ax-search">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                    <span>Search for an exercise...</span>
-                  </div>
-                  <div class="ax-seg">
-                    <span class="is-active">All</span><span>Favorites</span><span>Recent</span>
-                  </div>
-                  <div class="ax-row ax-tap">
-                    <span class="ax-row-icon"><img src="exercise-icons/001_flat_bench_press.svg" alt=""></span>
-                    <span class="ax-row-name">Flat Bench Press</span>
-                    <span class="ax-heart is-fav">♥</span>
-                  </div>
-                  <div class="ax-row">
-                    <span class="ax-row-icon"><img src="exercise-icons/002_incline_bench_press.svg" alt=""></span>
-                    <span class="ax-row-name">Incline Bench Press</span>
-                    <span class="ax-heart">♡</span>
-                  </div>
-                  <div class="ax-row">
-                    <span class="ax-row-icon"><img src="exercise-icons/059_tricep_pushdown.svg" alt=""></span>
-                    <span class="ax-row-name">Tricep Pushdown</span>
-                    <span class="ax-heart">♡</span>
-                  </div>
-                  <div class="ax-row">
-                    <span class="ax-row-icon"><img src="exercise-icons/049_bicep_curl.svg" alt=""></span>
-                    <span class="ax-row-name">Bicep Curl</span>
-                    <span class="ax-heart">♡</span>
-                  </div>
-                  <div class="ax-create">+ Create a custom exercise</div>
-                </div>
-              </div>
-
-              <!-- 3 - the set card, open on Set 1 -->
-              <div class="ax-screen" data-ax-screen="3">
-                <div class="ax-appbar"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
-                <div class="ax-card">
-                  <div class="ax-daytitle">Today</div>
-                  <div class="ax-logbtn">+ Log an exercise</div>
-                  <div class="ax-entry is-complete">
-                    <span class="ax-row-icon"><img src="exercise-icons/001_flat_bench_press.svg" alt=""><span class="ax-check">✓</span></span>
-                    <span class="ax-entry-info"><b>Flat Bench Press</b><i>18:42 • 60 kg • 1 set • 8 reps</i></span>
-                    <span class="ax-chev is-open">›</span>
-                  </div>
-                  <div class="ax-detail">
-                    <div class="ax-set">
-                      <div class="ax-set-head"><span>Set 1</span><span class="ax-set-x">×</span></div>
-                      <div class="ax-set-line">
-                        <span class="ax-field ax-tap"><b>60</b><i>kg</i></span>
-                        <span class="ax-times">×</span>
-                        <span class="ax-field ax-field--reps"><b>8</b><i>reps</i></span>
-                      </div>
-                    </div>
-                    <div class="ax-addset">+ Add Set</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 4 - three sets in, card complete -->
-              <div class="ax-screen" data-ax-screen="4">
-                <div class="ax-appbar"><span class="ax-appbar-title">Workout Log</span><span class="ax-avatar">J</span></div>
-                <div class="ax-card">
-                  <div class="ax-daytitle">Today</div>
-                  <div class="ax-logbtn">+ Log an exercise</div>
-                  <div class="ax-entry is-complete">
-                    <span class="ax-row-icon"><img src="exercise-icons/001_flat_bench_press.svg" alt=""><span class="ax-check">✓</span></span>
-                    <span class="ax-entry-info"><b>Flat Bench Press</b><i>18:42 • 60 kg • 3 sets • 8, 8, 6 reps</i></span>
-                    <span class="ax-chev">›</span>
-                  </div>
-                  <div class="ax-entry is-complete">
-                    <span class="ax-row-icon"><img src="exercise-icons/002_incline_bench_press.svg" alt=""><span class="ax-check">✓</span></span>
-                    <span class="ax-entry-info"><b>Incline Bench Press</b><i>18:56 • 45 kg • 3 sets • 10, 10, 9 reps</i></span>
-                    <span class="ax-chev">›</span>
-                  </div>
-                </div>
-              </div>
-
+          <div class="screen" data-screen="2">
+            <div class="scr-head"><b>Hey James</b><span class="avatar">J</span></div>
+            <div class="card">
+              <div class="row"><span class="date">SUNDAY, AUGUST 23</span><span class="pill pill-amber">3 day streak</span></div>
+              <b class="big">Rest day</b>
+              <p class="sub">Recover well — you'll be back at it tomorrow.</p>
+              <div class="week week--labels"><div class="day"><span>M</span><span class="dot is-done">17</span></div><div class="day"><span>T</span><span class="dot is-done">18</span></div><div class="day"><span>W</span><span class="dot is-done">19</span></div><div class="day"><span>T</span><span class="dot">20</span></div><div class="day"><span>F</span><span class="dot is-done">21</span></div><div class="day"><span>S</span><span class="dot is-done">22</span></div><div class="day"><span>S</span><span class="dot is-today">23</span></div></div>
+              <div class="cta-blue">See today's plan</div>
+            </div>
+            <div class="banner pulse">Your weekly check-in is ready<span>›</span></div>
+            <span class="section-label">Today</span>
+            <div class="card">
+              <div class="row"><span class="card-title">Calories &amp; macros</span><span class="pill">Full stats ›</span></div>
+              <span class="sub">Remaining today</span>
+              <b class="big">1,802 <em>kcal left</em></b>
+              <span class="sub">of 1,802 kcal today</span>
             </div>
           </div>
+
+          <!-- The workout log acts out its own flow: the empty day, the tap on
+               "+ Log an exercise", then the weight and reps going in. app.js
+               steps data-wl through 0..3 while this screen is the one showing;
+               everything below is the finished state, revealed as it goes. -->
+          <div class="screen" data-screen="3" data-wl="0">
+            <div class="scr-head"><b>Workout Log</b><span class="avatar">J</span></div>
+            <div class="card">
+              <div class="row"><b class="card-title">Today's plan</b><span class="pill">Edit split</span></div>
+              <p class="sub">Monday · Full Body day</p>
+            </div>
+            <div class="card">
+              <div class="week week--labels"><div class="day"><span>M</span><span class="dot is-done">17</span></div><div class="day"><span>T</span><span class="dot is-done">18</span></div><div class="day"><span>W</span><span class="dot is-done">19</span></div><div class="day"><span>T</span><span class="dot">20</span></div><div class="day"><span>F</span><span class="dot is-done">21</span></div><div class="day"><span>S</span><span class="dot is-done">22</span></div><div class="day"><span>S</span><span class="dot is-today">23</span></div></div>
+              <div class="row"><span class="section-label">Today</span><span class="sub wl-count">1 exercise · 1 set</span></div>
+              <div class="cta-blue wl-log">+ Log an exercise</div>
+              <div class="empty wl-empty"><span class="blob"></span><b>Nothing logged yet</b><span class="sub">One exercise is all it takes to get going.</span></div>
+
+              <div class="wl-entry">
+                <div class="row">
+                  <div class="wl-entry-id"><span class="wl-icon"></span><span><b class="card-title">Barbell Bicep Curl</b><span class="sub wl-entry-sub">5:01 PM · 1 set logged</span></span></div>
+                  <span class="sub">⌄</span>
+                </div>
+                <div class="wl-set">
+                  <div class="row"><span class="date">SET 1</span><span class="sub">×</span></div>
+                  <div class="wl-fields">
+                    <span class="wl-field"><b class="wl-weight">0</b><span class="sub">kg</span></span>
+                    <span class="sub">×</span>
+                    <span class="wl-field"><b class="wl-reps">0</b><span class="sub">reps</span></span>
+                  </div>
+                </div>
+                <div class="wl-addset">+ Add Set</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen" data-screen="4">
+            <div class="scr-head"><b>HYROX</b><span class="avatar">J</span></div>
+            <div class="card">
+              <div class="row"><span class="date">YOUR PERSONAL BEST</span><span class="pill">4 races</span></div>
+              <b class="clock">1:24:06</b>
+              <span class="sub">Men's Open Singles</span>
+              <div class="stchips"><div class="stchip"><span>1</span><b>SkiErg</b></div><div class="stchip"><span>2</span><b>Sled Push</b></div><div class="stchip"><span>3</span><b>Sled Pull</b></div><div class="stchip"><span>4</span><b>Burpees</b></div><div class="stchip"><span>5</span><b>Row</b></div><div class="stchip"><span>6</span><b>Carry</b></div><div class="stchip"><span>7</span><b>Lunges</b></div><div class="stchip"><span>8</span><b>Wall Balls</b></div></div>
+              <span class="centered sub">Tap a station to see how it's done</span>
+              <div class="cta-blue">Start race</div>
+              <span class="centered link">View history</span>
+            </div>
+          </div>
+
+          <div class="screen" data-screen="5">
+            <div class="scr-head"><b>Friends</b><span class="avatar">J</span></div>
+            <div class="card">
+              <b class="card-title">Your friend code</b>
+              <p class="sub">Share this code or QR so friends can add you.</p>
+              <div class="code-row"><span class="qr"></span><div><b class="code">RC-A1B2C3</b><span class="pill">Copy code</span></div></div>
+            </div>
+            <div class="card">
+              <b class="card-title">Add a friend</b>
+              <div class="add-row"><span class="fake-input">Friend code, e.g. RC-A1B2C3</span><span class="pill pill-blue">Add</span></div>
+              <div class="scan">Scan QR</div>
+            </div>
+            <div class="card">
+              <b class="card-title">Your friends</b>
+              <div class="friend"><span class="fav">M</span><span>Mai</span><em>6 sessions</em></div>
+              <div class="friend"><span class="fav">K</span><span>Ken</span><em>4 sessions</em></div>
+              <div class="friend"><span class="fav">P</span><span>Ploy</span><em>2 sessions</em></div>
+            </div>
+          </div>
+
+          <div class="tabbar">
+            <div class="tabpill">
+              <span class="tab" data-tab="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path></svg></span>
+              <span class="tab" data-tab="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM7 8v8M17 8v8"></path></svg></span>
+              <span class="tab" data-tab="2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M3 8h15v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"></path><path d="M3 22h16"></path></svg></span>
+              <span class="tab" data-tab="3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M9 2h6"></path></svg></span>
+              <span class="tab is-active" data-tab="4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"></path><path d="M17.5 6.5 20 9l-2.5 2.5"></path><path d="M14 4l-4 16"></path></svg></span>
+            </div>
+            <span class="fab">+</span>
+          </div>
         </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ================= HYROX ================= -->
-  <section class="band" id="hyrox">
-    <div class="wrap band-inner">
-      <div>
-        <p class="kicker kicker--onDark">Built for race day</p>
-        <h2>HYROX athletes get their own half of the app</h2>
-        <p class="band-lede">Eight stations, eight runs, and a finish time that stops being a guess. Log each station, watch your PBs move, and see the projected total update as they do — then compare against everyone else training in RepCheck.</p>
-        <a class="btn btn-onDark" href="#waitlist">Get early access</a>
+<section class="stats">
+      <div><b>527</b><span>exercises in the library</span></div>
+      <div><b>744</b><span>foods, Thai included</span></div>
+      <div><b>8</b><span>HYROX stations tracked</span></div>
+      <div><b>2</b><span>languages, EN &amp; TH</span></div>
+</section>
+
+<section class="split">
+  <div class="split-copy">
+    <p class="kicker">02 — Form analysis</p>
+    <h2>“Which rep went wrong?” — answered in about a minute</h2>
+    <p class="lede">Most form advice is generic because it never saw your set. RepCheck reads joint positions frame by frame, scores every rep against the movement's real standards, and ranks the fixes.</p>
+    <ul class="ticks">
+      <li>Per-rep breakdown, not one verdict on the whole set</li>
+      <li>Ranked fixes — the one that matters sits at the top</li>
+      <li>Ask follow-up questions about your own analysis</li>
+      <li>Saved forever, so month three compares to week one</li>
+    </ul>
+  </div>
+  <div class="split-chart">
+    <div class="strip strip--bare"><span>Back squat · 8 reps</span><span>Hover the set</span></div>
+    <div class="bars" id="bars">
+          <div class="bar" data-rep="0" style="--h:202px"><span class="bar-score">88</span><span class="bar-fill"></span><span class="bar-n">1</span></div>
+          <div class="bar" data-rep="1" style="--h:212px"><span class="bar-score">92</span><span class="bar-fill"></span><span class="bar-n">2</span></div>
+          <div class="bar" data-rep="2" style="--h:207px"><span class="bar-score">90</span><span class="bar-fill"></span><span class="bar-n">3</span></div>
+          <div class="bar" data-rep="3" style="--h:193px"><span class="bar-score">84</span><span class="bar-fill"></span><span class="bar-n">4</span></div>
+          <div class="bar" data-rep="4" style="--h:166px"><span class="bar-score">72</span><span class="bar-fill"></span><span class="bar-n">5</span></div>
+          <div class="bar is-warn" data-rep="5" style="--h:133px"><span class="bar-score">58</span><span class="bar-fill"></span><span class="bar-n">6</span></div>
+          <div class="bar is-warn" data-rep="6" style="--h:117px"><span class="bar-score">51</span><span class="bar-fill"></span><span class="bar-n">7</span></div>
+          <div class="bar is-warn" data-rep="7" style="--h:106px"><span class="bar-score">46</span><span class="bar-fill"></span><span class="bar-n">8</span></div>
+    </div>
+    <p class="rep-note" id="rep-note">Every rep scored against the movement's real standards — hover a bar to read the call.</p>
+  </div>
+</section>
+
+<section id="hyrox" class="band">
+  <p class="kicker kicker--dark">03 — Race day</p>
+  <h2>HYROX athletes get their own half of the app</h2>
+  <ul class="stations">
+        <li><span>SkiErg</span><b>1000 m</b></li>
+        <li><span>Sled Push</span><b>50 m</b></li>
+        <li><span>Sled Pull</span><b>50 m</b></li>
+        <li><span>Burpee Broad Jump</span><b>80 m</b></li>
+        <li><span>Rowing</span><b>1000 m</b></li>
+        <li><span>Farmers Carry</span><b>200 m</b></li>
+        <li><span>Sandbag Lunges</span><b>100 m</b></li>
+        <li><span>Wall Balls</span><b>100 reps</b></li>
+  </ul>
+</section>
+
+<section id="race" class="race">
+  <div class="strip"><span>04 — A race, start to finish</span><span>Tap through it</span></div>
+  <div class="race-grid">
+    <div class="race-steps" id="rc-steps">
+      <button class="race-step" type="button" data-rc="goto" data-screen="hero">
+        <span class="feature-head"><span class="idx">01</span><span class="feature-title">Open the race simulator</span></span>
+        <span class="feature-plain">Your best time, the eight stations in order, one button. Tap a station and it tells you how that one is judged.</span>
+      </button>
+      <button class="race-step" type="button" data-rc="goto" data-screen="setup">
+        <span class="feature-head"><span class="idx">02</span><span class="feature-title">Set the race up</span></span>
+        <span class="feature-plain">Open or Pro, Singles or Doubles, full or half. The loads and the lap counts come from the rulebook and the length of your own lane.</span>
+      </button>
+      <button class="race-step" type="button" data-rc="goto" data-screen="running">
+        <span class="feature-head"><span class="idx">03</span><span class="feature-title">Run the clock</span></span>
+        <span class="feature-plain">One tap per segment. Sixteen splits — eight runs, eight stations — with the weight and the lap count for whatever is up now.</span>
+      </button>
+      <button class="race-step" type="button" data-rc="goto" data-screen="finished">
+        <span class="feature-head"><span class="idx">04</span><span class="feature-title">Read the race back</span></span>
+        <span class="feature-plain">Running against stations, every split ranked, and the coach's read on the two stations to fix before the next race.</span>
+      </button>
+      <p class="hint">This is one real 1:24:06 race, replayed at 60× →</p>
+    </div>
+
+    <div class="race-stage">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="status"><span>15:29</span><span>5G</span></div>
+          <!-- app.js renders every race screen into here; the markup below is
+               the no-JS fallback (the app's HYROX screen, statically). -->
+          <div class="rc-screen" id="rc-screen">
+            <div class="scr-head"><b>HYROX</b><span class="avatar">J</span></div>
+            <div class="card">
+              <div class="row"><span class="date">YOUR PERSONAL BEST</span><span class="pill">4 races</span></div>
+              <b class="clock">1:24:06</b>
+              <span class="sub">Men's Open Singles</span>
+              <div class="stchips"><div class="stchip"><span>1</span><b>SkiErg</b></div><div class="stchip"><span>2</span><b>Sled Push</b></div><div class="stchip"><span>3</span><b>Sled Pull</b></div><div class="stchip"><span>4</span><b>Burpees</b></div><div class="stchip"><span>5</span><b>Row</b></div><div class="stchip"><span>6</span><b>Carry</b></div><div class="stchip"><span>7</span><b>Lunges</b></div><div class="stchip"><span>8</span><b>Wall Balls</b></div></div>
+              <span class="centered sub">Tap a station to see how it's done</span>
+              <div class="cta-blue">Start race</div>
+              <span class="centered link">View history</span>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tabpill">
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path></svg></span>
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM7 8v8M17 8v8"></path></svg></span>
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M3 8h15v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"></path><path d="M3 22h16"></path></svg></span>
+              <span class="tab is-active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M9 2h6"></path></svg></span>
+              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"></path><path d="M17.5 6.5 20 9l-2.5 2.5"></path><path d="M14 4l-4 16"></path></svg></span>
+            </div>
+            <span class="fab">+</span>
+          </div>
+        </div>
       </div>
-      <ul class="station-grid">
-        <li>SkiErg <b>1000m</b></li>
-        <li>Sled Push <b>50m</b></li>
-        <li>Sled Pull <b>50m</b></li>
-        <li>Burpee Broad Jump <b>80m</b></li>
-        <li>Rowing <b>1000m</b></li>
-        <li>Farmers Carry <b>200m</b></li>
-        <li>Sandbag Lunges <b>100m</b></li>
-        <li>Wall Balls <b>100 reps</b></li>
-      </ul>
+
+      <!-- Filled by app.js once the race starts; empty (and hidden) until then. -->
+      <div class="watch-rig" id="rc-watch" hidden></div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ================= FAQ ================= -->
-  <section class="section" id="faq">
-    <div class="wrap wrap--narrow">
-      <p class="kicker">FAQ</p>
-      <h2 class="section-title">Questions worth answering up front</h2>
+<section class="faq">
+  <div class="strip"><span>05 — Questions worth answering</span></div>
+      <details class="faq-item"><summary><span>What do I need to record a form check?</span><i></i></summary><p>A phone and somewhere to prop it. Film side-on, whole body in frame, normal gym lighting. No wearables, no markers.</p></details>
+      <details class="faq-item"><summary><span>Is this a replacement for a coach?</span><i></i></summary><p>No — and we won't pretend otherwise. It's the feedback you don't get on the six days a week you train alone.</p></details>
+      <details class="faq-item"><summary><span>What does it cost?</span><i></i></summary><p>Early access is free. When pricing lands, the waitlist hears first — we'll be specific in that email rather than vague here.</p></details>
+      <details class="faq-item"><summary><span>What happens to my videos and photos?</span><i></i></summary><p>They're processed to produce your analysis and stored against your account. Only what you share to a leaderboard or challenge is visible to anyone else.</p></details>
+      <details class="faq-item"><summary><span>When is launch?</span><i></i></summary><p>The app is already running with real users in early access. The waitlist is how we open it wider without falling over.</p></details>
+</section>
 
-      <div class="faq">
-        <details>
-          <summary>What do I actually need to record a form check?</summary>
-          <p>A phone and somewhere to prop it. Film the set side-on, whole body in frame, in normal gym lighting. No wearables, no markers, no special camera.</p>
-        </details>
-        <details>
-          <summary>Is this a replacement for a coach?</summary>
-          <p>No — and we won't pretend otherwise. It's the feedback you don't get on the six days a week you train alone. If you already have a good coach, RepCheck gives them better data to work from.</p>
-        </details>
-        <details>
-          <summary>What does it cost?</summary>
-          <p>Early access is free. When pricing lands, everyone on the waitlist hears about it first — we'll be specific in that email rather than vague here.</p>
-        </details>
-        <details>
-          <summary>What happens to my videos and photos?</summary>
-          <p>They're processed to produce your analysis and stored against your account so you can compare over time. Only what you deliberately share to a leaderboard or challenge is visible to anyone else.</p>
-        </details>
-        <details>
-          <summary>Do I have to use all of it?</summary>
-          <p>No. Plenty of people will only ever use form checks, or only the food log. Each part stands alone; they just get more useful pointed at the same week.</p>
-        </details>
-        <details>
-          <summary>When is launch?</summary>
-          <p>The app is already running with real users in early access. The waitlist is how we open it wider without falling over — join and you'll get a slot in the next batch.</p>
-        </details>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= FINAL CTA ================= -->
-  <section class="cta" id="waitlist">
-    <div class="wrap wrap--narrow cta-inner">
-      <p class="eyebrow eyebrow--center"><span class="dot"></span> Limited early-access slots</p>
-      <h2>Be in the first group in</h2>
-      <p class="cta-lede">Drop your email and we'll send one message when your slot opens. That's the whole arrangement.</p>
-
-      <form class="waitlist-form waitlist-form--lg" id="waitlist-form-cta" novalidate>
-        <label class="sr-only" for="email-cta">Email address</label>
-        <input type="email" id="email-cta" name="email" inputmode="email" autocomplete="email"
-               placeholder="you@example.com" required>
-        <button class="btn btn-primary" type="submit">Join the waitlist</button>
-        <p class="form-note" data-note>No spam. Unsubscribe in one click, from the first email onward.</p>
-      </form>
-    </div>
-  </section>
-
-</main>
+<section id="waitlist" class="cta">
+  <p class="kicker">06 — Limited early-access slots</p>
+  <h2>Be in the first group in</h2>
+  <form class="waitlist-form" id="waitlist-form" novalidate="">
+    <label class="sr-only" for="email">Email address</label>
+    <input type="email" id="email" name="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required="" style="">
+    <button type="submit" data-magnet="">Join</button>
+  </form>
+  <p class="form-note" data-note="">No spam, no drip sequence. One email when we open the doors.</p>
+</section>
 
 <footer class="footer">
-  <div class="wrap footer-inner">
-    <div class="brand brand--footer">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
-      </span>
-      <span class="brand-word">RepCheck</span>
-    </div>
-    <nav class="footer-links" aria-label="Footer">
-      <a href="#features">Features</a>
-      <a href="#how">How it works</a>
-      <a href="#hyrox">HYROX</a>
-      <a href="#faq">FAQ</a>
-      <a href="#waitlist">Waitlist</a>
-    </nav>
-    <p class="footer-fine">© <span id="year">2026</span> RepCheck. Training guidance only — not medical advice.</p>
-  </div>
+  <span class="brand">RepCheck</span>
+  <span>Training guidance only — not medical advice</span>
+  <span>© <span id="year">2026</span></span>
 </footer>
 
 <script src="app.js"></script>
+
+
 </body>
 </html>

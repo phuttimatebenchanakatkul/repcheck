@@ -16,9 +16,31 @@ config wired to the same command for the in-app browser preview.)
 
 ## Deploying to Render
 
+**Status: live** at https://repcheck-marketing.onrender.com
+(Render static site `repcheck-marketing`, id `srv-da6241gu01pc738uiv80`).
+
+It currently deploys from the **`marketing-analyze-demo`** branch, not
+`main`, because the analyze-showcase video only exists on that branch.
+**After merging that branch, switch the service's branch to `main`** in the
+Render dashboard (or via the API) — otherwise the live site keeps tracking a
+branch that may be deleted.
+
+The Flask service (`repcheck-q0m4`) does not serve `marketing/` — there are
+no references to it in `app.py`, and `/marketing` 404s there. The two are
+entirely separate services.
+
 This is a static site, so it's a different Render service type than the main
 app (`Static Site`, not `Web Service`) — cheaper, no cold starts, and it
 doesn't touch the existing `repcheck-q0m4` service at all.
+
+### Option A — Blueprint (repo root `render.yaml`)
+
+`render.yaml` at the repo root defines this site and nothing else, so
+creating a Blueprint instance from it leaves the dashboard-configured Flask
+service alone. Render dashboard → **New** → **Blueprint** → connect this
+repo → apply.
+
+### Option B — Dashboard, by hand
 
 1. Render dashboard → **New** → **Static Site**.
 2. Connect this repo.
@@ -31,15 +53,6 @@ doesn't touch the existing `repcheck-q0m4` service at all.
    similar so the two don't collide).
 5. Deploy. Auto-deploy on push to `main` works the same way as the main app.
 
-## Assets
-
-`exercise-icons/` holds four SVGs copied out of `static/exercise_icons/` for
-the "Adding an exercise" walkthrough. They're copies on purpose -- this folder
-stays deployable on its own -- so if the app's icon art is redrawn, re-copy
-them. The walkthrough's on-screen labels ("Log an exercise", "Set 1", "+ Add
-Set", the All/Favorites/Recent tabs) are the app's own strings from
-`static/i18n.js`, and the flow it shows is the one in `templates/workouts.html`.
-
 ## Before this goes live
 
 - **`app.js`**: `ENDPOINT` is a placeholder (`https://formspree.io/f/YOUR_FORM_ID`).
@@ -51,7 +64,7 @@ Set", the All/Favorites/Recent tabs) are the app's own strings from
   (kept as SVG so it stays crisp at every tab size with zero extra bytes).
 - `robots.txt` points its sitemap at `https://repcheck.app/sitemap.xml`,
   which doesn't exist yet — either generate one or drop that line.
-- Content mirrors the real app (735 exercises, 744 foods, 8 HYROX stations,
-  EN/TH) as of 2026-08-24 pulled from `workout_library.py`,
+- Content mirrors the real app (527 exercises, 744 foods, 8 HYROX stations,
+  EN/TH) as of 2026-08-23 pulled from `workout_library.py`,
   `food_library.py` and the HYROX station list in `app.py`/`hyrox.html`. If
   those numbers move, update the stats band and feature copy here too.

@@ -15,7 +15,8 @@ repcheck.db*
 # straight from the repo, so an ignored clip is a 404 in production. These are
 # deliberately-published screen recordings with the iOS/Safari chrome cropped
 # off -- keep raw camera footage and user uploads out, as above.
-!marketing/*.mp4
+# Any depth, not just marketing/*.mp4 -- clips also live under marketing/assets/.
+!marketing/**/*.mp4
 .vscode/
 .idea/
 .claude/
