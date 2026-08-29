@@ -1886,16 +1886,29 @@
   }
 </style>
 
+<!-- The exercise libraries are identical for every user and every request,
+     so they are served as separately-cacheable scripts rather than pasted
+     into this document (see LIBRARY_ASSETS in app.py). Plain classic
+     scripts, immediately before the block that reads them, so they are
+     already evaluated by the time it runs. -->
+<script src="{{ library_url('exercise_library') }}"></script>
+<script src="{{ library_url('exercise_details') }}"></script>
+<script src="{{ library_url('exercise_videos') }}"></script>
+<script src="{{ library_url('exercise_categories') }}"></script>
+<script src="{{ library_url('exercise_icons') }}"></script>
+<script src="{{ library_url('unilateral_exercises') }}"></script>
+<script src="{{ library_url('bodyweight_exercises') }}"></script>
+
 <script>
-  const EXERCISE_LIBRARY = {{ exercise_library | tojson }};
-  const EXERCISE_DETAILS = {{ exercise_details | tojson }};
-  const EXERCISE_VIDEOS = {{ exercise_videos | tojson }};
-  const EXERCISE_CATEGORIES = {{ exercise_categories | tojson }};
-  const EXERCISE_ICONS = {{ exercise_icons | tojson }};
+  const EXERCISE_LIBRARY = RepCheckLib.exercise_library;
+  const EXERCISE_DETAILS = RepCheckLib.exercise_details;
+  const EXERCISE_VIDEOS = RepCheckLib.exercise_videos;
+  const EXERCISE_CATEGORIES = RepCheckLib.exercise_categories;
+  const EXERCISE_ICONS = RepCheckLib.exercise_icons;
   // Exercises that can be logged one side at a time (see UNILATERAL_EXERCISES
   // in workout_library.py) -- only these get the "Both sides / Each side"
   // toggle. Custom user exercises aren't in the set, so they stay both-sides.
-  const UNILATERAL_EXERCISES = new Set({{ unilateral_exercises | tojson }});
+  const UNILATERAL_EXERCISES = new Set(RepCheckLib.unilateral_exercises);
   function canBeUnilateral(name) {
     if (UNILATERAL_EXERCISES.has(name)) return true;
     // A user's custom exercise renders each-side (L/R) set fields when they
@@ -1921,7 +1934,7 @@
   // Bodyweight-only movements (pull-ups, sit-ups, planks, ...) have no
   // external load to record, so their set editor asks for reps only — no
   // weight field (see workout_library.BODYWEIGHT_EXERCISES).
-  const BODYWEIGHT_EXERCISES = new Set({{ bodyweight_exercises | tojson }});
+  const BODYWEIGHT_EXERCISES = new Set(RepCheckLib.bodyweight_exercises);
   function isBodyweight(name) { return BODYWEIGHT_EXERCISES.has(name); }
   const STORAGE_KEY = "repcheck_workout_log_v2";
   const WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];

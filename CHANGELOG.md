@@ -2,6 +2,25 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.9.1] - 2026-08-29
+
+### Changed
+
+- Switching between the food log, the workout log and the other tabs used to
+  land with a visible reload every time: the bar sat still until the whole next
+  page had arrived, then the highlight appeared on the new tab. The highlight is
+  now its own element that slides, and it starts sliding the moment your thumb
+  lands rather than when the page finishes loading, so tapping a tab answers
+  immediately. Built on a plain CSS transform rather than the View Transitions
+  API, so it works on every iOS version instead of only 18.2 and up.
+- Every tab switch was also re-downloading the food and exercise libraries,
+  which were pasted into each page: 155 KB of them on the Nutrition page, 250 KB
+  on Workouts, identical bytes every single time and impossible for the browser
+  to cache. They are now served as their own files and fetched once. The
+  Nutrition page dropped from 488 KB to 325 KB per visit, Workouts from 530 KB
+  to 282 KB. That is a real saving on the iPhone app, which loads the live site
+  over the network on every tap.
+
 ## [0.4.9.0] - 2026-08-29
 
 ### Fixed
