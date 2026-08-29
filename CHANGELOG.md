@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.9.3] - 2026-08-29
+
+### Fixed
+
+- Tapping a field on log in or sign up no longer slides the whole screen up out
+  of sight, so you can see what you are typing again. Holding those screens
+  still (0.4.7.0) pinned them to the phone, and iOS shifts what you can SEE
+  when the keyboard opens without telling a pinned screen it moved -- so the
+  card ended up above the top of the display, leaving a black screen with just
+  the keyboard bar on it. The screen now follows the visible part of the phone,
+  and the field you tapped is brought into view.
+
 ## [0.4.9.2] - 2026-08-29
 
 ### Fixed
