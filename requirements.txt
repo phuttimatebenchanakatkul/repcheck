@@ -10,3 +10,4 @@ pyzbar==0.1.9
 qrcode==8.2
 Markdown==3.10.2
 requests==2.34.1
+PyJWT[crypto]==2.13.0

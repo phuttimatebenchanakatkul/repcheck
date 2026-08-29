@@ -323,6 +323,7 @@ _PUBLIC_ENDPOINTS = frozenset({
     "auth.signup_page", "auth.signup",
     "auth.logout",
     "auth.google_login", "auth.google_callback",
+    "auth.apple_login", "auth.apple_callback",
     # The privacy policy and terms have to be readable without an account:
     # App Store Connect needs a public privacy-policy URL, and App Review
     # opens it without logging in.
