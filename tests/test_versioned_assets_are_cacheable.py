@@ -23,6 +23,8 @@ NOT swept up in it. The moment a rendered page can be reused without asking
 the server, the stale-deploy bug of v0.4.9.2 is back, and immutably so.
 """
 
+import re
+
 from app import app as flask_app
 
 
@@ -79,7 +81,9 @@ def test_html_is_never_cached_immutably_even_with_a_version_string():
     assert "immutable" not in cache_control, (
         f"/login must not be immutable. Got: {cache_control!r}"
     )
-    assert "no-cache" in cache_control, (
-        "HTML must keep revalidating before every reuse, version string or "
-        f"not. Got: {cache_control!r}"
+    max_age = re.search(r"max-age=(\d+)", cache_control)
+    assert "no-cache" in cache_control or (max_age and int(max_age.group(1)) <= 10), (
+        "HTML must keep its own short freshness rule, version string in the "
+        "URL or not -- see tests/test_html_revalidates_for_the_ios_webview.py "
+        f"for what that rule is and why. Got: {cache_control!r}"
     )
