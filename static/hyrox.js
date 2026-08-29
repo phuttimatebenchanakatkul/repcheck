@@ -3476,25 +3476,50 @@
     }
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    const root = document.getElementById("hyrox-root");
-    if (!root) return;
-    const app = new HyroxApp(root);
+  // ---- Bootstrap ----------------------------------------------------------
+  // Everything above this line is the app itself, and tests-js/support/
+  // loadHyroxApp.js extracts exactly that: it slices from the top of this IIFE
+  // to this comment. Keep the line, and keep the boot wiring below it.
+  //
+  // The live app, or null when the HYROX page is not the one on screen.
+  // static/pagenav.js swaps pages in without loading a document, so this file
+  // is loaded once and may have to boot against several different DOMs over a
+  // session -- and the DOM it booted against can be thrown away underneath it.
+  let app = null;
 
-    // account_sync.js pulled newer values off the account -- races logged on
-    // another device, or this browser adopting the account's history. The
-    // constructor read HISTORY_KEY into this.history before that pull
-    // finished, so re-read it and redraw. preventDefault() tells
-    // account_sync.js the page handled it; without a handler here it falls
-    // back to reloading the whole page, which is what this used to do.
-    document.addEventListener("repcheck:data-hydrated", (event) => {
-      const keys = (event.detail && event.detail.keys) || [];
-      if (keys.includes(HISTORY_KEY)) {
-        const history = loadJson(HISTORY_KEY, []);
-        app.history = Array.isArray(history) ? history : [];
-      }
-      app.render();
-      event.preventDefault();
-    });
+  function boot() {
+    const root = document.getElementById("hyrox-root");
+    // Already booted against this exact node: a swap replaces the node, so an
+    // identical root means nothing has changed and re-booting would only
+    // duplicate the work.
+    if (!root || (app && app.root === root)) return;
+    app = root ? new HyroxApp(root) : null;
+  }
+
+  // account_sync.js pulled newer values off the account -- races logged on
+  // another device, or this browser adopting the account's history. The
+  // constructor read HISTORY_KEY into this.history before that pull
+  // finished, so re-read it and redraw. preventDefault() tells
+  // account_sync.js the page handled it; without a handler here it falls
+  // back to reloading the whole page, which is what this used to do.
+  //
+  // Registered once, at module level, rather than inside boot(): booting
+  // happens again on every swap back to this page, and a listener added there
+  // would stack up a copy per visit.
+  document.addEventListener("repcheck:data-hydrated", (event) => {
+    if (!app) return;
+    const keys = (event.detail && event.detail.keys) || [];
+    if (keys.includes(HISTORY_KEY)) {
+      const history = loadJson(HISTORY_KEY, []);
+      app.history = Array.isArray(history) ? history : [];
+    }
+    app.render();
+    event.preventDefault();
   });
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+  // Swapped in by pagenav.js: DOMContentLoaded fired long ago, and on a second
+  // visit this file is already loaded and would never run again.
+  document.addEventListener("repcheck:page-swapped", boot);
 })();

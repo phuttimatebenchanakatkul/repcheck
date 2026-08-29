@@ -2,6 +2,25 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.13.0] - 2026-08-29
+
+### Changed
+
+- **Switching tabs no longer loads a page.** The screen is replaced in place
+  instead, so the app never blanks between screens -- the tab bar, the sidebar
+  and the sheets stay on screen the whole time, because they are no longer
+  thrown away and rebuilt on every tap.
+  This is what the last three attempts were circling. A recording of seven tab
+  switches showed every one of them blanking the phone completely, and while
+  caching the files, keeping the pages and fetching the next screen early all
+  made the gap shorter, none of them could remove it: during a page load there
+  is nothing on screen to look at, and that is the thing that reads as a
+  refresh.
+  Everything else about a tab tap is unchanged -- the address, the back
+  button, and what each screen shows and does. If a screen ever fails to
+  arrive, the app quietly falls back to loading it the old way rather than
+  showing you half a page.
+
 ## [0.4.12.3] - 2026-08-29
 
 ### Fixed

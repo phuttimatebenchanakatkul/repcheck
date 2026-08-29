@@ -2663,8 +2663,21 @@
     }
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
+  // static/pagenav.js swaps pages in without loading a document, so this file
+  // is loaded once and may have to boot against several different DOMs over a
+  // session. `app.root === root` is what stops a re-boot against a node it is
+  // already driving.
+  let app = null;
+
+  function boot() {
     const root = document.getElementById("coaching-root");
-    if (root) new CoachingApp(root);
-  });
+    if (!root || (app && app.root === root)) return;
+    app = new CoachingApp(root);
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+  // Swapped in by pagenav.js: DOMContentLoaded fired long ago, and on a second
+  // visit this file is already loaded and would never run again.
+  document.addEventListener("repcheck:page-swapped", boot);
 })();
