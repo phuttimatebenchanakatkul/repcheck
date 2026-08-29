@@ -147,7 +147,11 @@ Numeric values that line up in columns (calories, weights, times) should use
 - Hover elevation on interactive tiles/rows: `0 8-10px 18-24px rgba(20,20,20,.08-.12)` + `translateY(-1px to -2px)`
   - Not used by the quick-actions tiles: they move `border-color` on hover and
     paint no shadow at all. See the icon-badge exception above.
-- Bottom sheets: `border-radius: 22px 22px 0 0`, slide up via `transform: translateY(100%) → 0`, `transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1)`
+- Bottom sheets: `border-radius: 34px 34px 0 0`, slide up via `transform: translateY(100%) → 0`, `transition: transform 0.48s cubic-bezier(0.32, 0.72, 0, 1)`
+  - Top corners only — the bottom edge sits flush with the viewport. The
+    full-screen phone rules keep the same rounding; they must not reset it
+    to `border-radius: 0`, or the sheet reads as a bare rectangle on the one
+    viewport where it is used most.
 - Mobile breakpoint: `max-width: 380px` gets tighter padding and smaller icon/label sizes — see `.af-tile`, `.af-primary-cta-icon`, `.af-sec-*` in `templates/nutrition.html` for the pattern
 
 ## Component pattern: choice screens
