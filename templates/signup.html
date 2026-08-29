@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="auth-html">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,7 +17,7 @@
   <link rel="icon" href="{{ url_for('static', filename='logo-mark.png') }}">
   <link rel="stylesheet" href="{{ asset_url('auth.css') }}">
 </head>
-<body class="auth-body">
+<body class="auth-body{% if error %} auth-has-error{% endif %}">
   <div class="auth-wrap">
     <img class="auth-logo" src="{{ url_for('static', filename='logo-full.png') }}" alt="RepCheck">
 
@@ -58,5 +58,6 @@
       <div class="auth-switch">Already have an account? <a href="{{ url_for('auth.login_page', next=next) if next else url_for('auth.login_page') }}">Log in</a></div>
     </div>
   </div>
+  <script src="{{ asset_url('auth_viewport.js') }}"></script>
 </body>
 </html>

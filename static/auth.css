@@ -18,6 +18,51 @@
   align-items: center;
 }
 
+/* ---------- Fixed, non-scrolling auth screen (phone / iOS shell) ----------
+   Log in and sign up are meant to be one still screen: nothing to scroll,
+   and no rubber-band bounce when you drag. Two separate things had to be
+   fixed for that, and both only apply below the device-frame breakpoint --
+   above 721px style.css draws the app inside a phone frame whose <body> IS
+   the phone (position:absolute, transformed), so pinning <body> here would
+   move the frame itself.
+
+   1. Bounce. `overflow: hidden` alone does not stop iOS from panning the
+      page: the same quirk base.html's sheet lock documents. Pinning <body>
+      to position:fixed leaves no scrollable area for the OS to pan into,
+      and overscroll-behavior kills the bounce on browsers that honour it.
+   2. Real overflow. At 375x812 both pages fit, but sign up (one more field
+      than log in, plus the hint line) is 47px too tall at 375x667 -- an
+      iPhone SE, or any phone once the error banner is showing. Locking the
+      page without also making the content fit would just clip the submit
+      button, so the short-viewport block below tightens the spacing until
+      it does fit. .auth-wrap keeps an internal scroll purely as a safety
+      net for what that can't cover (the keyboard open over a short screen,
+      a long error, large accessibility text) -- it is inert on a screen
+      whose content fits, which after the compaction is every phone. */
+@media (max-width: 720px) {
+  /* The class is on <html> in login.html/signup.html rather than a :has()
+     match on the body, so the lock does not depend on selector support in
+     whatever WKWebView the shipped iOS shell happens to be running. */
+  html.auth-html {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .auth-body {
+    position: fixed;
+    inset: 0;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .auth-wrap {
+    max-height: 100%;
+    overflow-y: auto;
+    /* Never chain a scroll that does start here back up to the page. */
+    overscroll-behavior: contain;
+  }
+}
+
 .auth-logo {
   height: 44px;
   width: auto;
@@ -126,3 +171,40 @@
 .auth-switch { text-align: center; font-size: 13px; color: var(--text-secondary); margin-top: 20px; }
 .auth-switch a { color: var(--blue); font-weight: 600; text-decoration: none; }
 .auth-switch a:hover { text-decoration: underline; }
+
+/* Short viewports: shave enough vertical spacing that sign up -- the taller
+   of the two pages -- fits without scrolling. The second query is the same
+   situation inside the desktop device frame, where the phone is
+   `min(844px, 100vh - 96px)` tall, so it drops under 740 once the browser
+   window is under 836. */
+@media (max-height: 740px),
+       (min-width: 721px) and (max-height: 836px) {
+  .auth-body { padding: 16px; }
+  .auth-logo { height: 38px; margin-bottom: 16px; }
+  .auth-card { padding: 24px 22px; }
+  .auth-sub { margin-bottom: 18px; }
+  .auth-oauth-btn { margin-bottom: 8px; }
+  .auth-divider { margin: 12px 0; }
+  .auth-form { gap: 12px; }
+  .auth-switch { margin-top: 14px; }
+}
+
+/* The error banner adds ~65px the card is not otherwise sized for, which puts
+   sign up back over the edge. Keyed to the class login.html/signup.html put on
+   <body> when Jinja renders an error -- a decision the server has already made,
+   rather than a :has() match the shipped WKWebView might not support.
+
+   Deliberately NOT inside a height media query, unlike the block above. It was,
+   at the same 740px breakpoint, and that left a hole: an iPhone 13 mini is 780
+   CSS px tall, so it skipped the compaction, and sign up plus the banner
+   measured 793px of content -- 13px of scroll on the exact screen the fix was
+   supposed to cover. Every breakpoint invites another phone to land just above
+   it. The error state is inherently the denser one, so tightening it on every
+   screen height is both simpler and the thing that actually holds. */
+.auth-has-error { padding: 12px; }
+.auth-has-error .auth-logo { height: 34px; margin-bottom: 12px; }
+.auth-has-error .auth-card { padding: 20px 22px; }
+.auth-has-error .auth-sub { margin-bottom: 12px; }
+.auth-has-error .auth-error { padding: 9px 12px; font-size: 12px; margin-bottom: 12px; }
+.auth-has-error .auth-form { gap: 10px; }
+.auth-has-error .auth-switch { margin-top: 10px; }
