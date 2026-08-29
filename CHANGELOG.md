@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.4.6.1] - 2026-08-29
+## [0.4.8.1] - 2026-08-29
 
 ### Changed
 
@@ -20,6 +20,35 @@ All notable changes to RepCheck are recorded here, newest first.
   Nutrition page dropped from 488 KB to 325 KB per visit, Workouts from 530 KB
   to 282 KB. That is a real saving on the iPhone app, which loads the live site
   over the network on every tap.
+
+## [0.4.8.0] - 2026-08-29
+
+### Changed
+
+- The barcode scanner now fills the screen instead of sitting in a small box
+  near the top of the sheet, and a Scan / Upload photo switch sits under it.
+  A bigger preview puts more pixels on the bars, which is what decides whether
+  a barcode reads at all, and the switch means a code that will not scan live
+  can be read from a photo -- taken now, or one already in the library --
+  without hunting for the fallback.
+
+## [0.4.7.0] - 2026-08-29
+
+### Fixed
+
+- The log in and sign up screens no longer scroll or bounce. They were a normal
+  scrolling page, so on a phone -- and in the iPhone app, which loads these same
+  screens -- you could drag the whole thing around and it would rubber-band back.
+  They now sit still.
+- Sign up no longer runs off the bottom of a smaller iPhone. It was 47px taller
+  than a 375x667 screen, and taller again once an error message was showing, so
+  the Sign up button could sit below the fold. The layout tightens on shorter
+  screens and whenever an error is on screen, and both pages now fit every
+  iPhone size Apple still supports.
+- The Sign up and Log in buttons stay reachable with the keyboard open. Holding
+  the page still would otherwise have hidden them behind the keyboard with no
+  way to scroll down to them, so the screen now sizes itself to the part of the
+  phone the keyboard leaves visible.
 
 ## [0.4.5.8] - 2026-08-29
 
