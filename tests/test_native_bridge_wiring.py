@@ -41,17 +41,31 @@ def test_base_html_loads_the_bridge_on_every_page():
 
 
 def test_food_photo_buttons_go_through_the_bridge():
+    """"Take photo" opens the in-app live viewfinder (openAfPhotoCamera) --
+    the same getUserMedia technique the barcode scanner and the analyze-
+    workout recorder already use -- rather than leaving the page for the OS
+    camera / Capacitor Camera plugin. The native route is kept as the
+    fallback for wherever getUserMedia itself isn't available, so this still
+    pins that it's reachable, just no longer the click handlers' first stop."""
     nutrition = read("templates/nutrition.html")
 
+    assert nutrition.count('addEventListener("click", openAfPhotoCamera)') == 2, (
+        "both af-take-photo-btn handlers must open the in-app camera"
+    )
     assert nutrition.count("RepCheckNative.openCamera(afCameraInput") == 2, (
-        "both af-take-photo-btn handlers must use the native camera"
+        "openAfPhotoCamera must still fall back to the native camera when "
+        "getUserMedia is unavailable"
     )
     assert nutrition.count("RepCheckNative.openLibrary(afUploadInput") == 2
-    # The old direct route must be gone from those handlers.
+    # The old direct routes must be gone from those handlers.
     assert not re.search(
         r'af-take-photo-btn"\)\.addEventListener\("click", \(\) => afCameraInput\.click\(\)\)',
         nutrition,
     ), "a food-photo button went back to clicking the input directly"
+    assert not re.search(
+        r'af-take-photo-btn"\)\.addEventListener\("click", \(\) => \{\s*RepCheckNative\.openCamera\(afCameraInput',
+        nutrition,
+    ), "a Take-photo button went back to the native camera as its first stop"
     assert not re.search(
         r'af-upload-photo-btn"\)\.addEventListener\("click", \(\) => afUploadInput\.click\(\)\)',
         nutrition,

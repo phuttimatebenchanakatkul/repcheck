@@ -920,6 +920,33 @@
     justify-content: center;
     padding: 20px 22px;
   }
+
+  /* In-app "Take photo" viewfinder for food analysis -- same live-camera
+     shell as the barcode scanner above (.af-scanner-*), with a shutter/flip
+     row instead of a scan guide. Mirrors templates/index.html's an-cam-*
+     shutter (the analyze-workout viewfinder), scoped separately here since
+     that page's <style> block isn't shared. */
+  .af-camera-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 12px;
+  }
+  .af-camera-slot { flex: 1 1 0; display: flex; justify-content: flex-start; }
+  .af-camera-slot:last-child { justify-content: flex-end; }
+  .af-camera-flip {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: none; background: var(--bg); color: var(--text);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .af-camera-flip:active { transform: scale(0.94); }
+  .af-camera-shutter {
+    width: 60px; height: 60px; border-radius: 50%; flex-shrink: 0;
+    border: 4px solid var(--text); background: none; padding: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.12s ease;
+  }
+  .af-camera-shutter:active { transform: scale(0.94); }
+  .af-camera-shutter-core { width: 46px; height: 46px; border-radius: 50%; background: var(--red); }
   /* ---------- Macro donut + micronutrients (scan results, log-food popup) ---------- */
   .mn-donut-row { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
   .mn-donut-wrap { position: relative; width: 108px; height: 108px; flex-shrink: 0; }
@@ -1903,16 +1930,16 @@
     .nl-modal { max-width: none; max-height: none; height: 100vh; height: 100dvh; border-radius: 0; }
     .nl-modal-search-wrap input { font-size: 16px; } /* 16px prevents iOS auto-zoom on focus */
 
-    .af-modal-overlay { padding: 0; align-items: stretch; }
+    .af-modal-overlay { padding: 0; }
     .af-modal {
       max-width: none;
-      max-height: none;
-      /* Same dvh-over-vh reasoning as above: on small screens the modal
-         goes edge-to-edge, so it needs the real visible height, not the
-         browser's theoretical full-chrome-hidden height, or the bottom
-         action button ends up unreachable. */
-      height: 100vh;
-      height: 100dvh;
+      /* dvh (not vh) so the cap tracks the real visible viewport once
+         mobile browser chrome collapses -- same reasoning as .nl-modal
+         above, minus going all the way to 100%: capped below full height
+         so a sliver of the app stays visible above the sheet, rather than
+         the sheet covering the whole screen edge to edge. */
+      max-height: 92vh;
+      max-height: 92dvh;
       border-radius: 34px 34px 0 0;
     }
     .af-modal-header { padding: 14px 16px 8px; }
@@ -2613,6 +2640,8 @@
   let afImageBlob = null;   // the photo (captured or uploaded) waiting to be analyzed
   let afPreviewUrl = null;  // object URL for the preview <img>, revoked on close
   let afResult = null;      // last successful analysis, kept for logging
+  let afPhotoStream = null; // live getUserMedia feed while the in-app camera screen is open
+  let afPhotoFacing = "environment";
   let afNote = "";          // optional user-written context, sent to Gemini alongside the photo
 
   // Every step of the photo-analysis flow (choice screen -> loading spinner
@@ -2646,6 +2675,7 @@
         afNote = "";
         setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
         stopLiveBarcodeScan();
+        stopAfPhotoCamera();
       });
     } else {
       afModalOverlay.style.display = "none";
@@ -2655,6 +2685,7 @@
       afNote = "";
       setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
       stopLiveBarcodeScan();
+      stopAfPhotoCamera();
     }
   }
 
@@ -2853,14 +2884,11 @@
       </div>
       ${afRecentSectionHtml(recentScans)}
     `;
-    // Inside the iOS shell these open the real native camera / photo
-    // library (Guideline 4.2 -- see static/native.js); in a browser
-    // RepCheckNative clicks the very same hidden input this used to click
-    // directly, and afCameraInput's own change listener delivers the file
-    // exactly as before.
-    document.getElementById("af-take-photo-btn").addEventListener("click", () => {
-      RepCheckNative.openCamera(afCameraInput, useAfImage);
-    });
+    // "Take photo" opens the in-app live viewfinder (openAfPhotoCamera,
+    // above) rather than leaving the page -- see that function's comment.
+    // "Upload" still goes through the native/library route: picking an
+    // existing photo has no in-app equivalent to build.
+    document.getElementById("af-take-photo-btn").addEventListener("click", openAfPhotoCamera);
     document.getElementById("af-upload-photo-btn").addEventListener("click", () => {
       RepCheckNative.openLibrary(afUploadInput, useAfImage);
     });
@@ -2883,7 +2911,7 @@
   // button on this page instead, so this stays a fast, two-choice popup.
   function renderAfMealQuickChoice() {
     setAfModalTitle(AF_MODAL_DEFAULT_TITLE);
-    const recentScans = getRecentScans(6);
+    const recentScans = getRecentScans(3);
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Snap or upload a photo of your meal.</div>
       <div class="af-tile-grid">
@@ -2898,14 +2926,8 @@
       </div>
       ${afRecentSectionHtml(recentScans)}
     `;
-    // Inside the iOS shell these open the real native camera / photo
-    // library (Guideline 4.2 -- see static/native.js); in a browser
-    // RepCheckNative clicks the very same hidden input this used to click
-    // directly, and afCameraInput's own change listener delivers the file
-    // exactly as before.
-    document.getElementById("af-take-photo-btn").addEventListener("click", () => {
-      RepCheckNative.openCamera(afCameraInput, useAfImage);
-    });
+    // "Take photo" opens the in-app live viewfinder; see openAfPhotoCamera.
+    document.getElementById("af-take-photo-btn").addEventListener("click", openAfPhotoCamera);
     document.getElementById("af-upload-photo-btn").addEventListener("click", () => {
       RepCheckNative.openLibrary(afUploadInput, useAfImage);
     });
@@ -2984,6 +3006,122 @@
     if (afPreviewUrl) URL.revokeObjectURL(afPreviewUrl);
     afPreviewUrl = URL.createObjectURL(blobOrFile);
     renderAfNotePrompt();
+  }
+
+  // ---------- In-app "Take photo" (live viewfinder, no OS camera round-trip) ----------
+  // The same reasoning as static/video_recorder.js's live recorder: a photo
+  // captured without ever leaving the page beats a round trip through the
+  // OS camera app or (inside the iOS shell) the Capacitor Camera plugin --
+  // one less thing that can silently fail to hand a photo back. Falls back
+  // to the old RepCheckNative.openCamera route (native camera / hidden
+  // <input capture>) wherever getUserMedia itself isn't available.
+  function stopAfPhotoCamera() {
+    if (afPhotoStream) afPhotoStream.getTracks().forEach((track) => track.stop());
+    afPhotoStream = null;
+  }
+
+  async function openAfPhotoCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      RepCheckNative.openCamera(afCameraInput, useAfImage);
+      return;
+    }
+    afPhotoFacing = "environment";
+    try {
+      afPhotoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: afPhotoFacing } } });
+    } catch (err) {
+      // Denied, or no camera. By this point the click's user-activation is
+      // gone (see renderBarcodeCameraUnavailable above for the same call),
+      // so a fresh tap is required rather than falling straight into
+      // RepCheckNative.openCamera -- a silent no-op there would look like
+      // this button is broken too.
+      renderAfPhotoCameraUnavailable();
+      return;
+    }
+    renderAfPhotoCameraScreen();
+  }
+
+  function renderAfPhotoCameraUnavailable() {
+    afModalBody.innerHTML = `
+      <div class="af-choice-intro">Camera unavailable — take a photo instead.</div>
+      <div class="af-tile-grid">
+        <button type="button" class="af-tile af-tile-wide af-tile-green" id="af-photo-fallback-btn">
+          <span class="af-tile-title">Take photo</span>
+        </button>
+      </div>
+    `;
+    document.getElementById("af-photo-fallback-btn").addEventListener("click", () => {
+      RepCheckNative.openCamera(afCameraInput, useAfImage);
+    });
+  }
+
+  function renderAfPhotoCameraScreen() {
+    afModalBody.innerHTML = `
+      <div class="af-scanner-screen">
+        <div class="af-scanner-wrap">
+          <video id="af-photo-video" class="af-scanner-video" autoplay playsinline muted></video>
+        </div>
+        <div class="af-scanner-controls">
+          <div class="af-camera-row">
+            <div class="af-camera-slot" aria-hidden="true"></div>
+            <button type="button" class="af-camera-shutter" id="af-photo-shutter" aria-label="Take photo">
+              <span class="af-camera-shutter-core"></span>
+            </button>
+            <div class="af-camera-slot">
+              <button type="button" class="af-camera-flip" id="af-photo-flip" aria-label="Flip camera">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-7.5-4"/><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 7.5 4"/><path d="M19.5 3v4h-4"/><path d="M4.5 21v-4h4"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="af-actions">
+            <button type="button" class="af-secondary-btn" id="af-photo-cancel-btn" style="flex:1;">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const video = document.getElementById("af-photo-video");
+    video.srcObject = afPhotoStream;
+    document.getElementById("af-photo-shutter").addEventListener("click", captureAfPhoto);
+    document.getElementById("af-photo-flip").addEventListener("click", flipAfPhotoCamera);
+    document.getElementById("af-photo-cancel-btn").addEventListener("click", () => {
+      stopAfPhotoCamera();
+      renderAfChoice();
+    });
+  }
+
+  async function flipAfPhotoCamera() {
+    const next = afPhotoFacing === "environment" ? "user" : "environment";
+    // Release the current lens FIRST -- iOS refuses a second camera stream
+    // while the first is still live (same ordering as video_recorder.js).
+    stopAfPhotoCamera();
+    try {
+      afPhotoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: next } } });
+      afPhotoFacing = next;
+    } catch (err) {
+      // Couldn't get the other lens -- go back to the one that was working
+      // rather than leaving the screen with a dead preview.
+      try {
+        afPhotoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: afPhotoFacing } } });
+      } catch (err2) {
+        renderAfPhotoCameraUnavailable();
+        return;
+      }
+    }
+    const video = document.getElementById("af-photo-video");
+    if (video) video.srcObject = afPhotoStream;
+  }
+
+  function captureAfPhoto() {
+    const video = document.getElementById("af-photo-video");
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      stopAfPhotoCamera();
+      useAfImage(new File([blob], "photo.jpg", { type: "image/jpeg" }));
+    }, "image/jpeg", 0.92);
   }
 
   // Shown after a photo is captured/picked but before it's sent to
