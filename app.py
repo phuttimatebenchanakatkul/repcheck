@@ -529,6 +529,44 @@ def inject_asset_url():
 
 
 @app.after_request
+def cache_versioned_assets(response):
+    # Every asset_url() above already carries ?v=<mtime>, which makes the URL
+    # content-addressed: edit the file and the URL changes. Flask still serves
+    # /static with `Cache-Control: no-cache`, though, which means the device
+    # must ask the server before reusing ANY of them -- so a page load spends a
+    # network round trip per asset before it can paint.
+    #
+    # base.html alone references 13, eight of them render-blocking <script>s in
+    # <head> (i18n.js is 145 KB, style.css 92 KB), and the page templates add
+    # their own. So tapping a tab meant: fetch the page, then ~13 conditional
+    # requests, and only then a first paint. On a phone that is the whole
+    # screen -- the bottom tab bar included, since it is part of the document
+    # -- sitting blank until the last of them answers. That is what "it
+    # refreshes when I switch tabs" actually was.
+    #
+    # This is the same deal /lib/<name>.js already takes ("safe to cache
+    # immutably: the ?v= hash above changes whenever the content does, so a
+    # stale copy can never be served under a live URL"), extended to the
+    # assets that were already versioned but not allowed to be kept. Scoped to
+    # requests that actually carry ?v=, so anything hitting /static without a
+    # version -- an image referenced from CSS, a favicon, a hand-typed URL --
+    # keeps revalidating exactly as before.
+    #
+    # This cannot bring back the stale-deploy bug v0.4.9.2 fixed. The ?v=
+    # values live inside the HTML, and revalidate_html below makes the device
+    # re-ask for that HTML before every reuse, so a deploy's new asset URLs
+    # arrive on the very next navigation and are fetched fresh because they
+    # are different URLs.
+    if (
+        request.endpoint == "static"
+        and request.args.get("v")
+        and response.status_code == 200
+    ):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
+
+@app.after_request
 def revalidate_html(response):
     # asset_url() above cache-busts every stylesheet and script, but the
     # busted URLs only exist INSIDE the HTML -- so the scheme is only as
