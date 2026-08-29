@@ -78,6 +78,12 @@ export function loadNav({ activeIndex = 0 } = {}) {
     addEventListener(type, handler) {
       (windowListeners[type] = windowListeners[type] || []).push(handler);
     },
+    // nav.js navigates a drag-committed switch by assigning this directly
+    // (a touch that moved this far gets no native click to do it via the
+    // real <a href>). Stubbed rather than left off `windowStub` so that
+    // assignment doesn't throw -- tests read it back to confirm the tab
+    // that was actually released on.
+    location: { href: "" },
   };
 
   // eslint-disable-next-line no-new-func
@@ -99,6 +105,14 @@ export function loadNav({ activeIndex = 0 } = {}) {
     indicator,
     windowListeners,
     fireWindow,
+    /** windowStub.location -- read back after a drag-committed switch. */
+    location: windowStub.location,
+    /** Fires a window pointermove at the centre of tab `index`, as if the
+     *  finger that pressed elsewhere has dragged onto it. */
+    moveTo: (index) => fireWindow("pointermove", {
+      clientX: offsetLeftFor(index) + ITEM_WIDTH / 2,
+      clientY: 748 + ITEM_HEIGHT / 2,
+    }),
     /** The x the bubble is currently translated to, as a number. */
     x: () => {
       const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(

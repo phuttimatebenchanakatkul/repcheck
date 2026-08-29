@@ -1058,6 +1058,12 @@ input[type="file"], select {
        (see the View Transitions block below) while the active bubble
        glides to its new slot -- no cross-fade flicker on the bar itself. */
     view-transition-name: mt-pill;
+    /* nav.js now drags the indicator across the pill on a held/moving
+       touch (see its pointermove handling). Without this, iOS treats
+       that same gesture as a pan and fights the JS for it -- `none`
+       hands the whole pill over to pointer events, no native panning
+       or pinch-zoom to arbitrate against. */
+    touch-action: none;
   }
 
   /* The active bubble, once nav.js has taken it over. It exists as its own
@@ -1105,6 +1111,15 @@ input[type="file"], select {
     /* The colour change is left to catch up on its own rather than
        snapping, so a tapped tab lights up as the bubble arrives. */
     transition: color 0.22s ease;
+    /* These are real <a href> tags, so a touch-and-hold used to trigger
+       iOS's own link-preview callout -- a screenshot-style peek of the
+       destination page, floating right over the app. touch-callout:none
+       kills that; user-select:none stops the hold from also trying to
+       select the icon/highlight it as text. Holding a tab is now just
+       the start of the drag-to-switch gesture below, nothing else. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   /* Fallback highlight: what the active tab looks like when nav.js has
      not run (script blocked, or the brief moment before the deferred

@@ -144,13 +144,58 @@ describe("nav.js -- the gliding tab bar bubble", () => {
 
   it("listens for the events that can move the tabs without a navigation", () => {
     const nav = loadNav();
-    // Rotation and the iOS keyboard resize the bar under a stale bubble.
+    // Rotation and the iOS keyboard resize the bar under a stale bubble;
+    // pointermove is what follows the finger across the bar mid-drag.
     expect(Object.keys(nav.windowListeners).sort()).toEqual([
       "pageshow",
       "pointercancel",
+      "pointermove",
       "pointerup",
       "resize",
     ]);
+  });
+
+  // ---- Drag-to-switch: a held finger sliding across the bar -------------
+  // The tabs are real links, so a plain tap always had a click to commit
+  // it. A touch that *moves* this much is one browsers read as a pan, not
+  // a tap -- no click follows it -- so a drag that ends on a different tab
+  // than it started on has to be committed by hand.
+
+  it("follows the finger across the bar and navigates when it lifts on a different tab", () => {
+    const nav = loadNav({ activeIndex: 0 });
+
+    nav.press(0); // starts on the already-active tab -- no visual change yet
+    nav.moveTo(3); // dragged onto HYROX
+    expect(nav.x()).toBe(offsetLeftFor(3));
+
+    nav.fireWindow("pointerup", nav.pointerAt(3));
+
+    expect(nav.activeLabel()).toBe("HYROX");
+    expect(nav.location.href).toBe("/hyrox");
+  });
+
+  it("does not navigate when the drag returns to the tab it started on", () => {
+    const nav = loadNav({ activeIndex: 0 });
+
+    nav.press(0);
+    nav.moveTo(3);
+    nav.moveTo(0); // dragged back before lifting
+    expect(nav.x()).toBe(offsetLeftFor(0));
+
+    nav.fireWindow("pointerup", nav.pointerAt(0));
+
+    expect(nav.location.href).toBe("");
+    expect(nav.activeLabel()).toBe("Home");
+  });
+
+  it("does not navigate on a plain tap even though it tracks pointermove", () => {
+    const nav = loadNav({ activeIndex: 0 });
+
+    nav.press(2);
+    nav.fireWindow("pointerup", nav.pointerAt(2));
+    // No drag happened, so this is a plain tap -- the real <a> click (not
+    // a manual assignment) is what's expected to navigate.
+    expect(nav.location.href).toBe("");
   });
 
   // Every page shares base.html, including ones that hide the bar

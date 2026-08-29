@@ -26,6 +26,16 @@
   Progressive enhancement: without this file the active tab keeps its own
   background exactly as before -- .mt-pill only drops it once this script
   has added .has-indicator and put a real bubble behind it.
+
+  3. Holding a tab used to also do something nobody asked for: since the
+     tabs are real links, iOS read a touch-and-hold as "peek this link"
+     and popped up its own preview of the destination page. style.css now
+     turns that callout off (-webkit-touch-callout: none on .mt-item), so
+     holding a tab does nothing by itself. The only thing a held finger
+     does now is drag -- see the pointermove/pointerup handling below,
+     which follows the finger across the bar and, if it's lifted over a
+     different tab than it landed on, navigates there directly (a touch
+     that moved that much never gets a native click to do it for us).
 */
 (function () {
   var pill = document.querySelector(".mt-pill");
@@ -101,40 +111,137 @@
     return null;
   }
 
+  // ---- Drag-to-switch: slide a held finger along the bar ----------------
+  // The tabs are real <a href> elements, so a plain tap already navigates
+  // on its own via the browser's native click. This layer only handles the
+  // case a click can't: pressing down on one tab and *dragging* to another
+  // before lifting. `trackingId` is the pointer being followed (null when
+  // no drag is in progress) so window-level move/up listeners stay no-ops
+  // for any touch that didn't start on the pill -- a swipe-to-delete row
+  // or a sheet drag elsewhere on the page must never be pulled in here.
+  var trackingId = null;
+  var startItem = null;
+  var currentItem = null;
+
+  // Hit-tests a point against the tabs rather than trusting event.target,
+  // since a dragging touch's target stays pinned to wherever it started.
+  // Bounds come from the tabs themselves (not the pill) -- its padding is
+  // a couple of pixels, well inside `slop`. `slop` forgives a thumb
+  // straying slightly above/below the bar, and the x-clamp means dragging
+  // past the first/last tab still resolves to it instead of falling off
+  // the edge; only straying far vertically (up into the page) counts as
+  // abandoning the gesture, returning null.
+  function itemAt(clientX, clientY) {
+    var top = Infinity, bottom = -Infinity, left = Infinity, right = -Infinity;
+    var rects = items.map(function (item) { return item.getBoundingClientRect(); });
+    rects.forEach(function (r) {
+      if (r.top < top) top = r.top;
+      if (r.bottom > bottom) bottom = r.bottom;
+      if (r.left < left) left = r.left;
+      if (r.right > right) right = r.right;
+    });
+    var slop = 28;
+    if (clientY < top - slop || clientY > bottom + slop) return null;
+    var x = clientX;
+    if (x < left) x = left;
+    if (x > right) x = right;
+    for (var i = 0; i < items.length; i++) {
+      if (x >= rects[i].left && x <= rects[i].right) return items[i];
+    }
+    return x <= (left + right) / 2 ? items[0] : items[items.length - 1];
+  }
+
   pill.addEventListener(
     "pointerdown",
     function (event) {
       var item = closestItem(event.target);
-      if (!item || item === activeItem()) return;
-      pending = item;
-      place(item, true);
+      if (!item) return;
+      trackingId = event.pointerId;
+      startItem = item;
+      currentItem = item;
+      // Starting the press already on the active tab needs no visual
+      // change yet -- the bubble is already there. It only needs to move
+      // once the finger actually drags onto a different tab (below).
+      if (item !== activeItem()) {
+        pending = item;
+        place(item, true);
+      }
     },
     { passive: true }
   );
 
-  // Lifted somewhere other than the tab that was pressed -> no click is
-  // coming, so put the bubble back. Listened for on the window (a drag can
-  // easily end outside the bar) and decided by hit-testing the coordinates
-  // rather than by event.target, because the target of a pointerup that
-  // began on a tab is not reliably that tab. Crucially this is synchronous:
-  // an earlier version deferred the revert with setTimeout to "let the
-  // click go first", which raced -- lose the race and the bubble snapped
-  // back to the old tab and then slid forward again on the click.
+  // Follows the finger for the lifetime of the drag it started with,
+  // sliding the bubble to whichever tab the finger is currently over --
+  // including back to the active tab if the finger returns to it.
   window.addEventListener(
-    "pointerup",
+    "pointermove",
     function (event) {
-      if (!pending) return;
-      var r = pending.getBoundingClientRect();
-      var inside =
-        event.clientX >= r.left && event.clientX <= r.right &&
-        event.clientY >= r.top && event.clientY <= r.bottom;
-      // Inside: a click is on its way and will commit the move. Outside:
-      // the gesture was dragged off, so nothing is going to happen.
-      if (!inside) revert();
+      if (trackingId === null || event.pointerId !== trackingId) return;
+      var item = itemAt(event.clientX, event.clientY);
+      if (item === currentItem) return;
+      currentItem = item;
+      if (item) {
+        pending = item === activeItem() ? null : item;
+        place(item, true);
+      } else {
+        pending = null;
+        place(activeItem(), true);
+      }
     },
     { passive: true }
   );
-  window.addEventListener("pointercancel", revert, { passive: true });
+
+  // Decided by hit-testing the release coordinates, same as the move
+  // handler above, rather than by event.target -- the target of a
+  // pointerup that began on a tab is not reliably that tab. Crucially this
+  // is synchronous: an earlier version deferred the decision with
+  // setTimeout to "let the click go first", which raced -- lose the race
+  // and the bubble snapped back to the old tab and then slid forward again
+  // on the click.
+  window.addEventListener(
+    "pointerup",
+    function (event) {
+      if (trackingId === null || event.pointerId !== trackingId) return;
+      trackingId = null;
+      var finalItem = itemAt(event.clientX, event.clientY);
+      var pressedItem = startItem;
+      startItem = null;
+      currentItem = null;
+      if (!finalItem) {
+        // Dragged off the bar entirely -- nothing to commit.
+        revert();
+        return;
+      }
+      if (finalItem === pressedItem) {
+        // No drag across tabs happened: either a plain tap (a browser
+        // click is on its way and will commit it, same as always) or a
+        // press-and-release on the already-active tab (nothing to do).
+        return;
+      }
+      // Released over a different tab than the one pressed. A touch that
+      // has moved this far is one browsers treat as a pan, not a tap, so
+      // no click event is coming for it -- commit the navigation here.
+      pending = null;
+      items.forEach(function (el) {
+        el.classList.toggle("is-active", el === finalItem);
+      });
+      place(finalItem, true);
+      var href = finalItem.getAttribute("href");
+      if (href) window.location.href = href;
+    },
+    { passive: true }
+  );
+  window.addEventListener(
+    "pointercancel",
+    function (event) {
+      if (trackingId === null || event.pointerId !== trackingId) return;
+      trackingId = null;
+      startItem = null;
+      currentItem = null;
+      revert();
+    },
+    { passive: true }
+  );
 
   // The navigation is committed. Keep the bubble where the thumb put it
   // and hand the class over too, so this document's markup agrees with
@@ -144,6 +251,14 @@
     var item = closestItem(event.target);
     if (!item) return;
     pending = null;
+    // A click is the drag machinery's signal that this gesture is over --
+    // clearing trackingId here (not just on pointerup) matters because a
+    // browser can still deliver a stray pointerup after the click has
+    // already committed the move; without this it would be mistaken for
+    // still belonging to this gesture and re-processed.
+    trackingId = null;
+    startItem = null;
+    currentItem = null;
     items.forEach(function (el) {
       el.classList.toggle("is-active", el === item);
     });
