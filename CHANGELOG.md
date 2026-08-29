@@ -2,6 +2,24 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.4.11.1] - 2026-08-29
+
+### Fixed
+
+- Changing screens stopped looking like a page refresh again. The tab bar was
+  made smooth in 0.4.9.1, and then 0.4.9.2 -- fixing the iPhone app showing an
+  old version of a screen after a deploy -- told the phone never to keep a page
+  at all. So every tap of the tab bar downloaded the whole screen over the
+  network again, ~300 KB for the food and workout logs, even for a screen you
+  had just been looking at, and going back re-fetched it too. The smooth
+  cross-fade was still there, waiting on that download every time.
+  The phone still asks the server before showing any screen, so a screen can
+  never be out of date -- that guarantee is unchanged. What is new is that the
+  server can now answer "nothing changed" in a few hundred bytes instead of
+  resending the whole page, and the phone can go back to a screen instantly.
+  The tradeoff: pages are now kept in the app's own private storage between
+  visits, the way every other app on the phone works.
+
 ## [0.4.11.0] - 2026-08-29
 
 ### Fixed
