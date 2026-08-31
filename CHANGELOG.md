@@ -2,6 +2,30 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.8] - 2026-08-31
+
+### Fixed
+
+- The analyze page works when you reach it from the tab bar. Its entire body
+  was one `<script type="module">`, and `pagenav.js` -- which swaps tab pages
+  in without loading a document -- can only re-run inline scripts through
+  `new Function`, so `runInlineScripts()` skips anything that is not classic
+  JavaScript. The whole page therefore never executed: no camera, no recent
+  analyses, no exercise picker, no upload wiring. It failed silently, so there
+  was not even a fallback to a real navigation. Reaching the same route from
+  home's "Upload a set" link always worked, because that is a plain link and
+  pagenav only intercepts tab-bar clicks.
+
+  The page is a classic script now. MediaPipe was the only reason it was a
+  module, and it is pulled in with a dynamic `import()` inside
+  `getPoseLandmarker()` -- where the pose overlay was already loaded lazily --
+  so nothing about that behaviour changes.
+
+  A guard test pins the invariant for every tab page: the largest inline
+  script, the one carrying the page logic, must be one pagenav can actually
+  run. It reads the type gate out of `pagenav.js` rather than copying it, so
+  the two cannot drift apart.
+
 ## [0.5.0.7] - 2026-08-31
 
 ### Fixed
