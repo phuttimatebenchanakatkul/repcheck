@@ -58,9 +58,11 @@
       box-shadow: var(--shadow);
       padding: 32px 28px;
     }
-    .ob-progress { display: flex; gap: 5px; margin-bottom: 26px; }
-    .ob-progress-dot { flex: 1; height: 5px; border-radius: 999px; background: var(--border); transition: background 0.2s ease; }
-    .ob-progress-dot.is-done { background: linear-gradient(90deg, var(--blue), #5b8def); }
+    /* Single fill bar, not per-step dots -- fill width is the % of visible
+       steps completed, written by renderProgress() as inline HTML (this
+       container's innerHTML is fully replaced on every render). */
+    .ob-progress { height: 5px; border-radius: 999px; background: var(--border); margin-bottom: 26px; overflow: hidden; }
+    .ob-progress-fill { height: 100%; border-radius: 999px; background: var(--text); transition: width 0.25s ease; }
     .ob-intro { text-align: center; padding: 10px 0 4px; }
     .ob-intro-title { font-size: 22px; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.01em; }
     .ob-intro-sub { font-size: 14px; color: var(--text-secondary); line-height: 1.55; margin-bottom: 28px; }
@@ -98,35 +100,38 @@
     /* ---------- Choice cards (aspiration/gender/activity/protein/diet/
        distribution) -- a single full-width stacked list, icon chip on the
        left so an option reads visually without needing the title text at
-       all, title+sub on the right, a checkmark badge on selection. ---------- */
+       all, title+sub on the right, a checkmark badge on selection.
+       Monochrome: no accent color anywhere, selection reads through the
+       border + inverted icon/check alone. Row surface is a step above the
+       sheet in dark mode (--bg is DARKER than --card-bg there), same
+       convention as nutrition's .af-action-row, so it gets its own hex. ---------- */
     .ob-choice-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
     .ob-choice-card {
       display: flex; align-items: center; gap: 14px; width: 100%;
-      border: 1.5px solid var(--border); border-radius: 18px; padding: 14px 16px; cursor: pointer;
-      background: var(--card-bg); text-align: left; font-family: inherit;
-      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      border: 1.5px solid transparent; border-radius: 18px; padding: 14px 16px; cursor: pointer;
+      background: var(--bg); text-align: left; font-family: inherit;
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     }
-    .ob-choice-card:hover { border-color: var(--blue); transform: translateY(-1px); }
-    .ob-choice-card.is-selected {
-      border-color: var(--blue);
-      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
-      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
-    }
+    [data-theme="dark"] .ob-choice-card { background: #2a2a2c; }
+    .ob-choice-card:hover { background: #eceef1; }
+    [data-theme="dark"] .ob-choice-card:hover { background: #323234; }
+    .ob-choice-card:active { transform: scale(0.98); }
+    .ob-choice-card.is-selected { border-color: var(--text); }
     .ob-choice-icon {
       flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
       display: flex; align-items: center; justify-content: center;
-      background: var(--bg); color: var(--text-secondary);
+      background: var(--border); color: var(--text-secondary);
       transition: background 0.15s ease, color 0.15s ease;
     }
+    [data-theme="dark"] .ob-choice-icon { background: #3a3a3c; }
     .ob-choice-icon svg { width: 22px; height: 22px; }
-    .ob-choice-card.is-selected .ob-choice-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
+    .ob-choice-card.is-selected .ob-choice-icon { background: var(--text); color: var(--card-bg); }
     .ob-choice-text { flex: 1; min-width: 0; }
     .ob-choice-title { font-size: 16px; font-weight: 700; color: var(--text); }
-    .ob-choice-card.is-selected .ob-choice-title { color: var(--blue); }
     .ob-choice-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
     .ob-choice-check {
       flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
-      background: var(--blue); color: #fff; font-size: 11px; font-weight: 700;
+      background: var(--text); color: var(--card-bg); font-size: 11px; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transform: scale(0.5); transition: opacity 0.15s ease, transform 0.15s ease;
     }
@@ -137,19 +142,18 @@
     .ob-body-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
     .ob-body-type-card {
       position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;
-      border: 1.5px solid var(--border); border-radius: 16px; padding: 14px 10px; cursor: pointer;
-      background: var(--card-bg); color: var(--text); text-align: center; font-family: inherit;
-      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      border: 1.5px solid transparent; border-radius: 16px; padding: 14px 10px; cursor: pointer;
+      background: var(--bg); color: var(--text); text-align: center; font-family: inherit;
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     }
-    .ob-body-type-card:hover { border-color: var(--blue); transform: translateY(-1px); }
-    .ob-body-type-card.is-selected {
-      border-color: var(--blue);
-      background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
-      box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
-    }
+    [data-theme="dark"] .ob-body-type-card { background: #2a2a2c; }
+    .ob-body-type-card:hover { background: #eceef1; }
+    [data-theme="dark"] .ob-body-type-card:hover { background: #323234; }
+    .ob-body-type-card:active { transform: scale(0.97); }
+    .ob-body-type-card.is-selected { border-color: var(--text); }
     .ob-body-type-check {
       position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff;
+      background: var(--text); color: var(--card-bg);
       font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
     }
     .ob-body-type-icon { display: flex; align-items: center; justify-content: center; }
@@ -438,17 +442,14 @@
       .ob-scroll-cue-arrow { animation: none; }
     }
     .ob-btn-primary, .ob-btn-secondary {
-      flex: 1; padding: 14px; border-radius: 14px; font-size: 14px; font-weight: 700;
+      flex: 1; padding: 15px; border-radius: 18px; font-size: 15px; font-weight: 700;
       cursor: pointer; font-family: inherit; border: none;
-      transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+      transition: opacity 0.15s ease, transform 0.1s ease;
     }
-    .ob-btn-primary {
-      background: linear-gradient(135deg, #4d7ff5, var(--blue)); color: #fff;
-      box-shadow: 0 6px 16px rgba(47, 102, 232, 0.3);
-    }
-    .ob-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(47, 102, 232, 0.38); }
-    .ob-btn-primary:active:not(:disabled) { transform: translateY(0); }
-    .ob-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+    .ob-btn-primary { background: var(--text); color: var(--card-bg); }
+    .ob-btn-primary:hover:not(:disabled) { opacity: 0.88; }
+    .ob-btn-primary:active:not(:disabled) { transform: scale(0.98); }
+    .ob-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
     .ob-btn-secondary { background: var(--bg); border: 1.5px solid var(--border); color: var(--text); }
     .ob-btn-secondary:hover { border-color: var(--text-secondary); }
 

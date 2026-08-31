@@ -278,16 +278,16 @@
   }
 
   function renderProgress() {
-    // No dots on the intro, and none on the error view either -- a lit-up
-    // "all done" bar above an error message reads as a contradiction.
+    // No bar on the intro, and none on the error view either -- a full
+    // bar above an error message reads as a contradiction.
     if (w.stepIndex < 0 || (w.error && w.stepIndex >= STEPS.length)) { progressEl.innerHTML = ""; return; }
     const visible = visibleSteps();
     // Past the last question (result/error view) currentStep() is null and
-    // indexOf gives -1, which used to blank every dot right after the user
+    // indexOf gives -1, which used to blank the bar right after the user
     // finished answering -- treat it as all-done instead.
     const currentVisibleIndex = w.stepIndex >= STEPS.length ? visible.length - 1 : visible.indexOf(currentStep());
-    const dots = visible.map((_, i) => `<div class="ob-progress-dot ${i <= currentVisibleIndex ? "is-done" : ""}"></div>`).join("");
-    progressEl.innerHTML = dots;
+    const pct = ((currentVisibleIndex + 1) / visible.length) * 100;
+    progressEl.innerHTML = `<div class="ob-progress-fill" style="width:${pct}%"></div>`;
   }
 
   function render() {
