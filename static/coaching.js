@@ -1865,13 +1865,14 @@
     }
 
     renderWizardProgress() {
-      // Dot count matches what a "maintain" user actually sees -- they never
-      // reach goal_weight, so it never gets a dot for them.
+      // Step count matches what a "maintain" user actually sees -- they
+      // never reach goal_weight, so the bar never pauses on a phantom step
+      // for them.
       const visible = this.wizardVisibleSteps();
       const currentStep = WIZARD_STEPS[this.wizard.stepIndex];
       const currentVisibleIndex = visible.indexOf(currentStep);
-      const dots = visible.map((_, i) => `<div class="pc-wizard-progress-dot ${i <= currentVisibleIndex ? "is-done" : ""}"></div>`).join("");
-      return el(`<div class="pc-wizard-progress">${dots}</div>`);
+      const pct = ((currentVisibleIndex + 1) / visible.length) * 100;
+      return el(`<div class="pc-wizard-progress"><div class="pc-wizard-progress-fill" style="width:${pct}%"></div></div>`);
     }
 
     renderWizardStep() {
@@ -2198,6 +2199,7 @@
             <div class="pc-height-ruler-value" id="pc-height-value">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
             <div class="pc-height-ruler-window">
               <div class="pc-height-ruler-indicator"></div>
+              <div class="pc-height-ruler-readout" id="pc-height-readout">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
               <div class="pc-height-ruler-scroll" id="pc-height-scroll" tabindex="0">${rows.join("")}</div>
             </div>
           </div>
@@ -2205,11 +2207,13 @@
       `);
       const scrollEl = wrap.querySelector("#pc-height-scroll");
       const valueLabel = wrap.querySelector("#pc-height-value");
+      const readoutLabel = wrap.querySelector("#pc-height-readout");
       scrollEl.addEventListener("click", (e) => e.stopPropagation());
       scrollEl.addEventListener("scroll", () => {
         const index = Math.round(scrollEl.scrollTop / tickPx);
         w.heightCm = Math.max(HEIGHT_MIN_CM, Math.min(HEIGHT_MAX_CM, HEIGHT_MIN_CM + index));
         valueLabel.textContent = RepCheckUnits.formatHeightCm(w.heightCm);
+        readoutLabel.textContent = RepCheckUnits.formatHeightCm(w.heightCm);
       }, { passive: true });
       // setTimeout rather than requestAnimationFrame -- rAF only fires on
       // an actual paint, which some automated/backgrounded tab contexts

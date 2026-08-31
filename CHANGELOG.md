@@ -2,6 +2,25 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.7.0.0] - 2026-08-31
+
+### Changed
+
+- Redesigned every question screen in the "Personalized coaching" wizard
+  (`static/coaching.js`, opened from the nutrition page's "Edit goals"
+  button) and the matching first-time onboarding wizard (`static/onboarding.js`)
+  to a monochrome design language: no accent color anywhere -- a per-step
+  progress dot row is now a single fill bar, choice rows lose their blue
+  border/gradient/checkmark in favor of a plain row surface with the
+  selection communicated through the border and an inverted (black-on-white
+  / white-on-black) icon chip and checkmark, and the body-type photo grid
+  and Back/Next buttons follow the same treatment. The height ruler's
+  indicator changes from a blue two-line band to a single line, with a
+  small live readout added beside it. Both wizards ask largely the same
+  questions (goal, weight/gender, height, body type, activity, protein,
+  diet, calorie distribution) through two independently duplicated
+  implementations, so both got the same treatment for consistency.
+
 ## [0.6.1.0] - 2026-08-31
 
 ### Changed
