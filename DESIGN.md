@@ -129,10 +129,12 @@ Thai text gets its own stack layered in: `"SF Pro TH", "SF Thonburi", "Thonburi"
 
 Observed scale (px, weight):
 - 17px / 800 — sheet/modal titles
-- 15.5px / 800 — primary CTA titles
-- 13.5px / 700 — tile/row labels, entry names
+- 17px / 700 — action-row labels in a bottom sheet (`.af-action-title`); the
+  weight, not the size, is what keeps them under the title above them
+- 13.5px / 700 — list-row labels, entry names
 - 13px / 500 — intro/helper copy
-- 12px / 700–800 — section eyebrows (uppercase, 0.04–0.06em tracking)
+- 11–12px / 700–800 — section eyebrows (uppercase, 0.04–0.08em tracking; the
+  smaller the size, the wider the tracking)
 - 11.5px / 400 — meta/caption text (secondary color)
 
 Numeric values that line up in columns (calories, weights, times) should use
@@ -152,13 +154,30 @@ Numeric values that line up in columns (calories, weights, times) should use
     full-screen phone rules keep the same rounding; they must not reset it
     to `border-radius: 0`, or the sheet reads as a bare rectangle on the one
     viewport where it is used most.
-- Mobile breakpoint: `max-width: 380px` gets tighter padding and smaller icon/label sizes — see `.af-tile`, `.af-primary-cta-icon`, `.af-sec-*` in `templates/nutrition.html` for the pattern
+- Mobile breakpoint: `max-width: 380px` gets tighter padding and smaller icon/label sizes — see `.af-action-row` / `.af-action-title` in `templates/nutrition.html` for the pattern
 
 ## Component pattern: choice screens
 
-When a screen offers several entry actions plus a "recent" list underneath
-(see `renderAfChoice()` in `templates/nutrition.html`), prefer one dominant
-primary action over a grid of equal-weight tiles — established in the
-`analyze-food-photo-modal` redesign (2026-08-16). One large CTA
-(`.af-primary-cta`) + a quiet row of small icon buttons (`.af-secondary-row`)
-for the rest, each icon reusing its existing accent color from the tile grid.
+When a screen offers several entry actions (see `renderAfChoice()` and
+`renderAfMealQuickChoice()` in `templates/nutrition.html`), use a vertical
+list of equal-weight rows: `.af-action-list` wrapping `.af-action-row`, each
+row a monochrome icon, a label, and a right chevron on a plain rounded
+surface. No accent fills, no icon badges, no grid.
+
+This replaced two earlier patterns and the history is worth keeping, because
+the reasoning reversed:
+
+- A grid of gradient-badge tiles (`.af-tile`), then
+- one dominant CTA (`.af-primary-cta`) plus a quiet row of small accent icon
+  buttons (`.af-secondary-row`), established 2026-08-16 on the theory that
+  one action deserved the weight.
+
+Both are gone. Promoting one action only works when the sheet always opens
+for the same reason, and this one doesn't — it opens from a page button, from
+two different quick actions, and from three camera fallbacks, each arriving
+with a different action already in mind. Equal-weight rows let every entry
+point look correct, and they scale to a screen with one row without leaving a
+half-empty grid behind.
+
+A "recent" list, where a screen has one, sits below the rows under an
+uppercase eyebrow, as plain rows carrying a name and a single number.
