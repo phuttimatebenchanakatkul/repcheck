@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.7.1.1] - 2026-08-31
+
+### Fixed
+
+- The in-app camera only covered the top of the Log food sheet, with a
+  band of black between the feed and the shutter. The sheet is sized by
+  its content and 92vh was only a ceiling, so nothing in it had a real
+  height to fill -- the feed fell back to drawing at its own aspect ratio
+  and the black behind it showed through. Both the photo viewfinder and
+  the barcode scanner now fill the sheet from the header down to the
+  controls, whatever shape the camera hands back.
+
 ## [0.7.1.0] - 2026-08-31
 
 ### Changed
