@@ -650,12 +650,6 @@
         rcRender();
         rcStart();
         return;
-      } else if (screen === "finished") {
-        rc.splits = RC_SEQ.map(function (seg, i) {
-          return { key: seg.key, title: rcSegTitle(seg), at: RC_CUM[i] };
-        });
-        rc.index = RC_SEQ.length - 1;
-        rc.elapsed = RC_TOTAL;
       }
       rcRender();
     }
@@ -674,7 +668,6 @@
         rc.info = null; rcRender(true); return;
       }
       if (action === "set") { rc[el.getAttribute("data-group")] = el.getAttribute("data-value"); rcRender(true); return; }
-      if (action === "goto") { rcGoto(el.getAttribute("data-screen")); return; }
       if (action === "to-setup") { rcGoto("setup"); return; }
       if (action === "to-hero") { rcGoto("hero"); return; }
       if (action === "start") { rcGoto("running"); return; }
