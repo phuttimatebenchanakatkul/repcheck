@@ -2,6 +2,27 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.1.0] - 2026-08-31
+
+### Changed
+
+- The marketing landing page's "What it does" section now names each feature
+  the way the app itself does -- "Analyze a Workout," "Nutrition Log," "Weekly
+  Check-in," "Workout Log," "HYROX Race Simulator," "Friends" -- instead of
+  taglines like "It watches you lift," and drops the paragraph under each one.
+- The playable HYROX race simulator moved out of its own standalone section
+  and into the phone mockup for the HYROX feature itself, so tapping it there
+  now runs the same start-to-finish race (setup, running clock, splits, finish
+  breakdown, Apple Watch companion) that used to live further down the page.
+
+### Removed
+
+- The "Form analysis" section (headline, rep-by-rep bar chart, and its hover
+  interaction), the "Race day" station-grid section, and the FAQ section are
+  gone from the marketing page, along with the HYROX link in the top nav and
+  the "Pre-launch - early access opening soon / Move your cursor" hero line.
+  Dead CSS selectors and JS left behind by these removals were cleaned up too.
+
 ## [0.5.0.9] - 2026-08-31
 
 ### Fixed

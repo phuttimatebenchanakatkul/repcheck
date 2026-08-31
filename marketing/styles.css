@@ -38,7 +38,7 @@ button { font: inherit; }
 .skip-link { position: absolute; left: -9999px; }
 .skip-link:focus { left: 12px; top: 12px; background: var(--ink); color: #fff; padding: 10px 14px; z-index: 20; }
 
-.mono, .strip, .meta, .kicker, .hint, .footer, .bar-score, .bar-n, .ring-label, .date, .score-label {
+.mono, .strip, .kicker, .hint, .footer, .ring-label, .date, .score-label {
   font-family: "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -70,20 +70,21 @@ button { font: inherit; }
 
 .hero-foot { position: relative; display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-end; justify-content: space-between; }
 .hero-foot p { max-width: 46ch; font-size: 16px; line-height: 1.55; color: var(--muted); }
-.meta { display: flex; flex-direction: column; gap: 10px; text-align: right; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); }
 
 /* ---------- section chrome ---------- */
 .strip { display: flex; justify-content: space-between; align-items: baseline; padding: 22px 30px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); border-bottom: 1px solid var(--hair); }
-.strip--bare { padding: 0; border: none; }
 .kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); }
-.kicker--dark { color: #8a8a8a; }
 
 /* ---------- features + phone ---------- */
 .what { border-bottom: 1px solid var(--hair); }
 .what-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
-.feature-list { border-right: 1px solid var(--hair); }
+/* The rows are titles only, so their natural height falls well short of the
+   phone beside them. Share the column's height between them rather than
+   leave the hairline running down 200px of empty white at the bottom. */
+.feature-list { display: flex; flex-direction: column; border-right: 1px solid var(--hair); }
 .feature {
-  display: block; width: 100%; text-align: left; appearance: none;
+  flex: 1 0 auto;
+  display: flex; align-items: center; width: 100%; text-align: left; appearance: none;
   border: none; border-bottom: 1px solid var(--hair);
   background: #fff; color: var(--ink); cursor: pointer;
   padding: 24px 30px;
@@ -93,10 +94,9 @@ button { font: inherit; }
 .feature-head { display: flex; align-items: baseline; gap: 16px; }
 .idx { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.14em; opacity: 0.5; }
 .feature-title { font-size: clamp(21px, 2.4vw, 32px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
-.feature-plain { display: block; margin: 10px 0 0 27px; font-size: 15px; line-height: 1.6; opacity: 0.7; max-width: 46ch; }
 .hint { padding: 24px 30px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--meta); }
 
-.phone-stage { display: flex; align-items: center; justify-content: center; padding: 48px 30px; background: var(--soft); }
+.phone-stage { display: flex; align-items: center; justify-content: center; gap: 30px; padding: 48px 30px; background: var(--soft); }
 .phone { width: 322px; max-width: 100%; border-radius: 46px; padding: 11px; background: #161616; box-shadow: 0 30px 70px rgba(0,0,0,.22); }
 .phone-screen { border-radius: 36px; background: var(--app-bg); color: var(--app-text); overflow: hidden; height: 640px; display: flex; flex-direction: column; }
 .status { display: flex; justify-content: space-between; padding: 14px 20px 8px; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--app-dim); }
@@ -216,44 +216,6 @@ button { font: inherit; }
 .stats b { display: block; font-size: clamp(44px, 5vw, 76px); font-weight: 900; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
 .stats span { display: block; margin-top: 10px; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); }
 
-/* ---------- split ---------- */
-.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); border-bottom: 1px solid var(--hair); }
-.split-copy { padding: clamp(40px, 6vw, 96px) 30px; border-right: 1px solid var(--hair); }
-.split-copy h2 { margin: 22px 0 20px; font-size: clamp(30px, 4vw, 58px); font-weight: 900; letter-spacing: -0.04em; line-height: 1; }
-.lede { font-size: 16px; line-height: 1.6; color: var(--muted); max-width: 46ch; margin-bottom: 28px; }
-.ticks { display: flex; flex-direction: column; gap: 12px; font-size: 15px; line-height: 1.5; }
-.ticks li { display: flex; gap: 12px; }
-.ticks li::before { content: ""; width: 6px; height: 6px; margin-top: 8px; background: var(--ink); flex: none; }
-
-.split-chart { padding: clamp(40px, 6vw, 96px) 30px; display: flex; flex-direction: column; justify-content: flex-end; gap: 18px; }
-.bars { display: flex; align-items: flex-end; gap: 10px; height: 230px; border-bottom: 1px solid var(--ink); }
-.bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; cursor: pointer; }
-.bar-score, .bar-n { font-size: 11px; color: var(--meta); }
-.bar-score { margin-bottom: 8px; }
-.bar-n { margin-top: 10px; }
-.bar-fill { width: 100%; height: var(--h); background: #e2e2e2; transition: background 0.18s ease, height 0.28s cubic-bezier(.2,.7,.2,1); }
-.bar.is-warn .bar-fill { background: #c9c9c9; }
-.bar.is-on .bar-fill { background: var(--ink); }
-.rep-note { font-size: 15px; line-height: 1.6; color: var(--muted); min-height: 48px; }
-
-/* ---------- hyrox band ---------- */
-.band { background: var(--ink); color: #fff; padding: clamp(48px, 7vw, 110px) 30px; }
-.band h2 { margin: 22px 0 46px; font-size: clamp(30px, 5vw, 72px); font-weight: 900; letter-spacing: -0.045em; line-height: 0.98; max-width: 18ch; }
-.stations { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); border-top: 1px solid #262626; border-left: 1px solid #262626; }
-.stations li { padding: 26px; border-right: 1px solid #262626; border-bottom: 1px solid #262626; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-size: 16px; font-weight: 600; transition: background 0.18s ease, color 0.18s ease; }
-.stations li:hover { background: #fff; color: var(--ink); }
-.stations b { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.08em; opacity: 0.7; }
-
-/* ---------- faq ---------- */
-.faq { border-bottom: 1px solid var(--hair); }
-.faq-item { border-bottom: 1px solid var(--hair); }
-.faq-item summary { list-style: none; cursor: pointer; padding: 26px 30px; display: flex; justify-content: space-between; align-items: baseline; gap: 24px; font-size: clamp(19px, 2.1vw, 28px); font-weight: 700; letter-spacing: -0.025em; }
-.faq-item summary::-webkit-details-marker { display: none; }
-.faq-item summary i { font-family: "JetBrains Mono", monospace; font-style: normal; font-size: 14px; color: var(--meta); }
-.faq-item summary i::before { content: "+"; }
-.faq-item[open] summary i::before { content: "—"; }
-.faq-item p { padding: 0 30px 26px; max-width: 62ch; font-size: 16px; line-height: 1.6; color: var(--muted); }
-
 /* ---------- waitlist ---------- */
 .cta { padding: clamp(56px, 9vw, 140px) 30px; display: flex; flex-direction: column; align-items: flex-start; gap: 28px; }
 .cta h2 { font-size: clamp(36px, 7vw, 116px); font-weight: 900; letter-spacing: -0.05em; line-height: 0.94; max-width: 14ch; }
@@ -276,11 +238,9 @@ button { font: inherit; }
 @keyframes rc-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 720px) {
-  .hero, .strip, .feature, .hint, .stats > div, .split-copy, .split-chart, .split-demo, .band, .faq-item summary, .faq-item p, .cta, .footer { padding-left: 20px; padding-right: 20px; }
+  .hero, .strip, .feature, .hint, .stats > div, .cta, .footer { padding-left: 20px; padding-right: 20px; }
   .nav-links { gap: 14px; font-size: 10px; }
   .feature-list { border-right: none; }
-  .split-copy { border-right: none; border-bottom: 1px solid var(--hair); }
-  .meta { text-align: left; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -384,37 +344,18 @@ button { font: inherit; }
   .screen[data-wl="1"] .wl-log { transform: none; filter: none; }
 }
 
-/* ---------- race walkthrough (section 04) ----------
-   Same shape as the feature switcher above: hairline-separated rows on the
-   left that go black when active, the phone on soft grey to the right. The
-   screens inside the handset reuse the app-screen components already defined
-   above (.card, .row, .pill, .date, .clock, .sub, .stchips, .cta-blue), so
-   this section and the phone in section 01 are the same phone. */
-.race { border-bottom: 1px solid var(--hair); }
-.race-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
-.race-steps { border-right: 1px solid var(--hair); }
-.race-step {
-  display: block; width: 100%; text-align: left; appearance: none;
-  border: none; border-bottom: 1px solid var(--hair);
-  background: #fff; color: var(--ink); cursor: pointer;
-  padding: 24px 30px;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-.race-step.is-active { background: var(--ink); color: #fff; }
-.race-stage {
-  display: flex; align-items: flex-start; justify-content: center; gap: 30px;
-  padding: 48px 30px; background: var(--soft);
-}
+/* ---------- race walkthrough (feature 05's screen) ----------
+   The HYROX feature doesn't show a still -- its screen is the playable race
+   simulator, driven from inside the handset itself (start, set up, complete a
+   split, read the finish back). It reuses the app-screen components already
+   defined above (.card, .row, .pill, .date, .clock, .sub, .stchips,
+   .cta-blue), so it is the same phone as the other five features.
 
-/* Deliberately NOT .screen: section 01's switcher owns that class and would
-   toggle this screen off. Same layout, spelled out, plus its own scrolling --
-   the handset scrolls its screen like the real thing. */
-.rc-screen {
-  flex: 1; display: flex; flex-direction: column; gap: 12px;
-  padding: 14px 18px;
-  overflow-y: auto; scrollbar-width: none; position: relative;
-}
-.rc-screen::-webkit-scrollbar { display: none; }
+   It is a .screen like the rest so the feature switcher owns it; the only
+   extra is its own scrolling -- the handset scrolls its screen like the real
+   thing, where the mocked-up screens never needed to. */
+.screen--race { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; position: relative; }
+.screen--race::-webkit-scrollbar { display: none; }
 
 /* Station chips on the HYROX screen are buttons here (tap for how it's done),
    so they need the button reset the mocked-up divs never needed. */
@@ -539,7 +480,7 @@ button.stchip:hover { background: #34343a; }
 .rc-sheet-detail { margin: 0; font-size: 12px; line-height: 1.5; color: var(--app-dim); }
 
 /* ----- Apple Watch companion (concept, labelled as one) ----- */
-.watch-rig { width: 186px; flex: none; padding-top: 30px; animation: rc-watch-in .34s ease both; }
+.watch-rig { width: 186px; flex: none; animation: rc-watch-in .34s ease both; }
 @keyframes rc-watch-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
 .watch {
   position: relative; width: 172px; margin-inline: auto;
@@ -579,12 +520,9 @@ button.stchip:hover { background: #34343a; }
 .watch-note { margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: var(--meta); text-align: center; }
 .watch-note b { display: block; margin-bottom: 3px; font-size: 12.5px; color: var(--ink); }
 
-@media (max-width: 980px) {
-  .race-stage { flex-direction: column; align-items: center; gap: 22px; }
-  .watch-rig { padding-top: 0; }
+@media (max-width: 1240px) {
+  .phone-stage { flex-direction: column; gap: 22px; }
 }
 @media (max-width: 720px) {
-  .race-steps { border-right: none; }
-  .race-step { padding-left: 20px; padding-right: 20px; }
-  .race-stage { padding-left: 20px; padding-right: 20px; }
+  .phone-stage { padding-left: 20px; padding-right: 20px; }
 }
