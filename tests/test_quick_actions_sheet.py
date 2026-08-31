@@ -121,7 +121,7 @@ def test_more_pane_is_reachable_from_the_actions_pane(base_html):
 
 
 def test_more_is_a_quiet_row_not_a_sixth_tile(base_html):
-    # If it ever becomes a .qa-tile it starts competing with the five colours,
+    # If it ever becomes a .qa-tile it starts competing with the four actions,
     # and the tile count assertion above would also start lying.
     more_link = re.search(r'<button[^>]*id="qa-more-open"[^>]*>', base_html).group(0)
     assert "qa-more-link" in more_link
@@ -148,9 +148,12 @@ def test_quick_action_tiles_have_no_glow(style_css):
     )
 
 
-def test_tile_icon_badges_are_flat_fills(style_css):
-    block = style_css[
-        style_css.index("  .qa-green .qa-tile-icon") : style_css.index(".qa-cancel {")
-    ]
-    assert "box-shadow" not in block
+def test_tiles_have_no_per_action_color_classes(base_html, style_css):
+    # The colour-per-action badges (qa-green/blue/amber/red/purple) were
+    # retired when the sheet moved from a tile grid to a flat row list --
+    # every row (actions AND the More pages) now shares one plain icon
+    # treatment, so no tile should still carry a colour modifier class.
+    for color in ("qa-green", "qa-blue", "qa-amber", "qa-red", "qa-purple"):
+        assert color not in base_html, f"{color} modifier class should be gone from the redesigned sheet"
+    block = style_css[style_css.index(".qa-tile {") : style_css.index(".qa-cancel {")]
     assert "gradient" not in block
