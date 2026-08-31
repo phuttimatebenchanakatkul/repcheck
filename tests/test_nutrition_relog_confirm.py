@@ -195,12 +195,23 @@ def test_relog_confirm_lists_per_ingredient_amounts(nutrition_html):
     )
 
 
-def test_recent_scans_row_shows_grams(nutrition_html):
-    """The Recent scans list should show the amount too, so the user can
-    tell two differently-sized logs of the same dish apart before tapping."""
+def test_recent_scans_row_shows_calories_only(nutrition_html):
+    """The Recent scans row is a name and one number.
+
+    This used to assert the opposite -- that the grams sat alongside the
+    kcal, so two differently-sized logs of the same dish could be told
+    apart from the list. The redesigned sheet drops them: "412g / 1081
+    kcal" reads as one run of digits, and the amount is not what picks the
+    row. Telling the two apart before anything is written is still
+    required, and is now solely the confirm screen's job -- so this test
+    only holds while test_relog_confirm_shows_the_serving_amount above
+    does too.
+    """
     script = _script_block(nutrition_html)
     row_match = re.search(r'af-recent-meta">(.*?)</div>', script)
     assert row_match, "could not find the recent-scans meta row"
-    assert "totals.grams" in row_match.group(1), (
-        "the recent-scans row should show the entry's grams alongside kcal"
+    assert "totals.calories" in row_match.group(1)
+    assert "totals.grams" not in row_match.group(1), (
+        "the recent-scans row should show calories only -- the amount "
+        "belongs on the confirm screen, not in the list"
     )

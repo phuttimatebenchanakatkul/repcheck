@@ -2,6 +2,33 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.7.1.0] - 2026-08-31
+
+### Changed
+
+- The Log food sheet now speaks one visual language on every screen it
+  can show. "Take photo", "Upload photo", "Scan barcode", "Open camera"
+  and both camera-unavailable fallbacks are all the same tappable row --
+  icon, label, chevron -- instead of the coloured tile grid some of those
+  screens used and others didn't. Rows also read at a size you can scan
+  without leaning in.
+- Recent scans lost their per-row camera badge and now show the calorie
+  count on its own. "412g / 1081 kcal" was one long run of digits, and
+  the amount was never what tells two logs of the same dish apart at a
+  glance. Calories line up in a column (tabular figures), and the exact
+  amount plus the full ingredient breakdown are still one tap away on the
+  confirm screen that "Log again" opens, before anything is written.
+- The barcode scanner's guide frame is now white on a deeper dim, rather
+  than the app blue -- a mid-tone accent was the one colour that could
+  vanish against whatever the camera happened to be pointed at. Cancel is
+  a full-width button under both the barcode scanner and the photo
+  viewfinder, instead of a small pill floating under a full-bleed feed.
+
+### Removed
+
+- The gradient-badge tile styling behind the old choice screens, now that
+  nothing renders it.
+
 ## [0.7.0.1] - 2026-08-31
 
 ### Fixed
