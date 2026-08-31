@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.7.0.1] - 2026-08-31
+
+### Fixed
+
+- The home page hero showed the last form score (e.g. "38 form") in its
+  top-right badge; the daily-use streak had no badge in the hero at all,
+  only a smaller chip further down next to the "Today" section title. The
+  streak chip now sits in the hero instead, replacing the form-score
+  badge -- the streak is the "look what you already did today" signal
+  users actually check the hero for. The now-unused `home.hero.formPill`
+  i18n key and `.hm-hero-score-pill` styles/JS are removed.
+
 ## [0.7.0.0] - 2026-08-31
 
 ### Changed

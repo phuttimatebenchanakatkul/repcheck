@@ -11,17 +11,19 @@
 
 {% if current_user %}
 <!--
-  Hero: leads with today's date and a badge showing the most recent
-  form score, a fixed "Analyze a workout" headline/CTA (this is the
-  page's single most important action, not a rotating one), a week strip
-  of that day's form score (or a dash when nothing was analyzed), and a
-  direct link into the upload flow. Same var(--card-bg)/var(--text)
-  theme-following surface as every other card on the page.
+  Hero: leads with today's date and the daily-use streak badge, a fixed
+  "Analyze a workout" headline/CTA (this is the page's single most
+  important action, not a rotating one), a week strip of that day's form
+  score (or a dash when nothing was analyzed), and a direct link into the
+  upload flow. Same var(--card-bg)/var(--text) theme-following surface as
+  every other card on the page.
 -->
 <div class="hm-hero">
   <div class="hm-hero-top">
     <div class="hm-hero-date" id="hm-hero-date"></div>
-    <div class="hm-hero-score-pill" id="hm-hero-score-pill" style="display: none;"></div>
+    <a class="hm-streak-chip" id="hm-streak-chip" href="{{ url_for('streaks') }}">
+      <span class="hm-streak-flame"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg></span><span id="hm-streak-count"></span>
+    </a>
   </div>
   <div class="hm-hero-title" data-i18n="home.hero.analyzeTitle">Analyze a workout</div>
   <div class="hm-hero-sub" data-i18n="home.hero.analyzeSub">Upload one set and I'll grade every rep.</div>
@@ -53,11 +55,6 @@
 
 <div class="hm-section-title-row">
   <div class="hm-section-title" data-i18n="home.today">Today</div>
-  {% if current_user %}
-  <a class="hm-streak-chip" id="hm-streak-chip" href="{{ url_for('streaks') }}">
-    <span class="hm-streak-flame"><svg class="rc-icon" width="1em" height="1em" aria-hidden="true"><use href="#rc-flame"/></svg></span><span id="hm-streak-count"></span>
-  </a>
-  {% endif %}
 </div>
 
 <!-- Calories & macros summary: bar-chart-style card (blue=calories,
@@ -93,15 +90,6 @@
   }
   .hm-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .hm-hero-date { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
-  /* Last form score, amber like the weekly check-in banner -- this is the
-     card's one "look what you already did" signal, so it should read as
-     a small celebration rather than a neutral stat pill. */
-  .hm-hero-score-pill {
-    display: inline-flex; align-items: center;
-    background: linear-gradient(135deg, #f5a94e, #e8832f); color: #fff;
-    border-radius: 999px; padding: 6px 13px; min-height: 44px; box-sizing: border-box;
-    font-size: 13px; font-weight: 800;
-  }
   .hm-hero-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top: 14px; line-height: 1.15; }
   .hm-hero-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 5px; }
   .hm-hero-week { display: flex; justify-content: space-between; gap: 6px; margin-top: 18px; }
@@ -268,9 +256,8 @@
       nutritionGoals = { protein: 150, fat: 65, carbs: 200, ...loadJson("repcheck_nutrition_goals_v1", {}) };
     }
 
-    // "Did the user use RepCheck today" streak, shown as a small badge next
-    // to the "Today" section title (linking to /streaks) rather than in the
-    // hero -- the hero's top-right badge is the last form score now.
+    // "Did the user use RepCheck today" streak, shown as the hero's
+    // top-right badge (linking to /streaks).
     const computeStreak = RepCheckStreak.current;
     function renderStreakChip() {
       const chipEl = document.getElementById("hm-streak-chip");
@@ -510,16 +497,6 @@
 
       const entries = await fetchAnalyzeHistory();
       const latest = entries[0];
-
-      const pillEl = document.getElementById("hm-hero-score-pill");
-      if (pillEl) {
-        if (latest && latest.overall_score !== null && latest.overall_score !== undefined) {
-          pillEl.textContent = t("home.hero.formPill", { n: latest.overall_score });
-          pillEl.style.display = "inline-flex";
-        } else {
-          pillEl.style.display = "none";
-        }
-      }
 
       // Monday-first week strip: today ringed, each day showing that
       // day's most recent form score (its most recent entry, since
