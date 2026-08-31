@@ -1490,6 +1490,22 @@
   });
   window.addEventListener("pagehide", closeCamera);
 
+  // Tapping another tab is not a navigation: pagenav.js swaps <main> in place,
+  // so neither pagehide nor visibilitychange ever fires and the two handlers
+  // above cannot run. Worse, the swap then calls RepCheckNavScope.release(),
+  // which UNBINDS them -- so without this the camera could never be released
+  // at all. It stayed live with the indicator light on, and the next visit to
+  // this page asked for a second camera while the first was still held. iOS
+  // refuses that (the same constraint flip() works around below), so
+  // getUserMedia rejected and the viewfinder fell back to the upload dropzone
+  // for the rest of the session: the camera worked once per full page load
+  // and never again.
+  //
+  // pagenav.js dispatches this BEFORE release(), so this handler still runs;
+  // being registered here means the same release() unbinds it, so revisits
+  // do not stack up copies.
+  document.addEventListener("repcheck:page-will-swap", closeCamera);
+
   openCamera();
 
   const STATUS_MESSAGE_KEYS = [
