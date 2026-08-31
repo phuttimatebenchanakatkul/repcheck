@@ -68,12 +68,6 @@
   const GAIN_STANDARD_MAX_KG_PER_WEEK = 0.6;
   const GAIN_RATE_MAX_PCT = (GAIN_STANDARD_MAX_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100;
   const GAIN_RATE_DEFAULT_PCT = 0.35;
-  // How many weeks a "per month" readout multiplies the weekly rate by --
-  // the precise average (365.25 / 7 / 12), not the common but slightly-off
-  // "4 weeks" shorthand, since this is arithmetic the app is asserting as
-  // a specific number to the user (see the "Per Month" row in
-  // renderRateSlider()), not just a rough label.
-  const WEEKS_PER_MONTH = 365.25 / 7 / 12;
 
   const ASPIRATION_IDS = ["lose", "maintain", "gain"];
   const ACTIVITY_IDS = ["lift_and_cardio", "cardio_only", "lift_only", "none"];
@@ -625,7 +619,6 @@
 
     const rateLabel = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
     const unitLabel = RepCheckUnits.weightUnitLabel();
-    const pctUnitLabel = t("coaching.wizard.percentBodyweightUnit");
     const wrap = el(`
       <div class="ob-field ob-rate-field">
         <label>${rateLabel} <span id="ob-rate-header-value"></span>${t("coaching.wizard.perWeek")}</label>
@@ -638,16 +631,9 @@
           <div class="ob-rate-slider-thumb" id="ob-rate-thumb"></div>
         </div>
         <div class="ob-rate-readout-row">
-          <span class="ob-rate-readout-sign">+</span>
           <div class="ob-rate-readout-box"><span id="ob-rate-kg-week"></span><span class="ob-rate-readout-unit">${unitLabel}</span></div>
-          <div class="ob-rate-readout-box ob-rate-readout-box-pct"><span id="ob-rate-pct-week"></span><span class="ob-rate-readout-unit">${pctUnitLabel}</span></div>
+          <span class="ob-rate-readout-verb">${isLose ? t("coaching.wizard.rateLost") : t("coaching.wizard.rateGained")}</span>
           <span class="ob-rate-readout-freq">${t("coaching.wizard.perWeekLabel")}</span>
-        </div>
-        <div class="ob-rate-readout-row">
-          <span class="ob-rate-readout-sign">+</span>
-          <div class="ob-rate-readout-box"><span id="ob-rate-kg-month"></span><span class="ob-rate-readout-unit">${unitLabel}</span></div>
-          <div class="ob-rate-readout-box ob-rate-readout-box-pct"><span id="ob-rate-pct-month"></span><span class="ob-rate-readout-unit">${pctUnitLabel}</span></div>
-          <span class="ob-rate-readout-freq">${t("coaching.wizard.perMonthLabel")}</span>
         </div>
         <div class="ob-eta-card" id="ob-rate-eta" data-label="${t("coaching.wizard.rateEtaLabel")}"></div>
       </div>
@@ -659,9 +645,6 @@
     const badgeEl = wrap.querySelector("#ob-rate-badge");
     const headerValueEl = wrap.querySelector("#ob-rate-header-value");
     const kgWeekEl = wrap.querySelector("#ob-rate-kg-week");
-    const pctWeekEl = wrap.querySelector("#ob-rate-pct-week");
-    const kgMonthEl = wrap.querySelector("#ob-rate-kg-month");
-    const pctMonthEl = wrap.querySelector("#ob-rate-pct-month");
 
     if (zoneEl && zoneMinPct !== null) {
       const zoneLeft = ((zoneMinPct - min) / (max - min)) * 100;
@@ -725,9 +708,6 @@
 
       const weekKg = (current / 100) * wv;
       kgWeekEl.textContent = RepCheckUnits.kgToDisplay(weekKg);
-      pctWeekEl.textContent = current.toFixed(2);
-      kgMonthEl.textContent = RepCheckUnits.kgToDisplay(weekKg * WEEKS_PER_MONTH);
-      pctMonthEl.textContent = (current * WEEKS_PER_MONTH).toFixed(2);
     }
 
     function setValue(next) {

@@ -410,14 +410,13 @@
 .pc-rate-slider:focus-visible { outline: none; }
 .pc-rate-slider:focus-visible .pc-rate-slider-thumb { outline: 3px solid var(--blue); outline-offset: 2px; }
 .pc-rate-readout-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.pc-rate-readout-sign { color: var(--text-secondary); font-size: 13px; font-weight: 700; width: 10px; flex-shrink: 0; }
 .pc-rate-readout-box {
   flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between;
   padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--bg);
   font-size: 16px; font-weight: 700; color: var(--text);
 }
-.pc-rate-readout-box-pct { color: var(--text-secondary); font-weight: 600; font-size: 14px; }
 .pc-rate-readout-unit { color: var(--text-secondary); font-size: 12px; font-weight: 600; margin-left: 6px; }
+.pc-rate-readout-verb { flex-shrink: 0; font-size: 14px; color: var(--text-secondary); font-weight: 600; }
 .pc-rate-readout-freq { flex-shrink: 0; width: 64px; text-align: right; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
 /* Row holding the goal-date estimate card and, for an existing user with a
    current budget, the current-budget card beside it (left). flex:1 on each

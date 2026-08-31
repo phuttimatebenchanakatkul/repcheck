@@ -2,6 +2,23 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.6.0.0] - 2026-08-31
+
+### Changed
+
+- Redesigned the "Log food" choice screen (opened from nutrition's "Analyze a
+  food photo" button): the old one-dominant-CTA-plus-secondary-row layout
+  (Take photo / Upload / Barcode / Create / Macros, plus a recent-scans list)
+  is replaced with three equal monochrome action rows -- Take photo, Scan
+  barcode, Create manually. Upload photo remains reachable from the FAB/home
+  quick-action screen; manual macro entry remains reachable from the bottom
+  of the "Log a food" sheet, so nothing is actually lost, just decluttered.
+- Simplified the weight-change rate readout in both the onboarding wizard and
+  the "Edit goals" wizard (two independent, duplicated implementations --
+  `static/onboarding.js` and `static/coaching.js`) from two rows (weekly and
+  monthly, each showing both kg and % of bodyweight) down to a single line:
+  `<amount> lost/gained Per Week`.
+
 ## [0.5.1.0] - 2026-08-31
 
 ### Changed
