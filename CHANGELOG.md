@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.6] - 2026-08-31
+
+### Changed
+
+- Gave the analyze page's "Recent analyses" cards room to breathe: the gap
+  between cards goes 10px -> 16px and each card's padding 12px/8px -> 16px/10px,
+  with the inner icon-to-label gap 6px -> 8px. The three-up width calc is
+  adjusted to match the wider gap, so exactly three still fit at any screen
+  width and the fourth still scroll-snaps.
+
 ## [0.5.0.5] - 2026-08-31
 
 ### Fixed
