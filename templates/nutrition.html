@@ -518,6 +518,30 @@
   }
   .af-modal-overlay.is-open .af-modal,
   .af-modal-overlay.is-in .af-modal { transform: translateY(0); }
+  /* A camera screen is the one thing in this sheet that has to FILL the
+     sheet, and until this rule the sheet had no height to fill.
+     .af-modal is sized by its content -- 92vh is only a max -- so nothing
+     in the chain below it had a definite height either, and every
+     `height: 100%` from .af-scanner-screen down to .af-scanner-video fell
+     back to auto. The feed then drew at its own aspect ratio and the
+     black .af-scanner-wrap showed through underneath it: measured at
+     393px wide with a 16:9 stream, the video came out 221px tall (exactly
+     393 x 9/16) inside a wrap that should have been 556.
+
+     Giving the sheet a definite height while a camera is up resolves the
+     whole chain at once -- the screen fills the body, the wrap fills the
+     screen, and the video fills the wrap. It is the only change needed;
+     absolutely positioning the video on top of this fixes nothing further
+     (verified by measuring each rule separately).
+
+     Toggled from JS rather than matched with `.af-modal:has(...)`, for
+     the reason static/auth.css already gives twice: the shipped iOS
+     WKWebView's :has() support is not something to make a layout depend
+     on. See the afBodyObserver below, which owns the class. */
+  .af-modal.is-camera {
+    height: 92vh;
+    height: 92dvh;
+  }
   .af-modal-handle {
     width: 38px; height: 5px; border-radius: 999px;
     background: var(--border); margin: 9px auto 2px; flex-shrink: 0;
@@ -2541,6 +2565,7 @@
   // ---------- Analyze-a-photo (camera or upload) ----------
   const afModalOverlay = document.getElementById("af-modal-overlay");
   const afModalBody = document.getElementById("af-modal-body");
+  const afModal = afModalOverlay.querySelector(".af-modal");
   const afModalCloseBtn = document.getElementById("af-modal-close");
   // Pretext-native text layout for the choice screen's [data-pretext] spans
   // (CTA title/subtitle, intro line) -- real glyph measurement instead of a
@@ -2613,6 +2638,12 @@
     afModalBody.classList.remove("af-body-enter");
     void afModalBody.offsetWidth; // restart the animation on back-to-back swaps
     afModalBody.classList.add("af-body-enter");
+    // Same reasoning as the transition above, for the same reason: the
+    // camera screens need .af-modal to have a height (see .af-modal.is-camera),
+    // and deriving it from what actually landed in the body means no render
+    // function has to remember to set it -- or, more to the point, to clear
+    // it on the way back out to a result screen that must size to content.
+    afModal.classList.toggle("is-camera", !!afModalBody.querySelector(".af-scanner-screen"));
   });
   afBodyObserver.observe(afModalBody, { childList: true });
 
