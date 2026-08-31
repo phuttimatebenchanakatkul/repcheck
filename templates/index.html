@@ -340,7 +340,12 @@
      powered the exercise-picker's "Recent" section; showing it directly on
      the upload screen turns it into a visible history/progress cue meant
      to pull the user back to analyze again, not just a quiet picker aid. */
-  .an-recent { margin-top: 22px; }
+  /* The capture card is padding:0 so the viewfinder can go full-bleed. That
+     is right for the video and wrong for everything under it: without this
+     the strip ran flush into both card edges -- 8px from the screen on a
+     phone -- which is most of what made it read as crammed. Inset it to the
+     same 14px the rest of the app's cards use on mobile. */
+  .an-recent { margin-top: 22px; padding: 0 14px 14px; }
   .an-recent-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
   .an-recent-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0; }
   .an-recent-view-all { font-size: 12px; font-weight: 700; color: var(--blue); text-decoration: none; white-space: nowrap; }
@@ -349,10 +354,15 @@
   .an-recent-strip::-webkit-scrollbar { display: none; }
   .an-recent-card {
     flex-shrink: 0;
-    /* Exactly three fit inside the card at any width -- a fixed px width
-       clipped the third one on a 390px screen. Entries past the third
-       scroll, and snap so a half-card never rests mid-view. */
-    width: calc((100% - 32px) / 3);
+    /* Sized to the card, not to a card count. Forcing exactly three across
+       any width is what squeezed these: on a 393px phone it left 115px per
+       card and 95px of usable label, so "Tricep Pushdown" wrapped to two
+       lines and the row ran wall to wall. Two now sit comfortably with the
+       third peeking, which is also the honest signal that the strip
+       scrolls. The floor keeps two whole cards on a 320px SE instead of
+       clipping the second; the ceiling is belt-and-braces, since desktop
+       renders inside the 390px device frame and never gets near it. */
+    width: clamp(132px, 42%, 176px);
     scroll-snap-align: start;
     display: flex;
     flex-direction: column;
@@ -381,7 +391,7 @@
   }
   .an-recent-icon .ex-icon-img { width: 100%; height: 100%; object-fit: cover; }
   .an-recent-name {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     color: var(--text);
     text-align: center;
@@ -391,7 +401,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .an-recent-date { font-size: 10px; color: var(--text-secondary); }
+  .an-recent-date { font-size: 11px; color: var(--text-secondary); }
 
   /* ---------- Exercise picker sheet contents ----------
      The sheet shell itself is the shared .log-sheet-* in style.css (same
