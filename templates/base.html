@@ -253,7 +253,7 @@
           let dy = 0;
 
           const bodyScrollEl = () => {
-            return overlay.querySelector(".log-sheet-body, .af-modal-body, .qa-grid, .lw-modal-body, .pc-ck-body") || sheet;
+            return overlay.querySelector(".log-sheet-body, .af-modal-body, .qa-rows, .lw-modal-body, .pc-ck-body") || sheet;
           };
 
           const onStart = (e) => {
@@ -551,10 +551,9 @@
   </nav>
 
   <!-- Quick-actions sheet opened by the "+" — the fast path to the app's
-       core actions from anywhere. Redesigned as a compact grid of gradient
-       "launcher" tiles that pop in with a stagger, so it feels fast and
-       inviting rather than like reading a menu. Its own qa-* classes keep
-       it isolated from the shared "More" sheet below (.mt-sheet-action). -->
+       core actions from anywhere. A flat list of full-width rows (icon,
+       label, chevron) that pop in with a stagger. Its own qa-* classes are
+       shared by both panes below (actions and "More"). -->
   <div class="mt-sheet-overlay" id="mt-fab-overlay">
     <div class="mt-sheet qa-sheet" id="mt-fab-sheet">
       <div class="mt-sheet-handle"></div>
@@ -568,30 +567,42 @@
         <section class="qa-pane" id="qa-pane-actions">
           <div class="qa-head">
             <div class="qa-head-title" data-i18n="mobile.quickActions">Quick actions</div>
+            <button type="button" class="qa-icon-btn" id="qa-close-btn" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
           </div>
-          <div class="qa-grid">
-            <a href="{{ url_for('nutrition') }}?quick=scan" class="qa-tile qa-green">
-              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
-              <span class="qa-tile-title" data-i18n="mobile.scanMeal">Scan a meal</span>
+          <div class="qa-rows">
+            <a href="{{ url_for('nutrition') }}?quick=scan" class="qa-tile">
+              <span class="qa-tile-main">
+                <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+                <span class="qa-tile-title" data-i18n="mobile.scanMeal">Scan a meal</span>
+              </span>
+              <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
             </a>
-            <a href="{{ url_for('analyze_page') }}?quick=1" class="qa-tile qa-blue">
-              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"/><path d="M17.5 6.5 20 9l-2.5 2.5"/><path d="M8 4l3 16"/><path d="M2 9h4M18 9h4"/></svg></span>
-              <span class="qa-tile-title" data-i18n="mobile.analyzeLift">Analyze a lift</span>
+            <a href="{{ url_for('analyze_page') }}?quick=1" class="qa-tile">
+              <span class="qa-tile-main">
+                <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h3l2-6 4 12 3-9 2 3h6"/></svg></span>
+                <span class="qa-tile-title" data-i18n="mobile.analyzeLift">Analyze a lift</span>
+              </span>
+              <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
             </a>
-            <button type="button" class="qa-tile qa-red" id="mt-fab-log-weight">
-              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
-              <span class="qa-tile-title" data-i18n="mobile.logWeight">Log today's weight</span>
+            <button type="button" class="qa-tile" id="mt-fab-log-weight">
+              <span class="qa-tile-main">
+                <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20V9M12 20V4M18 20v-9"/></svg></span>
+                <span class="qa-tile-title" data-i18n="mobile.logWeight">Log today's weight</span>
+              </span>
+              <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
             </button>
-            <button type="button" class="qa-tile qa-purple" id="mt-fab-scan-barcode" data-nutrition-href="{{ url_for('nutrition') }}?quick=barcode">
-              <span class="qa-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
-              <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
+            <button type="button" class="qa-tile" id="mt-fab-scan-barcode" data-nutrition-href="{{ url_for('nutrition') }}?quick=barcode">
+              <span class="qa-tile-main">
+                <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
+                <span class="qa-tile-title" data-i18n="mobile.scanBarcode">Scan barcode</span>
+              </span>
+              <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
             </button>
           </div>
 
           <!-- Deliberately quiet: a text row, not a tile, so it never
-               competes with the five coloured actions above it. The right
-               chevron (not a caret) says it opens a page rather than
-               expanding in place. -->
+               competes with the actions above it. The right chevron (not a
+               caret) says it opens a page rather than expanding in place. -->
           <button type="button" class="qa-more-link" id="qa-more-open" aria-controls="qa-pane-more" aria-expanded="false">
             <span data-i18n="mobile.moreOptions">More options</span>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -600,41 +611,59 @@
 
         <section class="qa-pane" id="qa-pane-more" hidden>
           <div class="qa-pane-head">
-            <button type="button" class="qa-back" id="qa-more-back" aria-label="Back to quick actions">
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            <button type="button" class="qa-icon-btn" id="qa-more-back" aria-label="Back to quick actions">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
             <span class="qa-pane-title" data-i18n="mobile.more">More</span>
           </div>
-          <div class="qa-links">
-        <a href="{{ url_for('coach') }}" class="mt-sheet-action">
-          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-          <span><span class="mt-sheet-action-title" data-i18n="nav.coach">Coach</span></span>
+          <div class="qa-rows">
+        <a href="{{ url_for('coach') }}" class="qa-tile">
+          <span class="qa-tile-main">
+            <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/></svg></span>
+            <span class="qa-tile-title" data-i18n="nav.coach">Coach</span>
+          </span>
+          <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </a>
-        <a href="{{ url_for('friends') }}" class="mt-sheet-action">
-          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-          <span><span class="mt-sheet-action-title" data-i18n="nav.friends">Friends</span></span>
+        <a href="{{ url_for('friends') }}" class="qa-tile">
+          <span class="qa-tile-main">
+            <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 5a3.5 3.5 0 0 1 0 7M18.5 14.5c1.8.8 3 2.4 3 5.5"/></svg></span>
+            <span class="qa-tile-title" data-i18n="nav.friends">Friends</span>
+          </span>
+          <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </a>
-        <a href="{{ url_for('settings') }}" class="mt-sheet-action">
-          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
-          <span><span class="mt-sheet-action-title" data-i18n="nav.settings">Settings</span></span>
+        <a href="{{ url_for('settings') }}" class="qa-tile">
+          <span class="qa-tile-main">
+            <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></span>
+            <span class="qa-tile-title" data-i18n="nav.settings">Settings</span>
+          </span>
+          <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </a>
         {% if is_admin %}
-        <a href="{{ url_for('admin_users') }}" class="mt-sheet-action">
-          <span class="mt-sheet-action-icon" style="background:var(--sidebar-active); color:var(--text);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="m17 11 2 2 4-4"/></svg></span>
-          <span><span class="mt-sheet-action-title">Signups</span></span>
+        <a href="{{ url_for('admin_users') }}" class="qa-tile">
+          <span class="qa-tile-main">
+            <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M18 6v6M15 9h6"/></svg></span>
+            <span class="qa-tile-title">Signups</span>
+          </span>
+          <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </a>
         {% endif %}
         {% if current_user %}
-        <form method="post" action="{{ url_for('auth.logout') }}">
-          <button type="submit" class="mt-sheet-action" style="width:100%; border:none; background:none; font:inherit; text-align:left;">
-            <span class="mt-sheet-action-icon" style="background:var(--red-bg); color:var(--red);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
-            <span><span class="mt-sheet-action-title" data-i18n="sidebar.logout">Log out</span></span>
+        <form method="post" action="{{ url_for('auth.logout') }}" style="margin-top:14px;">
+          <button type="submit" class="qa-tile" style="width:100%;">
+            <span class="qa-tile-main">
+              <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span>
+              <span class="qa-tile-title" data-i18n="sidebar.logout">Log out</span>
+            </span>
+            <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
           </button>
         </form>
         {% else %}
-        <a href="{{ url_for('auth.login_page') }}" class="mt-sheet-action">
-          <span class="mt-sheet-action-icon" style="background:var(--blue-bg); color:var(--blue);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
-          <span><span class="mt-sheet-action-title" data-i18n="sidebar.login">Log in</span></span>
+        <a href="{{ url_for('auth.login_page') }}" class="qa-tile" style="margin-top:14px;">
+          <span class="qa-tile-main">
+            <span class="qa-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></span>
+            <span class="qa-tile-title" data-i18n="sidebar.login">Log in</span>
+          </span>
+          <span class="qa-tile-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </a>
         {% endif %}
           </div>
@@ -729,10 +758,9 @@
     // (window.bindSheetDrag/openBottomSheet/closeBottomSheet are defined
     // earlier, ahead of the page content block -- see the comment there.)
     (function () {
-      function wireSheet(openBtnId, overlayId, cancelId) {
+      function wireSheet(openBtnId, overlayId, closeBtnIds) {
         const openBtn = document.getElementById(openBtnId);
         const overlay = document.getElementById(overlayId);
-        const cancelBtn = document.getElementById(cancelId);
         if (!openBtn || !overlay) return;
 
         function open() {
@@ -748,20 +776,24 @@
           if (overlay.classList.contains("is-open") || overlay.classList.contains("is-in")) close();
           else open();
         });
-        if (cancelBtn) cancelBtn.addEventListener("click", close);
+        // The sheet head's "x" and the bottom "Cancel" row both dismiss it.
+        closeBtnIds.forEach((id) => {
+          const btn = document.getElementById(id);
+          if (btn) btn.addEventListener("click", close);
+        });
         overlay.addEventListener("click", (event) => {
           if (event.target === overlay) close();
         });
 
-        // strict: true -- .qa-grid (see bodyScrollEl above) is a plain
-        // icon grid, not a real scroll container, so it permanently reads
+        // strict: true -- .qa-rows (see bodyScrollEl above) is a plain
+        // row list, not a real scroll container, so it permanently reads
         // scrollTop <= 0 and the close-drag arms from anywhere in the
         // sheet, not just the handle. Without a stricter bar, any
         // accidental downward finger movement while tapping a quick-action
         // button could dismiss the whole sheet.
         window.bindSheetDrag(overlay, ".mt-sheet", ".mt-sheet-handle", close, { strict: true });
       }
-      wireSheet("mt-fab-btn", "mt-fab-overlay", "mt-fab-cancel");
+      wireSheet("mt-fab-btn", "mt-fab-overlay", ["mt-fab-cancel", "qa-close-btn"]);
     })();
     // ---------- Quick-actions: sliding "More" pane ----------
     // Tapping "More options" slides a second pane in over the tiles instead

@@ -1216,38 +1216,48 @@ input[type="file"], select {
   }
 
   /* ---------- Quick-actions sheet (the "+" FAB) redesign ----------
-     A compact 2-column grid of gradient "launcher" tiles that stagger in
-     when the sheet opens. Scoped to qa-* so the shared "More" sheet
-     (.mt-sheet-action above) is untouched. */
+     A flat list of full-width rows (icon, label, chevron) that stagger in
+     when the sheet opens. qa-tile is shared by both panes -- the action
+     rows and the "More" pages -- so the whole sheet reads as one list. */
   .qa-sheet { padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
-  .qa-head { margin: 2px 4px 16px; }
+  .qa-head { margin: 2px 4px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .qa-head-title { font-size: 20px; font-weight: 800; letter-spacing: -0.015em; color: var(--text); }
+  .qa-icon-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; flex-shrink: 0;
+    border: 1px solid var(--border); border-radius: 50%;
+    background: none; color: var(--text-secondary);
+    font-family: inherit; font-size: 15px; cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .qa-icon-btn:hover { color: var(--text); border-color: var(--text-secondary); }
+  .qa-icon-btn:active { transform: scale(0.94); }
 
-  .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .qa-rows { display: flex; flex-direction: column; gap: 10px; }
   .qa-tile {
-    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    gap: 11px;
-    padding: 18px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 18px;
     border-radius: 18px;
-    border: 1.5px solid var(--border);
-    background: var(--bg);
+    border: none;
+    background: var(--sidebar-active);
     color: var(--text);
     text-decoration: none;
     font-family: inherit;
+    text-align: left;
     cursor: pointer;
-    text-align: center;
-    transition: transform 0.12s ease, border-color 0.16s ease;
+    transition: background-color 0.15s ease, transform 0.1s ease;
   }
-  /* No glow anywhere in this sheet: hover moves the border, never paints
-     a shadow. A drop shadow under a tile reads as a halo on the dark
-     theme, which is the effect we keep being asked to remove. */
-  .qa-tile:hover { border-color: var(--text-secondary); }
-  .qa-tile:active { transform: scale(0.95); }
-  .qa-tile-icon {
-    display: flex; align-items: center; justify-content: center;
-    width: 48px; height: 48px; border-radius: 15px; color: #fff; flex-shrink: 0;
-  }
-  .qa-tile-title { font-size: 13.5px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+  /* No glow anywhere in this sheet: a drop shadow under a row reads as a
+     halo on the dark theme, which is the effect we keep being asked to
+     remove. */
+  .qa-tile:hover { background: var(--border); }
+  .qa-tile:active { transform: scale(0.97); }
+  .qa-tile-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .qa-tile-icon { display: flex; flex-shrink: 0; color: var(--text); }
+  .qa-tile-title { font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+  .qa-tile-chevron { display: flex; flex-shrink: 0; color: var(--text-secondary); }
 
   /* ---------- Sliding panes ----------
      The "More" pages used to sit in a labelled list UNDER the action tiles,
@@ -1267,8 +1277,8 @@ input[type="file"], select {
   .qa-pane.is-out-right { transform: translateX(26%); opacity: 0; }
 
   /* The "More options" row: deliberately quiet. A text row, not a tile, so
-     it never competes with the five coloured actions -- but still a full
-     44px-tall target. The chevron points RIGHT because it opens a page. */
+     it never competes with the actions above it -- but still a full 44px-tall
+     target. The chevron points RIGHT because it opens a page. */
   .qa-more-link {
     width: 100%; margin-top: 10px;
     display: flex; align-items: center; justify-content: center; gap: 5px;
@@ -1283,38 +1293,16 @@ input[type="file"], select {
   .qa-more-link svg { flex-shrink: 0; }
 
   .qa-pane-head { display: flex; align-items: center; gap: 8px; margin: 2px 0 12px; }
-  .qa-back {
-    display: flex; align-items: center; justify-content: center;
-    width: 34px; height: 34px; flex-shrink: 0;
-    border: none; border-radius: 11px;
-    background: var(--bg); color: var(--text); cursor: pointer;
-    transition: background 0.16s ease;
-  }
-  .qa-back:hover { background: var(--sidebar-active); }
-  .qa-back:active { transform: scale(0.94); }
   .qa-pane-title { font-size: 18px; font-weight: 800; letter-spacing: -0.015em; color: var(--text); }
 
-  .qa-links { display: flex; flex-direction: column; }
-  .qa-links .mt-sheet-action { border-radius: 12px; }
-  .qa-links .mt-sheet-action:active { background: var(--sidebar-active); }
-
-  /* Flat, single-token fills -- no gradient ramp and no colored drop
-     shadow. The glow read as decoration rather than meaning, and on the
-     dark theme the shadow bled a halo onto the tile behind each icon. */
-  .qa-green .qa-tile-icon { background: var(--green); }
-  .qa-blue .qa-tile-icon { background: var(--blue); }
-  .qa-amber .qa-tile-icon { background: var(--amber); }
-  .qa-red .qa-tile-icon { background: var(--red); }
-  .qa-purple .qa-tile-icon { background: var(--purple); }
-
   .qa-cancel {
-    width: 100%; margin-top: 12px; padding: 13px;
-    border-radius: 14px; border: none;
-    background: var(--bg); color: var(--text-secondary); font-size: 14px; font-weight: 700;
+    width: 100%; margin-top: 12px; padding: 15px;
+    border-radius: 18px; border: 1.5px solid var(--border);
+    background: none; color: var(--text); font-size: 15px; font-weight: 700;
     font-family: inherit; cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+    transition: border-color 0.15s ease, transform 0.1s ease;
   }
-  .qa-cancel:hover { background: var(--sidebar-active); color: var(--text); }
+  .qa-cancel:hover { border-color: var(--text-secondary); }
   .qa-cancel:active { transform: scale(0.98); }
 
   /* Staggered pop-in every time the sheet opens (the "is-open" class is

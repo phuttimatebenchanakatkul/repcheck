@@ -2,6 +2,17 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.6.1.0] - 2026-08-31
+
+### Changed
+
+- The "+" quick-actions sheet is a flat list of full-width rows (icon, label,
+  chevron) instead of a 2x2 grid of colour-coded launcher tiles. The "More"
+  pane (Coach/Friends/Settings/Signups/Log out) now shares the same row
+  style -- plain icons, no colour badges -- so the whole sheet reads as one
+  list, and a close ("x") button was added next to the "Quick actions" title
+  alongside the existing bottom Cancel row.
+
 ## [0.6.0.0] - 2026-08-31
 
 ### Changed
