@@ -545,43 +545,9 @@
     .af-modal-body.af-body-enter { animation: none; }
   }
 
-  /* Entry tiles: same gradient-badge design language as the home page's
-     quick actions and the "+" sheet, so logging food reads as part of one
-     system. 2-col grid; a .af-tile-wide 5th tile fills the last row. */
+  /* Lead-in line above a screen's action rows ("Snap or upload a photo of
+     your meal.", and the two camera-unavailable fallbacks). */
   .af-choice-intro { font-size: 13px; color: var(--text-secondary); font-weight: 500; margin: 0 2px 15px; }
-  .af-tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .af-tile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 11px;
-    padding: 18px 10px;
-    border: 1.5px solid var(--border);
-    border-radius: 18px;
-    background: var(--bg);
-    color: var(--text);
-    text-align: center;
-    font-size: 13.5px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    cursor: pointer;
-    font-family: inherit;
-    transition: transform 0.12s ease, box-shadow 0.16s ease, border-color 0.16s ease;
-  }
-  .af-tile:hover { border-color: transparent; box-shadow: 0 10px 24px rgba(20, 20, 20, 0.12); transform: translateY(-2px); }
-  .af-tile:active { transform: scale(0.95); }
-  .af-tile-wide { grid-column: 1 / -1; }
-  .af-tile-icon {
-    display: flex; align-items: center; justify-content: center;
-    width: 48px; height: 48px; border-radius: 15px; color: #fff; flex-shrink: 0;
-  }
-  .af-tile-title { line-height: 1.25; }
-  .af-tile-green .af-tile-icon { background: linear-gradient(135deg, #29b87e, var(--green)); }
-  .af-tile-blue .af-tile-icon { background: linear-gradient(135deg, #4d7ff5, var(--blue)); }
-  .af-tile-purple .af-tile-icon { background: linear-gradient(135deg, #9b7bef, var(--purple)); }
-  .af-tile-amber .af-tile-icon { background: linear-gradient(135deg, #e8a33f, var(--amber)); }
-  .af-tile-red .af-tile-icon { background: linear-gradient(135deg, #e2685f, var(--red)); }
 
   /* Simplified "Log food" choice screen: three equal monochrome action
      rows (photo / barcode / create) stacked as rounded cards -- no accent
@@ -602,7 +568,7 @@
   [data-theme="dark"] .af-action-row:hover { background: #323234; }
   .af-action-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
   .af-action-main svg { flex-shrink: 0; }
-  .af-action-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+  .af-action-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
   .af-action-chevron { display: flex; flex-shrink: 0; color: var(--text-secondary); }
 
   .af-emoji-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
@@ -642,40 +608,43 @@
   }
   @keyframes af-spin { to { transform: rotate(360deg); } }
 
-  .af-recent-section { margin-top: 24px; }
+  /* Recent scans, same surface language as .af-action-row above: a plain
+     rounded card on --bg (its own hex in dark, where --bg is DARKER than
+     the sheet), no accent fill, no icon badge and no hover lift. The row
+     is a name and a number; anything else competed with the two actions
+     above it, which are what the sheet is actually for. */
+  .af-recent-section { margin-top: 26px; }
   .af-recent-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
     margin-bottom: 12px;
   }
-  .af-recent-head > span { font-size: 12px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .af-recent-head > span { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
   .af-view-log-btn {
-    background: none; border: none; color: var(--blue); font-size: 12px; font-weight: 700;
+    background: none; border: none; color: var(--text-secondary); font-size: 12px; font-weight: 600;
     cursor: pointer; font-family: inherit; padding: 0;
+    transition: color 0.15s ease;
   }
-  .af-view-log-btn:hover { text-decoration: underline; }
+  .af-view-log-btn:hover { color: var(--text); }
   .af-recent-list { display: flex; flex-direction: column; gap: 8px; }
   .af-recent-row {
     display: flex; align-items: center; gap: 12px;
-    background: var(--bg); border-radius: 14px; padding: 11px 12px;
-    transition: box-shadow 0.15s ease, transform 0.1s ease;
+    background: var(--bg); border-radius: 16px; padding: 12px 14px;
   }
-  .af-recent-row:hover { box-shadow: 0 8px 18px rgba(20, 20, 20, 0.08); transform: translateY(-1px); }
-  .af-recent-icon {
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    width: 36px; height: 36px; border-radius: 11px; color: #fff;
-    background: linear-gradient(135deg, #29b87e, var(--green));
-    box-shadow: 0 5px 12px rgba(31, 169, 113, 0.35);
-  }
+  [data-theme="dark"] .af-recent-row { background: #2a2a2c; }
   .af-recent-info { min-width: 0; flex: 1; }
   .af-recent-name { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .af-recent-meta { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+  /* Tabular figures so a column of calorie counts lines up digit for digit
+     instead of jittering between rows. */
+  .af-recent-meta { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
   .af-recent-relog-btn {
-    flex-shrink: 0; padding: 8px 14px; border-radius: 999px; border: none;
-    background: var(--blue-bg); color: var(--blue); font-size: 12px; font-weight: 800;
+    flex-shrink: 0; padding: 7px 14px; border-radius: 999px;
+    border: 1px solid var(--border); background: none; color: var(--text);
+    font-size: 12px; font-weight: 700;
     cursor: pointer; font-family: inherit;
-    transition: opacity 0.15s ease, transform 0.1s ease;
+    transition: border-color 0.15s ease, transform 0.1s ease;
   }
-  .af-recent-relog-btn:hover { opacity: 0.85; }
+  [data-theme="dark"] .af-recent-relog-btn { border-color: #4a4a4e; }
+  .af-recent-relog-btn:hover { border-color: var(--text-secondary); }
   .af-recent-relog-btn:active { transform: scale(0.94); }
   .af-recent-empty {
     font-size: 12.5px; color: var(--text-secondary); text-align: center;
@@ -866,17 +835,20 @@
     /* Barcode-shaped, not box-shaped: tying the height to the width keeps
        the guide the same on a tall full-screen feed as it was in the old
        4:3 card, instead of stretching into a window most of the frame. */
-    width: 78%;
+    width: 76%;
     aspect-ratio: 5 / 2;
     max-height: 34%;
-    border: 2px solid var(--blue);
-    border-radius: 10px;
-    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35);
+    /* White rather than the app blue: the guide sits ON the camera feed,
+       where a mid-tone accent is the one colour that can vanish against
+       whatever happens to be behind it. */
+    border: 2px solid #fff;
+    border-radius: 14px;
+    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.45);
     pointer-events: none;
   }
   .af-scanner-hint {
     position: absolute;
-    bottom: 14px; left: 0; right: 0;
+    bottom: 16px; left: 0; right: 0;
     padding: 0 18px;
     text-align: center;
     color: #fff;
@@ -891,7 +863,15 @@
     background: var(--card-bg);
   }
   .af-scanner-seg { margin: 0 0 12px; }
-  .af-scanner-controls .af-actions { margin-top: 0; }
+  .af-scanner-cancel {
+    width: 100%; padding: 15px;
+    border: 1px solid var(--border); border-radius: 18px;
+    background: none; color: var(--text);
+    font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  [data-theme="dark"] .af-scanner-cancel { border-color: #3a3a3c; }
+  .af-scanner-cancel:hover { border-color: var(--text-secondary); }
   /* Photo mode stands in for the feed, so it takes the same space rather
      than letting the controls jump up the screen on every mode switch. */
   .af-scanner-photo-pane {
@@ -1928,8 +1908,6 @@
     .af-scanner-screen { margin: -4px -16px -16px; min-height: 0; }
     .af-scanner-photo-pane { padding: 20px 16px; }
     .af-scanner-controls { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
-    .af-tile { padding: 15px 8px; font-size: 12.5px; gap: 9px; }
-    .af-tile-icon { width: 44px; height: 44px; border-radius: 13px; }
     .af-action-row { padding: 15px 14px; }
     .af-action-title { font-size: 14.5px; }
     .af-result-photo { max-height: 130px; }
@@ -2704,7 +2682,7 @@
       <div class="af-recent-section">
         <div class="af-recent-head">
           <span>Recent scans</span>
-          <button type="button" class="af-view-log-btn" id="af-view-log-btn">View full food log →</button>
+          <button type="button" class="af-view-log-btn" id="af-view-log-btn">Full food log →</button>
         </div>
         ${recentScans.length ? `<div class="af-recent-list" id="af-recent-list"></div>` : `<div class="af-recent-empty">Photos you scan and log will show up here for quick re-logging.</div>`}
       </div>
@@ -2731,15 +2709,26 @@
         } catch (err) {
           return "";
         }
+        // The grams check outlives the grams display on purpose: this row's
+        // only action is "Log again", and the confirm screen it opens prints
+        // `${Math.round(totals.grams)}g total`. Dropping the check here
+        // because the row no longer shows grams would just move the NaN one
+        // screen later, into the step that exists to be read before writing.
         if (!Number.isFinite(totals.calories) || !Number.isFinite(totals.grams)) return "";
+        // Calories only. The grams used to sit alongside them, but the
+        // number that decides whether this is the row you want is the
+        // calorie count -- and "412g • 1081 kcal" reads as one long run of
+        // digits where a lone "1081 kcal" is scannable. The full amount
+        // is still one tap away on the confirm screen that "Log again"
+        // opens (renderRelogConfirm), which shows the grams and the
+        // per-ingredient breakdown before anything is written.
         return `
           <div class="af-recent-row">
-            <span class="af-recent-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
             <div class="af-recent-info">
               <div class="af-recent-name">${escapeHtml(entry.food)}</div>
-              <div class="af-recent-meta">${Math.round(totals.grams)}g • ${Math.round(totals.calories)} kcal</div>
+              <div class="af-recent-meta">${Math.round(totals.calories)} kcal</div>
             </div>
-            <button type="button" class="af-recent-relog-btn" data-relog="${entry.id}" title="Log this again now">+ Log again</button>
+            <button type="button" class="af-recent-relog-btn" data-relog="${entry.id}" title="Log this again now">Log again</button>
           </div>
         `;
       }).join("");
@@ -2869,14 +2858,14 @@
     const recentScans = getRecentScans(3);
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Snap or upload a photo of your meal.</div>
-      <div class="af-tile-grid">
-        <button type="button" class="af-tile af-tile-green" id="af-take-photo-btn">
-          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
-          <span class="af-tile-title">Take photo</span>
+      <div class="af-action-list">
+        <button type="button" class="af-action-row" id="af-take-photo-btn">
+          <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span class="af-action-title" data-pretext>Take photo</span></span>
+          <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
-        <button type="button" class="af-tile af-tile-blue" id="af-upload-photo-btn">
-          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
-          <span class="af-tile-title">Upload photo</span>
+        <button type="button" class="af-action-row" id="af-upload-photo-btn">
+          <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="af-action-title" data-pretext>Upload photo</span></span>
+          <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
       </div>
       ${afRecentSectionHtml(recentScans)}
@@ -2887,6 +2876,7 @@
       RepCheckNative.openLibrary(afUploadInput, useAfImage);
     });
     wireAfRecentSection(recentScans);
+    afPretextRelayout();
   }
 
   // Landing screen for the barcode quick action when a page navigation
@@ -2898,10 +2888,10 @@
   function renderAfBarcodeQuickPrompt() {
     setAfModalTitle(AF_MODAL_BARCODE_TITLE);
     afModalBody.innerHTML = `
-      <div class="af-tile-grid">
-        <button type="button" class="af-tile af-tile-wide af-tile-purple" id="af-open-barcode-camera-btn">
-          <span class="af-tile-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg></span>
-          <span class="af-tile-title">Open camera</span>
+      <div class="af-action-list">
+        <button type="button" class="af-action-row" id="af-open-barcode-camera-btn">
+          <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="7" x2="7" y2="17"/><line x1="10" y1="7" x2="10" y2="17"/><line x1="13.5" y1="7" x2="13.5" y2="17"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="18.5" y1="7" x2="18.5" y2="17"/></svg><span class="af-action-title" data-pretext>Open camera</span></span>
+          <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
       </div>
     `;
@@ -2914,6 +2904,7 @@
     // itself when there's no camera to use.
     document.getElementById("af-open-barcode-camera-btn")
       .addEventListener("click", () => startLiveBarcodeScan());
+    afPretextRelayout();
   }
 
   // Re-logs a past scanned entry at the current moment, on the currently
@@ -2998,15 +2989,17 @@
   function renderAfPhotoCameraUnavailable() {
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Camera unavailable — take a photo instead.</div>
-      <div class="af-tile-grid">
-        <button type="button" class="af-tile af-tile-wide af-tile-green" id="af-photo-fallback-btn">
-          <span class="af-tile-title">Take photo</span>
+      <div class="af-action-list">
+        <button type="button" class="af-action-row" id="af-photo-fallback-btn">
+          <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span class="af-action-title" data-pretext>Take photo</span></span>
+          <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
       </div>
     `;
     document.getElementById("af-photo-fallback-btn").addEventListener("click", () => {
       RepCheckNative.openCamera(afCameraInput, useAfImage);
     });
+    afPretextRelayout();
   }
 
   function renderAfPhotoCameraScreen() {
@@ -3027,9 +3020,7 @@
               </button>
             </div>
           </div>
-          <div class="af-actions">
-            <button type="button" class="af-secondary-btn" id="af-photo-cancel-btn" style="flex:1;">Cancel</button>
-          </div>
+          <button type="button" class="af-scanner-cancel" id="af-photo-cancel-btn">Cancel</button>
         </div>
       </div>
     `;
@@ -3285,9 +3276,7 @@
             <button type="button" data-scan-mode="live" class="${mode === "live" ? "is-active" : ""}">Scan</button>
             <button type="button" data-scan-mode="photo" class="${mode === "photo" ? "is-active" : ""}">Upload photo</button>
           </div>` : ""}
-          <div class="af-actions">
-            <button type="button" class="af-secondary-btn" id="af-scanner-cancel-btn" style="flex:1;">Cancel</button>
-          </div>
+          <button type="button" class="af-scanner-cancel" id="af-scanner-cancel-btn">Cancel</button>
         </div>
       </div>
     `;
@@ -3315,12 +3304,14 @@
     renderBarcodeScannerScreen("photo", `
       <div class="af-scanner-photo-pane">
         <div class="af-choice-intro">Use a photo of the barcode instead.</div>
-        <div class="af-tile-grid">
-          <button type="button" class="af-tile af-tile-wide af-tile-purple" id="af-barcode-take-photo-btn">
-            <span class="af-tile-title">Take photo</span>
+        <div class="af-action-list">
+          <button type="button" class="af-action-row" id="af-barcode-take-photo-btn">
+            <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span class="af-action-title" data-pretext>Take photo</span></span>
+            <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
           </button>
-          <button type="button" class="af-tile af-tile-wide" id="af-barcode-choose-photo-btn">
-            <span class="af-tile-title">Choose from library</span>
+          <button type="button" class="af-action-row" id="af-barcode-choose-photo-btn">
+            <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="af-action-title" data-pretext>Choose from library</span></span>
+            <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
           </button>
         </div>
       </div>
@@ -3329,6 +3320,7 @@
       .addEventListener("click", openBarcodePhotoInput);
     document.getElementById("af-barcode-choose-photo-btn")
       .addEventListener("click", openBarcodeUploadInput);
+    afPretextRelayout();
   }
 
   function switchBarcodeScanMode(mode) {
@@ -3352,14 +3344,16 @@
   function renderBarcodeCameraUnavailable() {
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Camera unavailable — take a photo of the barcode instead.</div>
-      <div class="af-tile-grid">
-        <button type="button" class="af-tile af-tile-wide af-tile-purple" id="af-barcode-photo-fallback-btn">
-          <span class="af-tile-title">Take photo</span>
+      <div class="af-action-list">
+        <button type="button" class="af-action-row" id="af-barcode-photo-fallback-btn">
+          <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span class="af-action-title" data-pretext>Take photo</span></span>
+          <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
       </div>
     `;
     document.getElementById("af-barcode-photo-fallback-btn")
       .addEventListener("click", openBarcodePhotoInput);
+    afPretextRelayout();
   }
 
   // Entry point for the global "Scan barcode" quick action in base.html.
@@ -3500,7 +3494,7 @@
   // the percentages below were introduced to fix. The fallbacks are the old
   // constants, for a call that somehow runs with no scanner on screen.
   const SCANNER_BOX_ASPECT = 4 / 3;
-  const SCANNER_GUIDE_W = 0.78;  // .af-scanner-frame width, fraction of the box
+  const SCANNER_GUIDE_W = 0.76;  // .af-scanner-frame width, fraction of the box
   const SCANNER_GUIDE_H = 0.34;  // .af-scanner-frame height
 
   function scannerBoxGeometry() {
