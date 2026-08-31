@@ -2,6 +2,20 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.7] - 2026-08-31
+
+### Fixed
+
+- The nutrition page kept its cameras running after you tapped another tab.
+  Both the in-app food-photo viewfinder and the barcode scanner hold a live
+  getUserMedia stream that only an explicit close released, and a tab-bar tap
+  is not a navigation -- pagenav swaps `<main>` in place, so `pagehide` and
+  `visibilitychange` never fire and nav_scope then unbinds them anyway. The
+  camera indicator light stayed on, and the next `getUserMedia` collided with
+  the stream still held open (iOS refuses a second camera in that state). Both
+  streams are now stopped from a `repcheck:page-will-swap` listener, the same
+  fix the analyze viewfinder got in 0.5.0.5.
+
 ## [0.5.0.6] - 2026-08-31
 
 ### Changed
