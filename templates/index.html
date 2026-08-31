@@ -340,28 +340,38 @@
      powered the exercise-picker's "Recent" section; showing it directly on
      the upload screen turns it into a visible history/progress cue meant
      to pull the user back to analyze again, not just a quiet picker aid. */
-  .an-recent { margin-top: 22px; }
+  /* The capture card is padding:0 so the viewfinder can go full-bleed. That
+     is right for the video and wrong for everything under it: without this
+     the strip ran flush into both card edges -- 8px from the screen on a
+     phone -- which is most of what made it read as crammed. Inset it to the
+     same 14px the rest of the app's cards use on mobile. */
+  .an-recent { margin-top: 22px; padding: 0 14px 14px; }
   .an-recent-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
   .an-recent-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0; }
   .an-recent-view-all { font-size: 12px; font-weight: 700; color: var(--blue); text-decoration: none; white-space: nowrap; }
   .an-recent-view-all:hover { text-decoration: underline; }
-  .an-recent-strip { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; scrollbar-width: none; }
+  .an-recent-strip { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; scrollbar-width: none; }
   .an-recent-strip::-webkit-scrollbar { display: none; }
   .an-recent-card {
     flex-shrink: 0;
-    /* Exactly three fit inside the card at any width -- a fixed px width
-       clipped the third one on a 390px screen. Entries past the third
-       scroll, and snap so a half-card never rests mid-view. */
-    width: calc((100% - 20px) / 3);
+    /* Sized to the card, not to a card count. Forcing exactly three across
+       any width is what squeezed these: on a 393px phone it left 115px per
+       card and 95px of usable label, so "Tricep Pushdown" wrapped to two
+       lines and the row ran wall to wall. Two now sit comfortably with the
+       third peeking, which is also the honest signal that the strip
+       scrolls. The floor keeps two whole cards on a 320px SE instead of
+       clipping the second; the ceiling is belt-and-braces, since desktop
+       renders inside the 390px device frame and never gets near it. */
+    width: clamp(132px, 42%, 176px);
     scroll-snap-align: start;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     background: var(--bg);
     border: 1.5px solid var(--border);
     border-radius: 14px;
-    padding: 12px 8px;
+    padding: 16px 10px;
     cursor: pointer;
     font-family: inherit;
     transition: border-color 0.15s ease, transform 0.1s ease;
@@ -381,7 +391,7 @@
   }
   .an-recent-icon .ex-icon-img { width: 100%; height: 100%; object-fit: cover; }
   .an-recent-name {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     color: var(--text);
     text-align: center;
@@ -391,7 +401,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .an-recent-date { font-size: 10px; color: var(--text-secondary); }
+  .an-recent-date { font-size: 11px; color: var(--text-secondary); }
 
   /* ---------- Exercise picker sheet contents ----------
      The sheet shell itself is the shared .log-sheet-* in style.css (same
@@ -542,9 +552,20 @@
 <script src="{{ library_url('exercise_icons') }}"></script>
 <script src="{{ library_url('exercise_categories') }}"></script>
 <script src="{{ library_url('exercise_videos') }}"></script>
-<script type="module">
-  import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
-
+{# A CLASSIC script, deliberately -- see POSE_VISION_URL below. static/pagenav.js
+   swaps this page in without loading a document, and it can only execute inline
+   scripts it can run through `new Function`: its runInlineScripts() skips any
+   <script> whose type is not classic JavaScript, and `type="module"` is exactly
+   that. Everything below -- the camera, the recent-analyses strip, the exercise
+   picker, the upload flow -- silently never ran when the page was reached from
+   the tab bar. #}
+<script>
+  // Imported where it is used rather than at the top, because a top-level
+  // `import` would force this back into type="module" and pagenav.js would
+  // stop running the page again. MediaPipe is only needed once the pose
+  // overlay starts, which is already lazy (see getPoseLandmarker), so a
+  // dynamic import costs nothing and keeps this a classic script.
+  const POSE_VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
   const POSE_WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
   const POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
   const POSE_CONNECTIONS = [
@@ -598,7 +619,7 @@
   let poseLandmarkerPromise = null;
   let poseRafId = null;
 
-  async function createLandmarker(vision, delegate) {
+  async function createLandmarker(PoseLandmarker, vision, delegate) {
     return PoseLandmarker.createFromOptions(vision, {
       baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
       runningMode: "VIDEO",
@@ -610,11 +631,15 @@
     if (poseLandmarker) return Promise.resolve(poseLandmarker);
     if (!poseLandmarkerPromise) {
       poseLandmarkerPromise = (async () => {
+        // POSE_VISION_URL is absolute, so this resolves the same whether the
+        // page was loaded normally or swapped in by pagenav.js (where the
+        // script runs through `new Function` and has no own base URL).
+        const { PoseLandmarker, FilesetResolver } = await import(POSE_VISION_URL);
         const vision = await FilesetResolver.forVisionTasks(POSE_WASM_URL);
         try {
-          poseLandmarker = await createLandmarker(vision, "GPU");
+          poseLandmarker = await createLandmarker(PoseLandmarker, vision, "GPU");
         } catch (err) {
-          poseLandmarker = await createLandmarker(vision, "CPU");
+          poseLandmarker = await createLandmarker(PoseLandmarker, vision, "CPU");
         }
         return poseLandmarker;
       })().catch((err) => {

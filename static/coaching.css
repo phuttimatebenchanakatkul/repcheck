@@ -298,43 +298,47 @@
    flex:1 pushes the close button to the far right, same pattern as e.g.
    hyrox.js's .hx-setup-sheet-title / nutrition.html's .lq-title. */
 .pc-wizard-title { flex: 1; min-width: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
-.pc-wizard-step-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 14px; }
-.pc-wizard-progress { display: flex; gap: 4px; margin-bottom: 16px; }
-.pc-wizard-progress-dot { flex: 1; height: 4px; border-radius: 999px; background: var(--border); }
-.pc-wizard-progress-dot.is-done { background: var(--blue); }
+.pc-wizard-step-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
+/* Single fill bar, not per-step dots -- fill width is set inline by
+   renderWizardProgress() as a percentage of steps completed. */
+.pc-wizard-progress { height: 4px; border-radius: 2px; background: var(--border); margin-bottom: 16px; overflow: hidden; }
+.pc-wizard-progress-fill { height: 100%; border-radius: 2px; background: var(--text); transition: width 0.25s ease; }
 
 /* Stacked full-width rows (icon chip + title + selected checkmark)
    instead of a multi-column grid of plain bordered boxes -- matches
    onboarding.html's .ob-choice-card so this wizard reads as the same
-   flow as first-time setup, not a plainer cousin of it. */
+   flow as first-time setup, not a plainer cousin of it. Monochrome: no
+   accent color anywhere, selection reads through the border + inverted
+   icon/check alone. Row surface is a step above the sheet in dark mode
+   (--bg is DARKER than --card-bg there), same convention as nutrition's
+   .af-action-row, so it gets its own hex. */
 .pc-choice-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .pc-choice-card {
   display: flex; align-items: center; gap: 14px; width: 100%;
-  border: 1.5px solid var(--border); border-radius: 18px; padding: 14px 16px; cursor: pointer;
-  background: var(--card-bg); text-align: left; font-family: inherit;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  border: 1.5px solid transparent; border-radius: 18px; padding: 14px 16px; cursor: pointer;
+  background: var(--bg); text-align: left; font-family: inherit;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.pc-choice-card:hover { border-color: var(--blue); transform: translateY(-1px); }
-.pc-choice-card.is-selected {
-  border-color: var(--blue);
-  background: linear-gradient(135deg, var(--blue-bg), var(--card-bg));
-  box-shadow: 0 4px 14px rgba(47, 102, 232, 0.18);
-}
+[data-theme="dark"] .pc-choice-card { background: #2a2a2c; }
+.pc-choice-card:hover { background: #eceef1; }
+[data-theme="dark"] .pc-choice-card:hover { background: #323234; }
+.pc-choice-card:active { transform: scale(0.98); }
+.pc-choice-card.is-selected { border-color: var(--text); }
 .pc-choice-icon {
   flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--bg); color: var(--text-secondary);
+  background: var(--border); color: var(--text-secondary);
   transition: background 0.15s ease, color 0.15s ease;
 }
+[data-theme="dark"] .pc-choice-icon { background: #3a3a3c; }
 .pc-choice-icon svg { width: 22px; height: 22px; }
-.pc-choice-card.is-selected .pc-choice-icon { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
+.pc-choice-card.is-selected .pc-choice-icon { background: var(--text); color: var(--card-bg); }
 .pc-choice-text { flex: 1; min-width: 0; }
 .pc-choice-title { font-size: 15px; font-weight: 700; color: var(--text); }
-.pc-choice-card.is-selected .pc-choice-title { color: var(--blue); }
 .pc-choice-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
 .pc-choice-check {
   flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
-  background: var(--blue); color: #fff; font-size: 11px; font-weight: 700;
+  background: var(--text); color: var(--card-bg); font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transform: scale(0.5); transition: opacity 0.15s ease, transform 0.15s ease;
 }
@@ -343,25 +347,34 @@
 .pc-body-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
 .pc-body-type-card {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;
-  border: 1px solid var(--border); border-radius: 14px; padding: 12px 10px; cursor: pointer;
+  border: 1.5px solid transparent; border-radius: 14px; padding: 12px 10px; cursor: pointer;
   background: var(--bg); color: var(--text); text-align: center; font-family: inherit;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.pc-body-type-card.is-selected { border-color: var(--blue); background: var(--blue-bg); }
+[data-theme="dark"] .pc-body-type-card { background: #2a2a2c; }
+.pc-body-type-card:hover { background: #eceef1; }
+[data-theme="dark"] .pc-body-type-card:hover { background: #323234; }
+.pc-body-type-card:active { transform: scale(0.97); }
+.pc-body-type-card.is-selected { border-color: var(--text); }
 .pc-body-type-check {
   position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--blue); color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+  background: var(--text); color: var(--card-bg); font-size: 11px; line-height: 18px; text-align: center;
 }
 .pc-body-type-icon { display: flex; align-items: center; justify-content: center; }
 .pc-body-type-img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; display: block; background: #ececef; }
 .pc-body-type-label { font-size: 13px; font-weight: 800; color: var(--text); }
 
 .pc-field { margin-bottom: 16px; }
-.pc-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.pc-field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
 .pc-field label span { color: var(--text); font-weight: 700; }
 .pc-field input {
-  width: 100%; padding: 11px 13px; border: 1px solid var(--border);
-  background: var(--bg); color: var(--text); border-radius: 10px; font-size: 15px; font-family: inherit;
+  width: 100%; padding: 15px 16px; border: 1.5px solid transparent;
+  background: var(--bg); color: var(--text); border-radius: 18px; font-size: 17px; font-weight: 700;
+  font-family: inherit; font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s ease;
 }
+[data-theme="dark"] .pc-field input { background: #2a2a2c; }
+.pc-field input:focus { outline: none; border-color: var(--text); }
 .pc-field-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; min-height: 14px; }
 
 /* ---------- Rate-of-change slider (custom, replaces native
@@ -410,14 +423,13 @@
 .pc-rate-slider:focus-visible { outline: none; }
 .pc-rate-slider:focus-visible .pc-rate-slider-thumb { outline: 3px solid var(--blue); outline-offset: 2px; }
 .pc-rate-readout-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.pc-rate-readout-sign { color: var(--text-secondary); font-size: 13px; font-weight: 700; width: 10px; flex-shrink: 0; }
 .pc-rate-readout-box {
   flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between;
   padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--bg);
   font-size: 16px; font-weight: 700; color: var(--text);
 }
-.pc-rate-readout-box-pct { color: var(--text-secondary); font-weight: 600; font-size: 14px; }
 .pc-rate-readout-unit { color: var(--text-secondary); font-size: 12px; font-weight: 600; margin-left: 6px; }
+.pc-rate-readout-verb { flex-shrink: 0; font-size: 14px; color: var(--text-secondary); font-weight: 600; }
 .pc-rate-readout-freq { flex-shrink: 0; width: 64px; text-align: right; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
 /* Row holding the goal-date estimate card and, for an existing user with a
    current budget, the current-budget card beside it (left). flex:1 on each
@@ -449,9 +461,17 @@
   mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 75%, transparent);
 }
 .pc-height-ruler-indicator {
-  position: absolute; left: 0; right: 0; top: 98px; height: 14px;
-  border-top: 2px solid var(--blue); border-bottom: 2px solid var(--blue);
+  position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px;
+  background: var(--text);
   pointer-events: none; z-index: 2;
+}
+/* Small readout at the indicator itself, alongside the big value above --
+   easier to align by eye against the exact tick under the pointer while
+   scrolling than the big number sitting well above the window. */
+.pc-height-ruler-readout {
+  position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+  padding-right: 10px; font-size: 11px; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .pc-height-ruler-scroll {
   height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory;
@@ -516,7 +536,7 @@
 .pc-result-detail { font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: -10px; margin-bottom: 18px; }
 
 .pc-wizard-actions { display: flex; gap: 10px; margin-top: 4px; }
-.pc-wizard-actions .pc-btn-primary, .pc-wizard-actions .pc-btn-secondary { flex: 1; padding: 12px; font-size: 13px; }
+.pc-wizard-actions .pc-btn-primary, .pc-wizard-actions .pc-btn-secondary { flex: 1; padding: 15px; font-size: 15px; font-weight: 700; border-radius: 18px; }
 
 /* ---------- Weekly check-in modal ----------
    A warm, sectioned ritual rather than a bare form: amber hero badge up

@@ -178,10 +178,6 @@
   const GAIN_STANDARD_MAX_KG_PER_WEEK = 0.6;
   const GAIN_RATE_MAX_PCT = (GAIN_STANDARD_MAX_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100;
   const GAIN_RATE_DEFAULT_PCT = 0.35;
-  // How many weeks a "per month" readout multiplies the weekly rate by --
-  // the precise average (365.25 / 7 / 12), not the common but slightly-off
-  // "4 weeks" shorthand. Mirrors onboarding.js's identical constant.
-  const WEEKS_PER_MONTH = 365.25 / 7 / 12;
 
   // ---------- Small local helpers ----------
   function toIsoDate(date) {
@@ -238,7 +234,6 @@
 
     const rateLabel = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
     const unitLabel = RepCheckUnits.weightUnitLabel();
-    const pctUnitLabel = t("coaching.wizard.percentBodyweightUnit");
     const wrap = el(`
       <div class="pc-field pc-rate-field">
         <label>${rateLabel} <span id="pc-rate-header-value"></span>${t("coaching.wizard.perWeek")}</label>
@@ -251,16 +246,9 @@
           <div class="pc-rate-slider-thumb" id="pc-rate-thumb"></div>
         </div>
         <div class="pc-rate-readout-row">
-          <span class="pc-rate-readout-sign">+</span>
           <div class="pc-rate-readout-box"><span id="pc-rate-kg-week"></span><span class="pc-rate-readout-unit">${unitLabel}</span></div>
-          <div class="pc-rate-readout-box pc-rate-readout-box-pct"><span id="pc-rate-pct-week"></span><span class="pc-rate-readout-unit">${pctUnitLabel}</span></div>
+          <span class="pc-rate-readout-verb">${isLose ? t("coaching.wizard.rateLost") : t("coaching.wizard.rateGained")}</span>
           <span class="pc-rate-readout-freq">${t("coaching.wizard.perWeekLabel")}</span>
-        </div>
-        <div class="pc-rate-readout-row">
-          <span class="pc-rate-readout-sign">+</span>
-          <div class="pc-rate-readout-box"><span id="pc-rate-kg-month"></span><span class="pc-rate-readout-unit">${unitLabel}</span></div>
-          <div class="pc-rate-readout-box pc-rate-readout-box-pct"><span id="pc-rate-pct-month"></span><span class="pc-rate-readout-unit">${pctUnitLabel}</span></div>
-          <span class="pc-rate-readout-freq">${t("coaching.wizard.perMonthLabel")}</span>
         </div>
       </div>
     `);
@@ -271,9 +259,6 @@
     const badgeEl = wrap.querySelector("#pc-rate-badge");
     const headerValueEl = wrap.querySelector("#pc-rate-header-value");
     const kgWeekEl = wrap.querySelector("#pc-rate-kg-week");
-    const pctWeekEl = wrap.querySelector("#pc-rate-pct-week");
-    const kgMonthEl = wrap.querySelector("#pc-rate-kg-month");
-    const pctMonthEl = wrap.querySelector("#pc-rate-pct-month");
 
     if (zoneEl && zoneMinPct !== null) {
       const zoneLeft = ((zoneMinPct - min) / (max - min)) * 100;
@@ -337,9 +322,6 @@
 
       const weekKg = (current / 100) * wv;
       kgWeekEl.textContent = RepCheckUnits.kgToDisplay(weekKg);
-      pctWeekEl.textContent = current.toFixed(2);
-      kgMonthEl.textContent = RepCheckUnits.kgToDisplay(weekKg * WEEKS_PER_MONTH);
-      pctMonthEl.textContent = (current * WEEKS_PER_MONTH).toFixed(2);
     }
 
     function setValue(next) {
@@ -1883,13 +1865,14 @@
     }
 
     renderWizardProgress() {
-      // Dot count matches what a "maintain" user actually sees -- they never
-      // reach goal_weight, so it never gets a dot for them.
+      // Step count matches what a "maintain" user actually sees -- they
+      // never reach goal_weight, so the bar never pauses on a phantom step
+      // for them.
       const visible = this.wizardVisibleSteps();
       const currentStep = WIZARD_STEPS[this.wizard.stepIndex];
       const currentVisibleIndex = visible.indexOf(currentStep);
-      const dots = visible.map((_, i) => `<div class="pc-wizard-progress-dot ${i <= currentVisibleIndex ? "is-done" : ""}"></div>`).join("");
-      return el(`<div class="pc-wizard-progress">${dots}</div>`);
+      const pct = ((currentVisibleIndex + 1) / visible.length) * 100;
+      return el(`<div class="pc-wizard-progress"><div class="pc-wizard-progress-fill" style="width:${pct}%"></div></div>`);
     }
 
     renderWizardStep() {
@@ -2216,6 +2199,7 @@
             <div class="pc-height-ruler-value" id="pc-height-value">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
             <div class="pc-height-ruler-window">
               <div class="pc-height-ruler-indicator"></div>
+              <div class="pc-height-ruler-readout" id="pc-height-readout">${RepCheckUnits.formatHeightCm(w.heightCm)}</div>
               <div class="pc-height-ruler-scroll" id="pc-height-scroll" tabindex="0">${rows.join("")}</div>
             </div>
           </div>
@@ -2223,11 +2207,13 @@
       `);
       const scrollEl = wrap.querySelector("#pc-height-scroll");
       const valueLabel = wrap.querySelector("#pc-height-value");
+      const readoutLabel = wrap.querySelector("#pc-height-readout");
       scrollEl.addEventListener("click", (e) => e.stopPropagation());
       scrollEl.addEventListener("scroll", () => {
         const index = Math.round(scrollEl.scrollTop / tickPx);
         w.heightCm = Math.max(HEIGHT_MIN_CM, Math.min(HEIGHT_MAX_CM, HEIGHT_MIN_CM + index));
         valueLabel.textContent = RepCheckUnits.formatHeightCm(w.heightCm);
+        readoutLabel.textContent = RepCheckUnits.formatHeightCm(w.heightCm);
       }, { passive: true });
       // setTimeout rather than requestAnimationFrame -- rAF only fires on
       // an actual paint, which some automated/backgrounded tab contexts

@@ -2,6 +2,150 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.7.0.1] - 2026-08-31
+
+### Fixed
+
+- The home page hero showed the last form score (e.g. "38 form") in its
+  top-right badge; the daily-use streak had no badge in the hero at all,
+  only a smaller chip further down next to the "Today" section title. The
+  streak chip now sits in the hero instead, replacing the form-score
+  badge -- the streak is the "look what you already did today" signal
+  users actually check the hero for. The now-unused `home.hero.formPill`
+  i18n key and `.hm-hero-score-pill` styles/JS are removed.
+
+## [0.7.0.0] - 2026-08-31
+
+### Changed
+
+- Redesigned every question screen in the "Personalized coaching" wizard
+  (`static/coaching.js`, opened from the nutrition page's "Edit goals"
+  button) and the matching first-time onboarding wizard (`static/onboarding.js`)
+  to a monochrome design language: no accent color anywhere -- a per-step
+  progress dot row is now a single fill bar, choice rows lose their blue
+  border/gradient/checkmark in favor of a plain row surface with the
+  selection communicated through the border and an inverted (black-on-white
+  / white-on-black) icon chip and checkmark, and the body-type photo grid
+  and Back/Next buttons follow the same treatment. The height ruler's
+  indicator changes from a blue two-line band to a single line, with a
+  small live readout added beside it. Both wizards ask largely the same
+  questions (goal, weight/gender, height, body type, activity, protein,
+  diet, calorie distribution) through two independently duplicated
+  implementations, so both got the same treatment for consistency.
+
+## [0.6.1.0] - 2026-08-31
+
+### Changed
+
+- The "+" quick-actions sheet is a flat list of full-width rows (icon, label,
+  chevron) instead of a 2x2 grid of colour-coded launcher tiles. The "More"
+  pane (Coach/Friends/Settings/Signups/Log out) now shares the same row
+  style -- plain icons, no colour badges -- so the whole sheet reads as one
+  list, and a close ("x") button was added next to the "Quick actions" title
+  alongside the existing bottom Cancel row.
+
+## [0.6.0.0] - 2026-08-31
+
+### Changed
+
+- Redesigned the "Log food" choice screen (opened from nutrition's "Analyze a
+  food photo" button): the old one-dominant-CTA-plus-secondary-row layout
+  (Take photo / Upload / Barcode / Create / Macros, plus a recent-scans list)
+  is replaced with three equal monochrome action rows -- Take photo, Scan
+  barcode, Create manually. Upload photo remains reachable from the FAB/home
+  quick-action screen; manual macro entry remains reachable from the bottom
+  of the "Log a food" sheet, so nothing is actually lost, just decluttered.
+- Simplified the weight-change rate readout in both the onboarding wizard and
+  the "Edit goals" wizard (two independent, duplicated implementations --
+  `static/onboarding.js` and `static/coaching.js`) from two rows (weekly and
+  monthly, each showing both kg and % of bodyweight) down to a single line:
+  `<amount> lost/gained Per Week`.
+
+## [0.5.1.0] - 2026-08-31
+
+### Changed
+
+- The marketing landing page's "What it does" section now names each feature
+  the way the app itself does -- "Analyze a Workout," "Nutrition Log," "Weekly
+  Check-in," "Workout Log," "HYROX Race Simulator," "Friends" -- instead of
+  taglines like "It watches you lift," and drops the paragraph under each one.
+- The playable HYROX race simulator moved out of its own standalone section
+  and into the phone mockup for the HYROX feature itself, so tapping it there
+  now runs the same start-to-finish race (setup, running clock, splits, finish
+  breakdown, Apple Watch companion) that used to live further down the page.
+
+### Removed
+
+- The "Form analysis" section (headline, rep-by-rep bar chart, and its hover
+  interaction), the "Race day" station-grid section, and the FAQ section are
+  gone from the marketing page, along with the HYROX link in the top nav and
+  the "Pre-launch - early access opening soon / Move your cursor" hero line.
+  Dead CSS selectors and JS left behind by these removals were cleaned up too.
+
+## [0.5.0.9] - 2026-08-31
+
+### Fixed
+
+- The analyze page's "Recent analyses" cards are properly wide now instead of
+  squeezed wall-to-wall. Two things were crushing them and neither had been
+  touched: the section sits inside the camera card, which carries no padding so
+  the viewfinder can go full-bleed, leaving the strip flush against both edges;
+  and each card was locked to exactly one third of the row, so the previous
+  attempt at breathing room (a wider gap and more inner padding) actually made
+  every card 4px narrower. Cards now size to the row rather than to a count --
+  132px on a small phone up from 91px, 147px on an iPhone 15 up from 115px --
+  two fit with the third peeking to show the strip scrolls, and exercise names
+  like "Tricep Pushdown" fit on one line instead of wrapping. Name and date
+  text nudged up a point each now that there is room.
+
+## [0.5.0.8] - 2026-08-31
+
+### Fixed
+
+- The analyze page works when you reach it from the tab bar. Its entire body
+  was one `<script type="module">`, and `pagenav.js` -- which swaps tab pages
+  in without loading a document -- can only re-run inline scripts through
+  `new Function`, so `runInlineScripts()` skips anything that is not classic
+  JavaScript. The whole page therefore never executed: no camera, no recent
+  analyses, no exercise picker, no upload wiring. It failed silently, so there
+  was not even a fallback to a real navigation. Reaching the same route from
+  home's "Upload a set" link always worked, because that is a plain link and
+  pagenav only intercepts tab-bar clicks.
+
+  The page is a classic script now. MediaPipe was the only reason it was a
+  module, and it is pulled in with a dynamic `import()` inside
+  `getPoseLandmarker()` -- where the pose overlay was already loaded lazily --
+  so nothing about that behaviour changes.
+
+  A guard test pins the invariant for every tab page: the largest inline
+  script, the one carrying the page logic, must be one pagenav can actually
+  run. It reads the type gate out of `pagenav.js` rather than copying it, so
+  the two cannot drift apart.
+
+## [0.5.0.7] - 2026-08-31
+
+### Fixed
+
+- The nutrition page kept its cameras running after you tapped another tab.
+  Both the in-app food-photo viewfinder and the barcode scanner hold a live
+  getUserMedia stream that only an explicit close released, and a tab-bar tap
+  is not a navigation -- pagenav swaps `<main>` in place, so `pagehide` and
+  `visibilitychange` never fire and nav_scope then unbinds them anyway. The
+  camera indicator light stayed on, and the next `getUserMedia` collided with
+  the stream still held open (iOS refuses a second camera in that state). Both
+  streams are now stopped from a `repcheck:page-will-swap` listener, the same
+  fix the analyze viewfinder got in 0.5.0.5.
+
+## [0.5.0.6] - 2026-08-31
+
+### Changed
+
+- Gave the analyze page's "Recent analyses" cards room to breathe: the gap
+  between cards goes 10px -> 16px and each card's padding 12px/8px -> 16px/10px,
+  with the inner icon-to-label gap 6px -> 8px. The three-up width calc is
+  adjusted to match the wider gap, so exactly three still fit at any screen
+  width and the fourth still scroll-snaps.
+
 ## [0.5.0.5] - 2026-08-31
 
 ### Fixed

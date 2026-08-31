@@ -60,6 +60,8 @@ export function loadRateSlider() {
     "coaching.wizard.perWeekLabel": "Per Week",
     "coaching.wizard.perMonthLabel": "Per Month",
     "coaching.wizard.percentBodyweightUnit": "% BW",
+    "coaching.wizard.rateLost": "lost",
+    "coaching.wizard.rateGained": "gained",
     "coaching.wizard.rateEtaLabel": "Estimated goal date",
     "coaching.wizard.rateSlower": "Slower",
     "coaching.wizard.rateStandard": "Standard",
