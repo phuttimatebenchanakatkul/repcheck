@@ -186,6 +186,49 @@ describe("pagenav", () => {
     expect(window.__hits).toBe(1);
   });
 
+  it("lets a departing page tear down before it unbinds that page", async () => {
+    // The analyze page holds a live camera (templates/index.html openCamera()).
+    // A tab tap is not a navigation, so pagehide and visibilitychange never
+    // fire -- and release() then unbinds both handlers, so the page had no
+    // moment at all in which to stop the MediaStream. It stayed live with the
+    // indicator light on, and the next visit's getUserMedia asked for a second
+    // camera while the first was still held; iOS refuses that, so the
+    // viewfinder fell back to the upload dropzone for the rest of the session.
+    //
+    // page-will-swap is that missing moment. It has to fire BEFORE release(),
+    // which is the ordering this pins.
+    const cameraPage = page({
+      href: "/analyze",
+      body: '<div id="viewfinder"></div>',
+      scripts: [
+        'window.__released = window.__released || 0;' +
+          'document.addEventListener("repcheck:page-will-swap", function () {' +
+          "  window.__released++;" +
+          "});",
+      ],
+    });
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: { "/analyze": cameraPage, "/home": page({ href: "/home" }) },
+    });
+
+    window.__released = 0;
+    await nav.tap("/analyze");
+    await nav.tap("/home");
+
+    // Leaving ran the page's teardown -- the camera gets released.
+    expect(window.__released).toBe(1);
+    expect(nav.hardNavs).toEqual([]);
+
+    // And the listener went out with the page it belonged to: a revisit
+    // registers one afresh rather than stacking a second copy, so leaving
+    // again still tears down exactly once.
+    await nav.tap("/analyze");
+    await nav.tap("/home");
+
+    expect(window.__released).toBe(2);
+  });
+
   it("takes the page's body-level overlays with it when it leaves", async () => {
     // Pages relocate their modals to <body> so they escape the stacking
     // contexts inside <main> (workouts.html's moveOverlayToBody, and the same
