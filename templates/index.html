@@ -552,9 +552,20 @@
 <script src="{{ library_url('exercise_icons') }}"></script>
 <script src="{{ library_url('exercise_categories') }}"></script>
 <script src="{{ library_url('exercise_videos') }}"></script>
-<script type="module">
-  import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
-
+{# A CLASSIC script, deliberately -- see POSE_VISION_URL below. static/pagenav.js
+   swaps this page in without loading a document, and it can only execute inline
+   scripts it can run through `new Function`: its runInlineScripts() skips any
+   <script> whose type is not classic JavaScript, and `type="module"` is exactly
+   that. Everything below -- the camera, the recent-analyses strip, the exercise
+   picker, the upload flow -- silently never ran when the page was reached from
+   the tab bar. #}
+<script>
+  // Imported where it is used rather than at the top, because a top-level
+  // `import` would force this back into type="module" and pagenav.js would
+  // stop running the page again. MediaPipe is only needed once the pose
+  // overlay starts, which is already lazy (see getPoseLandmarker), so a
+  // dynamic import costs nothing and keeps this a classic script.
+  const POSE_VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
   const POSE_WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
   const POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
   const POSE_CONNECTIONS = [
@@ -608,7 +619,7 @@
   let poseLandmarkerPromise = null;
   let poseRafId = null;
 
-  async function createLandmarker(vision, delegate) {
+  async function createLandmarker(PoseLandmarker, vision, delegate) {
     return PoseLandmarker.createFromOptions(vision, {
       baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
       runningMode: "VIDEO",
@@ -620,11 +631,15 @@
     if (poseLandmarker) return Promise.resolve(poseLandmarker);
     if (!poseLandmarkerPromise) {
       poseLandmarkerPromise = (async () => {
+        // POSE_VISION_URL is absolute, so this resolves the same whether the
+        // page was loaded normally or swapped in by pagenav.js (where the
+        // script runs through `new Function` and has no own base URL).
+        const { PoseLandmarker, FilesetResolver } = await import(POSE_VISION_URL);
         const vision = await FilesetResolver.forVisionTasks(POSE_WASM_URL);
         try {
-          poseLandmarker = await createLandmarker(vision, "GPU");
+          poseLandmarker = await createLandmarker(PoseLandmarker, vision, "GPU");
         } catch (err) {
-          poseLandmarker = await createLandmarker(vision, "CPU");
+          poseLandmarker = await createLandmarker(PoseLandmarker, vision, "CPU");
         }
         return poseLandmarker;
       })().catch((err) => {
