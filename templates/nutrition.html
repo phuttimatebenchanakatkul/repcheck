@@ -6086,6 +6086,31 @@
       tryOpenCheckin();
     }
   })();
+
+  // ---------- Releasing the cameras when the tab bar swaps this page away ----------
+  // This page holds two live getUserMedia feeds -- the in-app food photo
+  // viewfinder (afPhotoStream) and the barcode scanner (barcodeLiveStream) --
+  // and both are stopped only by an explicit UI action: closing the camera
+  // screen, or one of the barcode close paths.
+  //
+  // Tapping another tab is not a navigation: static/pagenav.js swaps the
+  // contents of <main> in place, so neither pagehide nor visibilitychange
+  // fires, and the swap then calls RepCheckNavScope.release(), which unbinds
+  // any handler this page registered for them anyway. So opening the food
+  // camera or the scanner and then tapping another tab left the MediaStream
+  // running forever: the camera indicator light stayed on, and a later
+  // getUserMedia collided with the stream still held open (iOS refuses a
+  // second camera in that state). Same defect, same fix as the analyze
+  // viewfinder in templates/index.html.
+  //
+  // pagenav.js dispatches this immediately BEFORE release(), which is the one
+  // moment a departing page can still tear itself down; registering it here
+  // in the page script means that same release() unbinds it, so revisits do
+  // not stack up copies.
+  document.addEventListener("repcheck:page-will-swap", function releaseCamerasOnSwap() {
+    stopAfPhotoCamera();
+    stopLiveBarcodeScan();
+  });
 </script>
 <script src="{{ asset_url('coaching.js') }}"></script>
 {% endblock %}
