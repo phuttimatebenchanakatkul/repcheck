@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.9] - 2026-08-31
+
+### Fixed
+
+- The analyze page's "Recent analyses" cards are properly wide now instead of
+  squeezed wall-to-wall. Two things were crushing them and neither had been
+  touched: the section sits inside the camera card, which carries no padding so
+  the viewfinder can go full-bleed, leaving the strip flush against both edges;
+  and each card was locked to exactly one third of the row, so the previous
+  attempt at breathing room (a wider gap and more inner padding) actually made
+  every card 4px narrower. Cards now size to the row rather than to a count --
+  132px on a small phone up from 91px, 147px on an iPhone 15 up from 115px --
+  two fit with the third peeking to show the strip scrolls, and exercise names
+  like "Tricep Pushdown" fit on one line instead of wrapping. Name and date
+  text nudged up a point each now that there is room.
+
 ## [0.5.0.8] - 2026-08-31
 
 ### Fixed
