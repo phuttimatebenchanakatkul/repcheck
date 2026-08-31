@@ -178,10 +178,6 @@
   const GAIN_STANDARD_MAX_KG_PER_WEEK = 0.6;
   const GAIN_RATE_MAX_PCT = (GAIN_STANDARD_MAX_KG_PER_WEEK / RATE_REFERENCE_WEIGHT_KG) * 100;
   const GAIN_RATE_DEFAULT_PCT = 0.35;
-  // How many weeks a "per month" readout multiplies the weekly rate by --
-  // the precise average (365.25 / 7 / 12), not the common but slightly-off
-  // "4 weeks" shorthand. Mirrors onboarding.js's identical constant.
-  const WEEKS_PER_MONTH = 365.25 / 7 / 12;
 
   // ---------- Small local helpers ----------
   function toIsoDate(date) {
@@ -238,7 +234,6 @@
 
     const rateLabel = isLose ? t("coaching.wizard.lossRate") : t("coaching.wizard.gainRate");
     const unitLabel = RepCheckUnits.weightUnitLabel();
-    const pctUnitLabel = t("coaching.wizard.percentBodyweightUnit");
     const wrap = el(`
       <div class="pc-field pc-rate-field">
         <label>${rateLabel} <span id="pc-rate-header-value"></span>${t("coaching.wizard.perWeek")}</label>
@@ -251,16 +246,9 @@
           <div class="pc-rate-slider-thumb" id="pc-rate-thumb"></div>
         </div>
         <div class="pc-rate-readout-row">
-          <span class="pc-rate-readout-sign">+</span>
           <div class="pc-rate-readout-box"><span id="pc-rate-kg-week"></span><span class="pc-rate-readout-unit">${unitLabel}</span></div>
-          <div class="pc-rate-readout-box pc-rate-readout-box-pct"><span id="pc-rate-pct-week"></span><span class="pc-rate-readout-unit">${pctUnitLabel}</span></div>
+          <span class="pc-rate-readout-verb">${isLose ? t("coaching.wizard.rateLost") : t("coaching.wizard.rateGained")}</span>
           <span class="pc-rate-readout-freq">${t("coaching.wizard.perWeekLabel")}</span>
-        </div>
-        <div class="pc-rate-readout-row">
-          <span class="pc-rate-readout-sign">+</span>
-          <div class="pc-rate-readout-box"><span id="pc-rate-kg-month"></span><span class="pc-rate-readout-unit">${unitLabel}</span></div>
-          <div class="pc-rate-readout-box pc-rate-readout-box-pct"><span id="pc-rate-pct-month"></span><span class="pc-rate-readout-unit">${pctUnitLabel}</span></div>
-          <span class="pc-rate-readout-freq">${t("coaching.wizard.perMonthLabel")}</span>
         </div>
       </div>
     `);
@@ -271,9 +259,6 @@
     const badgeEl = wrap.querySelector("#pc-rate-badge");
     const headerValueEl = wrap.querySelector("#pc-rate-header-value");
     const kgWeekEl = wrap.querySelector("#pc-rate-kg-week");
-    const pctWeekEl = wrap.querySelector("#pc-rate-pct-week");
-    const kgMonthEl = wrap.querySelector("#pc-rate-kg-month");
-    const pctMonthEl = wrap.querySelector("#pc-rate-pct-month");
 
     if (zoneEl && zoneMinPct !== null) {
       const zoneLeft = ((zoneMinPct - min) / (max - min)) * 100;
@@ -337,9 +322,6 @@
 
       const weekKg = (current / 100) * wv;
       kgWeekEl.textContent = RepCheckUnits.kgToDisplay(weekKg);
-      pctWeekEl.textContent = current.toFixed(2);
-      kgMonthEl.textContent = RepCheckUnits.kgToDisplay(weekKg * WEEKS_PER_MONTH);
-      pctMonthEl.textContent = (current * WEEKS_PER_MONTH).toFixed(2);
     }
 
     function setValue(next) {

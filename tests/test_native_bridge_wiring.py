@@ -46,7 +46,12 @@ def test_food_photo_buttons_go_through_the_bridge():
     workout recorder already use -- rather than leaving the page for the OS
     camera / Capacitor Camera plugin. The native route is kept as the
     fallback for wherever getUserMedia itself isn't available, so this still
-    pins that it's reachable, just no longer the click handlers' first stop."""
+    pins that it's reachable, just no longer the click handlers' first stop.
+
+    The full "Log food" choice screen (renderAfChoice) dropped its own
+    Upload button in the three-row redesign -- Upload photo now only lives
+    on the FAB/home quick-action screen (renderAfMealQuickChoice), so only
+    one call site routes through the bridge, not two."""
     nutrition = read("templates/nutrition.html")
 
     assert nutrition.count('addEventListener("click", openAfPhotoCamera)') == 2, (
@@ -56,7 +61,7 @@ def test_food_photo_buttons_go_through_the_bridge():
         "openAfPhotoCamera must still fall back to the native camera when "
         "getUserMedia is unavailable"
     )
-    assert nutrition.count("RepCheckNative.openLibrary(afUploadInput") == 2
+    assert nutrition.count("RepCheckNative.openLibrary(afUploadInput") == 1
     # The old direct routes must be gone from those handlers.
     assert not re.search(
         r'af-take-photo-btn"\)\.addEventListener\("click", \(\) => afCameraInput\.click\(\)\)',

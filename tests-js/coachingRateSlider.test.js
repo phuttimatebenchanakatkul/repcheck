@@ -58,13 +58,21 @@ describe("coaching.js renderRateSlider", () => {
     expect(el.querySelector("#pc-rate-kg-week").textContent).toBe("0.6");
   });
 
-  it("shows both kg and %BW for the weekly and monthly rate", () => {
+  it("shows only the weekly rate, as \"<kg> lost Per Week\" -- no percent, no monthly readout", () => {
     const { renderRateSlider } = loadCoachingRateSlider();
     const { el } = renderRateSlider({ isLose: true, value: 1.0, weightKg: "100", onChange: () => {} });
     expect(el.querySelector("#pc-rate-kg-week").textContent).toBe("1");
-    expect(el.querySelector("#pc-rate-pct-week").textContent).toBe("1.00");
-    expect(el.querySelector("#pc-rate-kg-month").textContent).toBe("4.3");
-    expect(el.querySelector("#pc-rate-pct-month").textContent).toBe("4.35");
+    expect(el.querySelector(".pc-rate-readout-verb").textContent).toBe("lost");
+    expect(el.querySelector(".pc-rate-readout-freq").textContent).toBe("Per Week");
+    expect(el.querySelector("#pc-rate-pct-week")).toBeNull();
+    expect(el.querySelector("#pc-rate-kg-month")).toBeNull();
+    expect(el.querySelector("#pc-rate-pct-month")).toBeNull();
+  });
+
+  it("labels the gain direction as \"gained\" instead of \"lost\"", () => {
+    const { renderRateSlider } = loadCoachingRateSlider();
+    const { el } = renderRateSlider({ isLose: false, value: 0.35, weightKg: "75", onChange: () => {} });
+    expect(el.querySelector(".pc-rate-readout-verb").textContent).toBe("gained");
   });
 
   it("keyboard Home/End jump to the slider's min/max and fire onChange", () => {
