@@ -2,6 +2,24 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.5.0.5] - 2026-08-31
+
+### Fixed
+
+- The analyze page's camera now works on every visit, not just the first one.
+  Tapping another tab is not a navigation -- `pagenav.js` swaps `<main>` in
+  place -- so the `pagehide` and `visibilitychange` handlers that were meant to
+  release the camera never fired, and `RepCheckNavScope.release()` then unbound
+  them outright. The stream was never stopped: the camera indicator stayed lit
+  while the user was on another tab, and returning to Analyze asked for a
+  second camera while the first was still held. iOS refuses that, so
+  `getUserMedia` rejected and the viewfinder was replaced by the upload
+  dropzone for the rest of the session. The page now releases the camera on
+  `repcheck:page-will-swap`, which `pagenav.js` dispatches in the one moment a
+  departing page can still run its own teardown -- immediately before
+  `release()`. This also clears the 90s auto-stop `setTimeout`, which
+  `nav_scope.js` does not track (it records `setInterval` only).
+
 ## [0.5.0.4] - 2026-08-29
 
 ### Changed
