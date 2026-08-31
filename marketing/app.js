@@ -85,6 +85,11 @@
   var featureBtns = $$(".feature", whatSection);
   var screens = $$(".screen", whatSection);
   var tabs = $$(".tab", whatSection);
+  // Feature 05's screen is the live race simulator, and it owns a running
+  // clock. It has to know when it stops being the screen on show, so set by
+  // the race block below once it exists.
+  var activeFeature = 0;
+  var onFeatureChange = null;
 
   // Some screens are real screen recordings rather than mocked-up cards. Play
   // whichever one is showing, and pause + rewind the rest so they don't keep
@@ -112,6 +117,8 @@
       if (screens.indexOf(wlScreen) === i) wlPlay();
       else wlStop();
     }
+    activeFeature = i;
+    if (onFeatureChange) onFeatureChange(i);
   }
 
   // ---------- workout log: act out the add-exercise flow ----------
@@ -175,35 +182,12 @@
   });
   showFeature(0);
 
-  // ---------- rep-by-rep chart ----------
-  var NOTES = [
-    "Rep 1 — clean setup, brace held through the descent.",
-    "Rep 2 — best rep of the set. Bar path dead vertical.",
-    "Rep 3 — depth to parallel, knees tracking over toes.",
-    "Rep 4 — slight forward lean out of the hole.",
-    "Rep 5 — depth shallow by ~4°, tempo slowing.",
-    "Rep 6 — knees start caving. Cue: drive the knees out.",
-    "Rep 7 — same fault, deeper. Bar drifting forward.",
-    "Rep 8 — fatigue set in. Cut the set here, or drop 5 kg."
-  ];
-  var DEFAULT_NOTE = "Every rep scored against the movement's real standards — hover a bar to read the call.";
-  var note = $("#rep-note");
-  $$(".bar").forEach(function (bar, i) {
-    bar.addEventListener("mouseenter", function () {
-      $$(".bar").forEach(function (b) { b.classList.remove("is-on"); });
-      bar.classList.add("is-on");
-      if (note) note.textContent = NOTES[i];
-    });
-    bar.addEventListener("mouseleave", function () {
-      bar.classList.remove("is-on");
-      if (note) note.textContent = DEFAULT_NOTE;
-    });
-  });
-
   // ---------- race walkthrough: the app's four HYROX screens, playable ----------
-  // Section 04 replays one athlete's 1:24:06 Men's Open Singles race through
-  // the same four screens the app renders -- simulator, race setup, running
-  // clock, finish. Everything factual is lifted from the shipping app rather
+  // Feature 05's screen replays one athlete's 1:24:06 Men's Open Singles race
+  // through the same four screens the app renders -- simulator, race setup,
+  // running clock, finish -- driven entirely from inside the handset: Start
+  // race, the setup toggles, Complete on every split, Log another race.
+  // Everything factual is lifted from the shipping app rather
   // than written for this page:
   //   * the 8+8 segment order and the run/station titles  (static/hyrox.js STATIONS)
   //   * Open/Pro loads, wall-ball reps and target height  (STATION_SPECS)
@@ -211,11 +195,11 @@
   //   * the "how it's done" copy behind every station      (static/i18n.js hyrox.standards.*)
   //   * the finish breakdown and the coach's focus/strong/solid grouping
   //                                                       (hyrox_coach.py)
-  var raceRoot = $("#race");
-  if (raceRoot) {
-    var rcScreen = $("#rc-screen");
-    var rcWatch = $("#rc-watch");
-    var rcSteps = $("#rc-steps");
+  var rcScreen = $("#rc-screen", whatSection);
+  if (rcScreen) {
+    var rcWatch = $("#rc-watch", whatSection);
+    var rcIndex = screens.indexOf(rcScreen);
+    var rcShowing = function () { return activeFeature === rcIndex; };
 
     // The app's own station pictograms (static/hyrox.js STATION_ICONS),
     // copied verbatim so a station looks the same here as in the product.
@@ -620,10 +604,6 @@
       rcWatch.innerHTML = showWatch
         ? rcWatchHtml() + '<p class="watch-note"><b>Apple Watch companion</b>In design, not shipped — the same race on your wrist, so logging a split is one tap instead of a pocket dive.</p>'
         : "";
-
-      $$(".race-step", rcSteps).forEach(function (step) {
-        step.classList.toggle("is-active", step.getAttribute("data-screen") === rc.screen);
-      });
     }
 
     function rcStop() { if (rc.timer) { clearInterval(rc.timer); rc.timer = null; } }
@@ -632,6 +612,8 @@
       // Reduced motion gets no self-advancing clock (WCAG 2.2.2) -- Complete
       // and the watch's Done button still walk the race by hand.
       if (reduced) return;
+      // Nor while some other feature's screen is the one on show.
+      if (!rcShowing()) return;
       rc.timer = setInterval(function () {
         rc.elapsed += 0.1 * RC_RATE;
         if (rc.elapsed >= RC_CUM[rc.index]) { rcComplete(); return; }
@@ -654,9 +636,9 @@
       rcRender();
     }
 
-    // Jumping straight to a stage from the steps on the left: the clock and
-    // the splits have to be consistent with the stage you land on, so each
-    // one rebuilds the race state it implies.
+    // Jumping straight to a stage: the clock and the splits have to be
+    // consistent with the stage you land on, so each one rebuilds the race
+    // state it implies.
     function rcGoto(screen) {
       rcStop();
       rc.info = null;
@@ -678,7 +660,9 @@
       rcRender();
     }
 
-    raceRoot.addEventListener("click", function (evt) {
+    // Delegated on the whole section: every [data-rc] lives either in the
+    // handset or in the watch rig beside it, and both sit inside it.
+    whatSection.addEventListener("click", function (evt) {
       var el = evt.target.closest ? evt.target.closest("[data-rc]") : null;
       if (!el) return;
       var action = el.getAttribute("data-rc");
@@ -699,14 +683,24 @@
 
     // The clock only runs while the section is on screen -- a race shouldn't
     // tick itself away in a section nobody is looking at.
+    var rcOnScreen = true;
     if (window.IntersectionObserver) {
       new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
+          rcOnScreen = entry.isIntersecting;
           if (rc.screen !== "running") return;
-          if (entry.isIntersecting) rcStart(); else rcStop();
+          if (rcOnScreen && rcShowing()) rcStart(); else rcStop();
         });
-      }, { threshold: 0.2 }).observe(raceRoot);
+      }, { threshold: 0.2 }).observe(whatSection);
     }
+
+    // Same rule for the switcher: hovering another feature parks the race
+    // where it got to rather than running it out behind a screen you can't
+    // see, and coming back picks it up again.
+    onFeatureChange = function () {
+      if (rc.screen !== "running") return;
+      if (rcOnScreen && rcShowing()) rcStart(); else rcStop();
+    };
 
     rcRender();
   }

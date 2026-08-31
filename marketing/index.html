@@ -26,7 +26,6 @@
     <span class="brand">RepCheck</span>
     <nav class="nav-links" aria-label="Sections">
       <a href="#what" data-magnet="">What it does</a>
-      <a href="#feature-hyrox" data-magnet="">HYROX</a>
       <a href="#waitlist" class="nav-cta" data-magnet="">Download</a>
     </nav>
   </header>
@@ -51,7 +50,6 @@
 
   <div class="hero-foot">
     <p>RepCheck watches your lifts on a phone video, reads your meals from a photo, and rewrites next week from what actually happened. One app instead of five.</p>
-    <div class="meta"><span>Pre-launch · early access opening soon</span><span>Move your cursor</span></div>
   </div>
 </section>
 
@@ -60,28 +58,22 @@
   <div class="what-grid">
     <div class="feature-list">
       <button class="feature is-active" type="button" data-feature="0">
-        <span class="feature-head"><span class="idx">01</span><span class="feature-title">It watches you lift</span></span>
-        <span class="feature-plain">Film your set on your phone. RepCheck watches it like a coach would and says which rep got messy — “rep 6, your knees caved in, push them out.”</span>
+        <span class="feature-head"><span class="idx">01</span><span class="feature-title">Analyze a Workout</span></span>
       </button>
       <button class="feature" type="button" data-feature="1">
-        <span class="feature-head"><span class="idx">02</span><span class="feature-title">It counts your food from a photo</span></span>
-        <span class="feature-plain">Snap a picture of your plate. It works out what's on it and how much energy is in it, so you don't have to look anything up.</span>
+        <span class="feature-head"><span class="idx">02</span><span class="feature-title">Nutrition Log</span></span>
       </button>
       <button class="feature" type="button" data-feature="2">
-        <span class="feature-head"><span class="idx">03</span><span class="feature-title">It changes your plan every week</span></span>
-        <span class="feature-plain">You tell it what you want and by when. Every week it checks how it actually went and gives you new numbers to hit — easier or harder.</span>
+        <span class="feature-head"><span class="idx">03</span><span class="feature-title">Weekly Check-in</span></span>
       </button>
       <button class="feature" type="button" data-feature="3">
-        <span class="feature-head"><span class="idx">04</span><span class="feature-title">It plans your gym days</span></span>
-        <span class="feature-plain">It writes your week of workouts, then you tick off each exercise as you finish it. No more “what am I doing today?”</span>
+        <span class="feature-head"><span class="idx">04</span><span class="feature-title">Workout Log</span></span>
       </button>
       <button class="feature" type="button" data-feature="4" id="feature-hyrox">
-        <span class="feature-head"><span class="idx">05</span><span class="feature-title">It gets you ready for HYROX</span></span>
-        <span class="feature-plain">HYROX is a race with 8 stations. It keeps your best time at each one and guesses how fast you'd finish the whole race today.</span>
+        <span class="feature-head"><span class="idx">05</span><span class="feature-title">HYROX Race Simulator</span></span>
       </button>
       <button class="feature" type="button" data-feature="5">
-        <span class="feature-head"><span class="idx">06</span><span class="feature-title">It keeps you going with friends</span></span>
-        <span class="feature-plain">Add your gym friends, race them for the week, and keep your streak alive. Miss a day and the number resets — so you don't.</span>
+        <span class="feature-head"><span class="idx">06</span><span class="feature-title">Friends</span></span>
       </button>
       <p class="hint">Tap a feature to watch it in the phone →</p>
     </div>
@@ -173,7 +165,10 @@
             </div>
           </div>
 
-          <div class="screen" data-screen="4">
+          <!-- Feature 05 is the whole HYROX walkthrough, not a still: app.js
+               renders every race screen into here, and the markup below is the
+               no-JS fallback (the app's HYROX screen, statically). -->
+          <div class="screen screen--race" data-screen="4" id="rc-screen">
             <div class="scr-head"><b>HYROX</b><span class="avatar">J</span></div>
             <div class="card">
               <div class="row"><span class="date">YOUR PERSONAL BEST</span><span class="pill">4 races</span></div>
@@ -218,6 +213,9 @@
           </div>
         </div>
       </div>
+
+      <!-- Filled by app.js once the race starts; empty (and hidden) until then. -->
+      <div class="watch-rig" id="rc-watch" hidden></div>
     </div>
   </div>
 </section>
@@ -229,120 +227,8 @@
       <div><b>2</b><span>languages, EN &amp; TH</span></div>
 </section>
 
-<section class="split">
-  <div class="split-copy">
-    <p class="kicker">02 — Form analysis</p>
-    <h2>“Which rep went wrong?” — answered in about a minute</h2>
-    <p class="lede">Most form advice is generic because it never saw your set. RepCheck reads joint positions frame by frame, scores every rep against the movement's real standards, and ranks the fixes.</p>
-    <ul class="ticks">
-      <li>Per-rep breakdown, not one verdict on the whole set</li>
-      <li>Ranked fixes — the one that matters sits at the top</li>
-      <li>Ask follow-up questions about your own analysis</li>
-      <li>Saved forever, so month three compares to week one</li>
-    </ul>
-  </div>
-  <div class="split-chart">
-    <div class="strip strip--bare"><span>Back squat · 8 reps</span><span>Hover the set</span></div>
-    <div class="bars" id="bars">
-          <div class="bar" data-rep="0" style="--h:202px"><span class="bar-score">88</span><span class="bar-fill"></span><span class="bar-n">1</span></div>
-          <div class="bar" data-rep="1" style="--h:212px"><span class="bar-score">92</span><span class="bar-fill"></span><span class="bar-n">2</span></div>
-          <div class="bar" data-rep="2" style="--h:207px"><span class="bar-score">90</span><span class="bar-fill"></span><span class="bar-n">3</span></div>
-          <div class="bar" data-rep="3" style="--h:193px"><span class="bar-score">84</span><span class="bar-fill"></span><span class="bar-n">4</span></div>
-          <div class="bar" data-rep="4" style="--h:166px"><span class="bar-score">72</span><span class="bar-fill"></span><span class="bar-n">5</span></div>
-          <div class="bar is-warn" data-rep="5" style="--h:133px"><span class="bar-score">58</span><span class="bar-fill"></span><span class="bar-n">6</span></div>
-          <div class="bar is-warn" data-rep="6" style="--h:117px"><span class="bar-score">51</span><span class="bar-fill"></span><span class="bar-n">7</span></div>
-          <div class="bar is-warn" data-rep="7" style="--h:106px"><span class="bar-score">46</span><span class="bar-fill"></span><span class="bar-n">8</span></div>
-    </div>
-    <p class="rep-note" id="rep-note">Every rep scored against the movement's real standards — hover a bar to read the call.</p>
-  </div>
-</section>
-
-<section id="hyrox" class="band">
-  <p class="kicker kicker--dark">03 — Race day</p>
-  <h2>HYROX athletes get their own half of the app</h2>
-  <ul class="stations">
-        <li><span>SkiErg</span><b>1000 m</b></li>
-        <li><span>Sled Push</span><b>50 m</b></li>
-        <li><span>Sled Pull</span><b>50 m</b></li>
-        <li><span>Burpee Broad Jump</span><b>80 m</b></li>
-        <li><span>Rowing</span><b>1000 m</b></li>
-        <li><span>Farmers Carry</span><b>200 m</b></li>
-        <li><span>Sandbag Lunges</span><b>100 m</b></li>
-        <li><span>Wall Balls</span><b>100 reps</b></li>
-  </ul>
-</section>
-
-<section id="race" class="race">
-  <div class="strip"><span>04 — A race, start to finish</span><span>Tap through it</span></div>
-  <div class="race-grid">
-    <div class="race-steps" id="rc-steps">
-      <button class="race-step" type="button" data-rc="goto" data-screen="hero">
-        <span class="feature-head"><span class="idx">01</span><span class="feature-title">Open the race simulator</span></span>
-        <span class="feature-plain">Your best time, the eight stations in order, one button. Tap a station and it tells you how that one is judged.</span>
-      </button>
-      <button class="race-step" type="button" data-rc="goto" data-screen="setup">
-        <span class="feature-head"><span class="idx">02</span><span class="feature-title">Set the race up</span></span>
-        <span class="feature-plain">Open or Pro, Singles or Doubles, full or half. The loads and the lap counts come from the rulebook and the length of your own lane.</span>
-      </button>
-      <button class="race-step" type="button" data-rc="goto" data-screen="running">
-        <span class="feature-head"><span class="idx">03</span><span class="feature-title">Run the clock</span></span>
-        <span class="feature-plain">One tap per segment. Sixteen splits — eight runs, eight stations — with the weight and the lap count for whatever is up now.</span>
-      </button>
-      <button class="race-step" type="button" data-rc="goto" data-screen="finished">
-        <span class="feature-head"><span class="idx">04</span><span class="feature-title">Read the race back</span></span>
-        <span class="feature-plain">Running against stations, every split ranked, and the coach's read on the two stations to fix before the next race.</span>
-      </button>
-      <p class="hint">This is one real 1:24:06 race, replayed at 60× →</p>
-    </div>
-
-    <div class="race-stage">
-      <div class="phone">
-        <div class="phone-screen">
-          <div class="status"><span>15:29</span><span>5G</span></div>
-          <!-- app.js renders every race screen into here; the markup below is
-               the no-JS fallback (the app's HYROX screen, statically). -->
-          <div class="rc-screen" id="rc-screen">
-            <div class="scr-head"><b>HYROX</b><span class="avatar">J</span></div>
-            <div class="card">
-              <div class="row"><span class="date">YOUR PERSONAL BEST</span><span class="pill">4 races</span></div>
-              <b class="clock">1:24:06</b>
-              <span class="sub">Men's Open Singles</span>
-              <div class="stchips"><div class="stchip"><span>1</span><b>SkiErg</b></div><div class="stchip"><span>2</span><b>Sled Push</b></div><div class="stchip"><span>3</span><b>Sled Pull</b></div><div class="stchip"><span>4</span><b>Burpees</b></div><div class="stchip"><span>5</span><b>Row</b></div><div class="stchip"><span>6</span><b>Carry</b></div><div class="stchip"><span>7</span><b>Lunges</b></div><div class="stchip"><span>8</span><b>Wall Balls</b></div></div>
-              <span class="centered sub">Tap a station to see how it's done</span>
-              <div class="cta-blue">Start race</div>
-              <span class="centered link">View history</span>
-            </div>
-          </div>
-          <div class="tabbar">
-            <div class="tabpill">
-              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10v10h14V10"></path></svg></span>
-              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6M9 18h6M4 10h2v4H4zM18 10h2v4h-2zM7 8v8M17 8v8"></path></svg></span>
-              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M3 8h15v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z"></path><path d="M3 22h16"></path></svg></span>
-              <span class="tab is-active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M9 2h6"></path></svg></span>
-              <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 4 9l2.5 2.5"></path><path d="M17.5 6.5 20 9l-2.5 2.5"></path><path d="M14 4l-4 16"></path></svg></span>
-            </div>
-            <span class="fab">+</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Filled by app.js once the race starts; empty (and hidden) until then. -->
-      <div class="watch-rig" id="rc-watch" hidden></div>
-    </div>
-  </div>
-</section>
-
-<section class="faq">
-  <div class="strip"><span>05 — Questions worth answering</span></div>
-      <details class="faq-item"><summary><span>What do I need to record a form check?</span><i></i></summary><p>A phone and somewhere to prop it. Film side-on, whole body in frame, normal gym lighting. No wearables, no markers.</p></details>
-      <details class="faq-item"><summary><span>Is this a replacement for a coach?</span><i></i></summary><p>No — and we won't pretend otherwise. It's the feedback you don't get on the six days a week you train alone.</p></details>
-      <details class="faq-item"><summary><span>What does it cost?</span><i></i></summary><p>Early access is free. When pricing lands, the waitlist hears first — we'll be specific in that email rather than vague here.</p></details>
-      <details class="faq-item"><summary><span>What happens to my videos and photos?</span><i></i></summary><p>They're processed to produce your analysis and stored against your account. Only what you share to a leaderboard or challenge is visible to anyone else.</p></details>
-      <details class="faq-item"><summary><span>When is launch?</span><i></i></summary><p>The app is already running with real users in early access. The waitlist is how we open it wider without falling over.</p></details>
-</section>
-
 <section id="waitlist" class="cta">
-  <p class="kicker">06 — Limited early-access slots</p>
+  <p class="kicker">02 — Limited early-access slots</p>
   <h2>Be in the first group in</h2>
   <form class="waitlist-form" id="waitlist-form" novalidate="">
     <label class="sr-only" for="email">Email address</label>
