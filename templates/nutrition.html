@@ -3419,6 +3419,24 @@
     startLiveBarcodeScan();
   };
 
+  // Swapping away from this page must not leave that global behind. It is a
+  // plain `window.` assignment, so pagenav.js's swap -- which only tears down
+  // bindings RepCheckNavScope recorded -- does not touch it: it stays set
+  // after a tab switch, closing over af-modal-overlay and the rest of this
+  // page's elements even once they are gone from the document. The FAB in
+  // base.html only calls a real navigation when this is unset, so without
+  // this listener a later tap on it (e.g. from the analyze-workout page, mid
+  // recording) calls straight back into those detached elements *and* opens
+  // a second getUserMedia stream while the first page's own camera is still
+  // holding the one it has -- which iOS answers by hanging, not rejecting,
+  // freezing the app instead of failing visibly the way a single leaked
+  // stream on this page (see stopLiveBarcodeScan/stopAfPhotoCamera below) can.
+  document.addEventListener("repcheck:page-will-swap", () => {
+    window.repcheckOpenBarcodeScanner = null;
+    stopLiveBarcodeScan();
+    stopAfPhotoCamera();
+  });
+
   // options.onResult / options.onCancel divert the scan to a caller (the
   // create-food form) instead of the default product lookup.
   async function startLiveBarcodeScan(options) {
