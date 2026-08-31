@@ -59,9 +59,6 @@ repo → apply.
   Waitlist submissions will fail until this points at a real form endpoint.
   Create a free form at https://formspree.io (or swap in Buttondown/another
   provider) and paste the real endpoint in.
-- Swap `favicon.svg`'s placeholder green mark for the real RepCheck mark if
-  you want the exact `logo-mark.png` glyph instead of the simplified SVG one
-  (kept as SVG so it stays crisp at every tab size with zero extra bytes).
 - `robots.txt` points its sitemap at `https://repcheck.app/sitemap.xml`,
   which doesn't exist yet — either generate one or drop that line.
 - Content mirrors the real app (527 exercises, 744 foods, 8 HYROX stations,
