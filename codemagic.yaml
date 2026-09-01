@@ -245,15 +245,20 @@ workflows:
         script: |
           # cap add ios defaults TARGETED_DEVICE_FAMILY to "1,2" (Universal),
           # which makes App Store Connect require iPad screenshots for an app
-          # that has never been laid out or tested for a tablet. UIDeviceFamily
-          # in Info.plist is what App Store Connect actually reads to decide
-          # which device screenshots it demands, so setting it directly here
-          # (rather than touching the Xcode project's build settings) is
-          # enough to drop the iPad requirement.
-          PLIST="ios/App/App/Info.plist"
-          /usr/libexec/PlistBuddy -c "Delete :UIDeviceFamily" "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :UIDeviceFamily array" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :UIDeviceFamily:0 integer 1" "$PLIST"
+          # that has never been laid out or tested for a tablet.
+          #
+          # Editing Info.plist's UIDeviceFamily directly (build 28) did NOT
+          # work: Xcode's newer project template has "Generate Info.plist
+          # File" on, which regenerates Info.plist from the project's build
+          # settings at compile time and silently threw away that edit. The
+          # actual source of truth is TARGETED_DEVICE_FAMILY in
+          # project.pbxproj, so patch that instead -- every configuration
+          # (Debug/Release, for both the App and CapacitorCordova/Capacitor
+          # targets) sets it to "1,2"; replace all of them with 1.
+          PBXPROJ="ios/App/App.xcodeproj/project.pbxproj"
+          sed -i 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = 1;/g' "$PBXPROJ"
+          echo "--- remaining TARGETED_DEVICE_FAMILY lines (should all be 1) ---"
+          grep -n "TARGETED_DEVICE_FAMILY" "$PBXPROJ"
 
       - name: Run the test suites
         script: |
