@@ -241,6 +241,20 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
 
+      - name: Restrict the app to iPhone only
+        script: |
+          # cap add ios defaults TARGETED_DEVICE_FAMILY to "1,2" (Universal),
+          # which makes App Store Connect require iPad screenshots for an app
+          # that has never been laid out or tested for a tablet. UIDeviceFamily
+          # in Info.plist is what App Store Connect actually reads to decide
+          # which device screenshots it demands, so setting it directly here
+          # (rather than touching the Xcode project's build settings) is
+          # enough to drop the iPad requirement.
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :UIDeviceFamily" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIDeviceFamily array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIDeviceFamily:0 integer 1" "$PLIST"
+
       - name: Run the test suites
         script: |
           # The same two suites CLAUDE.md gates shipping on. A build that
