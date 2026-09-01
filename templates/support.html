@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Support{% endblock %}
+{% block heading %}Support{% endblock %}
+
+{% block content %}
+<!--
+  Public (see _PUBLIC_ENDPOINTS in app.py). App Store Connect requires a
+  working Support URL that App Review can open without an account.
+-->
+<div class="policy-page">
+  <p>Need help with RepCheck? Email
+  <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a>
+  and we'll get back to you.</p>
+
+  <h2>Common questions</h2>
+  <ul>
+    <li><strong>I can't log in.</strong> Use "Forgot password" on the login
+      screen, or sign in with Google if that's how you originally signed up.</li>
+    <li><strong>I want to delete my account.</strong> Go to
+      Settings → Delete account, inside the app. See our
+      <a href="{{ url_for('privacy') }}">Privacy Policy</a> for details on the
+      deletion window.</li>
+    <li><strong>A camera or upload flow isn't working.</strong> Email us with
+      your device model and iOS version and we'll look into it.</li>
+    <li><strong>I found a bug or have feedback.</strong> Email us — screenshots
+      or a short description of what you were doing help a lot.</li>
+  </ul>
+
+  <p>See also our <a href="{{ url_for('terms') }}">Terms of Service</a> and
+  <a href="{{ url_for('privacy') }}">Privacy Policy</a>.</p>
+</div>
+{% endblock %}

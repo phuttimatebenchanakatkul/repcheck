@@ -348,7 +348,7 @@ _PUBLIC_ENDPOINTS = frozenset({
     # The privacy policy and terms have to be readable without an account:
     # App Store Connect needs a public privacy-policy URL, and App Review
     # opens it without logging in.
-    "privacy", "terms",
+    "privacy", "terms", "support",
 })
 
 
@@ -1992,6 +1992,11 @@ def privacy():
 @app.route("/terms", methods=["GET"])
 def terms():
     return render_template("terms.html")
+
+
+@app.route("/support", methods=["GET"])
+def support():
+    return render_template("support.html")
 
 
 # ---------- Friends ----------
