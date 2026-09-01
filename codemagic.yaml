@@ -255,8 +255,22 @@ workflows:
           # project.pbxproj, so patch that instead -- every configuration
           # (Debug/Release, for both the App and CapacitorCordova/Capacitor
           # targets) sets it to "1,2"; replace all of them with 1.
+          # python3, not sed -i: Codemagic's Mac runner ships BSD sed, whose
+          # -i needs an explicit (possibly empty) backup-extension argument
+          # or it misparses the whole invocation -- exactly what happened in
+          # build 29 ("command i expects \ followed by text"), which silently
+          # left the file untouched while the step still reported success.
           PBXPROJ="ios/App/App.xcodeproj/project.pbxproj"
-          sed -i 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = 1;/g' "$PBXPROJ"
+          python3 - "$PBXPROJ" <<'PYEOF'
+          import sys
+          path = sys.argv[1]
+          with open(path) as f:
+              content = f.read()
+          patched = content.replace('TARGETED_DEVICE_FAMILY = "1,2";', "TARGETED_DEVICE_FAMILY = 1;")
+          with open(path, "w") as f:
+              f.write(patched)
+          print(f"Replaced {content.count('TARGETED_DEVICE_FAMILY = \"1,2\";')} occurrence(s)")
+          PYEOF
           echo "--- remaining TARGETED_DEVICE_FAMILY lines (should all be 1) ---"
           grep -n "TARGETED_DEVICE_FAMILY" "$PBXPROJ"
 
