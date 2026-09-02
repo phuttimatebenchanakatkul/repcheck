@@ -43,18 +43,20 @@ def _index_source():
 def test_analyze_page_releases_the_camera_when_pagenav_swaps_it_away():
     """The teardown hook exists and calls the function that stops the tracks."""
     source = _index_source()
-    match = re.search(
+    handlers = re.findall(
         rf'document\.addEventListener\(\s*["\']{re.escape(WILL_SWAP_EVENT)}["\']\s*,\s*([A-Za-z0-9_$]+)',
         source,
     )
-    assert match, (
+    assert handlers, (
         f"templates/index.html must listen for {WILL_SWAP_EVENT!r} -- without it a "
         "tab-bar swap leaves the camera live and the next visit's getUserMedia "
         "collides with the stream still held open."
     )
-    handler = match.group(1)
-    assert handler == "closeCamera", (
-        f"the {WILL_SWAP_EVENT!r} handler is {handler!r}; it must be closeCamera, "
+    # More than one thing tears down on a swap now (the pose worker has its
+    # own listener, see tests/test_analyze_video_smoothness.py), so look for
+    # the camera's among them rather than at whichever comes first in the file.
+    assert "closeCamera" in handlers, (
+        f"the {WILL_SWAP_EVENT!r} handlers are {handlers!r}; one must be closeCamera, "
         "which is what actually stops the MediaStream tracks and clears the timers."
     )
 
