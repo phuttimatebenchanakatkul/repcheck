@@ -487,11 +487,16 @@
     border-radius: var(--radius-md);
     overflow: hidden;
     background: #000;
-    max-height: 70vh;
   }
+  /* The height cap sits on the video, not the wrap: capping the wrap clipped
+     a tall portrait clip at the bottom while the skeleton canvas measured the
+     clipped box, so every landmark was drawn ~12% too high. Capped here, the
+     frame is contain-fitted (pillar-boxed) inside the video's box and
+     drawPose() maps onto that fitted frame -- see poseFrameRect(). */
   .video-wrap video {
     width: 100%;
     height: auto;
+    max-height: 70vh;
     display: block;
   }
   #pose-canvas {
@@ -501,20 +506,43 @@
     height: 100%;
     pointer-events: none;
   }
+  /* The sweep is a stage-sized wrapper moved with transform, carrying a
+     2px line (and its glow) at its top edge. Animating `top` (as this used
+     to) re-laid-out and repainted on the main thread every frame, over a
+     video already being decoded and a skeleton being drawn; a transform
+     animation runs on the compositor and costs the page nothing.
+     translateY(100%) refers to the moving element's OWN height, which is
+     why the full-height wrapper moves and not the line itself. The line's
+     glow is a box-shadow on the 2px line rather than a filter on the moving
+     layer: a filter is re-applied by the compositor every frame over the
+     whole stage, a shadow is painted once into the layer. .video-wrap's
+     overflow: hidden clips the sweep at the video's edge. */
   .scan-line {
+    --scan-line-height: 2px;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    animation: scan 2.4s ease-in-out infinite;
+  }
+  .scan-line::before {
+    content: "";
     position: absolute;
     left: 0;
     right: 0;
-    height: 2px;
     top: 0;
+    height: var(--scan-line-height);
     background: linear-gradient(90deg, transparent, #7CFFB2, transparent);
     box-shadow: 0 0 14px 3px rgba(124, 255, 178, 0.85);
-    animation: scan 2.4s ease-in-out infinite;
   }
   @keyframes scan {
-    0%   { top: 0%; }
-    50%  { top: 100%; }
-    100% { top: 0%; }
+    0%   { transform: translateY(0); }
+    50%  { transform: translateY(calc(100% - var(--scan-line-height))); }
+    100% { transform: translateY(0); }
+  }
+  /* A static line at the top carries no meaning, so under reduced motion
+     the sweep goes entirely rather than freezing in place. */
+  @media (prefers-reduced-motion: reduce) {
+    .scan-line { display: none; }
   }
   .analyzing-overlay {
     position: absolute;
@@ -562,12 +590,16 @@
 <script>
   // Imported where it is used rather than at the top, because a top-level
   // `import` would force this back into type="module" and pagenav.js would
-  // stop running the page again. MediaPipe is only needed once the pose
-  // overlay starts, which is already lazy (see getPoseLandmarker), so a
-  // dynamic import costs nothing and keeps this a classic script.
+  // stop running the page again. On the main thread MediaPipe is only ever
+  // imported by the fallback landmarker (getPoseLandmarker), itself lazy --
+  // the preferred path runs it in static/pose_worker.js, see getPoseBackend
+  // -- so a dynamic import costs nothing and keeps this a classic script.
   const POSE_VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
   const POSE_WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
   const POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
+  // Root-relative (asset_url), so it resolves the same under pagenav.js's
+  // `new Function` execution as on a normal page load -- see POSE_VISION_URL.
+  const POSE_WORKER_URL = "{{ asset_url('pose_worker.js') }}";
   const POSE_CONNECTIONS = [
     [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
     [11, 23], [12, 24], [23, 24],
@@ -619,6 +651,294 @@
   let poseLandmarkerPromise = null;
   let poseRafId = null;
 
+  // ---- Where the skeleton gets computed ----
+  //
+  // Preferred: static/pose_worker.js, off the main thread. One
+  // detectForVideo() call is 25-80ms on real phones -- more than a whole
+  // 60Hz frame -- and run here, even throttled, every call stalled the page
+  // for that long while the clip underneath dropped frames. That stutter is
+  // what "the video lags while it analyzes" was. With the model in a worker
+  // the main thread only grabs a downscaled ImageBitmap of the frame and
+  // strokes a few lines per detection; the <video> plays untouched.
+  //
+  // Fallback: the same landmarker on the main thread (getPoseLandmarker
+  // below), kept for browsers without workers or createImageBitmap, or when
+  // the worker fails to come up. Same throttle as before.
+  let poseWorker = null;          // the live Worker, once it has said "ready"
+  let poseWorkerPending = null;   // a Worker between new Worker() and "ready" -- not yet cached, still ours to terminate
+  let poseWorkerPromise = null;   // its pending init: resolves to the Worker or null
+  let poseWorkerDead = false;     // the worker path failed this page-load; use the main thread
+  let poseFrameInFlight = false;  // one frame at a time keeps timestamps monotonic
+  // Two separate things, deliberately. poseFrameTs identifies the frame the
+  // worker is holding and must never change while it holds it -- the result
+  // is matched against it. poseFrameDeadlineAt is only a clock, and IS reset
+  // when the page comes back from the background. Sharing one variable made
+  // the resume rename the frame the page was waiting for, so its result was
+  // dropped as stale, the in-flight flag never came down, and the deadline
+  // below then demoted a perfectly healthy worker.
+  let poseFrameTs = 0;            // the ts the in-flight frame was posted with
+  let poseFrameDeadlineAt = 0;    // rAF clock the result deadline counts from
+  let poseResizeUnsupported = false; // createImageBitmap refused the resize options once; stop offering them
+  let poseGrabFailures = 0;       // consecutive createImageBitmap rejections
+  let poseTornDown = false;       // the page was swapped away; late-resolving loads must not cache anything
+  // Bumped by every submit and by a page swap; a fetch that resolves against
+  // an older value belongs to an analysis the user has left, and its result
+  // must not touch the document (see the submit handler).
+  let analysisGeneration = 0;
+
+  // The overlay is decorative; 3x phones would triple its pixel count for no
+  // visible gain over 2x.
+  const POSE_CANVAS_MAX_DPR = 2;
+
+  // A worker the platform kills outright (iOS reclaiming memory) fires no
+  // onerror and never answers; without a deadline the in-flight flag would
+  // gate every later frame for the rest of the page-load, silently. Generous,
+  // because the FIRST detection includes GPU shader compilation and has been
+  // measured at over ten seconds on a desktop -- a tight deadline would kill a
+  // healthy worker mid-warm-up and then pay that warm-up again on the main
+  // thread.
+  const POSE_RESULT_TIMEOUT_MS = 30000;
+  // createImageBitmap(video) refusing this many frames in a row means this
+  // browser cannot feed the worker at all; hand the analysis to the main
+  // thread rather than showing no skeleton with a working worker idle.
+  const POSE_GRAB_FAILURE_LIMIT = 5;
+
+  function poseWorkerSupported() {
+    return typeof window.Worker === "function" &&
+      typeof window.createImageBitmap === "function";
+  }
+
+  function getPoseWorker() {
+    if (poseWorker) return Promise.resolve(poseWorker);
+    if (poseWorkerDead || !poseWorkerSupported()) return Promise.resolve(null);
+    if (!poseWorkerPromise) {
+      poseWorkerPromise = new Promise((resolve) => {
+        let worker;
+        try {
+          // A CLASSIC worker, deliberately: MediaPipe's WASM loader calls
+          // importScripts(), which module workers refuse ("Module scripts
+          // don't support importScripts()"), so a module worker dies at
+          // init every time. The worker pulls MediaPipe in with a dynamic
+          // import() instead, which classic workers allow.
+          worker = new Worker(POSE_WORKER_URL);
+        } catch (err) {
+          console.warn("Pose worker unavailable, using the main thread:", err);
+          poseWorkerDead = true;
+          resolve(null);
+          return;
+        }
+        poseWorkerPending = worker;
+        const fail = (err) => {
+          console.warn("Pose worker failed to start, using the main thread:", err);
+          worker.terminate();
+          if (poseWorkerPending === worker) poseWorkerPending = null;
+          poseWorkerDead = true;
+          poseWorkerPromise = null;
+          resolve(null);
+        };
+        worker.onerror = fail;
+        worker.onmessage = (event) => {
+          const msg = event.data || {};
+          if (msg.type === "ready") {
+            // Dropped while it was still loading (a tab swap mid-init):
+            // nothing on the page is waiting for this one any more, so
+            // caching it would leave a live WASM runtime nobody can reach.
+            if (poseWorkerPending !== worker) {
+              worker.terminate();
+              resolve(null);
+              return;
+            }
+            poseWorkerPending = null;
+            worker.onerror = onPoseWorkerError;
+            worker.onmessage = onPoseWorkerMessage;
+            poseWorker = worker;
+            resolve(worker);
+          } else if (msg.type === "error") {
+            fail(msg.message);
+          }
+        };
+        worker.postMessage({
+          type: "init",
+          visionUrl: POSE_VISION_URL,
+          wasmUrl: POSE_WASM_URL,
+          modelUrl: POSE_MODEL_URL,
+        });
+      });
+    }
+    return poseWorkerPromise;
+  }
+
+  function onPoseWorkerMessage(event) {
+    const msg = event.data || {};
+    if (msg.type === "result") {
+      // Only the frame we are waiting for counts. The first detection can
+      // take seconds (shader compilation); a result for the previous clip
+      // landing after the next analysis has started must not be drawn over
+      // the new clip, nor lower the flag for a frame it does not own.
+      if (msg.ts !== poseFrameTs) return;
+      poseFrameInFlight = false;
+      // A result landing after the analysis finished must not repaint a
+      // canvas stopPoseLoop() has just cleared.
+      if (poseWanted) drawPose(msg);
+    } else if (msg.type === "error") {
+      onPoseWorkerError(msg.message);
+    }
+  }
+
+  // A detection failure wedges the landmarker for every later call (the
+  // same finding as the main-thread catch in startPoseLoop), so the worker
+  // holding it is dropped whole. A worker that came up but cannot detect
+  // will do the same next time, so the worker path is marked dead for this
+  // page-load rather than rebuilt (WASM + model again) to fail again. The
+  // rAF loop keeps running and switches to the main-thread landmarker the
+  // moment it has loaded -- so this analysis gets its skeleton back too.
+  function onPoseWorkerError(err) {
+    console.warn("Pose worker detection failed, falling back to the main thread:", err);
+    dropPoseWorker();
+    poseWorkerDead = true;
+    if (poseWanted) getPoseLandmarker();
+  }
+
+  function dropPoseWorker() {
+    if (poseWorker) poseWorker.terminate();
+    if (poseWorkerPending) poseWorkerPending.terminate();
+    poseWorker = null;
+    poseWorkerPending = null;
+    poseWorkerPromise = null;
+    poseFrameInFlight = false;
+  }
+
+  // pagenav.js swaps this page out without unloading the document, so a
+  // worker left running would survive the swap (WASM runtime, model and all)
+  // with nothing left on the page to talk to it -- and the rAF loop would
+  // keep ticking against a detached <video> (on the main-thread path, still
+  // running detectForVideo) for as long as the upload takes. Registered
+  // through document.addEventListener so nav_scope's release() drops it with
+  // the rest of this page's listeners; a revisit re-runs this script and
+  // starts clean.
+  function teardownPose() {
+    poseTornDown = true;
+    // Orphans the in-flight analyze fetch: its result would otherwise run
+    // showResult() against detached nodes and flip the LIVE document into
+    // results-only chrome (no tab bar) with nothing left to undo it.
+    analysisGeneration++;
+    stopPoseLoop();
+    stopCycleStatus();
+    dropPoseWorker();
+    // Swapped away with results on screen (a back gesture is served from
+    // pagenav's history cache, so the document never unloads): this class
+    // hides the tab bar and takes the page full-bleed, and only
+    // resetToCapture() removes it -- which the next page can never reach.
+    document.documentElement.classList.remove("an-result");
+    if (window.__agCleanup) { window.__agCleanup(); window.__agCleanup = null; }
+    if (window.__anBarCleanup) { window.__anBarCleanup(); window.__anBarCleanup = null; }
+    // The main-thread landmarker is the same leak in the other backend: a
+    // WASM runtime and (GPU) context that nothing on the next page can reach.
+    if (poseLandmarker && typeof poseLandmarker.close === "function") poseLandmarker.close();
+    poseLandmarker = null;
+    poseLandmarkerPromise = null;
+    // And the clips: a blob URL left registered keeps the whole recorded
+    // File alive for the session, since pagenav never unloads the document.
+    releaseVideo(previewVideo);
+    if (reviewUrl) {
+      releaseVideo(reviewVideo);
+      reviewUrl = null;
+    }
+  }
+  document.addEventListener("repcheck:page-will-swap", teardownPose);
+
+  // Stop, revoke, detach, and let the decoder go -- removeAttribute alone
+  // leaves the current media resource loaded; load() is what frees it.
+  function releaseVideo(video) {
+    video.pause();
+    if (video.src) URL.revokeObjectURL(video.src);
+    video.removeAttribute("src");
+    video.load();
+  }
+
+  // iOS suspends the page -- worker included -- in the background, and the
+  // rAF clock with it. Coming back, the in-flight frame would look overdue
+  // and the deadline below would demote a healthy worker for the rest of the
+  // session. Restart the clock -- and ONLY the clock: renaming the frame
+  // (poseFrameTs) would make its own result unrecognisable when it lands.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && poseFrameInFlight) poseFrameDeadlineAt = performance.now();
+  });
+
+  // Downscale before handing a frame over. Landmarks come back normalized
+  // (0..1) so the skeleton is unaffected, and the model resamples its input
+  // to 256px anyway -- a 720p (or an uploaded 4K) frame is only more bytes
+  // to copy across and upload as a texture on the other side.
+  const POSE_FRAME_MAX_SIDE = 480;
+
+  function poseFrameOptions() {
+    const w = previewVideo.videoWidth;
+    const h = previewVideo.videoHeight;
+    const scale = POSE_FRAME_MAX_SIDE / Math.max(w, h);
+    if (!(scale < 1)) return null;
+    return {
+      resizeWidth: Math.max(1, Math.round(w * scale)),
+      resizeHeight: Math.max(1, Math.round(h * scale)),
+      resizeQuality: "low",
+    };
+  }
+
+  function sendPoseFrame(worker, ts) {
+    poseFrameInFlight = true;
+    poseFrameTs = ts;
+    poseFrameDeadlineAt = ts;
+    const options = poseResizeUnsupported ? null : poseFrameOptions();
+    // Not every browser that has createImageBitmap accepts the resize
+    // options; a full-size bitmap is still a working frame. Remembered, so
+    // later frames don't each pay a rejected attempt before the real one.
+    const grab = options
+      ? createImageBitmap(previewVideo, options).catch(() =>
+          // Only the retry SUCCEEDING proves the options were the problem. A
+          // transient rejection (the clip released mid-grab) would otherwise
+          // disable downscaling for the rest of the page-load and ship every
+          // later frame at full resolution.
+          createImageBitmap(previewVideo).then((bitmap) => {
+            poseResizeUnsupported = true;
+            return bitmap;
+          })
+        )
+      : createImageBitmap(previewVideo);
+    grab.then(
+      (bitmap) => {
+        poseGrabFailures = 0;
+        if (poseWorker !== worker || !poseWanted) {
+          bitmap.close();
+          // Only this worker's own frame may lower the flag: a grab that
+          // outlived a dropped worker must not free a send that belongs to
+          // its replacement.
+          if (poseWorker === worker) poseFrameInFlight = false;
+          return;
+        }
+        try {
+          worker.postMessage({ type: "frame", bitmap, ts }, [bitmap]);
+        } catch (err) {
+          // DataCloneError: this engine won't transfer the bitmap. Nothing
+          // reaches the worker, so treat it as a worker that cannot detect.
+          bitmap.close();
+          onPoseWorkerError(err);
+        }
+      },
+      (err) => {
+        // Only this worker's own frame may lower the flag (see above), and
+        // only a live analysis counts toward giving up: a grab that rejected
+        // because the clip was already released is not the browser refusing
+        // createImageBitmap(video).
+        if (poseWorker !== worker) return;
+        poseFrameInFlight = false;
+        if (!poseWanted) return;
+        if (++poseGrabFailures >= POSE_GRAB_FAILURE_LIMIT) onPoseWorkerError(err);
+      }
+    );
+  }
+
+  // Mirror of createLandmarker() in static/pose_worker.js -- the worker
+  // cannot see this file, so a change to the model options (numPoses,
+  // delegate order, confidence thresholds) has to be made in both.
   async function createLandmarker(PoseLandmarker, vision, delegate) {
     return PoseLandmarker.createFromOptions(vision, {
       baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
@@ -636,11 +956,19 @@
         // script runs through `new Function` and has no own base URL).
         const { PoseLandmarker, FilesetResolver } = await import(POSE_VISION_URL);
         const vision = await FilesetResolver.forVisionTasks(POSE_WASM_URL);
+        let landmarker;
         try {
-          poseLandmarker = await createLandmarker(PoseLandmarker, vision, "GPU");
+          landmarker = await createLandmarker(PoseLandmarker, vision, "GPU");
         } catch (err) {
-          poseLandmarker = await createLandmarker(PoseLandmarker, vision, "CPU");
+          landmarker = await createLandmarker(PoseLandmarker, vision, "CPU");
         }
+        if (poseTornDown) {
+          // Resolved after the page was swapped away: nothing can use it,
+          // and caching it here would be the leak teardownPose() closes.
+          if (typeof landmarker.close === "function") landmarker.close();
+          return null;
+        }
+        poseLandmarker = landmarker;
         return poseLandmarker;
       })().catch((err) => {
         console.warn("Pose overlay unavailable, continuing without it:", err);
@@ -650,57 +978,105 @@
     return poseLandmarkerPromise;
   }
 
+  // Worker first; the main-thread landmarker only if the worker path is out.
+  // Resolves truthy when there is something to run the loop on.
+  function getPoseBackend() {
+    // poseWanted re-checked here: the worker path can resolve null late (a
+    // swap mid-init), and a multi-MB model download for an analysis the user
+    // has already left is not a fallback, it is a leak.
+    return getPoseWorker().then((worker) => worker || (poseWanted ? getPoseLandmarker() : null));
+  }
+
+  // The canvas is stretched over the video by CSS and the landmarks are
+  // normalized, so its backing store only has to match the box it is shown
+  // in -- not the clip's own pixel grid. It used to be videoWidth x
+  // videoHeight: for a 1080p clip that is a 2-megapixel layer re-uploaded to
+  // the GPU on every redraw, sitting on top of the video being decoded.
+  function syncPoseCanvasSize() {
+    const cssW = poseCanvas.clientWidth;
+    const cssH = poseCanvas.clientHeight;
+    // Not laid out (display mid-toggle): there is no box to size against,
+    // and falling back to the clip's own pixel grid would be exactly the
+    // allocation this cap exists to avoid. Skip this draw instead.
+    if (!cssW || !cssH) return false;
+    const dpr = Math.min(window.devicePixelRatio || 1, POSE_CANVAS_MAX_DPR);
+    const w = Math.max(1, Math.round(cssW * dpr));
+    const h = Math.max(1, Math.round(cssH * dpr));
+    if (poseCanvas.width !== w || poseCanvas.height !== h) {
+      poseCanvas.width = w;
+      poseCanvas.height = h;
+    }
+    return true;
+  }
+
+  // Where the frame actually sits inside the canvas, in canvas pixels. The
+  // <video> is contain-fitted (its default object-fit) inside a box that is
+  // width-100% and at most 70vh tall, so a portrait clip on a phone is
+  // pillar-boxed; landmarks are normalized to the FRAME, so drawing them
+  // against the whole box would squash the skeleton off the body.
+  function poseFrameRect() {
+    const boxW = poseCanvas.width;
+    const boxH = poseCanvas.height;
+    const vw = previewVideo.videoWidth;
+    const vh = previewVideo.videoHeight;
+    if (!vw || !vh) return { x: 0, y: 0, w: boxW, h: boxH };
+    const scale = Math.min(boxW / vw, boxH / vh);
+    const w = vw * scale;
+    const h = vh * scale;
+    return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h };
+  }
+
   function drawPose(result) {
+    if (!syncPoseCanvasSize()) return;
     poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
     if (!result.landmarks || !result.landmarks.length) return;
 
+    const frame = poseFrameRect();
     for (const landmarks of result.landmarks) {
       poseCtx.strokeStyle = "rgba(70, 255, 140, 0.9)";
-      poseCtx.lineWidth = Math.max(2, poseCanvas.width * 0.004);
+      poseCtx.lineWidth = Math.max(2, frame.w * 0.004);
       for (const [a, b] of POSE_CONNECTIONS) {
         const p1 = landmarks[a];
         const p2 = landmarks[b];
         if (!p1 || !p2) continue;
         poseCtx.beginPath();
-        poseCtx.moveTo(p1.x * poseCanvas.width, p1.y * poseCanvas.height);
-        poseCtx.lineTo(p2.x * poseCanvas.width, p2.y * poseCanvas.height);
+        poseCtx.moveTo(frame.x + p1.x * frame.w, frame.y + p1.y * frame.h);
+        poseCtx.lineTo(frame.x + p2.x * frame.w, frame.y + p2.y * frame.h);
         poseCtx.stroke();
       }
       poseCtx.fillStyle = "rgba(255, 70, 70, 0.95)";
-      const dotRadius = Math.max(2.5, poseCanvas.width * 0.006);
+      const dotRadius = Math.max(2.5, frame.w * 0.006);
       for (const p of landmarks) {
         poseCtx.beginPath();
-        poseCtx.arc(p.x * poseCanvas.width, p.y * poseCanvas.height, dotRadius, 0, 2 * Math.PI);
+        poseCtx.arc(frame.x + p.x * frame.w, frame.y + p.y * frame.h, dotRadius, 0, 2 * Math.PI);
         poseCtx.fill();
       }
     }
   }
 
-  // Tracks whether an analysis is still on screen. The landmarker's first
+  // Tracks whether an analysis is still on screen. The backend's first
   // load pulls a WASM bundle + multi-MB model off a CDN, so
-  // getPoseLandmarker() can resolve AFTER the analysis already finished --
+  // getPoseBackend() can resolve AFTER the analysis already finished --
   // at which point stopPoseLoop() has run and starting a loop would leave
   // an orphaned rAF running forever on a hidden canvas, with the skeleton
   // never appearing. Guarding on this makes the late resolve a no-op.
   let poseWanted = false;
 
-  // A single detectForVideo() call measures 25-80ms (GPU or CPU delegate)
-  // on real hardware -- already over a whole 60Hz frame budget on its own.
-  // Calling it on every requestAnimationFrame tick (as this loop used to)
-  // guarantees main-thread contention that stutters the preview video's own
-  // decode/paint, which is what read as "laggy". A decorative skeleton
-  // overlay doesn't need 60Hz; gate actual detection to this interval and
-  // just leave the last-drawn skeleton on screen between ticks.
+  // How often a frame is sent for detection. The skeleton is decorative and
+  // does not need 60Hz; between detections the last-drawn one stays on
+  // screen. On the worker path this is a floor, not a schedule: the next
+  // frame is only sent once the previous result is back, so a slow device
+  // simply detects less often rather than queueing up work.
   const POSE_DETECT_INTERVAL_MS = 120;
   let lastDetectTs = 0;
 
   function startPoseLoop() {
     if (!poseWanted) return;
-    // getPoseLandmarker() hands back the SAME pending promise to every
-    // caller, so two submits before it resolves would fire two .then()s and
-    // start two rAF chains -- while poseRafId can only ever cancel the last
-    // one, leaving the other running detectForVideo() every frame for the
-    // rest of the session. Bail if a loop is already live.
+    // getPoseBackend() hands back the SAME pending promise to every caller,
+    // so two submits before it resolves would fire two .then()s and start
+    // two rAF chains -- while poseRafId can only ever cancel the last one,
+    // leaving the other running for the rest of the session. Bail if a loop
+    // is already live.
     if (poseRafId) return;
     // Detect immediately on this analysis's first tick rather than waiting
     // out whatever's left of a previous analysis's throttle window.
@@ -709,33 +1085,34 @@
       // Re-checked per frame, not just on entry, so a stop that lands
       // mid-flight can't be outlived by an already-scheduled callback.
       if (!poseWanted) { poseRafId = null; return; }
-      if (
-        poseLandmarker &&
-        previewVideo.readyState >= 2 &&
-        previewVideo.videoWidth &&
-        now - lastDetectTs >= POSE_DETECT_INTERVAL_MS
-      ) {
-        lastDetectTs = now;
-        if (poseCanvas.width !== previewVideo.videoWidth) {
-          poseCanvas.width = previewVideo.videoWidth;
-          poseCanvas.height = previewVideo.videoHeight;
-        }
-        try {
-          const result = poseLandmarker.detectForVideo(previewVideo, now);
-          drawPose(result);
-        } catch (err) {
-          // detectForVideo() throws on a non-monotonically-increasing
-          // timestamp -- confirmed by hand, and confirmed that once it has
-          // thrown once, the SAME landmarker instance fails every later
-          // call too, even with a valid timestamp. poseLandmarker is
-          // cached at module scope and reused by every future analysis on
-          // this page, so one bad frame would otherwise silently and
-          // permanently kill the overlay for the rest of the session.
-          // Drop the wedged instance so the next analysis builds a fresh
-          // one; this analysis just stops updating the skeleton.
-          console.warn("Pose detection failed, dropping landmarker:", err);
-          poseLandmarker = null;
-          poseLandmarkerPromise = null;
+      const frameReady = previewVideo.readyState >= 2 && previewVideo.videoWidth;
+      if (frameReady && now - lastDetectTs >= POSE_DETECT_INTERVAL_MS) {
+        if (poseWorker) {
+          if (!poseFrameInFlight) {
+            lastDetectTs = now;
+            sendPoseFrame(poseWorker, now);
+          } else if (now - poseFrameDeadlineAt > POSE_RESULT_TIMEOUT_MS) {
+            onPoseWorkerError(new Error("no result within " + POSE_RESULT_TIMEOUT_MS + "ms"));
+          }
+        } else if (poseLandmarker) {
+          lastDetectTs = now;
+          try {
+            const result = poseLandmarker.detectForVideo(previewVideo, now);
+            drawPose(result);
+          } catch (err) {
+            // detectForVideo() throws on a non-monotonically-increasing
+            // timestamp -- confirmed by hand, and confirmed that once it has
+            // thrown once, the SAME landmarker instance fails every later
+            // call too, even with a valid timestamp. poseLandmarker is
+            // cached at module scope and reused by every future analysis on
+            // this page, so one bad frame would otherwise silently and
+            // permanently kill the overlay for the rest of the session.
+            // Drop the wedged instance so the next analysis builds a fresh
+            // one; this analysis just stops updating the skeleton.
+            console.warn("Pose detection failed, dropping landmarker:", err);
+            poseLandmarker = null;
+            poseLandmarkerPromise = null;
+          }
         }
       }
       poseRafId = requestAnimationFrame(loop);
@@ -749,7 +1126,13 @@
       cancelAnimationFrame(poseRafId);
       poseRafId = null;
     }
+    // A frame that never came back must not gate the next analysis's sends.
+    poseFrameInFlight = false;
     poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+    // Every caller is about to hide the analyzing view, and a hidden <video>
+    // keeps decoding: left playing, this clip would run behind the results
+    // (next to the result's own copy) or behind the review clip on an error.
+    previewVideo.pause();
   }
 
   // ---------- Exercise picker modal ----------
@@ -932,9 +1315,14 @@
   // exact same result layout a fresh analysis gets (showResult handles
   // both -- the video card only renders when video_url is present).
   async function openHistoryDetail(id) {
+    const generation = analysisGeneration;
     try {
       const response = await fetch(`/api/analyze/history/${id}`);
       const data = await response.json();
+      // Swapped away mid-fetch: showResult() would run against detached
+      // nodes and put the LIVE document into results-only chrome, which
+      // only resetToCapture() undoes and the next page cannot reach.
+      if (generation !== analysisGeneration) return;
       if (!data.ok) return;
       captureView.style.display = "none";
       reviewView.style.display = "none";
@@ -1447,10 +1835,8 @@
 
   // Throw the clip away and go back to a live viewfinder.
   function backToCapture() {
-    reviewVideo.pause();
-    reviewVideo.removeAttribute("src");
-    reviewVideo.load();
-    if (reviewUrl) { URL.revokeObjectURL(reviewUrl); reviewUrl = null; }
+    releaseVideo(reviewVideo);
+    reviewUrl = null;
     recordedFile = null;
     videoInput.value = "";
     updateFileDropDisplay();
@@ -1751,10 +2137,7 @@
   function resetToCapture() {
     stopCycleStatus();
     stopPoseLoop();
-    if (previewVideo.src) {
-      URL.revokeObjectURL(previewVideo.src);
-      previewVideo.removeAttribute("src");
-    }
+    releaseVideo(previewVideo);
     // Tear down the AI chat's topbar toggle + listeners before wiping the
     // results (the toggle lives in the topbar, outside #result-view).
     if (window.__agCleanup) { window.__agCleanup(); window.__agCleanup = null; }
@@ -1862,19 +2245,35 @@
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
-    previewVideo.src = objectUrl;
+    // A failed attempt leaves its blob URL on the element; revoke it before
+    // minting another, or every retry leaks a File-backed URL.
+    if (previewVideo.src) URL.revokeObjectURL(previewVideo.src);
+    previewVideo.src = URL.createObjectURL(file);
+    // muted + loop + autoplay + playsinline are on the element; play() is
+    // still called, inside the tap's gesture, because a src swapped in after
+    // load does not always autoplay on iOS (Low Power Mode refuses outright)
+    // -- and stopPoseLoop() explicitly paused this element after the previous
+    // analysis. Without it the analyzing view is a frozen first frame under
+    // a moving scan line, and the skeleton re-detects that one frame.
+    previewVideo.play().catch(() => {});
+    const generation = ++analysisGeneration;
 
     // The camera is not needed again until the user comes back for another
     // set, and holding it through a 30-second analysis is a lit indicator
     // light over a screen that is not filming anything.
     closeCamera();
+    // The review clip keeps decoding behind display:none -- a hidden <video>
+    // still plays -- which put two decodes of the same clip on a phone
+    // already busy with the upload and the pose skeleton. Only the
+    // analyzing view's copy should be running; showAnalyzeError() resumes
+    // this one if the clip has to be shown again.
+    reviewVideo.pause();
     reviewView.style.display = "none";
     captureView.style.display = "none";
     analyzingView.style.display = "block";
     cycleStatus();
     poseWanted = true;
-    getPoseLandmarker().then((pl) => { if (pl) startPoseLoop(); });
+    getPoseBackend().then((backend) => { if (backend) startPoseLoop(); });
 
     const formData = new FormData();
     formData.append("video", file);
@@ -1888,6 +2287,12 @@
       });
       const data = await response.json();
 
+      // Swapped away mid-analysis (teardownPose bumped the generation): the
+      // nodes below are detached and showResult() would put the live
+      // document into results-only chrome. The analysis is saved server-side
+      // and shows up in history.
+      if (generation !== analysisGeneration) return;
+
       stopCycleStatus();
       stopPoseLoop();
 
@@ -1899,6 +2304,7 @@
       showResult(data);
       logAnalyzedExercise(data.exercise_label);
     } catch (err) {
+      if (generation !== analysisGeneration) return;
       stopCycleStatus();
       stopPoseLoop();
       showAnalyzeError(RepCheckI18n.t("analyze.somethingWrong"));

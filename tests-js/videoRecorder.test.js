@@ -69,7 +69,10 @@ describe("opening the camera", () => {
 
     // `exact` would fail outright on a laptop with one camera and no
     // rear/front distinction -- the only camera it has must still be used.
-    expect(requests[0].video).toEqual({ facingMode: { ideal: "environment" } });
+    expect(requests[0].video.facingMode).toEqual({ ideal: "environment" });
+    // The full constraint set (resolution, frame rate) is pinned further
+    // down, under "keeping the preview smooth while recording".
+    expect(requests[0].video).not.toHaveProperty("facingMode.exact");
   });
 
   it("never asks for a microphone", async () => {
@@ -260,5 +263,89 @@ describe("flipping the camera", () => {
       "environment",
     ]);
     expect(session.facingMode()).toBe("environment");
+  });
+});
+
+describe("keeping the preview smooth while recording", () => {
+  // Left unconstrained, phones pick whatever mode the platform prefers --
+  // on some that is 1080p/4K or 60fps -- and every extra pixel and frame is
+  // encoder + preview work while the user is watching themselves lift.
+  it("asks the camera for 720p at 30fps, as ideals the device may not meet", async () => {
+    const { recorder, requests } = loadVideoRecorder();
+
+    await recorder.createSession().open("environment");
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].video).toEqual({
+      facingMode: { ideal: "environment" },
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      frameRate: { ideal: 30 },
+    });
+    expect(requests[0].audio).toBe(false);
+  });
+
+  it("never uses a hard constraint, which would fail the whole call on a camera that can't meet it", () => {
+    const { recorder } = loadVideoRecorder();
+
+    const video = recorder.videoConstraints("user");
+    for (const key of Object.keys(video)) {
+      expect(Object.keys(video[key])).toEqual(["ideal"]);
+    }
+  });
+
+  it("caps the encoder bitrate, and still names the container it picked", () => {
+    const { recorder } = loadVideoRecorder({ supportedTypes: IOS_TYPES });
+
+    expect(recorder.recorderOptions("video/mp4")).toEqual({
+      mimeType: "video/mp4",
+      videoBitsPerSecond: 1500000,
+    });
+    // "" means MediaRecorder chooses the container; the cap still applies.
+    expect(recorder.recorderOptions("")).toEqual({ videoBitsPerSecond: 1500000 });
+  });
+
+  it("hands the bitrate cap to the MediaRecorder it actually builds", async () => {
+    const { recorder, recorders } = loadVideoRecorder({ supportedTypes: IOS_TYPES });
+    const session = recorder.createSession();
+    await session.open("environment");
+
+    session.start();
+
+    expect(recorders).toHaveLength(1);
+    expect(recorders[0].mimeType).toBe("video/mp4");
+    expect(recorders[0].options).toEqual({ mimeType: "video/mp4", videoBitsPerSecond: 1500000 });
+    session.cancel();
+  });
+});
+
+describe("the bitrate cap follows every recording", () => {
+  it("applies with no container chosen, without inventing a mimeType", async () => {
+    // supportedTypes [] is the "MediaRecorder won't say" browser: pickMime()
+    // returns "" and the recorder must be built with the cap alone.
+    const { recorder, recorders } = loadVideoRecorder({ supportedTypes: [] });
+    const session = recorder.createSession();
+    await session.open("environment");
+
+    session.start();
+
+    expect(recorders[0].options).toEqual({ videoBitsPerSecond: 1500000 });
+    expect(recorders[0].options).not.toHaveProperty("mimeType");
+    session.cancel();
+  });
+
+  it("re-requests the same resolution and frame rate after a lens flip", async () => {
+    const { recorder, requests } = loadVideoRecorder();
+    const session = recorder.createSession();
+    await session.open("environment");
+    await session.flip();
+
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request.video.width).toEqual({ ideal: 1280 });
+      expect(request.video.height).toEqual({ ideal: 720 });
+      expect(request.video.frameRate).toEqual({ ideal: 30 });
+    }
+    expect(requests[1].video.facingMode).toEqual({ ideal: "user" });
   });
 });

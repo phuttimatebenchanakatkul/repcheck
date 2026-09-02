@@ -2,6 +2,32 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.8.0.0] - 2026-09-02
+
+### Fixed
+
+- Recording a set and watching it being analyzed both stuttered. The
+  viewfinder now asks the camera for 720p at 30fps instead of accepting
+  whatever mode the phone preferred (some hand back 1080p or 60fps), and
+  the recorder writes at a fixed 1.5 Mbps, so the encoder and the live
+  preview stop competing for the same phone while you lift. The clip is
+  also a fraction of the size, which is most of what the "Analyzing" wait
+  actually is.
+- While a set is being graded, the skeleton overlay is now computed off the
+  main thread, so the video underneath plays at full frame rate instead of
+  hitching every time a pose is detected. The clip you just filmed no longer
+  keeps decoding invisibly behind the analysis, the results, or an error, and
+  the sweeping scan line animates on the compositor rather than re-laying-out
+  the page 60 times a second. Under "reduce motion" the sweep is hidden
+  entirely.
+- The skeleton now lines up with your body on portrait clips. The video used
+  to be cropped to fit the card while the overlay was drawn against the full
+  frame, which pushed the joints roughly a tenth of the screen off.
+- Leaving the analyze tab mid-analysis no longer strands the app: the result
+  arriving afterwards can no longer strip the tab bar off whatever page you
+  moved to, and the camera, the pose model and the recorded clip are all
+  released on the way out instead of being held for the rest of the session.
+
 ## [0.7.1.1] - 2026-08-31
 
 ### Fixed
