@@ -328,9 +328,3 @@ workflows:
         # you have installed the build on a device and decided to start a
         # review. App Review is a human queue you cannot cheaply back out of.
         submit_to_app_store: false
-      email:
-        recipients:
-          - jamesbenchanakatkul@gmail.com
-        notify:
-          success: true
-          failure: true
