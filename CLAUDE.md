@@ -38,6 +38,30 @@ are template literals assigned via `innerHTML`. Any `t()` call carrying
 user-controlled data inside one needs an explicit `escapeHtml()`. There is no
 shared helper -- each file defines its own.
 
+## Client-side JS: classic scripts, classic workers
+
+Tab pages are swapped in place by `static/pagenav.js`, which re-runs their
+inline scripts through `new Function` and SKIPS any `<script>` whose type is
+not classic JS. A tab page written as `<script type="module">` never runs when
+reached from the tab bar -- silently, with no throw. The same rule holds one
+level down: `static/pose_worker.js` (the analyze page's pose detection, off the
+main thread) is a CLASSIC worker because MediaPipe's WASM loader calls
+`importScripts()`, which module workers refuse outright ("Module scripts don't
+support importScripts()"), so `new Worker(url, { type: "module" })` dies at
+init every time.
+
+So keep page and worker logic in classic scripts, and pull ESM deps in with a
+dynamic `import()` at point of use, with an ABSOLUTE specifier (`new Function`
+has no script base URL). A small `type="module"` shim that only hangs things on
+`window` is fine (see `templates/nutrition.html`). Note `node --check` is not a
+valid classic-parse check -- Node retries as ESM on top-level await and accepts
+it; use `new Function(src)` instead.
+
+Teardown follows from the same swap: pagenav replaces the DOM without unloading
+the document, so `pagehide` and `visibilitychange` never fire. Anything holding
+a resource (camera `MediaStream`, `Worker`, RAF loop, `setTimeout`) must release
+it on `document.addEventListener("repcheck:page-will-swap", ...)`.
+
 ## Versioning
 
 `VERSION` (4-digit `MAJOR.MINOR.PATCH.MICRO`) is the source of truth; `package.json`
