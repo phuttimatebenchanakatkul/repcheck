@@ -75,6 +75,8 @@ export function loadVideoRecorder({
     constructor(stream, options) {
       this.stream = stream;
       this.mimeType = (options && options.mimeType) || "";
+      /** The full options bag, so a test can see what the page asked for beyond the container. */
+      this.options = options || {};
       this.state = "inactive";
       this.ondataavailable = null;
       this.onstop = null;

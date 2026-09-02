@@ -42,6 +42,36 @@
   // string) for data the app would immediately throw away.
   var AUDIO = false;
 
+  // What the camera is asked for, beyond which lens. All `ideal`, never
+  // `max`/`exact`: a hard constraint the device cannot meet rejects the whole
+  // getUserMedia call with OverconstrainedError, and the page reads any
+  // rejection as "camera denied" and falls back to the upload dropzone.
+  //
+  // Left unconstrained, phones pick whatever mode the platform prefers, and
+  // on some that is 1080p/4K or 60fps. Every extra pixel and frame is work
+  // for the encoder AND for the preview -- both of which run while the
+  // person is watching themselves lift -- so an oversized stream is exactly
+  // what a stuttering viewfinder mid-set looks like. 720p at 30fps is far
+  // more than the analysis pipeline needs (its pose model works at 256px)
+  // and comfortably within what any phone encodes in hardware.
+  var CAPTURE_WIDTH = 1280;
+  var CAPTURE_HEIGHT = 720;
+  var CAPTURE_FPS = 30;
+
+  // MediaRecorder's default bitrate is browser-chosen (Chromium ~2.5 Mbps,
+  // Safari higher). Pinning it keeps the encoder predictable and the clip
+  // small, which is most of what the user then waits on in the "Analyzing"
+  // step -- the upload. The ceiling is the server side: trim_video keeps a
+  // 60-second window with a stream copy (no re-encode) and the analysis
+  // sends the whole trimmed file to Gemini inline, whose request cap is
+  // ~20 MB -- measured on the HTTP payload, where the clip travels base64
+  // encoded, so the real ceiling on the file is ~15 MB. The budget also has
+  // to absorb two overshoots: videoBitsPerSecond is a target a VBR encoder
+  // exceeds on high-motion footage, and the trim starts at the keyframe
+  // before its mark, so the kept window runs a GOP long. 1.5 Mbps x 60 s =
+  // 11.25 MB, ~15 MB encoded, and still ample at 720p30 for judging form.
+  var VIDEO_BITS_PER_SECOND = 1500000;
+
   function isSupported() {
     var media = window.navigator && window.navigator.mediaDevices;
     return Boolean(
@@ -104,6 +134,23 @@
     }
   }
 
+  /** The getUserMedia video constraints for one lens. */
+  function videoConstraints(facing) {
+    return {
+      facingMode: { ideal: facing },
+      width: { ideal: CAPTURE_WIDTH },
+      height: { ideal: CAPTURE_HEIGHT },
+      frameRate: { ideal: CAPTURE_FPS },
+    };
+  }
+
+  /** MediaRecorder options: the chosen container (if any) plus the bitrate cap. */
+  function recorderOptions(mime) {
+    var options = { videoBitsPerSecond: VIDEO_BITS_PER_SECOND };
+    if (mime) options.mimeType = mime;
+    return options;
+  }
+
   /**
    * One recording session: camera on, record, stop with a File (or cancel
    * with nothing). Deliberately not a singleton -- the session owns the
@@ -131,7 +178,7 @@
     async function open(facingMode) {
       facing = facingMode || facing;
       stream = await window.navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facing } },
+        video: videoConstraints(facing),
         audio: AUDIO,
       });
       await normalizeZoom(stream);
@@ -189,7 +236,7 @@
       chunks = [];
       cancelled = false;
       mime = pickMime();
-      recorder = new window.MediaRecorder(stream, mime ? { mimeType: mime } : {});
+      recorder = new window.MediaRecorder(stream, recorderOptions(mime));
       var done = new Promise(function (resolve) { settle = resolve; });
       recorder.ondataavailable = function (event) {
         if (event.data && event.data.size) chunks.push(event.data);
@@ -248,6 +295,8 @@
     pickMime: pickMime,
     extensionForMime: extensionForMime,
     filenameFor: filenameFor,
+    videoConstraints: videoConstraints,
+    recorderOptions: recorderOptions,
     createSession: createSession,
   };
 })(window, document);
