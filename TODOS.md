@@ -120,6 +120,8 @@
 
 **Context:** Surfaced during the split-modal-shrink-regression fix's pre-landing review. Not fixed there since it's pre-existing behavior of `openBottomSheet` itself, not something that PR introduced, and fixing it properly means either debouncing the open button at the click-handler level or making `openBottomSheet` idempotent synchronously (e.g. an immediate "opening" flag set before the rAF pair, not gated on the class the rAFs add).
 
+**Update (2026-09-04, v0.8.3.0):** the same two-frame window has a second exit. `__pcSheetLockCount` is incremented synchronously by `openBottomSheet`, but the page-will-swap unlock handler in `base.html` only decrements for sheets that already carry `is-in`/`is-open` -- which the rAF pair has not added yet. A tab swap landing inside that window therefore leaves the count up and `<body>` pinned, so the arriving screen does not scroll. Found by the adversarial review during `/ship` of the QA device-bug fixes; the touch-listener half of that hole was fixed there (the disarm now runs ahead of the guard), the lock-count half was left alone as pre-existing. Both halves go away with the same "opening" flag this entry already proposes.
+
 **Effort:** S
 **Priority:** P4
 **Depends on:** None

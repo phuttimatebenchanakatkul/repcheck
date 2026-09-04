@@ -2,6 +2,31 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.8.3.0] - 2026-09-04
+
+### Fixed
+
+- Scrolling was slower than it should have been on every single screen,
+  on a phone specifically. The bottom sheets each page keeps ready -- the
+  "+" menu, log weight, adjust goal, the food and exercise pickers -- sit
+  invisibly on top of the whole screen between uses, and each one held a
+  swipe-to-dismiss listener that the browser has to consult before it can
+  move the page. Three of them on most screens, six on Nutrition, all of
+  the time, whether or not a sheet was open. A mouse never touches that
+  code, so it only ever showed on the device it was written for. The
+  listeners now exist only while a sheet is actually up.
+- The same problem, and the same fix, for the "ask" bar you pull down on
+  an analysis: the pull only works from the very top of the page, but it
+  was slowing down the whole scroll of a long result. It now steps aside
+  as soon as you have scrolled past the top, and comes back when you
+  return.
+- Recording a challenge attempt and then leaving that screen left the
+  camera running. Nothing on screen said so, the indicator light stayed
+  on, and every camera in the rest of the app -- form analysis, food
+  photos, the barcode scanner -- silently refused to open from then on,
+  until the app was force-quit. Leaving the screen now puts the camera
+  down, along with the countdown and the recording it belonged to.
+
 ## [0.8.2.0] - 2026-09-04
 
 ### Fixed
