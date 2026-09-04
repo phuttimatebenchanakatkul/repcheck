@@ -1,50 +1,40 @@
-// Loads the REAL bottom-sheet helpers out of templates/base.html:
-// window.bindSheetDrag (swipe-to-dismiss) and the
-// window.openBottomSheet / window.closeBottomSheet pair that arms and
-// disarms its touch listeners.
+// Loads the REAL window.bindSheetDrag (swipe-to-dismiss) out of
+// templates/base.html, alongside the openBottomSheet / closeBottomSheet pair
+// that arms and disarms its touch listeners.
 //
-// Two slices rather than one, because the shell code sitting BETWEEN them
-// (the VisualViewport shim and the RepCheck.framed()/scroller() helpers) is
-// not what these tests are about and drags window.matchMedia and
-// window.visualViewport in with it. The pair only reaches that code through
-// RepCheck.framed(), which the caller stubs.
+// Only bindSheetDrag is extracted here. The open/close pair already has an
+// extractor -- ./loadBottomSheet.js -- and it pulls the same script block out
+// of the same file, so a second copy of those markers would mean a rename of
+// openBottomSheet silently breaking one loader and not the other. The three
+// helpers attach themselves to `window` independently, so they do not need a
+// shared eval scope to see each other.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { loadBottomSheet } from "./loadBottomSheet.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.join(__dirname, "..", "..", "templates", "base.html");
 
 const DRAG_START = "window.bindSheetDrag = function(";
 const DRAG_END = "// iOS Safari quirk this pair also has to work around";
-const SHEET_START = "window.openBottomSheet = function(";
-const SHEET_END = "</script>";
-
-function slice(html, startMarker, endMarker, what) {
-  const start = html.indexOf(startMarker);
-  const end = html.indexOf(endMarker, start);
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error(
-      `loadSheetDrag: could not find ${what} in templates/base.html -- ` +
-        "the extraction markers moved. Update the markers in this file."
-    );
-  }
-  return html.slice(start, end);
-}
 
 export function loadSheetHelpers() {
   const html = readFileSync(TEMPLATE_PATH, "utf-8");
-  const source =
-    slice(html, DRAG_START, DRAG_END, "bindSheetDrag") +
-    "\n" +
-    slice(html, SHEET_START, SHEET_END, "openBottomSheet/closeBottomSheet");
-  // The pair reads RepCheck.framed() to decide whether to pin <body>.
-  // Phone layout (not the desktop device frame) is the case these tests care
-  // about, and it is the case the fix is for.
-  window.RepCheck = window.RepCheck || { framed: () => false };
-  window.__pcSheetLockCount = 0;
-  new Function(source)();
+  const start = html.indexOf(DRAG_START);
+  const end = html.indexOf(DRAG_END, start);
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error(
+      "loadSheetDrag: could not find bindSheetDrag in templates/base.html -- " +
+        "the extraction markers moved. Update DRAG_START/DRAG_END in this file."
+    );
+  }
+  // eslint-disable-next-line no-new-func
+  new Function(html.slice(start, end))();
+  // framed: false is the phone layout -- the case this fix is for, and the
+  // one where <body> is the scroller openBottomSheet pins.
+  loadBottomSheet({ framed: false });
 }
 
 // A sheet overlay shaped like the ones the shell keeps in the DOM between

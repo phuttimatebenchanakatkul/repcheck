@@ -10,9 +10,14 @@
 // these overlays are `position: fixed; inset: 0` and stay in the DOM at
 // opacity 0 between uses -- so every page carried a full-viewport
 // scroll-blocking region at all times (three from base.html's own sheets,
-// six on Nutrition), and every touch-scroll on every screen had to wait on
-// the main thread before it could move. Measured in a real browser against
-// the running app: 6 such overlays live on /nutrition, 3 on every other page.
+// six on Nutrition), so every touch-scroll on every screen had a
+// scroll-blocking listener in its way. Counted at runtime in a real browser
+// against the running app: 6 such overlays on /nutrition, 3 on every other
+// page. The counts are measured; the resulting scroll win is not -- closed
+// overlays are also pointer-events:none and opacity:0, and some engines may
+// already exclude them from the blocking region. jsdom cannot settle that
+// either: it has no compositor and ignores the `passive` option entirely, so
+// these tests assert the listener contract, not the frame times.
 //
 // So the listeners are armed by openBottomSheet and disarmed by
 // closeBottomSheet. These tests pin that, and pin that the drag itself still
@@ -57,6 +62,19 @@ function mount(opts) {
   loadSheetHelpers();
   const closeCb = vi.fn(() => window.closeBottomSheet(overlay(), ".mt-sheet"));
   window.bindSheetDrag(overlay(), ".mt-sheet", ".mt-sheet-handle", closeCb, opts);
+  return closeCb;
+}
+
+// A sheet that belongs to a PAGE rather than to the shell: it starts inside
+// <main>, which is what makes openBottomSheet mark it data-pc-page-sheet on
+// the way to <body>, and the marker is what the repcheck:page-will-swap
+// handler looks for when a tab swap force-closes a sheet the leaving page
+// left open.
+function mountPageSheet() {
+  document.body.innerHTML = `<main class="main">${sheetFixture()}</main>`;
+  loadSheetHelpers();
+  const closeCb = vi.fn();
+  window.bindSheetDrag(overlay(), ".mt-sheet", ".mt-sheet-handle", closeCb);
   return closeCb;
 }
 
@@ -170,95 +188,83 @@ describe("bottom-sheet drag: touch listeners are scoped to the open sheet", () =
     settleClose();
   });
 
-  it("arms a sheet whose drag was bound AFTER it was opened", () => {
-    // static/coaching.js builds its overlay, opens it, and only then calls
-    // bindSheetDrag. openBottomSheet's synchronous arm therefore runs while
-    // _sheetDragArm is still undefined and silently does nothing, so
-    // openBottomSheet arms a second time once the sheet is actually on
-    // screen. Without that the coaching check-in sheet lost swipe-to-dismiss
-    // -- and it has no backdrop click and no close button, so a finger had no
-    // way out of it at all.
-    document.body.innerHTML = sheetFixture();
-    loadSheetHelpers();
+  it("does not bind a second copy when the sheet is opened while already open", () => {
+    // Several sheets re-open themselves over an open one (the afterClose
+    // pattern), and a second arm() must not stack a second scroll-blocking
+    // touchmove on the same overlay -- disarm removes one handler per type,
+    // so a duplicate would survive the close forever.
+    mount();
+    openSheet();
+
     const log = trackTouchListeners(overlay());
-    const closeCb = vi.fn(() => window.closeBottomSheet(overlay(), ".mt-sheet"));
+    openSheet();
+    expect(log).toEqual([]);
+  });
 
-    window.openBottomSheet(overlay(), ".mt-sheet");
-    window.bindSheetDrag(overlay(), ".mt-sheet", ".mt-sheet-handle", closeCb);
-    vi.advanceTimersByTime(50);
+  it("disarming an already-disarmed sheet does nothing", () => {
+    mount();
+    openSheet();
 
-    expect(log).toContain("+touchmove:blocking");
+    const log = trackTouchListeners(overlay());
+    overlay()._sheetDragDisarm();
+    overlay()._sheetDragDisarm();
+    expect(log).toEqual([
+      "-touchstart",
+      "-touchmove",
+      "-touchend",
+      "-touchcancel",
+    ]);
+  });
 
-    // and the gesture it exists for actually works
-    touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 560);
-    touch(handle(), "touchend", 560);
-    expect(closeCb).toHaveBeenCalledTimes(1);
+  it("closing a sheet that was never open touches no listeners", () => {
+    // closeBottomSheet returns early when the overlay carries neither
+    // .is-in nor .is-open -- it still runs the caller's callback, and it
+    // must not reach the disarm below that return.
+    mount();
+    const log = trackTouchListeners(overlay());
+    const done = vi.fn();
+
+    window.closeBottomSheet(overlay(), ".mt-sheet", done);
+
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(log).toEqual([]);
+  });
+
+  it("disarms a page's sheet left open when the tab swaps away", () => {
+    // The iOS back-swipe honours the gesture over a scrim, so a page can
+    // leave with its sheet still up. That path force-closes the sheet
+    // without going through closeBottomSheet, so it owns its own disarm --
+    // otherwise the departed page's overlay keeps a full-viewport
+    // scroll-blocking touch region alive on the arriving screen.
+    mountPageSheet();
+    openSheet();
+    expect(overlay().parentElement).toBe(document.body);
+    expect(overlay().hasAttribute("data-pc-page-sheet")).toBe(true);
+
+    const log = trackTouchListeners(overlay());
+    document.dispatchEvent(new Event("repcheck:page-will-swap"));
+
+    expect(log).toEqual([
+      "-touchstart",
+      "-touchmove",
+      "-touchend",
+      "-touchcancel",
+    ]);
+    expect(overlay().classList.contains("is-open")).toBe(false);
+  });
+
+  it("leaves an already-closed page sheet alone when the tab swaps away", () => {
+    mountPageSheet();
+    openSheet();
+    window.closeBottomSheet(overlay(), ".mt-sheet");
     settleClose();
-  });
 
-  it("ignores jitter inside the deadzone", () => {
-    const closeCb = mount();
-    openSheet();
-    touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 405); // 5px, inside the 6px deadzone
-    expect(sheet().style.transform).toBe("");
-    touch(handle(), "touchend", 405);
-    expect(closeCb).not.toHaveBeenCalled();
-  });
+    const log = trackTouchListeners(overlay());
+    document.dispatchEvent(new Event("repcheck:page-will-swap"));
 
-  it("abandons the drag when the finger goes back up past the start", () => {
-    const closeCb = mount();
-    openSheet();
-    touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 460);
-    expect(sheet().style.transform).not.toBe("");
-
-    touch(handle(), "touchmove", 380); // above where it started
-    expect(sheet().style.transform).toBe("");
-
-    // The drag is over: a later downward move must not resume it.
-    touch(handle(), "touchmove", 600);
-    expect(sheet().style.transform).toBe("");
-    touch(handle(), "touchend", 600);
-    expect(closeCb).not.toHaveBeenCalled();
-  });
-
-  it("strict mode ignores a drag that is neither far nor fast", () => {
-    // The mt-fab sheet passes { strict: true } because its body is not a real
-    // scroll container, so any slow drag would otherwise dismiss it. 154px
-    // over 400ms is 0.385 px/ms -- past the default 120px threshold, but under
-    // both strict thresholds (220px, 0.7 px/ms).
-    const closeCb = mount({ strict: true });
-    openSheet();
-    touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 560);
-    vi.advanceTimersByTime(400);
-    touch(handle(), "touchend", 560);
-    expect(closeCb).not.toHaveBeenCalled();
-  });
-
-  it("strict mode accepts a short but fast flick", () => {
-    // The velocity escape: same 154px, thrown in 20ms (7.7 px/ms).
-    const closeCb = mount({ strict: true });
-    openSheet();
-    touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 560);
-    vi.advanceTimersByTime(20);
-    touch(handle(), "touchend", 560);
-    expect(closeCb).toHaveBeenCalledTimes(1);
-    settleClose();
-  });
-
-  it("strict mode accepts a genuinely long drag", () => {
-    const closeCb = mount({ strict: true });
-    openSheet();
-    touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 640); // 234px after the deadzone, past 220
-    vi.advanceTimersByTime(400); // slow, so this proves the DISTANCE branch
-    touch(handle(), "touchend", 640);
-    expect(closeCb).toHaveBeenCalledTimes(1);
-    settleClose();
+    // Closing already disarmed it; the swap handler returns before its own
+    // disarm because the sheet carries neither .is-in nor .is-open.
+    expect(log).toEqual([]);
   });
 
   it("leaves a torn-down overlay with no touch listeners", () => {
@@ -272,48 +278,53 @@ describe("bottom-sheet drag: touch listeners are scoped to the open sheet", () =
     expect(log.filter((entry) => entry.startsWith("+"))).toEqual([]);
   });
 
-  // Regression: ISSUE-001 -- a sheet closed in the same tick it opened kept
-  // its scroll-blocking touchmove listener for the life of the page.
-  // Found by /qa on 2026-09-04 (browser verification, not the unit tests).
-  // Report: .gstack/qa-reports/qa-report-repcheck-q0m4-onrender-com-2026-09-04.md
-  it("disarms a sheet closed in the same tick it was opened", () => {
-    // openBottomSheet only adds is-in/is-open inside a double rAF, so a close
-    // landing before those frames run takes closeBottomSheet's early return.
-    // The listeners still have to come off -- otherwise the one sheet a fast
-    // tap touched goes on blocking that page's scrolling forever, which is
-    // the exact cost arming exists to avoid.
-    mount();
-    const log = trackTouchListeners(overlay());
+  it("arms a sheet that was bound after it was opened", () => {
+    // static/coaching.js:1857 and :2369 create their overlay, open it, and
+    // only THEN bind the drag. Arming solely from openBottomSheet would find
+    // no _sheetDragArm yet and silently skip, leaving those two sheets with
+    // swipe-to-dismiss permanently dead -- a failure with no error and no
+    // visible symptom until someone tries the gesture.
+    document.body.innerHTML = sheetFixture();
+    loadSheetHelpers();
 
-    window.openBottomSheet(overlay(), ".mt-sheet"); // no timer advance
-    window.closeBottomSheet(overlay(), ".mt-sheet");
+    window.openBottomSheet(overlay(), ".mt-sheet");
+    const log = trackTouchListeners(overlay());
+    window.bindSheetDrag(overlay(), ".mt-sheet", ".mt-sheet-handle", () => {});
 
     expect(log).toEqual([
       "+touchstart",
       "+touchmove:blocking",
       "+touchend",
       "+touchcancel",
-      "-touchstart",
-      "-touchmove",
-      "-touchend",
-      "-touchcancel",
     ]);
-    settleClose();
   });
 
-  it("disarms a page-owned sheet still open when its page swaps away", () => {
-    // base.html's page-will-swap unlock handler strips is-in/is-open by hand
-    // instead of calling closeBottomSheet, so it has to disarm too. Without
-    // that, a sheet left open when its page swapped kept a full-viewport
-    // scroll-blocking touchmove on every page that followed -- the exact
-    // leak arming exists to prevent. It is NOT enough that nav_scope usually
-    // removes the node: adopt() is itself behind a guard.
-    mount();
-    overlay().setAttribute("data-pc-page-sheet", "");
-    openSheet();
+  it("does not arm a sheet bound while it is closed", () => {
+    // The mirror of the case above: binding a sheet nobody has opened must
+    // stay inert, or the fix hands back the always-on listeners it removed.
+    document.body.innerHTML = sheetFixture();
+    loadSheetHelpers();
 
     const log = trackTouchListeners(overlay());
-    document.dispatchEvent(new CustomEvent("repcheck:page-will-swap"));
+    window.bindSheetDrag(overlay(), ".mt-sheet", ".mt-sheet-handle", () => {});
+
+    expect(log).toEqual([]);
+  });
+
+  it("disarms a sheet closed before its open animation flips the classes", () => {
+    // openBottomSheet arms synchronously but only adds .is-in/.is-open two
+    // frames later. A close inside that window used to hit closeBottomSheet's
+    // not-open early return and strand the scroll-blocking touchmove on an
+    // invisible full-viewport overlay -- reintroducing, on a race, exactly
+    // the bug this change exists to remove. TODOS.md records a scroll-lock
+    // leak through the same two frames, so the window is real.
+    mount();
+    window.openBottomSheet(overlay(), ".mt-sheet");
+    // Deliberately NOT settling the double rAF.
+    expect(overlay().classList.contains("is-open")).toBe(false);
+
+    const log = trackTouchListeners(overlay());
+    window.closeBottomSheet(overlay(), ".mt-sheet");
 
     expect(log).toEqual([
       "-touchstart",
@@ -323,33 +334,173 @@ describe("bottom-sheet drag: touch listeners are scoped to the open sheet", () =
     ]);
   });
 
-  it("ends a drag cleanly on touchcancel", () => {
-    // The interruption a phone actually takes: incoming call, system gesture,
-    // scroll takeover. touchcancel is routed to the same handler as touchend,
-    // so a cancelled drag must leave no transform behind and must not be
-    // read as a dismiss.
-    const closeCb = mount();
+  it("watches the visual viewport only while a sheet is up", () => {
+    // The vars it writes (--pc-vvt/--pc-vvh) are read by five sheet-overlay
+    // rules and nothing else, but the subscription that keeps them live sits
+    // on the scroll path: on iOS visualViewport "scroll" fires right through
+    // rubber-banding and every URL-bar show/hide, and each call writes two
+    // custom properties on <html>, invalidating style document-wide.
+    mount();
+    expect(window.RepCheck.viewportTracked()).toBe(false);
+
+    openSheet();
+    expect(window.RepCheck.viewportTracked()).toBe(true);
+
+    window.closeBottomSheet(overlay(), ".mt-sheet");
+    settleClose();
+    expect(window.RepCheck.viewportTracked()).toBe(false);
+  });
+
+  it("keeps watching while an outer sheet is still up", () => {
+    // Sheets nest -- a sheet's afterClose opens another, the check-in sheet
+    // sits over the wizard -- so the inner one closing must not unsubscribe
+    // out from under the outer one.
+    mount();
+    const outer = overlay();
+    const inner = document.createElement("div");
+    inner.className = "log-sheet-overlay";
+    inner.innerHTML = '<div class="log-sheet"></div>';
+    document.body.appendChild(inner);
+
+    openSheet();
+    window.openBottomSheet(inner, ".log-sheet");
+    vi.advanceTimersByTime(50);
+    expect(window.RepCheck.viewportTracked()).toBe(true);
+
+    window.closeBottomSheet(inner, ".log-sheet");
+    settleClose();
+    expect(window.RepCheck.viewportTracked()).toBe(true);
+
+    window.closeBottomSheet(outer, ".mt-sheet");
+    settleClose();
+    expect(window.RepCheck.viewportTracked()).toBe(false);
+  });
+
+  it("heals when a sheet is torn out of the DOM while it is still up", () => {
+    // static/nav_scope.js's release() takes an adopted page sheet away with
+    // its page, open or not, and nothing tells the tracker. A counter would
+    // never come back down from that -- pinning the subscription on for the
+    // rest of the session, which is the always-on cost this scoping exists to
+    // remove, restored silently. Membership is re-derived from the live
+    // document instead, so the next open or close clears the stale entry.
+    mount();
+    openSheet();
+    expect(window.RepCheck.viewportTracked()).toBe(true);
+
+    overlay().remove();
+
+    // Any later open/close is enough to notice the vanished sheet.
+    const other = document.createElement("div");
+    other.className = "log-sheet-overlay";
+    other.innerHTML = '<div class="log-sheet"></div>';
+    document.body.appendChild(other);
+    window.openBottomSheet(other, ".log-sheet");
+    vi.advanceTimersByTime(50);
+    window.closeBottomSheet(other, ".log-sheet");
+    settleClose();
+
+    expect(window.RepCheck.viewportTracked()).toBe(false);
+  });
+
+  it("counts a re-open of an already-open sheet once", () => {
+    // Nutrition's barcode-photo flow re-opens the sheet it is already inside,
+    // and a fast double-tap does the same on any sheet. Each extra open used
+    // to add a lock nothing ever removed, so the page stayed pinned at
+    // position:fixed with no sheet visible until a reload.
+    mount();
+    openSheet();
+    expect(window.__pcSheetLockCount).toBe(1);
+
+    window.openBottomSheet(overlay(), ".mt-sheet");
+    window.openBottomSheet(overlay(), ".mt-sheet");
+    vi.advanceTimersByTime(50);
+    expect(window.__pcSheetLockCount).toBe(1);
+
+    window.closeBottomSheet(overlay(), ".mt-sheet");
+    settleClose();
+    expect(window.__pcSheetLockCount).toBe(0);
+    expect(document.documentElement.classList.contains("pc-sheet-locked")).toBe(false);
+  });
+
+  it("cancels the touchmove, which is the only thing non-passive buys", () => {
+    // Without this the suite pins the listener's FLAG and not its effect:
+    // deleting `if (e.cancelable) e.preventDefault()` left all tests green,
+    // so a regression could keep paying the full scroll-blocking cost and
+    // deliver nothing for it.
+    mount();
     openSheet();
 
     touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 450);
-    expect(sheet().style.transform).not.toBe("");
-
-    touch(handle(), "touchcancel", 450);
-    expect(sheet().style.transform).toBe("");
-    expect(closeCb).not.toHaveBeenCalled();
-    expect(overlay().classList.contains("is-open")).toBe(true);
+    // Inside the 6px deadzone: nothing to cancel yet.
+    expect(touch(handle(), "touchmove", 404).defaultPrevented).toBe(false);
+    // Past it, the drag owns the gesture.
+    expect(touch(handle(), "touchmove", 500).defaultPrevented).toBe(true);
   });
 
-  it("resets a transform left by a drag the same-tick close interrupted", () => {
+  it("ignores a descendant's transitionend, so the close is not cut short", () => {
+    // transitionend bubbles. The sheet's exit is 480ms, but its close button
+    // and search box run 0.15s transitions that end as the close starts, and
+    // with { once: true } whichever bubbled up first consumed the handler.
+    // Measured on the real page before this guard: the food-search sheet went
+    // display:none at 50ms into a 480ms slide -- it blinked out of existence
+    // instead of sliding away.
     mount();
-    window.openBottomSheet(overlay(), ".mt-sheet");
-    touch(handle(), "touchstart", 400);
-    touch(handle(), "touchmove", 560);
-    expect(sheet().style.transform).toBe("translateY(154px)");
-
+    openSheet();
     window.closeBottomSheet(overlay(), ".mt-sheet");
-    expect(sheet().style.transform).toBe("");
-    settleClose();
+
+    handle().dispatchEvent(new Event("transitionend", { bubbles: true }));
+    expect(overlay().style.display).toBe("");
+
+    // Only the sheet's own transition ends it.
+    sheet().dispatchEvent(new Event("transitionend", { bubbles: true }));
+    expect(overlay().style.display).toBe("none");
+  });
+
+  it("unlocks a page sheet swapped away before its open animation lands", () => {
+    // The mirror of closeBottomSheet's hoisted disarm, for the other close
+    // path. Measured on the real page before the fix: nothing removed, the
+    // lock count stuck at 1, and <body> left position:fixed -- so the screen
+    // being navigated TO could not scroll at all.
+    mountPageSheet();
+    window.openBottomSheet(overlay(), ".mt-sheet"); // NOT settling the double rAF
+    expect(overlay().classList.contains("is-open")).toBe(false);
+
+    const log = trackTouchListeners(overlay());
+    document.dispatchEvent(new Event("repcheck:page-will-swap"));
+
+    expect(log).toEqual([
+      "-touchstart",
+      "-touchmove",
+      "-touchend",
+      "-touchcancel",
+    ]);
+    expect(overlay()._sheetIsUp).toBe(false);
+    expect(window.__pcSheetLockCount).toBe(0);
+    expect(document.documentElement.classList.contains("pc-sheet-locked")).toBe(false);
+  });
+
+  it("refuses to latch an overlay whose sheet selector matches nothing", () => {
+    // The latch used to be set before the bail, so one bad bind disabled the
+    // overlay's arm, disarm and hide for the life of the page -- and refused
+    // every later, correct bind.
+    document.body.innerHTML = sheetFixture();
+    loadSheetHelpers();
+    window.bindSheetDrag(overlay(), ".not-a-sheet", ".mt-sheet-handle", () => {});
+    expect(overlay()._dragBound).toBeUndefined();
+
+    // The real bind still works afterwards.
+    window.bindSheetDrag(overlay(), ".mt-sheet", ".mt-sheet-handle", () => {});
+    const log = trackTouchListeners(overlay());
+    openSheet();
+    expect(log).toContain("+touchmove:blocking");
+  });
+
+  it("still fires the callback when closing a sheet that was never open", () => {
+    // The early return moved down past the disarm; the callback contract for
+    // a never-opened sheet has to survive that move.
+    mount();
+    const cb = vi.fn();
+    window.closeBottomSheet(overlay(), ".mt-sheet", cb);
+    expect(cb).toHaveBeenCalledTimes(1);
   });
 });

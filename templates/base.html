@@ -237,11 +237,16 @@
         // the feel of every other sheet in the app.
         window.bindSheetDrag = function(overlay, sheetSelector, handleSelector, closeCb, opts) {
           if (!overlay || overlay._dragBound) return;
-          overlay._dragBound = true;
 
           const sheet = overlay.querySelector(sheetSelector);
           const handle = overlay.querySelector(handleSelector);
+          // Latched AFTER this bail, not before it: a bind that finds no sheet
+          // (content not rendered yet, a stale selector) used to mark the
+          // overlay bound anyway, so it had no arm, no disarm and no hide --
+          // and every later, correct bind was refused. Silently, which is the
+          // one failure mode this whole contract is trying not to have.
           if (!sheet) return;
+          overlay._dragBound = true;
 
           const strict = !!(opts && opts.strict);
           const DEADZONE = 6;
@@ -301,23 +306,41 @@
             dy = 0;
           };
 
-          // Armed by openBottomSheet, disarmed by closeBottomSheet, rather
-          // than bound here at page load.
+          // Bound on OPEN and unbound on CLOSE, not once at page load, and
+          // that distinction is the difference between smooth and sticky
+          // scrolling on a phone.
           //
-          // onMove has to preventDefault() a downward drag, so its touchmove
-          // listener must be non-passive -- and a non-passive touchmove
-          // listener is scroll-blocking for as long as it is attached: the
-          // browser cannot hand the gesture to the compositor until the main
-          // thread has run the handler and seen whether it cancelled. These
-          // overlays are `position: fixed; inset: 0` and stay in the DOM at
-          // opacity 0 between uses, so binding at load left every screen
-          // carrying full-viewport scroll-blocking regions at all times
-          // (measured in a real browser against the running app: three on
-          // most pages, six on Nutrition). Every touch-scroll in the app
-          // waited on the main thread before it could move -- invisible with
-          // a desktop mouse, jank on a phone.
+          // onMove has to be non-passive: it calls preventDefault() to stop
+          // the sheet's own drag turning into a scroll. A non-passive
+          // touchmove listener is scroll-blocking -- the browser cannot hand
+          // the gesture to the compositor until the main thread has run the
+          // handler and seen whether it cancelled the event. That is fine
+          // while a sheet is up (nothing behind it is meant to scroll), and
+          // it is exactly wrong the rest of the time: these overlays are
+          // `position: fixed; inset: 0` and stay in the DOM at opacity 0
+          // between uses, so binding at load left a full-viewport
+          // scroll-blocking listener over EVERY page -- three from this
+          // file's own sheets, six on Nutrition once its three are counted
+          // (counted at runtime in a real browser against the app, not
+          // estimated). What is NOT measured here is the size of the win:
+          // closed overlays also carry pointer-events:none and opacity:0,
+          // and some engines may already drop them from the blocking region,
+          // so treat the counts as the reason this is wrong, not as a
+          // quantified saving.
+          //
+          // openBottomSheet/closeBottomSheet below own the arm/disarm calls.
+          // Every sheet in the app opens and closes through that pair, but
+          // that alone is NOT the whole contract: some callers bind AFTER
+          // they open (static/coaching.js creates its wizard and check-in
+          // overlays, opens them, and only then binds), and an open that
+          // runs before the bind finds no _sheetDragArm to call. Rather than
+          // make every call site remember an ordering whose only failure
+          // mode is silence -- swipe-to-dismiss quietly dead on that sheet
+          // -- the arm is idempotent and reachable from both ends:
+          // openBottomSheet marks the overlay `_sheetIsUp` synchronously,
+          // and a bind that lands on an already-up sheet arms itself.
           let armed = false;
-          overlay._sheetDragArm = () => {
+          const arm = () => {
             if (armed) return;
             armed = true;
             overlay.addEventListener("touchstart", onStart, { passive: true });
@@ -325,24 +348,35 @@
             overlay.addEventListener("touchend", onEnd, { passive: true });
             overlay.addEventListener("touchcancel", onEnd, { passive: true });
           };
-          overlay._sheetDragDisarm = () => {
+          const disarm = () => {
             if (!armed) return;
             armed = false;
             overlay.removeEventListener("touchstart", onStart);
             overlay.removeEventListener("touchmove", onMove);
             overlay.removeEventListener("touchend", onEnd);
             overlay.removeEventListener("touchcancel", onEnd);
-            // A close that did not come from the drag (a Cancel tap with a
-            // finger still down) leaves onEnd unbound and never called, so
-            // the drag has to be unwound here instead -- without running
-            // closeCb, which is the close this is already part of.
-            if (dragging) {
-              dragging = false;
-              dy = 0;
-              sheet.style.transition = "";
-              sheet.style.transform = "";
-            }
+            // A sheet dismissed mid-drag (a Cancel tap landing while a
+            // finger is still down) leaves `dragging` set and an inline
+            // transform on the sheet, and the touchend that would have
+            // cleared them is no longer being listened for. Reset directly
+            // rather than calling onEnd(): onEnd can decide the drag passed
+            // the close threshold and invoke closeCb, which would re-enter
+            // the close that is already in progress.
+            dragging = false;
+            dy = 0;
+            sheet.style.transition = "";
+            sheet.style.transform = "";
           };
+          overlay._sheetDragArm = arm;
+          overlay._sheetDragDisarm = disarm;
+          // Bound after its own open (see the contract note above).
+          if (overlay._sheetIsUp) arm();
+          // Out of layout until it is first opened -- the same reason
+          // hideClosedSheet() exists below, applied to a sheet that has never
+          // been up. Written inline rather than calling that helper: the two
+          // are extracted into separate scopes by the test loaders, and a
+          // cross-scope call is a landmine for whoever moves either marker.
+          else overlay.style.display = "none";
 
           if (handle) {
             handle.addEventListener("mousedown", (e) => {
@@ -418,11 +452,89 @@
           document.documentElement.style.setProperty("--pc-vvh", `${vv.height}px`);
           document.documentElement.style.setProperty("--pc-vvt", `${vv.offsetTop}px`);
         }
+        // Seeded once at load so the vars are already right for the first
+        // sheet that opens, then only kept LIVE while a sheet is actually up.
+        //
+        // The subscription is not free and it sits on the scroll path: on iOS
+        // visualViewport "scroll" fires continuously through rubber-banding,
+        // pinch-zoom and every URL-bar show/hide, and each call writes two
+        // custom properties on <html>, which invalidates style for the whole
+        // document (the framed branch also forces layout with
+        // getBoundingClientRect). Nothing reads --pc-vvt/--pc-vvh except five
+        // sheet-overlay rules (static/style.css:1456,1457,1478 and
+        // templates/workouts.html:697,698,713), so outside an open sheet that
+        // work is paid for on every scroll and consumed by nobody. Same
+        // arm-on-open discipline as the drag listeners above.
         updatePcViewportVars();
-        if (window.visualViewport) {
-          window.visualViewport.addEventListener("resize", updatePcViewportVars);
-          window.visualViewport.addEventListener("scroll", updatePcViewportVars);
+        // The set of sheets currently up -- a set of elements, not a counter.
+        // Sheets nest (a sheet's afterClose opening another, the check-in
+        // sheet over the wizard), so the inner one closing must not
+        // unsubscribe out from under the outer one, and a counter does handle
+        // that. What a counter does NOT survive is an overlay that leaves the
+        // DOM while it is still up: static/nav_scope.js's release() takes an
+        // adopted page sheet away with its page, and nothing decrements for
+        // it. One such miss pins the subscription on for the rest of the
+        // session -- the exact always-on cost this scoping removes, restored
+        // silently and with no way to notice. Membership is re-derived from
+        // the live document on every change instead, so a vanished overlay
+        // costs one stale entry until the next open or close, then heals.
+        const sheetsUp = new Set();
+        let viewportTracked = false;
+        // This whole script sits inside <main>, which static/pagenav.js
+        // replaces on a tab swap -- so every swap re-runs it and mints a FRESH
+        // updatePcViewportVars. removeEventListener matches on identity, so
+        // this page's closure can never unsubscribe the previous page's: left
+        // alone that leaks one live visualViewport listener per swap, each
+        // writing two custom properties on <html> per scroll event, for the
+        // life of the document. Hand the registration over explicitly.
+        (function adoptViewportSubscription() {
+          const previous = window.__pcViewportHandler;
+          if (previous) {
+            if (window.visualViewport) {
+              window.visualViewport.removeEventListener("resize", previous);
+              window.visualViewport.removeEventListener("scroll", previous);
+            }
+            window.removeEventListener("resize", previous);
+          }
+          window.__pcViewportHandler = updatePcViewportVars;
+          // A sheet can be up across a swap. Carry the subscription over on
+          // the new closure rather than dropping the vars mid-sheet; the next
+          // open or close re-derives it from sheetsUp and settles it.
+          if (window.__pcViewportTracking && window.visualViewport) {
+            window.visualViewport.addEventListener("resize", updatePcViewportVars);
+            window.visualViewport.addEventListener("scroll", updatePcViewportVars);
+            viewportTracked = true;
+          }
+        })();
+        function syncViewportTracking() {
+          sheetsUp.forEach(function (el) {
+            if (!el.isConnected) sheetsUp.delete(el);
+          });
+          const want = sheetsUp.size > 0;
+          if (want === viewportTracked) return;
+          viewportTracked = want;
+          window.__pcViewportTracking = want;
+          if (want) updatePcViewportVars();
+          if (!window.visualViewport) return;
+          if (want) {
+            window.visualViewport.addEventListener("resize", updatePcViewportVars);
+            window.visualViewport.addEventListener("scroll", updatePcViewportVars);
+          } else {
+            window.visualViewport.removeEventListener("resize", updatePcViewportVars);
+            window.visualViewport.removeEventListener("scroll", updatePcViewportVars);
+          }
         }
+        RepCheck.trackViewport = function (overlayEl) {
+          sheetsUp.add(overlayEl);
+          syncViewportTracking();
+        };
+        RepCheck.untrackViewport = function (overlayEl) {
+          sheetsUp.delete(overlayEl);
+          syncViewportTracking();
+        };
+        // Test seam: the subscription is otherwise only observable through
+        // window.visualViewport, which jsdom does not implement.
+        RepCheck.viewportTracked = function () { return viewportTracked; };
         // Covers the framed case: the frame's height can change (a shorter
         // browser window shrinks --app-h, see style.css) without
         // visualViewport firing, since its height tracks the window
@@ -450,8 +562,35 @@
           return function () { target.removeEventListener("scroll", fn); };
         };
 
+        // A closed sheet overlay is a full-viewport `position: fixed` box
+        // with its whole subtree still in the DOM at opacity 0 -- laid out on
+        // every reflow of every page, and re-resolved against --pc-vvh every
+        // time that var is written. `display: none` takes it out of layout
+        // entirely; openBottomSheet clears the inline value on the way back
+        // in, so the CSS `display` (block for .mt-sheet-overlay, flex for the
+        // rest) still decides how it lays out when it is actually up.
+        //
+        // Never applied to a sheet that is up: cleanup() below can fire up to
+        // 500ms after a close, and a sheet re-opened inside that window would
+        // otherwise be hidden by the previous close's timer.
+        function hideClosedSheet(overlayEl) {
+          if (!overlayEl || overlayEl._sheetIsUp) return;
+          overlayEl.style.display = "none";
+        }
+
         window.openBottomSheet = function(overlayEl, sheetSelector) {
           if (!overlayEl) return;
+          // Idempotent. A second open on a sheet that is already up used to
+          // increment __pcSheetLockCount twice while only one close ever
+          // decremented it, leaving <body> at position:fixed with no sheet in
+          // sight -- a dead, unscrollable page recoverable only by reload.
+          // TODOS.md recorded this and could not fix it, because the only
+          // "is it open?" signal was .is-open, which lands two frames late.
+          // _sheetIsUp is set synchronously below, so the guard it asked for
+          // is now one line. Reached in normal use, not just on a double-tap:
+          // templates/nutrition.html's barcode-photo flow re-opens the sheet
+          // it is already inside.
+          if (overlayEl._sheetIsUp) return;
           if (overlayEl.parentElement !== document.body) {
             // The move to <body> is what frees a sheet from the transformed
             // stacking context inside .app (see moveOverlayToBody() in
@@ -487,8 +626,6 @@
             document.body.appendChild(overlayEl);
           }
           overlayEl.style.display = "";
-          // Swipe-to-dismiss exists only while the sheet is actually up.
-          if (overlayEl._sheetDragArm) overlayEl._sheetDragArm();
           // Pinning <body> is the iOS fix for the page scrolling behind an
           // open sheet. Inside the device frame <body> is the phone itself
           // and does not scroll -- repositioning it would move the whole
@@ -503,33 +640,46 @@
           }
           window.__pcSheetLockCount++;
           document.documentElement.classList.add("pc-sheet-locked");
+          // Swipe-to-dismiss listens for touchmove non-passively, which is
+          // scroll-blocking, so it is only attached while the sheet it
+          // belongs to is actually up. See bindSheetDrag above. Set BEFORE
+          // the double rAF below: .is-in/.is-open are two frames away, and
+          // both a late bindSheetDrag and an immediate close have to be able
+          // to tell "this sheet is up" in the meantime.
+          overlayEl._sheetIsUp = true;
+          if (typeof overlayEl._sheetDragArm === "function") overlayEl._sheetDragArm();
+          RepCheck.trackViewport(overlayEl);
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               overlayEl.classList.add("is-in");
               overlayEl.classList.add("is-open");
               document.documentElement.classList.add("pc-sheet-active");
-              // Armed a second time, on purpose. Some callers bind the drag
-              // AFTER opening the sheet (static/coaching.js builds the
-              // overlay, opens it, then calls bindSheetDrag), so the
-              // synchronous arm above ran while _sheetDragArm was still
-              // undefined and silently did nothing. By this frame the bind
-              // has happened. Arming is idempotent, so the ordinary
-              // bind-then-open path pays nothing for this.
-              if (overlayEl._sheetDragArm) overlayEl._sheetDragArm();
             });
           });
         };
 
         window.closeBottomSheet = function(overlayEl, sheetSelector, callback) {
-          // Before the is-open guard below, not after it. openBottomSheet
-          // only adds is-in/is-open inside a double requestAnimationFrame, so
-          // a sheet closed in the same tick it was opened (a fast tap, or a
-          // programmatic close) takes the early return -- and would keep its
-          // scroll-blocking touchmove listener for the life of the page,
-          // which is the whole thing arming exists to avoid. Closing is the
-          // end of the drag either way.
-          if (overlayEl && overlayEl._sheetDragDisarm) overlayEl._sheetDragDisarm();
-          if (!overlayEl || (!overlayEl.classList.contains("is-in") && !overlayEl.classList.contains("is-open"))) {
+          if (!overlayEl) {
+            if (typeof callback === "function") callback();
+            return;
+          }
+          // Ahead of the not-open early return below, and immediately rather
+          // than in cleanup(): the sheet is on its way out and has nothing
+          // left to drag, cleanup() can be 500ms away, and -- the reason this
+          // sits ABOVE the return -- openBottomSheet arms two frames before
+          // .is-in/.is-open appear, so a sheet closed inside that window
+          // would take the early return and strand a full-viewport
+          // scroll-blocking touchmove on a sheet nobody can see. That window
+          // is not hypothetical here: TODOS.md already records a scroll-lock
+          // leak through the same two frames.
+          const wasUp = overlayEl._sheetIsUp;
+          overlayEl._sheetIsUp = false;
+          if (typeof overlayEl._sheetDragDisarm === "function") overlayEl._sheetDragDisarm();
+          // Guarded by wasUp, not by the class check below: the counter must
+          // be decremented exactly once per open, and the two-frame window
+          // means an open can be real while the classes say otherwise.
+          if (wasUp) RepCheck.untrackViewport(overlayEl);
+          if (!overlayEl.classList.contains("is-in") && !overlayEl.classList.contains("is-open")) {
             if (typeof callback === "function") callback();
             return;
           }
@@ -541,6 +691,9 @@
           const cleanup = () => {
             if (cleaned) return;
             cleaned = true;
+            // After the exit transition, so the sheet is still visible while
+            // it slides out.
+            hideClosedSheet(overlayEl);
             document.documentElement.classList.remove("pc-sheet-locked");
             window.__pcSheetLockCount = Math.max(0, window.__pcSheetLockCount - 1);
             if (window.__pcSheetLockCount === 0 && !RepCheck.framed()) {
@@ -555,7 +708,23 @@
 
           const sheetEl = overlayEl.querySelector(sheetSelector || ".mt-sheet, .log-sheet, .af-modal, .lw-modal");
           if (sheetEl) {
-            sheetEl.addEventListener("transitionend", cleanup, { once: true });
+            // transitionend BUBBLES, and the sheet is full of descendants with
+            // their own short transitions: removing .is-in drops the close
+            // button's pointer-events (ending its 0.15s background-color
+            // transition) and the tap blurs the search box (ending its 0.16s
+            // focus-within transition). Either one reached this handler and,
+            // with { once: true }, consumed it -- so cleanup() ran ~320ms into
+            // a 480ms exit. That used to only unpin <body> early. Now that
+            // cleanup() also hides the overlay it was visible: measured in a
+            // real browser on Nutrition's food-search sheet, display went none
+            // at 120ms and the sheet blinked out instead of sliding. Only the
+            // sheet's OWN transition ends the close.
+            const onSheetTransitionEnd = (event) => {
+              if (event.target !== sheetEl) return;
+              sheetEl.removeEventListener("transitionend", onSheetTransitionEnd);
+              cleanup();
+            };
+            sheetEl.addEventListener("transitionend", onSheetTransitionEnd);
           }
           setTimeout(cleanup, 500);
         };
@@ -582,23 +751,23 @@
           window.__pcSheetSwapUnlockBound = true;
           document.addEventListener("repcheck:page-will-swap", function () {
             document.querySelectorAll("body > [data-pc-page-sheet]").forEach(function (el) {
-              // Ahead of the is-open guard below, for the reason
-              // closeBottomSheet does the same: openBottomSheet arms
-              // synchronously but only adds is-in/is-open two frames later,
-              // so a swap landing in that window would take the early return
-              // and leave the listener behind.
-              if (el._sheetDragDisarm) el._sheetDragDisarm();
-              if (!el.classList.contains("is-in") && !el.classList.contains("is-open")) return;
+              // _sheetIsUp first, classes as the fallback -- the same reason
+              // closeBottomSheet checks it: openBottomSheet marks the sheet up
+              // two frames before .is-in/.is-open appear, and a swap inside
+              // that window used to skip the sheet entirely. Measured on the
+              // real page: zero listeners removed, __pcSheetLockCount stuck at
+              // 1, <html> still pc-sheet-locked and <body> still position:
+              // fixed -- so the ARRIVING screen could not scroll at all.
+              if (!el._sheetIsUp && !el.classList.contains("is-in") && !el.classList.contains("is-open")) return;
               el.classList.remove("is-in");
               el.classList.remove("is-open");
-              // This path unlocks the sheet by hand instead of going through
-              // closeBottomSheet, so it has to do closeBottomSheet's disarm
-              // too. Otherwise a page-owned sheet that was still OPEN when its
-              // page swapped away keeps its non-passive, full-viewport
-              // touchmove -- the exact leak arming exists to prevent. It
-              // survives only as long as nav_scope actually removes the node,
-              // which is itself guarded (adopt() is behind a
-              // window.RepCheckNavScope check), so do not lean on that.
+              // This path force-closes a sheet without going through
+              // closeBottomSheet, so it owns its own disarm -- the rule is
+              // "a closed sheet carries no touch listeners", everywhere.
+              const wasUp = el._sheetIsUp;
+              el._sheetIsUp = false;
+              if (typeof el._sheetDragDisarm === "function") el._sheetDragDisarm();
+              if (wasUp) RepCheck.untrackViewport(el);
               window.__pcSheetLockCount = Math.max(0, window.__pcSheetLockCount - 1);
               if (window.__pcSheetLockCount > 0) return;
               document.documentElement.classList.remove("pc-sheet-active");

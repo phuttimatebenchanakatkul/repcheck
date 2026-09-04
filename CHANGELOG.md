@@ -2,30 +2,54 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.8.4.0] - 2026-09-04
+
+### Fixed
+
+- The "ask" bar you pull down on an analysis was slowing the scroll of the
+  whole result page. The pull only ever works from the very top, but the
+  listener that makes it work was answering every swipe anywhere on the
+  page -- on the longest-scrolling screen in the app. It now steps aside as
+  soon as you have scrolled past the top, and comes back when you return.
+- Recording a challenge attempt and then leaving that screen left the camera
+  running. Nothing on screen said so, the indicator light stayed on, and
+  every camera in the rest of the app -- form analysis, food photos, the
+  barcode scanner -- silently refused to open from then on, until the app
+  was force-quit. Leaving the screen now puts the camera down, along with
+  the countdown and the recording it belonged to.
+
 ## [0.8.3.0] - 2026-09-04
 
 ### Fixed
 
-- Scrolling was slower than it should have been on every single screen,
-  on a phone specifically. The bottom sheets each page keeps ready -- the
-  "+" menu, log weight, adjust goal, the food and exercise pickers -- sit
-  invisibly on top of the whole screen between uses, and each one held a
-  swipe-to-dismiss listener that the browser has to consult before it can
-  move the page. Three of them on most screens, six on Nutrition, all of
-  the time, whether or not a sheet was open. A mouse never touches that
-  code, so it only ever showed on the device it was written for. The
-  listeners now exist only while a sheet is actually up.
-- The same problem, and the same fix, for the "ask" bar you pull down on
-  an analysis: the pull only works from the very top of the page, but it
-  was slowing down the whole scroll of a long result. It now steps aside
-  as soon as you have scrolled past the top, and comes back when you
-  return.
-- Recording a challenge attempt and then leaving that screen left the
-  camera running. Nothing on screen said so, the indicator light stayed
-  on, and every camera in the rest of the app -- form analysis, food
-  photos, the barcode scanner -- silently refused to open from then on,
-  until the app was force-quit. Leaving the screen now puts the camera
-  down, along with the countdown and the recording it belonged to.
+- Scrolling on a phone was never as smooth as it should have been, on every
+  screen, and the reason had nothing to do with the screen you were on. Every
+  bottom sheet in the app -- the "+" quick actions, log weight, log food, the
+  exercise picker -- keeps its overlay in the page between uses, invisible but
+  full-screen, and each one was listening for the finger movement that drags a
+  sheet closed. That kind of listener has to be answered before the phone is
+  allowed to scroll anything, so three of them on most screens (six on
+  Nutrition) sat in front of every swipe you made. They are now attached only
+  while the sheet they belong to is actually open.
+- Two more costs on the same path went with it. The code that measures the
+  visible screen area, so a sheet can size itself around the keyboard, was
+  recalculating and rewriting page-wide styling on every scroll event of every
+  screen -- it now runs only while a sheet is up. And those invisible overlays,
+  each a full-screen box, were still being laid out on every screen; they are
+  taken out of the layout entirely until opened.
+- Closing a sheet sometimes cut its animation short, so it blinked out of
+  existence instead of sliding away. The close was being triggered by small
+  animations finishing inside the sheet -- a button losing its highlight, a
+  search box losing focus -- rather than by the sheet's own. Most visible on
+  the food search and exercise picker, which put the cursor in their search box
+  as they open.
+- Opening a sheet twice in quick succession could leave the page unable to
+  scroll at all, with no sheet in sight and nothing to do but reload. Reachable
+  by a fast double-tap on any sheet button, and reached in ordinary use by the
+  barcode photo flow, which reopens the sheet it is already inside.
+- Leaving a screen while one of its sheets was still opening left the next
+  screen frozen: it could not scroll, and it was still holding the position of
+  the screen you left.
 
 ## [0.8.2.0] - 2026-09-04
 

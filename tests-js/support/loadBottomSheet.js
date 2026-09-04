@@ -14,7 +14,13 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.join(__dirname, "..", "..", "templates", "base.html");
 
-const START_MARKER = "window.openBottomSheet = function(";
+// Starts at the RepCheck scroller/viewport shim rather than at
+// openBottomSheet itself: openBottomSheet calls RepCheck.trackViewport(),
+// which is defined in that shim, so a slice starting below it evaluates an
+// openBottomSheet whose collaborator does not exist. Everything between the
+// two is setup these helpers depend on anyway (RepCheck.framed,
+// updatePcViewportVars, the scroller accessors).
+const START_MARKER = "window.RepCheck = window.RepCheck || {};";
 const END_MARKER = "\n      </script>";
 
 /**
@@ -33,15 +39,23 @@ export function loadBottomSheet({ framed = false } = {}) {
   }
   const source = html.slice(start, end);
 
-  // Both live above the extracted range in base.html: the nesting counter is
-  // initialised once per document, and RepCheck.framed() answers whether the
-  // page is inside the desktop device frame (it is not, on a phone).
+  // The nesting counters are initialised once per document, above the
+  // extracted range.
   window.__pcSheetLockCount = window.__pcSheetLockCount || 0;
   window.RepCheck = window.RepCheck || {};
-  window.RepCheck.framed = () => framed;
+  // The real RepCheck.framed() is inside the range now, and it asks
+  // window.matchMedia, which jsdom does not implement. Stub it so the shim can
+  // evaluate at all; the answer it gives is replaced below.
+  if (!window.matchMedia) {
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  }
 
   // eslint-disable-next-line no-new-func
   new Function("window", "document", "RepCheck", source)(window, document, window.RepCheck);
+
+  // AFTER the eval, which defines the real framed(): the phone layout, not the
+  // desktop device frame, is the case these tests are about.
+  window.RepCheck.framed = () => framed;
   return {
     openBottomSheet: window.openBottomSheet,
     closeBottomSheet: window.closeBottomSheet,
