@@ -24,6 +24,24 @@ All notable changes to RepCheck are recorded here, newest first.
   now and the nodes are moved across -- 90ms for the same page, and a
   phone is several times slower than the machine that was measured on.
 
+## [0.8.1.1] - 2026-09-04
+
+### Fixed
+
+- The Log food sheet could follow you off the Nutrition page. Opening it
+  and then tapping another tab left the whole sheet -- title, close
+  button, the food's name, the macro donut, the calories -- sitting at the
+  bottom of every screen after it, unstyled and fully readable. A sheet is
+  moved out to the page body when it opens, so it escapes the stacking
+  context it would otherwise be trapped in; that also took it out of the
+  part of the page a tab switch replaces, and the sheet's own styling went
+  with the switch while the sheet itself stayed. Sheets now leave with the
+  page they belong to.
+- Leaving a page with a sheet still open no longer freezes the next
+  screen. Opening a sheet pins the page behind it so it cannot scroll, and
+  only closing the sheet unpinned it -- a back-swipe out of the page did
+  not, so the screen you arrived on would not scroll, with nothing on it to
+  explain why.
 ## [0.8.1.0] - 2026-09-04
 
 ### Changed
