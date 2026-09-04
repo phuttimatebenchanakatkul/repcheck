@@ -982,6 +982,35 @@
       refreshTodaysChallenge();
       loadFullLeaderboard();
     });
+
+    // ---------- Releasing the camera when the nav swaps this page away ----------
+    // The challenge recorder holds a live getUserMedia feed (recordingStream),
+    // a MediaRecorder writing into it, a countdown setInterval, a setTimeout,
+    // a requestAnimationFrame pose loop and two object URLs. Every one of them
+    // is released only by an explicit UI action: closing the record modal, or
+    // closing the result popup.
+    //
+    // Leaving this page is not that action, and it is not a navigation either:
+    // static/pagenav.js swaps the contents of <main> in place, so neither
+    // pagehide nor visibilitychange fires, and RepCheckNavScope.release() then
+    // unbinds any handler this page registered for them anyway. nav_scope
+    // tracks setInterval but not setTimeout, and nothing tracks a MediaStream.
+    //
+    // So starting a challenge recording and then tapping another tab left the
+    // camera running for the rest of the session -- indicator light on, and
+    // every later getUserMedia in the app (the analyze viewfinder, the food
+    // camera, the barcode scanner) colliding with the stream still held open,
+    // which iOS refuses. Same defect and same fix as templates/index.html and
+    // templates/nutrition.html; this was the last page still missing it.
+    //
+    // closeRecordModal() already unwinds the whole recording path, and
+    // closeResultPopup() revokes the result blob, so the teardown is just
+    // calling them. Registering the listener here means release() unbinds it
+    // too, so revisits do not stack up copies.
+    document.addEventListener("repcheck:page-will-swap", function releaseRecorderOnSwap() {
+      closeRecordModal();
+      closeResultPopup();
+    });
   })();
 </script>
 {% endif %}
