@@ -2,6 +2,39 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.8.3.0] - 2026-09-04
+
+### Fixed
+
+- Scrolling on a phone was never as smooth as it should have been, on every
+  screen, and the reason had nothing to do with the screen you were on. Every
+  bottom sheet in the app -- the "+" quick actions, log weight, log food, the
+  exercise picker -- keeps its overlay in the page between uses, invisible but
+  full-screen, and each one was listening for the finger movement that drags a
+  sheet closed. That kind of listener has to be answered before the phone is
+  allowed to scroll anything, so three of them on most screens (six on
+  Nutrition) sat in front of every swipe you made. They are now attached only
+  while the sheet they belong to is actually open.
+- Two more costs on the same path went with it. The code that measures the
+  visible screen area, so a sheet can size itself around the keyboard, was
+  recalculating and rewriting page-wide styling on every scroll event of every
+  screen -- it now runs only while a sheet is up. And those invisible overlays,
+  each a full-screen box, were still being laid out on every screen; they are
+  taken out of the layout entirely until opened.
+- Closing a sheet sometimes cut its animation short, so it blinked out of
+  existence instead of sliding away. The close was being triggered by small
+  animations finishing inside the sheet -- a button losing its highlight, a
+  search box losing focus -- rather than by the sheet's own. Most visible on
+  the food search and exercise picker, which put the cursor in their search box
+  as they open.
+- Opening a sheet twice in quick succession could leave the page unable to
+  scroll at all, with no sheet in sight and nothing to do but reload. Reachable
+  by a fast double-tap on any sheet button, and reached in ordinary use by the
+  barcode photo flow, which reopens the sheet it is already inside.
+- Leaving a screen while one of its sheets was still opening left the next
+  screen frozen: it could not scroll, and it was still holding the position of
+  the screen you left.
+
 ## [0.8.2.0] - 2026-09-04
 
 ### Fixed

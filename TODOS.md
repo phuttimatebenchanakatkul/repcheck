@@ -112,16 +112,56 @@
 **Priority:** P3
 **Depends on:** None
 
-### Rapid double-tap on a sheet-opening button can leak a scroll-lock
+### Three sheets never get `data-pc-page-sheet`, so a tab swap leaves them on screen
 
-**What:** `window.openBottomSheet()` (`base.html`) defers adding its `is-open` class by two `requestAnimationFrame` calls (a standard technique to force a reflow before the CSS transition starts). Any code that guards against double-opening by checking for that class -- e.g. `openSplitModalOverlay()` in `templates/workouts.html` -- has a ~16-33ms window where a second call won't see it yet, double-incrementing `window.__pcSheetLockCount`. Since it's only ever decremented once per close, this leaves body scroll locked (`position: fixed`) permanently after the sheet closes, recoverable only by a page reload.
+**What:** `static/coaching.js` (wizard, ~1854; check-in, ~2360) and `static/hyrox.js` (station picker, ~2038) `document.body.appendChild(overlay)` BEFORE calling `openBottomSheet()`. That function only marks a sheet `data-pc-page-sheet` and hands it to `RepCheckNavScope.adopt()` inside its `if (overlayEl.parentElement !== document.body)` reparent branch -- which those three skip, because the overlay is already a child of `<body>`. The `repcheck:page-will-swap` force-close queries `body > [data-pc-page-sheet]`, so it never sees them.
 
-**Why:** Narrow (needs a real double-tap faster than ~2 animation frames on the exact same button) and low-consequence (a stuck scroll, not data loss), but it's a shared-infrastructure gap, not specific to one sheet -- every sheet in the app that opens via a single button tap has this same exposure, not just the split modal.
+**Why:** Tap a tab while the coaching wizard, the weekly check-in or the Hyrox station picker is open and the overlay survives the swap fully visible and interactive on the next screen, `_sheetIsUp` still true, its touch listeners still armed on a full-viewport `position: fixed` box, and `<body>` still pinned. Returning to that page finds the stale overlay by id and wires the new controller to the dead one's handlers.
 
-**Context:** Surfaced during the split-modal-shrink-regression fix's pre-landing review. Not fixed there since it's pre-existing behavior of `openBottomSheet` itself, not something that PR introduced, and fixing it properly means either debouncing the open button at the click-handler level or making `openBottomSheet` idempotent synchronously (e.g. an immediate "opening" flag set before the rAF pair, not gated on the class the rAFs add).
+**Context:** Found by the adversarial review during `/ship` on `fix/sheet-touch-listeners-scoped`. Pre-existing -- that branch scoped when sheet listeners attach, which makes the stranded-listener half of this worse, but the survives-the-swap half predates it. Fix is to call `bindSheetDrag`/`openBottomSheet` before the manual `appendChild`, or to mark the overlay explicitly.
+
+**Effort:** S
+**Priority:** P2
+
+**Depends on:** None
+
+### `cleanup()` can strip the scroll lock off a sheet that was re-opened
+
+**What:** `closeBottomSheet()`'s `cleanup()` (`templates/base.html`) runs on the sheet's `transitionend` or a 500ms fallback. It guards the overlay hide with `_sheetIsUp`, but `document.documentElement.classList.remove("pc-sheet-locked")`, the `__pcSheetLockCount` decrement and the caller's `callback()` all run unconditionally. Close a sheet and re-open it inside 500ms and the old timer unlocks scroll under the new sheet -- and for the analyze-food sheet the callback revokes the object URL, nulls the result and stops the camera stream of the sheet that just opened.
+
+**Why:** Back-to-back close/open is a real pattern here (several sheets open another from an afterClose callback), and the failure is silent state loss rather than a crash.
+
+**Context:** Found by the adversarial review during `/ship` on `fix/sheet-touch-listeners-scoped`. Pre-existing; that branch added the `_sheetIsUp` guard the fix would reuse for the other three lines.
+
+**Effort:** S
+**Priority:** P2
+
+**Depends on:** None
+
+### `closeBottomSheet`'s default selector list is missing three sheet classes
+
+**What:** `templates/base.html` defaults `sheetSelector` to `".mt-sheet, .log-sheet, .af-modal, .lw-modal"`. `static/pagenav.js`'s `closeSheetAround()` calls `closeBottomSheet(el)` with no selector, so for `.exd-modal`, `.split-modal` and `.pc-ck-sheet` overlays the lookup returns null, no `transitionend` is ever bound, and cleanup only runs off the fixed 500ms fallback.
+
+**Why:** Combined with the entry above, those three sheets always unlock scroll and fire their callback at a hardcoded 500ms regardless of what happened in between.
+
+**Context:** Found by the adversarial review during `/ship` on `fix/sheet-touch-listeners-scoped`.
+
+**Effort:** S
+**Priority:** P3
+
+**Depends on:** None
+
+### Two confirm overlays are still full-viewport boxes when closed
+
+**What:** `.nl-confirm-overlay` (`templates/nutrition.html`) and `.wl-confirm-overlay` (`templates/workouts.html`) are `position: fixed; inset: 0` at `opacity: 0` when closed and are opened by toggling a class rather than through `openBottomSheet()`, so the `display: none` that now takes every other closed sheet out of layout does not reach them. Measured after that change: `/nutrition` and `/workouts` each still lay out exactly one such box.
+
+**Why:** Layout cost only -- they carry no touch listeners, so they are not on the scroll-blocking path. Small, but it is the last of the always-laid-out overlays.
+
+**Context:** Measured during `/ship` on `fix/sheet-touch-listeners-scoped`. Left alone there because both live in page templates other work was actively editing.
 
 **Effort:** S
 **Priority:** P4
+
 **Depends on:** None
 
 ### A custom day literally named "Rest" hides its own workout
@@ -747,6 +787,20 @@
 **Depends on:** None
 
 ## Completed
+
+### Rapid double-tap on a sheet-opening button can leak a scroll-lock
+
+**What:** `window.openBottomSheet()` (`base.html`) defers adding its `is-open` class by two `requestAnimationFrame` calls (a standard technique to force a reflow before the CSS transition starts). Any code that guards against double-opening by checking for that class -- e.g. `openSplitModalOverlay()` in `templates/workouts.html` -- has a ~16-33ms window where a second call won't see it yet, double-incrementing `window.__pcSheetLockCount`. Since it's only ever decremented once per close, this leaves body scroll locked (`position: fixed`) permanently after the sheet closes, recoverable only by a page reload.
+
+**Why:** Narrow (needs a real double-tap faster than ~2 animation frames on the exact same button) and low-consequence (a stuck scroll, not data loss), but it's a shared-infrastructure gap, not specific to one sheet -- every sheet in the app that opens via a single button tap has this same exposure, not just the split modal.
+
+**Context:** Surfaced during the split-modal-shrink-regression fix's pre-landing review. Not fixed there since it's pre-existing behavior of `openBottomSheet` itself, not something that PR introduced, and fixing it properly means either debouncing the open button at the click-handler level or making `openBottomSheet` idempotent synchronously (e.g. an immediate "opening" flag set before the rAF pair, not gated on the class the rAFs add).
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+**Completed:** v0.8.3.0 (2026-09-04) -- `openBottomSheet()` now returns early on `_sheetIsUp`, the synchronous flag this TODO asked for.
 
 <!-- Shipped items move here, newest first, with the version or date they landed. -->
 
