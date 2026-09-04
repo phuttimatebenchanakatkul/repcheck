@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.8.4.0] - 2026-09-04
+
+### Fixed
+
+- The "ask" bar you pull down on an analysis was slowing the scroll of the
+  whole result page. The pull only ever works from the very top, but the
+  listener that makes it work was answering every swipe anywhere on the
+  page -- on the longest-scrolling screen in the app. It now steps aside as
+  soon as you have scrolled past the top, and comes back when you return.
+- Recording a challenge attempt and then leaving that screen left the camera
+  running. Nothing on screen said so, the indicator light stayed on, and
+  every camera in the rest of the app -- form analysis, food photos, the
+  barcode scanner -- silently refused to open from then on, until the app
+  was force-quit. Leaving the screen now puts the camera down, along with
+  the countdown and the recording it belonged to.
+
 ## [0.8.3.0] - 2026-09-04
 
 ### Fixed

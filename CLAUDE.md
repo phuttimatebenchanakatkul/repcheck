@@ -59,8 +59,32 @@ it; use `new Function(src)` instead.
 
 Teardown follows from the same swap: pagenav replaces the DOM without unloading
 the document, so `pagehide` and `visibilitychange` never fire. Anything holding
-a resource (camera `MediaStream`, `Worker`, RAF loop, `setTimeout`) must release
-it on `document.addEventListener("repcheck:page-will-swap", ...)`.
+a resource (camera `MediaStream`, `MediaRecorder`, `Worker`, RAF loop,
+`setInterval`/`setTimeout`, object URLs) must release it on
+`document.addEventListener("repcheck:page-will-swap", ...)`. `nav_scope` tracks
+`setInterval` but not `setTimeout`, and nothing tracks a `MediaStream`, so the
+camera pages do this by hand: `templates/index.html`, `templates/nutrition.html`
+and `templates/challenges.html` each call their own close/teardown functions
+from that listener.
+
+## Touch listeners: arm from state, never for the life of the page
+
+A non-passive `touchmove` (one that calls `preventDefault()`) makes its target's
+whole region scroll-blocking for as long as it is attached. Bound at load, it
+taxes every scroll on every page for a gesture that is usually impossible. So
+attach it only while its gesture can actually start, and remove it otherwise:
+`bindSheetDrag` in `templates/base.html` arms on open and disarms on close
+(`_sheetDragArm`/`_sheetDragDisarm`, idempotent so a bind that lands after its
+own open still arms), and `syncPullArming()` in `static/analyze_chat_widget.js`
+arms only while the page is at the top with the dock closed.
+
+Do NOT arm inside `touchstart`, which is the obvious place. Both WebKit and
+Chromium decide whether a touch sequence is cancelable at touch-DOWN, from the
+handler regions already committed. A blocking listener added during the dispatch
+of a passive `touchstart` lands too late for the gesture in flight: `e.cancelable`
+comes back false and `preventDefault()` silently does nothing, so the preview
+follows the finger while the page rubber-bands underneath it. Arm from scroll or
+open state instead, so the listener is in place before the finger lands.
 
 ## Versioning
 
