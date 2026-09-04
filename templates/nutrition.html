@@ -1183,29 +1183,9 @@
     animation: nl-fade-in 0.15s ease;
   }
   .af-ingredient-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-  .af-ingredient-row {
-    background: var(--bg);
-    border-radius: 10px;
-    padding: 9px 12px;
-    font-size: 13px;
-  }
-  .af-ingredient-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .af-ingredient-name {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .af-ingredient-amount { color: var(--text-secondary); font-weight: 600; flex-shrink: 0; }
+  /* The rows themselves reuse .nl-ingredient-* (the timeline's ingredient
+     cards) so the two editors stay one design; only this per-ingredient
+     macro line is specific to the re-log sheet. */
   .af-ingredient-macros { color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
   .af-secondary-btn {
     padding: 9px 14px;
@@ -1939,7 +1919,6 @@
     .af-title-input { font-size: 18px; } /* still >16px so iOS doesn't auto-zoom on focus */
     .af-when-card select { font-size: 16px; } /* 16px prevents iOS auto-zoom on focus */
     .af-field input, .af-field select { font-size: 16px; padding: 9px 10px; } /* 16px prevents iOS auto-zoom on focus */
-    .af-ingredient-row { padding: 8px 10px; font-size: 12px; }
     #af-amount-value { font-size: 16px; padding: 10px 12px; } /* 16px prevents iOS auto-zoom on focus */
     .af-unit-seg button { padding: 7px 9px; font-size: 11px; }
   }
@@ -2795,44 +2774,39 @@
   // pinned to a specific hour row, and its "back" is not the scan screen.
   // Both default to the original recent-scans behaviour when omitted.
   function renderRelogConfirm(original, hourForLog, onCancel) {
-    const m = scaledMacros(original);
+    // Ingredient amounts are editable here (same card design as the
+    // timeline's ingredients panel), so every number below reads from a
+    // throwaway copy instead of the entry itself: `original` is a real meal
+    // already logged on some day, and adjusting amounts on the way to
+    // logging a NEW one must not silently rewrite it. relogEntry() clones
+    // whatever it is handed, so handing it the draft logs what's on screen.
+    const draft = { ...original };
+    if (original.ingredients) draft.ingredients = original.ingredients.map((ing) => ({ ...ing }));
+    const m = scaledMacros(draft);
     // The calorie number means nothing without the amount it came from --
     // "804 kcal" could be a snack or a platter. entryTotals() already sums
     // the real grams for both entry shapes (a composite dish's ingredient
     // list, or a simple food's own grams), which is exactly what the
     // timeline row shows too, so the same number appears in both places.
-    const totals = entryTotals(original);
-    const ingredients = original.ingredients && original.ingredients.length ? original.ingredients : null;
-    // A multi-ingredient dish gets its per-ingredient grams listed as well:
-    // that breakdown IS the serving, and re-logging blind is the exact
-    // thing this screen exists to prevent. Names come from Gemini, so they
-    // go through escapeHtml() like every other model-authored string here.
+    const totals = entryTotals(draft);
+    const ingredients = draft.ingredients && draft.ingredients.length ? draft.ingredients : null;
+    // A multi-ingredient dish gets its full breakdown, editable: that
+    // breakdown IS the serving, and re-logging blind is the exact thing
+    // this screen exists to prevent -- a second helping is rarely the same
+    // plate, so the amounts have to be adjustable before it is logged
+    // rather than only afterwards from the timeline.
     const ingredientsHtml = ingredients ? `
-      <div class="af-ingredient-list">
-        ${ingredients.map((ing) => {
-          const scale = ing.grams / 100;
-          const unit = ing.unit || "g";
-          return `
-            <div class="af-ingredient-row">
-              <div class="af-ingredient-top">
-                <span class="af-ingredient-name">${escapeHtml(ing.name)}</span>
-                <span class="af-ingredient-amount">${gramsToUnit(ing.grams, unit)}${UNIT_LABELS[unit] || "g"}</span>
-              </div>
-              <div class="af-ingredient-macros">${Math.round(ing.baseCalories * scale)} kcal • P ${Math.round(ing.baseProtein * scale)}g • F ${Math.round(ing.baseFat * scale)}g • C ${Math.round(ing.baseCarbs * scale)}g</div>
-            </div>
-          `;
-        }).join("")}
-      </div>
+      <div class="af-ingredient-list" id="af-relog-ingredients">${afRelogIngredientRowsHtml(draft)}</div>
     ` : "";
     afModalBody.innerHTML = `
       <div class="af-title-wrap af-rise">
         <span class="af-title-input" style="cursor:default;">${escapeHtml(original.food)}</span>
       </div>
-      <div class="af-rise" style="--d:60ms;">${donutChartHtml(m.protein, m.fat, m.carbs, m.calories)}</div>
+      <div class="af-rise" id="af-relog-donut" style="--d:60ms;">${donutChartHtml(m.protein, m.fat, m.carbs, m.calories)}</div>
       <div class="af-amount-card af-rise" style="--d:100ms;">
         <div class="af-amount-head">
           <span class="af-amount-title">Amount</span>
-          <span class="af-amount-serving-hint">${Math.round(totals.grams)}g total</span>
+          <span class="af-amount-serving-hint" id="af-relog-total">${Math.round(totals.grams)}g total</span>
         </div>
         ${ingredientsHtml}
       </div>
@@ -2847,6 +2821,7 @@
     // that screen is an unrelated flow the user never asked for, so the
     // caller passes its own way out instead.
     document.getElementById("af-relog-cancel-btn").addEventListener("click", onCancel || renderAfChoice);
+    wireAfRelogIngredients(draft);
     const relogConfirmBtn = document.getElementById("af-relog-confirm-btn");
     relogConfirmBtn.addEventListener("click", () => {
       // The sheet animates out over ~300ms after relogEntry() pushes, and the
@@ -2855,7 +2830,102 @@
       // second helping. One-shot, so the double-tap lands on a dead button.
       if (relogConfirmBtn.disabled) return;
       relogConfirmBtn.disabled = true;
-      relogEntry(original, hourForLog);
+      relogEntry(draft, hourForLog);
+    });
+  }
+
+  // The re-log sheet's ingredient list, drawn with the SAME row design as
+  // the timeline's ingredients panel (renderIngredientsPanel): icon, name,
+  // remove, then an amount field with its own unit picker -- so "how much
+  // of each thing am I logging" looks and works identically in both places.
+  // Names come from Gemini, so they go through escapeHtml() like every
+  // other model-authored string here.
+  function afRelogIngredientRowsHtml(draft) {
+    // The last remaining ingredient keeps no remove button. An empty
+    // ingredients array is a shape entryTotals() has no branch for -- it
+    // falls through to the simple-food path and scales a `grams` that a
+    // composite entry never had -- so a dish emptied to nothing would log
+    // as NaN kcal rather than as nothing at all.
+    const canRemove = draft.ingredients.length > 1;
+    return draft.ingredients.map((ing, i) => {
+      const unit = ing.unit || "g";
+      return `
+        <div class="nl-ingredient-row">
+          <div class="nl-ingredient-top">
+            <div class="nl-ingredient-icon">${foodIconHtml(ing.name, "nl-food-photo-ingredient")}</div>
+            <div class="nl-ingredient-name">${escapeHtml(ing.name)}</div>
+            ${canRemove ? `<button type="button" class="nl-ingredient-remove" data-af-remove-ingredient="${i}" aria-label="Remove ingredient">&times;</button>` : ""}
+          </div>
+          <div class="af-ingredient-macros" data-af-ing-macros>${afIngredientMacrosText(ing)}</div>
+          <div class="nl-ingredient-bottom">
+            <div class="nl-ingredient-amount-group">
+              <input type="number" min="0" class="nl-ingredient-grams" value="${gramsToUnit(ing.grams, unit)}"
+                     data-af-ingredient-index="${i}" data-clear-on-focus>
+              <select class="nl-unit-select" data-af-ingredient-unit-index="${i}">${unitOptionsHtml(unit)}</select>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function afIngredientMacrosText(ing) {
+    const scale = ing.grams / 100;
+    return `${Math.round(ing.baseCalories * scale)} kcal • P ${Math.round(ing.baseProtein * scale)}g • F ${Math.round(ing.baseFat * scale)}g • C ${Math.round(ing.baseCarbs * scale)}g`;
+  }
+
+  // Delegated on the list container, so the handlers survive the innerHTML
+  // rewrite that removing a row does.
+  function wireAfRelogIngredients(draft) {
+    const listEl = document.getElementById("af-relog-ingredients");
+    if (!listEl) return;
+
+    // Patched in place rather than re-rendered: the amount <input> being
+    // typed into lives inside this list, and rebuilding it mid-keystroke
+    // would drop focus -- the same reason patchEntryHero() exists for the
+    // timeline's copy of this editor.
+    const patchTotals = () => {
+      const m = scaledMacros(draft);
+      document.getElementById("af-relog-donut").innerHTML =
+        donutChartHtml(m.protein, m.fat, m.carbs, m.calories);
+      document.getElementById("af-relog-total").textContent =
+        `${Math.round(entryTotals(draft).grams)}g total`;
+    };
+
+    listEl.addEventListener("input", (event) => {
+      const input = event.target.closest("[data-af-ingredient-index]");
+      if (!input) return;
+      const ing = draft.ingredients[parseInt(input.dataset.afIngredientIndex, 10)];
+      const grams = unitToGrams(parseFloat(input.value), ing.unit || "g");
+      // A half-typed field ("", "-", ".") keeps the last good amount instead
+      // of collapsing the dish to zero while the number is being edited.
+      if (!(grams >= 0)) return;
+      ing.grams = grams;
+      input.closest(".nl-ingredient-row").querySelector("[data-af-ing-macros]").textContent =
+        afIngredientMacrosText(ing);
+      patchTotals();
+    });
+
+    // Switching unit only changes what is displayed and typed -- grams stay
+    // the canonical amount, so there is nothing to recompute.
+    listEl.addEventListener("change", (event) => {
+      const select = event.target.closest("[data-af-ingredient-unit-index]");
+      if (!select) return;
+      const ing = draft.ingredients[parseInt(select.dataset.afIngredientUnitIndex, 10)];
+      ing.unit = select.value;
+      const gramsInput = select.parentElement.querySelector("[data-af-ingredient-index]");
+      if (gramsInput) gramsInput.value = gramsToUnit(ing.grams, ing.unit);
+    });
+
+    listEl.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-af-remove-ingredient]");
+      if (!btn) return;
+      draft.ingredients.splice(parseInt(btn.dataset.afRemoveIngredient, 10), 1);
+      // Row indices are positional, so everything after the removed row has
+      // to be renumbered: a full redraw of the list, which is safe here
+      // because a tap on the remove button is not a focus worth protecting.
+      listEl.innerHTML = afRelogIngredientRowsHtml(draft);
+      patchTotals();
     });
   }
 
