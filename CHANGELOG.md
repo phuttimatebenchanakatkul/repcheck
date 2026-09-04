@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.9.0.0] - 2026-09-04
+
+### Added
+
+- You can now report or block anyone whose name you see on a leaderboard.
+  Tap the "..." on their row: reporting sends it to us with a reason and
+  blocks them at the same time, so you stop seeing the name straight away
+  rather than after a second step. We review reports within 24 hours.
+- A blocked account disappears completely, both ways round. Not just from
+  the leaderboard you were looking at, but from the other one, from your
+  friends list, from challenges and their notes, and they cannot add you
+  back with your friend code. They stop seeing you too.
+- Settings has a Blocked accounts list, so a block is something you can look
+  at later and undo.
+
 ## [0.8.4.0] - 2026-09-04
 
 ### Fixed
