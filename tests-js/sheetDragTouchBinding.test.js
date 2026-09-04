@@ -170,6 +170,33 @@ describe("bottom-sheet drag: touch listeners are scoped to the open sheet", () =
     settleClose();
   });
 
+  it("arms a sheet whose drag was bound AFTER it was opened", () => {
+    // static/coaching.js builds its overlay, opens it, and only then calls
+    // bindSheetDrag. openBottomSheet's synchronous arm therefore runs while
+    // _sheetDragArm is still undefined and silently does nothing, so
+    // openBottomSheet arms a second time once the sheet is actually on
+    // screen. Without that the coaching check-in sheet lost swipe-to-dismiss
+    // -- and it has no backdrop click and no close button, so a finger had no
+    // way out of it at all.
+    document.body.innerHTML = sheetFixture();
+    loadSheetHelpers();
+    const log = trackTouchListeners(overlay());
+    const closeCb = vi.fn(() => window.closeBottomSheet(overlay(), ".mt-sheet"));
+
+    window.openBottomSheet(overlay(), ".mt-sheet");
+    window.bindSheetDrag(overlay(), ".mt-sheet", ".mt-sheet-handle", closeCb);
+    vi.advanceTimersByTime(50);
+
+    expect(log).toContain("+touchmove:blocking");
+
+    // and the gesture it exists for actually works
+    touch(handle(), "touchstart", 400);
+    touch(handle(), "touchmove", 560);
+    touch(handle(), "touchend", 560);
+    expect(closeCb).toHaveBeenCalledTimes(1);
+    settleClose();
+  });
+
   it("ignores jitter inside the deadzone", () => {
     const closeCb = mount();
     openSheet();

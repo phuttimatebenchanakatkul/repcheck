@@ -1,21 +1,30 @@
 // The analyze "ask" dock opens on a pull-down at the very top of the page.
-// Holding the pull preview under the finger means preventDefault(), so its
+// Holding that pull preview under the finger means preventDefault(), so its
 // touchmove listener has to be non-passive -- and a non-passive touchmove on
 // `document` is scroll-blocking for the WHOLE page for as long as it is
 // attached: the browser cannot hand a scroll to the compositor until the main
 // thread has run the handler and seen whether it cancelled.
 //
-// It used to be bound for the life of the page, on both screens that mount
+// It used to be attached for the life of the page, on both screens that mount
 // this widget (the analyze result view and the server-rendered result page).
 // Past the first few pixels of scroll the handler does nothing at all --
 // onTouchStart has already set pulling=false -- but the scroll was still
 // paying for it, on exactly the long results page a user scrolls most.
 //
-// So it is armed by onTouchStart, only for a pull that can actually open the
-// dock, and taken off again at the end of the gesture. These tests pin that,
-// and pin that the pull itself still works.
+// The listener is now tied to the one state a pull can start from: page at the
+// top, dock closed. That is a SCROLL-state question, so it is answered from
+// the scroll handler and from open()/close(), NOT from onTouchStart.
 //
-// Regression: ISSUE-002 -- found by /qa on 2026-09-04.
+// Arming inside onTouchStart would be the obvious place and is deliberately
+// wrong: both WebKit and Chromium decide whether a touch sequence is
+// cancelable at touch-DOWN, from the handler regions already committed, so a
+// blocking listener added during the dispatch of a passive touchstart arrives
+// too late for the gesture in flight -- e.cancelable would come back false and
+// preventDefault() would silently do nothing, leaving the preview to follow
+// the finger while the page rubber-banded underneath it.
+//
+// Regression: ISSUE-002 -- found by /qa on 2026-09-04, redesigned after
+// /ship's adversarial review flagged the cancelability hazard.
 // Report: .gstack/qa-reports/qa-report-repcheck-q0m4-onrender-com-2026-09-04.md
 import { beforeEach, describe, expect, it } from "vitest";
 import { mountWidget, trackDocumentTouchListeners } from "./support/loadAnalyzeChatWidget.js";
@@ -31,83 +40,81 @@ function touch(type, clientY) {
 
 function scrollTo(y) {
   Object.defineProperty(window, "scrollY", { value: y, configurable: true });
+  window.dispatchEvent(new Event("scroll"));
 }
 
-describe("analyze chat dock: the pull listener is scoped to the pull", () => {
+describe("analyze chat dock: the pull listener follows the scroll state", () => {
   beforeEach(() => {
-    scrollTo(0);
+    // init() tears down the previous instance via window.__agCleanup, which
+    // removes touch listeners. Do it here instead, so a test's listener log
+    // only ever contains what THIS mount did.
+    if (window.__agCleanup) { window.__agCleanup(); window.__agCleanup = null; }
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
     localStorage.clear();
+    document.body.innerHTML = "";
   });
 
-  it("binds no scroll-blocking touchmove at init", () => {
-    document.body.innerHTML = "";
+  it("is armed at the top of a freshly loaded page", () => {
+    // The listener has to exist BEFORE the finger lands, or the pull's
+    // preventDefault() is inert. At the top with the dock closed, a pull is
+    // possible, so it is armed.
     const log = trackDocumentTouchListeners();
     mountWidget();
-    expect(log.filter((e) => e.includes("touchmove"))).toEqual([]);
-    // The cheap, passive parts are still bound up front.
+    expect(log).toContain("+touchmove:blocking");
     expect(log).toContain("+touchstart");
   });
 
-  it("arms on a pull that starts at the top, and disarms at the end", () => {
+  it("comes off as soon as the page is scrolled, and goes back on at the top", () => {
+    // This is the whole win: a long analyze result scrolls without the
+    // compositor waiting on the main thread.
     mountWidget();
     const log = trackDocumentTouchListeners();
 
-    touch("touchstart", 10);
-    expect(log).toEqual(["+touchmove:blocking"]);
-
-    touch("touchend", 10);
-    expect(log).toEqual(["+touchmove:blocking", "-touchmove"]);
-  });
-
-  it("never arms when the page is already scrolled", () => {
-    mountWidget();
     scrollTo(240);
-    const log = trackDocumentTouchListeners();
+    expect(log).toEqual(["-touchmove"]);
 
-    touch("touchstart", 400);
-    touch("touchmove", 460);
-    touch("touchend", 460);
-
-    expect(log.filter((e) => e.includes("touchmove"))).toEqual([]);
+    scrollTo(0);
+    expect(log).toEqual(["-touchmove", "+touchmove:blocking"]);
   });
 
-  it("disarms mid-gesture once the page is no longer at the top", () => {
+  it("comes off while the dock is open and back on when it closes", () => {
     mountWidget();
     const log = trackDocumentTouchListeners();
 
     touch("touchstart", 10);
-    expect(log).toContain("+touchmove:blocking");
-
-    scrollTo(120); // the page moved under the finger
-    touch("touchmove", 40);
-    expect(log).toContain("-touchmove");
-  });
-
-  it("disarms on touchcancel, not just touchend", () => {
-    // The interruption a phone actually takes: incoming call, system gesture,
-    // scroll takeover. touchcancel is routed to the same handler as touchend;
-    // if it were not, one interrupted pull would leave the page's scrolling
-    // blocked for good, which is ISSUE-002 all over again.
-    mountWidget();
-    const log = trackDocumentTouchListeners();
-
-    touch("touchstart", 10);
-    expect(log).toContain("+touchmove:blocking");
-
-    touch("touchcancel", 10);
-    expect(log).toContain("-touchmove");
-  });
-
-  it("does not arm a pull when the dock is already open", () => {
-    mountWidget();
-    touch("touchstart", 10);
-    touch("touchmove", 90);
+    touch("touchmove", 90); // past PULL_OPEN (64)
     touch("touchend", 90);
     expect(dock().classList.contains("is-open")).toBe(true);
+    expect(log).toContain("-touchmove");
 
+    log.length = 0;
+    document.getElementById("ac-toggle").click(); // toggle shut
+    expect(dock().classList.contains("is-open")).toBe(false);
+    expect(log).toContain("+touchmove:blocking");
+  });
+
+  it("never arms the pull on the docked bar", () => {
+    // templates/result.html renders documentElement.an-result, which has no
+    // pull gesture at all -- so it must never pay for one.
     const log = trackDocumentTouchListeners();
-    touch("touchstart", 10); // dock open -> pulling is false -> never arms
+    mountWidget(undefined, { bottom: true });
     expect(log.filter((e) => e.includes("touchmove"))).toEqual([]);
+    expect(log.filter((e) => e.includes("touchstart"))).toEqual([]);
+
+    // open() and close() also sync the arming, and they ARE reachable on the
+    // docked bar -- so the guard has to hold on that path too, not just at
+    // init where the bind block is skipped wholesale.
+    document.getElementById("ac-toggle").click();
+    document.getElementById("ac-toggle").click();
+    expect(log.filter((e) => e.includes("touchmove"))).toEqual([]);
+  });
+
+  it("does not re-arm on a scroll that is already at the top", () => {
+    mountWidget();
+    const log = trackDocumentTouchListeners();
+    scrollTo(0);
+    scrollTo(0);
+    expect(log).toEqual([]); // idempotent, no listener churn per scroll event
   });
 
   it("still previews the pull under the finger", () => {
@@ -118,12 +125,14 @@ describe("analyze chat dock: the pull listener is scoped to the pull", () => {
     expect(dock().style.transform).not.toBe("");
   });
 
-  it("still opens on a release past the threshold", () => {
+  it("ignores jitter inside the pull deadzone", () => {
     mountWidget();
     touch("touchstart", 10);
-    touch("touchmove", 90); // 80px, past PULL_OPEN (64)
-    touch("touchend", 90);
-    expect(dock().classList.contains("is-open")).toBe(true);
+    touch("touchmove", 20); // 10px, inside the 14px deadzone
+    expect(dock().classList.contains("is-pulling")).toBe(false);
+    expect(dock().style.transform).toBe("");
+    touch("touchend", 20);
+    expect(dock().classList.contains("is-open")).toBe(false);
   });
 
   it("does not open on a release that stopped short", () => {
@@ -133,5 +142,15 @@ describe("analyze chat dock: the pull listener is scoped to the pull", () => {
     touch("touchend", 40);
     expect(dock().classList.contains("is-open")).toBe(false);
     expect(dock().style.transform).toBe("");
+  });
+
+  it("abandons a pull that started before the page was scrolled", () => {
+    mountWidget();
+    touch("touchstart", 10);
+    Object.defineProperty(window, "scrollY", { value: 120, configurable: true });
+    touch("touchmove", 40); // the page moved under the finger
+    expect(dock().classList.contains("is-pulling")).toBe(false);
+    touch("touchend", 40);
+    expect(dock().classList.contains("is-open")).toBe(false);
   });
 });

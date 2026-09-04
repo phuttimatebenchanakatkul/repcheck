@@ -160,6 +160,7 @@
     function open(focusNow) {
       const wasOpen = isOpen();
       if (!wasOpen) { dockEl.classList.add("is-open"); openedAt = Date.now(); }
+      syncPullArming(); // open dock -> the pull is unavailable, drop the listener
       if (!focusNow) return;
       // iOS only reliably raises the keyboard for a focus() call that is
       // (a) synchronous within the user gesture and (b) lands on a field
@@ -204,6 +205,7 @@
     function close() {
       if (!isOpen()) return;
       dockEl.classList.remove("is-open");
+      syncPullArming(); // closed again -> the pull is back if we are at the top
       if (document.activeElement === inputEl) inputEl.blur();
     }
 
@@ -249,14 +251,26 @@
     }
     // onTouchMove has to preventDefault() to hold the pull preview under the
     // finger, so its listener must be non-passive -- and a non-passive
-    // touchmove on `document` is scroll-blocking for the entire page, for as
-    // long as it is attached. It is only ever useful for a pull that starts
-    // at the very top with the dock closed, which onTouchStart already
-    // decides, so bind it for that one gesture and take it off again at the
-    // end. touchstart always precedes touchmove within a gesture, so the
-    // pull still sees every move it needs; every other scroll on the analyze
-    // and result screens now reaches the compositor without waiting on the
-    // main thread.
+    // touchmove on `document` is scroll-blocking for the ENTIRE page for as
+    // long as it is attached. It used to be attached for the life of the
+    // page, on both screens that mount this widget, so every scroll on a long
+    // analyze result paid for a handler that does nothing once you are a few
+    // pixels down.
+    //
+    // It is only ever useful in one state: page at the very top, dock closed.
+    // That is a SCROLL-state question, not a touch-state one, so it is
+    // answered from the scroll handler and from open()/close() rather than
+    // from onTouchStart.
+    //
+    // Deliberately not armed inside onTouchStart, which would be the obvious
+    // place. Both WebKit and Chromium decide whether a touch sequence is
+    // cancelable at touch-DOWN, from the handler regions already committed.
+    // Adding a blocking listener during the dispatch of a passive touchstart
+    // updates the region too late for the gesture already in flight, so
+    // e.cancelable comes back false and the preventDefault() below silently
+    // does nothing -- the preview would follow the finger while the page
+    // rubber-banded underneath it. Arming on scroll state means the listener
+    // is always in place BEFORE the finger lands.
     let moveArmed = false;
     function armMove() {
       if (moveArmed) return;
@@ -268,16 +282,20 @@
       moveArmed = false;
       document.removeEventListener("touchmove", onTouchMove);
     }
+    /** The one state a pull can open the dock from. */
+    function syncPullArming() {
+      if (bottomMode) return; // docked bar: no pull gesture at all
+      if (window.scrollY <= 0 && !isOpen()) armMove(); else disarmMove();
+    }
 
     function onTouchStart(e) {
       pulling = window.scrollY <= 0 && !isOpen();
       pullStartY = e.touches[0].clientY;
       pullDy = 0;
-      if (pulling) armMove(); else disarmMove();
     }
     function onTouchMove(e) {
       if (!pulling) return;
-      if (window.scrollY > 0) { pulling = false; disarmMove(); clearPullPreview(); return; }
+      if (window.scrollY > 0) { pulling = false; clearPullPreview(); return; }
       const dy = e.touches[0].clientY - pullStartY;
       pullDy = dy;
       if (dy <= 14) { clearPullPreview(); return; }
@@ -286,7 +304,6 @@
       dockEl.style.transform = `translateY(${Math.min((dy - 14) * 0.35, 28)}px)`;
     }
     function onTouchEnd() {
-      disarmMove();
       if (!pulling) return;
       pulling = false;
       const passed = pullDy >= PULL_OPEN;
@@ -308,6 +325,9 @@
           Date.now() - openedAt > 500) {
         close();
       }
+      // Scrolled off the top -> the pull can no longer start, so the blocking
+      // listener comes off for the rest of the page. This is the whole win.
+      syncPullArming();
     }
 
     const rootStyle = document.documentElement.style;
@@ -319,6 +339,7 @@
       document.addEventListener("touchend", onTouchEnd, { passive: true });
       document.addEventListener("touchcancel", onTouchEnd, { passive: true });
       window.addEventListener("scroll", onScroll, { passive: true });
+      syncPullArming();
     }
 
     window.__agCleanup = function () {

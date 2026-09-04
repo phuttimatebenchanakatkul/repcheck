@@ -28,8 +28,14 @@ export function widgetFixture() {
   `;
 }
 
-export function mountWidget(context) {
-  document.documentElement.className = ""; // top-dock mode, not .an-result
+/**
+ * @param {object} [context] the analyze-result context init() takes
+ * @param {{bottom?: boolean}} [opts] bottom:true mounts the DOCKED bar
+ *        (documentElement.an-result, as templates/result.html renders it),
+ *        which has no pull-to-open gesture at all.
+ */
+export function mountWidget(context, opts) {
+  document.documentElement.className = opts && opts.bottom ? "an-result" : "";
   document.body.innerHTML = widgetFixture();
   // The widget reads t() for every placeholder and bubble; the strings
   // themselves are not what these tests are about.

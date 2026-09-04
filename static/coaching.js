@@ -1854,8 +1854,9 @@
         overlay.addEventListener("click", (event) => {
           if (event.target === overlay) this.closeWizard();
         });
-        window.openBottomSheet(overlay, ".log-sheet");
+        // Bind before opening -- see the check-in sheet below for why.
         window.bindSheetDrag(overlay, ".log-sheet", ".log-sheet-handle", () => this.closeWizard());
+        window.openBottomSheet(overlay, ".log-sheet");
       }
 
       const body = overlay.querySelector("#pc-wizard-sheet-body");
@@ -2366,8 +2367,14 @@
           </div>
         `);
         document.body.appendChild(overlay);
-        window.openBottomSheet(overlay, ".pc-ck-sheet");
+        // Bind BEFORE opening. openBottomSheet arms the drag, and it can only
+        // arm what bindSheetDrag has already defined -- the other order left
+        // this sheet with no swipe-to-dismiss, and it has no backdrop click
+        // and no close button, so it was the one sheet a finger could not get
+        // out of. base.html arms a second time once the sheet is actually on
+        // screen, which covers this either way; the order still belongs here.
         window.bindSheetDrag(overlay, ".pc-ck-sheet", ".pc-ck-sheet-handle", () => this.closeCheckin());
+        window.openBottomSheet(overlay, ".pc-ck-sheet");
       }
 
       const inner = overlay.querySelector("#pc-checkin-inner");

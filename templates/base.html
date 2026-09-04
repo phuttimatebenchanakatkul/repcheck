@@ -508,6 +508,14 @@
               overlayEl.classList.add("is-in");
               overlayEl.classList.add("is-open");
               document.documentElement.classList.add("pc-sheet-active");
+              // Armed a second time, on purpose. Some callers bind the drag
+              // AFTER opening the sheet (static/coaching.js builds the
+              // overlay, opens it, then calls bindSheetDrag), so the
+              // synchronous arm above ran while _sheetDragArm was still
+              // undefined and silently did nothing. By this frame the bind
+              // has happened. Arming is idempotent, so the ordinary
+              // bind-then-open path pays nothing for this.
+              if (overlayEl._sheetDragArm) overlayEl._sheetDragArm();
             });
           });
         };
@@ -574,18 +582,23 @@
           window.__pcSheetSwapUnlockBound = true;
           document.addEventListener("repcheck:page-will-swap", function () {
             document.querySelectorAll("body > [data-pc-page-sheet]").forEach(function (el) {
+              // Ahead of the is-open guard below, for the reason
+              // closeBottomSheet does the same: openBottomSheet arms
+              // synchronously but only adds is-in/is-open two frames later,
+              // so a swap landing in that window would take the early return
+              // and leave the listener behind.
+              if (el._sheetDragDisarm) el._sheetDragDisarm();
               if (!el.classList.contains("is-in") && !el.classList.contains("is-open")) return;
               el.classList.remove("is-in");
               el.classList.remove("is-open");
               // This path unlocks the sheet by hand instead of going through
               // closeBottomSheet, so it has to do closeBottomSheet's disarm
-              // too. Otherwise a page-owned sheet that was still OPEN when
-              // its page swapped away keeps its non-passive, full-viewport
+              // too. Otherwise a page-owned sheet that was still OPEN when its
+              // page swapped away keeps its non-passive, full-viewport
               // touchmove -- the exact leak arming exists to prevent. It
               // survives only as long as nav_scope actually removes the node,
               // which is itself guarded (adopt() is behind a
               // window.RepCheckNavScope check), so do not lean on that.
-              if (el._sheetDragDisarm) el._sheetDragDisarm();
               window.__pcSheetLockCount = Math.max(0, window.__pcSheetLockCount - 1);
               if (window.__pcSheetLockCount > 0) return;
               document.documentElement.classList.remove("pc-sheet-active");
