@@ -301,10 +301,48 @@
             dy = 0;
           };
 
-          overlay.addEventListener("touchstart", onStart, { passive: true });
-          overlay.addEventListener("touchmove", onMove, { passive: false });
-          overlay.addEventListener("touchend", onEnd, { passive: true });
-          overlay.addEventListener("touchcancel", onEnd, { passive: true });
+          // Armed by openBottomSheet, disarmed by closeBottomSheet, rather
+          // than bound here at page load.
+          //
+          // onMove has to preventDefault() a downward drag, so its touchmove
+          // listener must be non-passive -- and a non-passive touchmove
+          // listener is scroll-blocking for as long as it is attached: the
+          // browser cannot hand the gesture to the compositor until the main
+          // thread has run the handler and seen whether it cancelled. These
+          // overlays are `position: fixed; inset: 0` and stay in the DOM at
+          // opacity 0 between uses, so binding at load left every screen
+          // carrying full-viewport scroll-blocking regions at all times
+          // (measured in a real browser against the running app: three on
+          // most pages, six on Nutrition). Every touch-scroll in the app
+          // waited on the main thread before it could move -- invisible with
+          // a desktop mouse, jank on a phone.
+          let armed = false;
+          overlay._sheetDragArm = () => {
+            if (armed) return;
+            armed = true;
+            overlay.addEventListener("touchstart", onStart, { passive: true });
+            overlay.addEventListener("touchmove", onMove, { passive: false });
+            overlay.addEventListener("touchend", onEnd, { passive: true });
+            overlay.addEventListener("touchcancel", onEnd, { passive: true });
+          };
+          overlay._sheetDragDisarm = () => {
+            if (!armed) return;
+            armed = false;
+            overlay.removeEventListener("touchstart", onStart);
+            overlay.removeEventListener("touchmove", onMove);
+            overlay.removeEventListener("touchend", onEnd);
+            overlay.removeEventListener("touchcancel", onEnd);
+            // A close that did not come from the drag (a Cancel tap with a
+            // finger still down) leaves onEnd unbound and never called, so
+            // the drag has to be unwound here instead -- without running
+            // closeCb, which is the close this is already part of.
+            if (dragging) {
+              dragging = false;
+              dy = 0;
+              sheet.style.transition = "";
+              sheet.style.transform = "";
+            }
+          };
 
           if (handle) {
             handle.addEventListener("mousedown", (e) => {
@@ -449,6 +487,8 @@
             document.body.appendChild(overlayEl);
           }
           overlayEl.style.display = "";
+          // Swipe-to-dismiss exists only while the sheet is actually up.
+          if (overlayEl._sheetDragArm) overlayEl._sheetDragArm();
           // Pinning <body> is the iOS fix for the page scrolling behind an
           // open sheet. Inside the device frame <body> is the phone itself
           // and does not scroll -- repositioning it would move the whole
@@ -473,6 +513,14 @@
         };
 
         window.closeBottomSheet = function(overlayEl, sheetSelector, callback) {
+          // Before the is-open guard below, not after it. openBottomSheet
+          // only adds is-in/is-open inside a double requestAnimationFrame, so
+          // a sheet closed in the same tick it was opened (a fast tap, or a
+          // programmatic close) takes the early return -- and would keep its
+          // scroll-blocking touchmove listener for the life of the page,
+          // which is the whole thing arming exists to avoid. Closing is the
+          // end of the drag either way.
+          if (overlayEl && overlayEl._sheetDragDisarm) overlayEl._sheetDragDisarm();
           if (!overlayEl || (!overlayEl.classList.contains("is-in") && !overlayEl.classList.contains("is-open"))) {
             if (typeof callback === "function") callback();
             return;
