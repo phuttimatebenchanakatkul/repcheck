@@ -10,9 +10,9 @@
 // something has to be on screen during it, and during a document swap
 // nothing is.
 //
-// So the tab bar no longer loads documents. It fetches the next page, puts
-// its <main> in place of this one, and runs its scripts. The shell -- tab
-// bar, sidebar, sheets -- is never torn down, so there is nothing to blank.
+// So the app no longer loads documents. It fetches the next page, puts its
+// <main> in place of this one, and runs its scripts. The shell -- tab bar,
+// sidebar, sheets -- is never torn down, so there is nothing to blank.
 //
 // The three things that make this safe in a codebase that was not built for
 // it, each of which is why the obvious version of this file breaks:
@@ -35,8 +35,17 @@
 //   throws -- all of them end in location.assign(url). The worst outcome is
 //   the behaviour we had before this file existed.
 //
-// Deliberately scoped to the five tab-bar links. Every other link in the app
-// is still an ordinary navigation.
+// This started out scoped to the five tab-bar links, and that turned out to
+// be the bug rather than the caution it was meant to be. /api/nav-state has
+// recorded "on" for every page load since it shipped and has never recorded
+// an "off:" or a "swap-failed:" -- so swapping starts on the phone, and no
+// swap it attempted has ever fallen back to a page load. Every full page load
+// the app still did was a link this file was not watching, and most of the
+// app's links are not tabs: the "+" sheet's Coach, Friends, Settings, "Scan a
+// meal" and "Analyze a lift" tiles, the home cards, the analyze result's back
+// arrow, the weight and logging history links. So it now watches every
+// same-origin page link. What is left to the browser is spelled out at
+// linkFor() below.
 
 (function (window, document) {
   "use strict";
@@ -100,7 +109,8 @@
   // was set. That was a permanent, invisible kill switch on a key nothing
   // clears if a tour is abandoned, and it was not even needed: the tour
   // drives its own navigation with location.href, which this file does not
-  // touch. Only tab-bar clicks are intercepted.
+  // touch: only clicks on links are intercepted, never an assignment to
+  // location.
 
   function install(scope, main, pill) {
 
@@ -225,18 +235,42 @@
   }
 
   // ---- Running the incoming page's own scripts ----------------------------
+  // Lifted out of the parsed page BEFORE its nodes are moved into the live
+  // document, and every <script> element removed on the way past.
+  //
+  // The removal is what makes moving the nodes safe at all. The old code
+  // assigned incoming.innerHTML, and a <script> written by innerHTML never
+  // runs -- that is the only reason re-running them by hand below was the
+  // whole story. A script element MOVED into the live document is a
+  // different case: it has not been "already started", so the browser runs
+  // it itself, natively, as a global. Every page script would then execute
+  // twice, the second time throwing "Identifier already declared" on its
+  // first line (see the file header). So the elements go, and their source
+  // comes with us.
+  function takeScripts(root) {
+    var sources = [];
+    var nodes = [].slice.call(root.querySelectorAll("script"));
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var type = node.getAttribute("type");
+      // Inline, executable JavaScript only. Anything with a src has already
+      // been loaded into <head> by loadAssets, and anything else -- JSON-LD,
+      // templates, ES modules (which `new Function` cannot run) -- is not
+      // ours to execute. All of them are still removed: what must not happen
+      // is a script element reaching the live document.
+      if (!node.getAttribute("src") &&
+          (!type || /^(text|application)\/(java|ecma)script$/i.test(type))) {
+        sources.push(node.textContent);
+      }
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }
+    return sources;
+  }
+
   // One function scope for all of them together, in document order, so the
   // page's scripts still see each other's declarations while a second visit
   // gets a clean set rather than a redeclaration error.
-  function runInlineScripts(fragment) {
-    var sources = [];
-    var nodes = fragment.querySelectorAll("script:not([src])");
-    for (var i = 0; i < nodes.length; i++) {
-      var type = nodes[i].getAttribute("type");
-      // Skip anything that is not executable JavaScript -- JSON-LD, templates.
-      if (type && !/^(text|application)\/(java|ecma)script$/i.test(type)) continue;
-      sources.push(nodes[i].textContent);
-    }
+  function runScripts(sources) {
     if (!sources.length) return;
     scope.start();
     try {
@@ -249,12 +283,26 @@
   }
 
   // ---- The shell bits that do change between pages ------------------------
+  // `.sidebar .nav a`, not `.sidebar-nav a`: there is no element of that
+  // class anywhere in the app, so the selector matched the tab bar and
+  // nothing else and the sidebar's own highlight was never moved. It is
+  // display:none at every width today (style.css), which is the only reason
+  // that never showed.
+  var NAV_LINKS = ".mt-item, .sidebar .nav a";
+  // The two bars mark their active link with different class names.
+  var ACTIVE_CLASSES = ["is-active", "active"];
+
   function syncNav(doc) {
-    var incoming = doc.querySelectorAll(".mt-item, .sidebar-nav a");
-    var current = document.querySelectorAll(".mt-item, .sidebar-nav a");
+    var incoming = doc.querySelectorAll(NAV_LINKS);
+    var current = document.querySelectorAll(NAV_LINKS);
     if (incoming.length !== current.length) return;
     for (var i = 0; i < current.length; i++) {
-      current[i].classList.toggle("is-active", incoming[i].classList.contains("is-active"));
+      for (var c = 0; c < ACTIVE_CLASSES.length; c++) {
+        current[i].classList.toggle(
+          ACTIVE_CLASSES[c],
+          incoming[i].classList.contains(ACTIVE_CLASSES[c])
+        );
+      }
     }
   }
 
@@ -272,10 +320,29 @@
     document.dispatchEvent(new CustomEvent(SWAPPED, { detail: { url: window.location.href } }));
   }
 
-  /** Puts a fetched page on screen. Everything here is synchronous, so the
-   *  screen never sits half-swapped. */
-  function render(html, url, options) {
-    var doc = new DOMParser().parseFromString(html, "text/html");
+  // Where the arriving screen should be looking. A link into a section
+  // (/settings#account, and the tour's) used to land at the top of the page
+  // instead, because a swap is not a navigation and the browser never
+  // resolves the fragment for us.
+  function scrollIntoPlace(url) {
+    var a = document.createElement("a");
+    a.href = url;
+    var id = a.hash ? a.hash.slice(1) : "";
+    var target = null;
+    if (id) {
+      try {
+        target = document.getElementById(decodeURIComponent(id));
+      } catch (err) {
+        /* A malformed fragment is not worth failing a swap over. */
+      }
+    }
+    if (target && target.scrollIntoView) target.scrollIntoView();
+    else window.scrollTo(0, 0);
+  }
+
+  /** Puts an already-parsed page on screen. Everything here is synchronous,
+   *  so the screen never sits half-swapped. */
+  function render(doc, url, options) {
     var incoming = doc.querySelector("main.main");
     if (!incoming) throw new Error("no main");
 
@@ -283,12 +350,35 @@
     scope.release(pageRecords);
     pageRecords = null;
 
-    main.innerHTML = incoming.innerHTML;
-    document.title = doc.title;
-    syncNav(doc);
-    window.scrollTo(0, 0);
+    // Measured, not assumed. On this machine's Chromium, one swap to
+    // /nutrition (360 KB of HTML) cost 258ms of blocking main-thread work:
+    // the response was parsed by DOMParser in swap(), parsed AGAIN by
+    // render(), and then serialised back to a string and parsed a THIRD time
+    // by `main.innerHTML = incoming.innerHTML`. Parsing once and moving the
+    // resulting nodes across takes 90ms for the same page (/workouts:
+    // 212 -> 94ms, home: 78 -> 29ms), and a phone is several times slower
+    // than this machine. That work happens with the old screen still up and
+    // nothing able to paint, which is exactly the "it hangs for a moment"
+    // this file was written to remove.
+    var sources = takeScripts(incoming);
+    var arriving = document.createDocumentFragment();
+    while (incoming.firstChild) {
+      arriving.appendChild(document.adoptNode(incoming.firstChild));
+    }
+    main.textContent = "";
+    main.appendChild(arriving);
 
-    runInlineScripts(main);
+    document.title = doc.title;
+    // Page-scoped state on <html>. The analyze result screen adds this to
+    // hide the tab bar and go full-bleed (templates/result.html), and only
+    // its own reset path takes it off -- so swapping away from a result left
+    // every later screen without a tab bar. Cleared before the incoming
+    // page's scripts run, so a swap INTO a result still sets it.
+    document.documentElement.classList.remove("an-result");
+    syncNav(doc);
+    scrollIntoPlace(url);
+
+    runScripts(sources);
     reinit();
     return incoming;
   }
@@ -357,7 +447,7 @@
       if (stored) {
         try {
           clearMotion();
-          render(stored, url, opts);
+          render(new DOMParser().parseFromString(stored, "text/html"), url, opts);
           return Promise.resolve();
         } catch (err) {
           hardNav(url);
@@ -401,6 +491,12 @@
         if (response.redirected && !samePage(response.url, url)) {
           throw new Error("redirect-to-" + pathOf(response.url));
         }
+        // Not every route under this origin answers with a page -- a
+        // send_file download would otherwise be read into a string, thrown
+        // away for having no <main>, and then downloaded a second time by
+        // the fallback navigation. Asked before the body is read.
+        var type = response.headers && response.headers.get && response.headers.get("Content-Type");
+        if (type && type.indexOf("text/html") === -1) throw new Error("not-html");
         return response.text();
       });
 
@@ -416,7 +512,9 @@
           remember(url, html);
           clearMotion();
           enter(direction);
-          render(html, url, opts);
+          // The document parsed just above, handed straight over: render()
+          // used to parse the same response a second time.
+          render(doc, url, opts);
         });
       })
       .catch(function (err) {
@@ -432,24 +530,135 @@
   }
 
   // ---- Wiring -------------------------------------------------------------
-  pill.addEventListener("click", function (event) {
-    // Let the browser have anything that is not a plain left click on a tab:
+  // Every internal link, not only the five tabs.
+  //
+  // This file used to listen on the tab bar alone, and the production log
+  // says that is the whole of the remaining bug. /api/nav-state has recorded
+  // "on" for every page load since it shipped and has NEVER recorded an
+  // "off:" or a "swap-failed:" -- so swapping starts on the phone, and no
+  // swap it attempted has ever fallen back to a page load. The reloads that
+  // are still there are therefore navigations this file was never watching,
+  // and there are a lot of them: the "+" sheet's Coach, Friends, Settings,
+  // "Scan a meal" and "Analyze a lift" tiles, the home cards, the analyze
+  // result's back arrow, the weight/logging history links. Every one is a
+  // plain <a> and every one blanked the screen.
+  //
+  // The safety net is unchanged and is what makes this widening affordable:
+  // a page without a <main>, a redirect somewhere else, a script that throws
+  // -- all of them still end in a real navigation to the same URL, so the
+  // worst case for a link that turns out not to be swappable is exactly the
+  // behaviour it had before.
+  //
+  // Not swapped: anything that is not a plain same-origin page link -- other
+  // origins, downloads, targets, mailto:/tel:, and the handful of paths that
+  // do not render the app shell at all (they have no <main> to swap, so
+  // fetching them first would only cost a round trip before the navigation
+  // this list skips straight to).
+  var NOT_SWAPPABLE = ["/login", "/signup", "/logout", "/onboarding", "/auth/", "/api/", "/static/"];
+
+  function documentOrigin() {
+    var a = document.createElement("a");
+    a.href = "/";
+    return a;
+  }
+
+  /** The internal page link this event landed on, or null. */
+  function linkFor(target) {
+    // The first-run tour walks the user from page to page and picks up the
+    // next step from static/tour.js booting on DOMContentLoaded -- which a
+    // swap never fires, because there is no new document. So while a tour is
+    // on screen, links navigate for real.
+    //
+    // Asked of the DOM, not of localStorage. An earlier version of this file
+    // switched itself off whenever `repcheck_pending_tour` was set, and
+    // nothing clears that key if a tour is abandoned: it was a permanent,
+    // invisible kill switch. The tour's own overlay (or its mini pill) is
+    // removed when the tour ends, so this answer cannot get stuck.
+    if (document.querySelector(".tour-overlay, .tour-mini")) return null;
+    var node = target;
+    while (node && node !== document.body && node.tagName !== "A") node = node.parentNode;
+    if (!node || node.tagName !== "A") return null;
+    if (node.hasAttribute("download") || node.hasAttribute("data-no-swap")) return null;
+    var openIn = node.getAttribute("target");
+    if (openIn && openIn !== "_self") return null;
+    if (/\bexternal\b/i.test(node.getAttribute("rel") || "")) return null;
+    var href = node.getAttribute("href");
+    // A bare fragment is a move within this page; the browser does it better.
+    if (!href || href.charAt(0) === "#") return null;
+    var a = document.createElement("a");
+    a.href = href;
+    var here = documentOrigin();
+    if (a.protocol !== here.protocol || a.host !== here.host) return null;
+    for (var i = 0; i < NOT_SWAPPABLE.length; i++) {
+      if (a.pathname.indexOf(NOT_SWAPPABLE[i]) === 0) return null;
+    }
+    return { el: node, url: a.pathname + a.search + a.hash, hash: a.hash };
+  }
+
+  // A link inside an open sheet. The shell's sheets -- the "+" menu, log
+  // weight, goal adjust -- live outside <main> on purpose so they outlive a
+  // page (see templates/base.html), and until now nothing inside one could
+  // start a swap: tapping "Coach" in the "+" sheet loaded a document, which
+  // took the sheet with it. Swapping in place does not, so the sheet has to
+  // be closed the way the app closes it -- closeBottomSheet also unpins
+  // <body> and drops the scroll lock, which simply hiding it would not.
+  function closeSheetAround(node) {
+    var el = node;
+    while (el && el !== document.body) {
+      if (el.parentNode === document.body && el.classList &&
+          (el.classList.contains("is-open") || el.classList.contains("is-in"))) {
+        if (typeof window.closeBottomSheet === "function") window.closeBottomSheet(el);
+        return;
+      }
+      el = el.parentNode;
+    }
+  }
+
+  document.addEventListener("click", function (event) {
+    // Let the browser have anything that is not a plain left click:
     // modified clicks open tabs, and that is a real navigation.
     if (event.defaultPrevented || event.button || event.metaKey || event.ctrlKey ||
         event.shiftKey || event.altKey) return;
-    var node = event.target;
-    while (node && node !== pill && !(node.classList && node.classList.contains("mt-item"))) {
-      node = node.parentNode;
-    }
-    if (!node || node === pill) return;
-    var href = node.getAttribute("href");
-    if (!href || samePage(href, window.location.href)) {
-      // Already here: swallow the click rather than reloading the page.
-      if (href) event.preventDefault();
+    var link = linkFor(event.target);
+    if (!link) return;
+    if (samePage(link.url, window.location.href)) {
+      // Already on this page. A link to a section of it is the browser's job
+      // -- only a whole-page link is swallowed, so tapping the tab you are
+      // already on does not reload the screen.
+      if (!link.hash) event.preventDefault();
       return;
     }
     event.preventDefault();
-    swap(href);
+    closeSheetAround(link.el);
+    swap(link.url);
+  });
+
+  // ---- Warming the page under the thumb ----------------------------------
+  // pointerdown lands ~100ms before the click, and app.py gives every page a
+  // five-second freshness window for exactly this hand-off, so the swap's
+  // own fetch usually answers from the cache instead of the network. The tab
+  // bar already does this for the five tabs (static/nav.js); this is the
+  // same trick for every other link, which is where the fetch was still
+  // being paid in full.
+  var warmed = Object.create(null);
+  document.addEventListener("pointerdown", function (event) {
+    var link = linkFor(event.target);
+    if (!link) return;
+    // static/nav.js owns the tabs -- it warms them from its own pointerdown
+    // handler, and two fetches for one tap is worse than none.
+    if (link.el.classList && link.el.classList.contains("mt-item")) return;
+    if (warmed[link.url] || samePage(link.url, window.location.href)) return;
+    var conn = window.navigator && window.navigator.connection;
+    // Data Saver is the user saying not to spend bytes on maybes.
+    if (conn && conn.saveData) return;
+    warmed[link.url] = true;
+    try {
+      window
+        .fetch(link.url, { credentials: "same-origin", headers: { "X-RepCheck-Nav": "1" } })
+        .catch(function () {});
+    } catch (err) {
+      /* A refused fetch must never cost the tap its navigation. */
+    }
   });
 
   // Back and forward -- including the iOS edge-swipe, which is where this

@@ -64,8 +64,13 @@ def _pagenav_classic_type_re():
     source = PAGENAV_PATH.read_text(encoding="utf-8")
     # The literal contains an escaped slash (\/), so the scan has to step over
     # backslash escapes rather than stopping at the first slash.
+    # Matched on `.test(type)` alone, without the `!` that used to sit in
+    # front of it: the gate reads `!type || <regex>.test(type)` now that the
+    # scripts are collected on the way out of the parsed page rather than
+    # skipped in place, and anchoring on the negation made this test fail for
+    # a change that did not touch which types run.
     match = re.search(
-        r"!\s*(/\^\(text\|application\)(?:\\.|[^/\\])*/i)\.test\(type\)", source
+        r"(/\^\(text\|application\)(?:\\.|[^/\\])*/i)\.test\(type\)", source
     )
     assert match, (
         "could not find the inline-script type gate in static/pagenav.js -- if it "

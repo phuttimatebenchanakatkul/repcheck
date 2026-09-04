@@ -2,6 +2,28 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.8.2.0] - 2026-09-04
+
+### Fixed
+
+- Moving between screens still reloaded the whole page, and still stalled
+  for a moment when it did. Two separate causes, both measured rather than
+  guessed. The in-place swap only ever watched the five bottom-tab links,
+  so every other way into a screen -- the "+" sheet's Coach, Friends,
+  Settings, "Scan a meal" and "Analyze a lift" tiles, the home cards, the
+  analyze result's back arrow, the weight and logging history links --
+  loaded a document, blanking the screen. (The server log confirmed it:
+  swapping has reported itself running on every page load since the
+  reporting shipped and has never once reported falling back, so the
+  reloads left could only be links it was not watching.) Every same-origin
+  page link now swaps; anything else -- another site, a download, a new
+  tab, or a path that does not render the app shell -- still navigates,
+  and so does everything while the first-run tour is walking you around.
+  Second, each swap parsed the incoming page three times over: 258ms of
+  frozen screen for Nutrition, which is 360 KB of HTML. It is parsed once
+  now and the nodes are moved across -- 90ms for the same page, and a
+  phone is several times slower than the machine that was measured on.
+
 ## [0.8.1.1] - 2026-09-04
 
 ### Fixed

@@ -192,8 +192,27 @@ export function loadPageNav({
     return realAppend(node);
   };
 
+  // pagenav.js listens for clicks on `document` -- it swaps every internal
+  // link now, not only the five tabs, and there is no one element that all of
+  // them are inside. Every test in a file shares one jsdom document, so
+  // without this the copy loaded by the PREVIOUS test is still bound: it
+  // handles the click first, preventDefault()s it, and this test's copy then
+  // sees defaultPrevented and stands down. Nothing like this happens in a
+  // browser, where pagenav.js is evaluated once per document -- it is the
+  // price of re-evaluating it per test, so it is paid here rather than with a
+  // guard in the shipped file.
+  const stale = globalThis.__pagenavDocListeners || [];
+  stale.forEach(([type, handler]) => document.removeEventListener(type, handler));
+  const bound = [];
+  globalThis.__pagenavDocListeners = bound;
+  const docAdd = document.addEventListener;
+  document.addEventListener = function (type, handler, options) {
+    bound.push([type, handler]);
+    return docAdd.call(document, type, handler, options);
+  };
   // eslint-disable-next-line no-new-func
   new Function("window", "document", readSource("pagenav.js"))(windowStub, document);
+  document.addEventListener = docAdd;
 
   // Long enough to cover pagenav.js's leave animation (110ms) plus the two
   // frames it waits before animating the new screen in. Shorter than that and
@@ -223,6 +242,21 @@ export function loadPageNav({
       await settle();
       await settle();
       await settle();
+    },
+    /**
+     * Taps any element, not just a tab -- pagenav.js swaps every internal
+     * link now. Returns the click event so a test can ask whether it was
+     * intercepted at all (defaultPrevented) rather than only what followed.
+     */
+    async clickOn(selector, init = {}) {
+      const el = document.querySelector(selector);
+      if (!el) throw new Error(`no element matches ${selector}`);
+      const event = new window.MouseEvent("click", { bubbles: true, cancelable: true, ...init });
+      el.dispatchEvent(event);
+      await settle();
+      await settle();
+      await settle();
+      return event;
     },
     settle,
     /** Fires the browser's popstate for an entry pagenav.js pushed. */
