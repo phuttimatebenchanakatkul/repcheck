@@ -87,3 +87,52 @@ def test_escaper_round_trips_through_textcontent():
         src = read(rel)
         block = src[src.index("function escapeHtml("):]
         assert "textContent" in block[:400], f"{rel}'s escapeHtml must round-trip via textContent"
+
+
+# ---------- The report/block UI (App Store Guideline 1.2) ----------
+#
+# These screens grew a per-row "⋮" that opens the report/block sheet. That
+# button is the one place a cross-account name could plausibly be written into
+# an HTML ATTRIBUTE, and the codebase's escaper deliberately does not handle
+# quotes (see test_escaper_round_trips_through_textcontent above). So the rule
+# these pin is: the integer user id goes in the attribute, the name never does.
+
+
+def test_safety_sheet_escapes_the_name_it_shows():
+    src = read("static/safety.js")
+    assert "function escapeHtml(" in src, "safety.js renders a cross-account name"
+    assert "const name = escapeHtml(target ? target.name : \"\")" in src, (
+        "the sheet's heading is the reported account's own name -- it must be escaped"
+    )
+
+
+def test_challenges_row_button_carries_the_id_not_the_name():
+    src = read("templates/challenges.html")
+    assert 'data-safety-user="${Number(userId)}"' in src, (
+        "the leaderboard's safety button must put a NUMBER in its attribute; "
+        "Number() also means a crafted value cannot break out of the quotes"
+    )
+    assert "data-safety-name" not in src, (
+        "a name in an attribute would escape < > & but not quotes -- the name "
+        "must travel via lbNames instead"
+    )
+    assert "lbNames.set(Number(row.user_id), row.name)" in src, (
+        "the click handler reads the name from lbNames, keyed by the id"
+    )
+
+
+def test_hyrox_row_button_binds_a_listener_rather_than_an_attribute():
+    src = read("static/hyrox.js")
+    assert "const wireSafety = (node, row) =>" in src, (
+        "hyrox rows attach the safety handler to the node, which keeps the "
+        "athlete's name out of markup entirely"
+    )
+    assert "data-safety-user" not in src, "hyrox has no attribute to escape into"
+    assert "window.RepCheckSafety.open({ userId: row.user_id, name: row.name })" in src
+
+
+def test_settings_blocked_list_escapes_names_and_numbers_ids():
+    src = read("templates/settings.html")
+    assert "${escapeHtml(b.name)}" in src, "blocked account names come from other accounts"
+    assert 'data-unblock="${Number(b.id)}"' in src, "the attribute holds a number, not a name"
+    assert "function escapeHtml(" in src, "settings.html now renders cross-account names"

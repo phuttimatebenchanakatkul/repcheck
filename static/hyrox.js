@@ -781,6 +781,15 @@
       document.addEventListener("repcheck:units-changed", () => {
         if (this.screen !== "running") this.render();
       });
+      // A block has to leave the board immediately. safety.js has already
+      // told the user "you won't see this account again", and this screen
+      // renders from leaderboardCache -- loadLeaderboard() short-circuits on
+      // a matching key, so without clearing the cache the name it just
+      // promised was gone stays on screen until a gender or tab switch.
+      document.addEventListener("repcheck:safety-changed", () => {
+        this.leaderboardCache = null;
+        if (this.screen !== "running") this.render();
+      });
       this.render();
       this.backfillHistoryToServer();
     }
@@ -3381,13 +3390,35 @@
         // podium), name -- with a quiet "You" tag on your own row -- and
         // the time on the right. Much less to read than the old
         // time-vs-rank double stack.
+        // The ⋮ opens report/block, on other athletes' rows only -- their
+        // display name is content someone else wrote (Guideline 1.2). Your
+        // own row never gets one.
         const rowHtml = (rank, name, seconds, isMe) => `
           <div class="hx-lb-row ${isMe ? "is-me" : ""}">
             <span class="hx-lb-rank ${rank <= 3 ? `is-top is-top-${rank}` : ""}">${rank}</span>
             <span class="hx-lb-name">${escapeHtml(name)}${isMe ? `<span class="hx-lb-you">${t("hyrox.leaderboard.you")}</span>` : ""}</span>
             <span class="hx-lb-time">${formatClock(seconds)}</span>
+            ${isMe ? "" : `<button type="button" class="hx-lb-more" aria-label="${t("safety.moreActions")}">&#8942;</button>`}
           </div>
         `;
+
+        // Bound on the element rather than delegated from `document`: this
+        // file is loaded once for the life of the session, and
+        // static/nav_scope.js releases document-level listeners on the first
+        // page swap -- a delegated handler would simply stop working and
+        // never be re-added. The row nodes are rebuilt on every render, so
+        // per-row binding leaks nothing. It also keeps the athlete's name out
+        // of an HTML attribute entirely: escapeHtml() is textContent-based
+        // and does not escape quotes.
+        const wireSafety = (node, row) => {
+          const btn = node.querySelector(".hx-lb-more");
+          if (!btn) return;
+          btn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            if (!window.RepCheckSafety || !row.user_id) return;
+            window.RepCheckSafety.open({ userId: row.user_id, name: row.name });
+          });
+        };
         if (!rows.length) {
           // An empty board is an invitation, not a failure, so the mascot
           // sprints here rather than slumping -- see static/mascot.js.
@@ -3399,7 +3430,9 @@
         } else {
           const myRank = cache.data.me ? cache.data.me.rank : null;
           rows.forEach((r, i) => {
-            listEl.appendChild(el(rowHtml(i + 1, r.name, r.best_seconds, i + 1 === myRank)));
+            const node = el(rowHtml(i + 1, r.name, r.best_seconds, i + 1 === myRank));
+            wireSafety(node, r);
+            listEl.appendChild(node);
           });
           listEl.appendChild(el(`<div class="hx-lb-total">${t("hyrox.leaderboard.totalAthletes", { n: totalEntries, s: totalEntries === 1 ? "" : "s" })}</div>`));
         }
