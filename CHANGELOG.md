@@ -2,6 +2,15 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.9.0.1] - 2026-09-04
+
+### Fixed
+
+- Challenges is back in the "+" menu. The daily challenge, the attempt
+  recorder and the reps leaderboard have all still been there, but nothing
+  in the app has linked to them since the tile was removed, so the only way
+  in was to type the address by hand.
+
 ## [0.9.0.0] - 2026-09-04
 
 ### Added

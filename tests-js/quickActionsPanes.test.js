@@ -51,7 +51,7 @@ describe("quick-actions sliding More pane", () => {
   it("shows exactly four action buttons and no More links until asked", () => {
     // The whole point of the redesign: a fixed set of buttons, and the More
     // pages are reachable but not on screen.
-    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(4);
+    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(5);
     expect(more().hidden).toBe(true);
   });
 
@@ -93,7 +93,7 @@ describe("quick-actions sliding More pane", () => {
     expect(actions().hidden).toBe(false);
     expect(more().hidden).toBe(true);
     expect(openBtn().getAttribute("aria-expanded")).toBe("false");
-    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(4);
+    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(5);
   });
 
   it("ignores a second tap while a slide is still running", () => {
@@ -207,7 +207,7 @@ describe("quick-actions sliding More pane", () => {
     fab().click(); // reopen
 
     expect(actions().hidden).toBe(false);
-    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(4);
+    expect(document.querySelectorAll("#qa-pane-actions .qa-tile").length).toBe(5);
   });
 
   it("does not throw when the sheet markup is absent", () => {
