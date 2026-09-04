@@ -98,6 +98,7 @@ from database import (
     get_exercise_leaderboard,
     get_analyze_result,
     get_analyze_results,
+    get_blocked_accounts,
     get_friends,
     get_hyrox_leaderboard,
     get_latest_analyze_result,
@@ -111,11 +112,18 @@ from database import (
     get_user_by_id,
     get_visible_challenges,
     has_submitted_today,
+    hidden_user_ids,
     init_db,
     is_analyze_chat_key,
     list_users,
     mark_onboarding_completed,
     prune_analyze_results,
+    block_user,
+    create_content_report,
+    get_open_reports,
+    mark_report_handled,
+    unblock_user,
+    REPORT_REASONS,
     rate_limit_consume,
     rate_limit_peek,
     remove_hyrox_history_entry,
@@ -438,10 +446,31 @@ RATE_LIMITS = {
     "ai_chat": (3, 24 * 60 * 60),           # 3 messages per day
 }
 
+# App Review demo accounts, from the environment as a comma-separated list
+# (REVIEW_ACCOUNT_EMAILS). Deliberately NOT folded into ADMIN_EMAILS: that set
+# also opens /admin/users and /admin/export-db, so an App Review tester added
+# there would be handed every user's email and a copy of the whole database.
+# This set does one thing -- lift the AI usage limits.
+#
+# Why it has to exist at all: workout_analysis is capped at 1 per account per
+# day. A reviewer following the "how to use the main features" instructions
+# analyses one lift, tries a second, and is told to come back in 24 hours --
+# on the app's headline feature. Apple requires an app be fully functional
+# for review.
+#
+# From the environment rather than the source because this repo is public and
+# the demo account is a real, credentialed login, and because rotating the
+# account for a future submission should not need a code change.
+REVIEW_ACCOUNT_EMAILS = {
+    email.strip().lower()
+    for email in os.environ.get("REVIEW_ACCOUNT_EMAILS", "").split(",")
+    if email.strip()
+}
+
 # Admin exemption, per the owner's explicit request: this one account is
 # never limited. Everyone else -- every other existing account and every
-# future signup -- is limited.
-RATE_LIMIT_EXEMPT_EMAILS = ADMIN_EMAILS
+# future signup -- is limited, apart from the App Review demo accounts above.
+RATE_LIMIT_EXEMPT_EMAILS = ADMIN_EMAILS | REVIEW_ACCOUNT_EMAILS
 
 
 def _friendly_wait(seconds):
@@ -2048,8 +2077,139 @@ def api_friends_add():
         return jsonify({"ok": False, "error": "No user found with that code."}), 404
     if other["id"] == user["id"]:
         return jsonify({"ok": False, "error": "That's your own code."}), 400
+    # A block has to survive a friend request from either side, or blocking
+    # someone would be undone the moment they sent their code again. The
+    # message is deliberately the same one an unknown code gets: telling the
+    # sender "you are blocked" is itself a channel back to them.
+    if other["id"] in hidden_user_ids(user["id"]):
+        return jsonify({"ok": False, "error": "No user found with that code."}), 404
     add_friendship(user["id"], other["id"])
     return jsonify({"ok": True, "friend": {"id": other["id"], "name": other["name"]}})
+
+
+# ---------- Safety: blocking and reporting ----------
+# App Store Guideline 1.2 asks for three things wherever one user can see
+# content another user wrote. Display names on the global leaderboards are
+# exactly that, so RepCheck needs all three:
+#
+#   1. filter objectionable material    -> name_filter.py, at the point a name
+#                                          is set (signup and rename)
+#   2. report offensive content         -> /api/safety/report, below
+#   3. block abusive users              -> /api/safety/block, below
+#
+# A block hides both accounts from each other everywhere a name is shown:
+# both leaderboards, the friends list, and the add-by-code flow. See
+# database.hidden_user_ids for why it is read in both directions.
+
+
+def _target_user(payload):
+    """The account a safety action names, or None. Ids are not secret -- the
+    leaderboards already hand them out -- but a row is only written for an
+    account that actually exists, so a bad client cannot fill these tables."""
+    try:
+        target_id = int(payload.get("user_id"))
+    except (TypeError, ValueError):
+        return None
+    return get_user_by_id(target_id)
+
+
+@app.route("/api/safety/blocks", methods=["GET"])
+def api_safety_blocks():
+    """The accounts this user has blocked, for the Settings list that undoes
+    it. Never who has blocked THEM -- that is not theirs to see."""
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    return jsonify({
+        "ok": True,
+        "blocked": [
+            {"id": row["id"], "name": row["name"]} for row in get_blocked_accounts(user["id"])
+        ],
+    })
+
+
+@app.route("/api/safety/block", methods=["POST"])
+def api_safety_block():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    other = _target_user(request.get_json(silent=True) or {})
+    if not other:
+        return jsonify({"ok": False, "error": "That account no longer exists."}), 404
+    if other["id"] == user["id"]:
+        return jsonify({"ok": False, "error": "You can't block yourself."}), 400
+    block_user(user["id"], other["id"])
+    _track_feature("block_user")
+    # Deliberately does NOT echo the name back. _target_user() accepts any id
+    # (they are not secret -- the leaderboards hand them out), but replying
+    # with the display name would turn this into an oracle that walks id 1..N
+    # and reads the name of every account, including ones that have never
+    # appeared on any board. The client already knows the name it just acted
+    # on, so it loses nothing.
+    return jsonify({"ok": True, "blocked": {"id": other["id"]}})
+
+
+@app.route("/api/safety/block", methods=["DELETE"])
+def api_safety_unblock():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    payload = request.get_json(silent=True) or {}
+    try:
+        target_id = int(payload.get("user_id"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Which account?"}), 400
+    # Deliberately not gated on the account still existing: an account that
+    # was deleted after being blocked leaves a row that should still be
+    # removable rather than stuck in the list forever.
+    unblock_user(user["id"], target_id)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/safety/report", methods=["POST"])
+def api_safety_report():
+    """Record a report for review, and block the reported account in the same
+    step. Reporting someone you must then separately block is a worse
+    experience than it looks: the thing you objected to stays on your screen
+    until you take a second action."""
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    payload = request.get_json(silent=True) or {}
+    other = _target_user(payload)
+    if not other:
+        return jsonify({"ok": False, "error": "That account no longer exists."}), 404
+    if other["id"] == user["id"]:
+        return jsonify({"ok": False, "error": "You can't report yourself."}), 400
+
+    reason = (payload.get("reason") or "other").strip()
+    if reason not in REPORT_REASONS:
+        reason = "other"
+    create_content_report(user["id"], other["id"], reason)
+    block_user(user["id"], other["id"])
+    _track_feature("report_user")
+    # No name in the reply -- same oracle reasoning as the block route above.
+    return jsonify({"ok": True, "blocked": {"id": other["id"]}})
+
+
+# Same ADMIN_EMAILS / 404 gate as the other admin views: this one exists so
+# the 24-hour response time promised to reporters is something an actual
+# person can act on, rather than rows nobody ever reads.
+@app.route("/admin/reports", methods=["GET"])
+def admin_reports():
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+    return render_template("admin_reports.html", reports=get_open_reports())
+
+
+@app.route("/admin/reports/<int:report_id>/handled", methods=["POST"])
+def admin_report_handled(report_id):
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+    mark_report_handled(report_id)
+    return redirect(url_for("admin_reports"))
 
 
 # ---------- Streak activity ----------
@@ -2211,7 +2371,10 @@ def api_leaderboard():
     # unlimited so "my rank" is correct even when it falls outside
     # whatever `limit` the caller wants displayed (e.g. rank 80 of 200 on
     # the global board, which a limit=50 list would never include).
-    all_rows = get_total_reps_leaderboard(user_ids=user_ids)
+    # Blocked accounts never appear, on either board, in either direction.
+    all_rows = get_total_reps_leaderboard(
+        user_ids=user_ids, exclude_ids=hidden_user_ids(user["id"])
+    )
     my_rank = None
     for i, row in enumerate(all_rows):
         if row["user_id"] == user["id"]:
@@ -2318,7 +2481,9 @@ def api_hyrox_leaderboard():
     if gender not in HYROX_GENDERS or category not in HYROX_CATEGORIES or format_ not in HYROX_FORMATS:
         return jsonify({"ok": False, "error": "Invalid gender, category, or format."}), 400
 
-    rows = get_hyrox_leaderboard(gender, category, format_)
+    rows = get_hyrox_leaderboard(
+        gender, category, format_, exclude_ids=hidden_user_ids(user["id"])
+    )
     my_rank = None
     for i, row in enumerate(rows):
         if row["user_id"] == user["id"]:
