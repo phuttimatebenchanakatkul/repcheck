@@ -360,6 +360,41 @@ def init_db():
                 created_at INTEGER NOT NULL
             )
         """)
+        # Safety: the two halves of App Store Guideline 1.2 that a display
+        # name on a public leaderboard requires. name_filter.py is the third
+        # (filtering objectionable names at the point they are set).
+        #
+        # A block is one-directional as stored -- who blocked whom -- but read
+        # in BOTH directions (see hidden_user_ids), so neither account appears
+        # on the other's leaderboards. Storing it one way keeps "unblock" the
+        # blocker's decision alone.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS blocked_users (
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                blocked_id INTEGER NOT NULL REFERENCES users(id),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (user_id, blocked_id)
+            )
+        """)
+        # Reports are kept after the reported account is gone would be a lie:
+        # _purge_user_rows removes both sides, because the only thing a report
+        # names is an account. handled_at is set from the admin view.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS content_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_id INTEGER NOT NULL REFERENCES users(id),
+                reported_id INTEGER NOT NULL REFERENCES users(id),
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                handled_at TEXT
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_blocked_users_blocked ON blocked_users(blocked_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_content_reports_open ON content_reports(handled_at, created_at)"
+        )
 
 
 def _row_to_dict(row):
@@ -1121,6 +1156,10 @@ def add_friendship(user_id, friend_id):
 
 
 def get_friends(user_id):
+    """This user's friends, with blocked accounts left out in both
+    directions -- a block has to hold everywhere the other account's name
+    would otherwise appear, not only on the leaderboard."""
+    hidden = hidden_user_ids(user_id)
     with get_db() as conn:
         rows = conn.execute(
             """SELECT u.id, u.name, u.email FROM friends f
@@ -1128,7 +1167,128 @@ def get_friends(user_id):
                WHERE f.user_id = ? ORDER BY u.name""",
             (user_id,),
         ).fetchall()
+    return [dict(r) for r in rows if r["id"] not in hidden]
+
+
+# ---------- Blocking and reporting (App Store Guideline 1.2) ----------
+#
+# Display names are user-generated content: every account sees every other
+# account's chosen name on the global leaderboards. Guideline 1.2 wants three
+# things for that -- filtering (name_filter.py, applied when a name is set), a
+# way to REPORT a name, and a way to BLOCK an account. These are the last two.
+
+
+def hidden_user_ids(user_id):
+    """Every account `user_id` must not see, and that must not see them.
+
+    Read in both directions on purpose. A one-way read would let the account
+    someone blocked go on watching them climb the leaderboard, which is the
+    behaviour blocking exists to stop. The row itself stays one-way so that
+    unblocking is the blocker's decision alone.
+    """
+    if not user_id:
+        return set()
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT blocked_id AS other FROM blocked_users WHERE user_id = ?
+               UNION
+               SELECT user_id AS other FROM blocked_users WHERE blocked_id = ?""",
+            (user_id, user_id),
+        ).fetchall()
+    return {r["other"] for r in rows}
+
+
+def block_user(user_id, blocked_id):
+    """Idempotent. Blocking yourself is a no-op rather than an error -- the UI
+    never offers it, and a client that asks anyway should not get a 500."""
+    if not user_id or not blocked_id or user_id == blocked_id:
+        return False
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO blocked_users (user_id, blocked_id) VALUES (?, ?)",
+            (user_id, blocked_id),
+        )
+    return True
+
+
+def unblock_user(user_id, blocked_id):
+    with get_db() as conn:
+        cur = conn.execute(
+            "DELETE FROM blocked_users WHERE user_id = ? AND blocked_id = ?",
+            (user_id, blocked_id),
+        )
+        return cur.rowcount > 0
+
+
+def get_blocked_accounts(user_id):
+    """The accounts this user blocked, for the Settings list that undoes it.
+    Only their own blocks -- being blocked by someone else is not something
+    they are shown, let alone something they can undo."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT u.id, u.name, b.created_at FROM blocked_users b
+               JOIN users u ON u.id = b.blocked_id
+               WHERE b.user_id = ? ORDER BY b.created_at DESC""",
+            (user_id,),
+        ).fetchall()
     return [dict(r) for r in rows]
+
+
+REPORT_REASONS = ("offensive_name", "impersonation", "spam", "other")
+
+
+def create_content_report(reporter_id, reported_id, reason):
+    """Record a report for review. Returns the row id, or None for a report
+    that names nobody or names the reporter."""
+    if not reporter_id or not reported_id or reporter_id == reported_id:
+        return None
+    if reason not in REPORT_REASONS:
+        reason = "other"
+    with get_db() as conn:
+        # One OPEN report per (reporter, subject). Reporting the same account
+        # twice before anyone has looked at the first is the same complaint,
+        # and without this an automated client can flood the review queue
+        # against one victim. A new report after the first was handled is a
+        # genuinely new complaint and is allowed.
+        existing = conn.execute(
+            """SELECT id FROM content_reports
+               WHERE reporter_id = ? AND reported_id = ? AND handled_at IS NULL""",
+            (reporter_id, reported_id),
+        ).fetchone()
+        if existing:
+            return existing["id"]
+        cur = conn.execute(
+            "INSERT INTO content_reports (reporter_id, reported_id, reason) VALUES (?, ?, ?)",
+            (reporter_id, reported_id, reason),
+        )
+        return cur.lastrowid
+
+
+def get_open_reports(limit=100):
+    """Unhandled reports, oldest first, for the admin review screen. Oldest
+    first because the commitment made to users is a response time."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT r.id, r.reason, r.created_at,
+                      r.reporter_id, rep.name AS reporter_name,
+                      r.reported_id, sub.name AS reported_name
+               FROM content_reports r
+               JOIN users rep ON rep.id = r.reporter_id
+               JOIN users sub ON sub.id = r.reported_id
+               WHERE r.handled_at IS NULL
+               ORDER BY r.created_at ASC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_report_handled(report_id):
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE content_reports SET handled_at = datetime('now') WHERE id = ? AND handled_at IS NULL",
+            (report_id,),
+        )
+        return cur.rowcount > 0
 
 
 def create_challenge(creator_id, exercise, duration_seconds=25):
@@ -1142,7 +1302,16 @@ def create_challenge(creator_id, exercise, duration_seconds=25):
 
 def get_visible_challenges(user_id):
     """Challenges created by the user or any of their friends, newest first,
-    each with its leaderboard (submissions sorted by reps)."""
+    each with its leaderboard (submissions sorted by reps).
+
+    Blocked accounts are excluded from both halves. This query reaches the
+    `friends` table directly rather than going through get_friends(), so it
+    does not inherit that function's filtering and has to do its own -- and
+    the submissions carry `notes`, free text another account wrote, which is
+    more exposed than a display name and is not covered by name_filter.py at
+    all. A block that holds on the leaderboards but leaks here is not a block.
+    """
+    hidden = hidden_user_ids(user_id)
     with get_db() as conn:
         challenges = [dict(r) for r in conn.execute(
             """SELECT c.*, u.name AS creator_name FROM challenges c
@@ -1152,13 +1321,17 @@ def get_visible_challenges(user_id):
                ORDER BY c.created_at DESC""",
             (user_id, user_id),
         ).fetchall()]
+        challenges = [c for c in challenges if c["creator_id"] not in hidden]
         for c in challenges:
-            c["leaderboard"] = [dict(r) for r in conn.execute(
-                """SELECT s.user_id, s.reps, s.notes, s.created_at, u.name
-                   FROM challenge_submissions s JOIN users u ON u.id = s.user_id
-                   WHERE s.challenge_id = ? ORDER BY s.reps DESC, s.created_at ASC""",
-                (c["id"],),
-            ).fetchall()]
+            c["leaderboard"] = [
+                dict(r) for r in conn.execute(
+                    """SELECT s.user_id, s.reps, s.notes, s.created_at, u.name
+                       FROM challenge_submissions s JOIN users u ON u.id = s.user_id
+                       WHERE s.challenge_id = ? ORDER BY s.reps DESC, s.created_at ASC""",
+                    (c["id"],),
+                ).fetchall()
+                if r["user_id"] not in hidden
+            ]
     return challenges
 
 
@@ -1237,7 +1410,7 @@ def get_exercise_leaderboard(exercise, user_ids=None, limit=None):
     return [dict(r) for r in rows]
 
 
-def get_total_reps_leaderboard(user_ids=None, limit=None):
+def get_total_reps_leaderboard(user_ids=None, limit=None, exclude_ids=None):
     """Each user's TOTAL reps summed across every challenge submission
     they've ever made, across every exercise combined (push-ups + sit-ups +
     pull-ups all count toward the same running total), ranked highest
@@ -1259,6 +1432,13 @@ def get_total_reps_leaderboard(user_ids=None, limit=None):
         placeholders = ",".join("?" for _ in user_ids)
         query += f" WHERE s.user_id IN ({placeholders})"
         params.extend(user_ids)
+    # Blocked accounts are filtered in SQL, not after the fact, so the ranks
+    # the caller computes from this list are the ranks the viewer actually
+    # sees -- filtering afterwards would leave gaps at every hidden position.
+    if exclude_ids:
+        placeholders = ",".join("?" for _ in exclude_ids)
+        query += (" AND " if user_ids is not None else " WHERE ") + f"s.user_id NOT IN ({placeholders})"
+        params.extend(exclude_ids)
     query += " GROUP BY s.user_id ORDER BY total_reps DESC, last_at ASC"
     if limit is not None:
         query += " LIMIT ?"
@@ -1279,23 +1459,27 @@ def create_hyrox_result(user_id, gender, category, format_, total_seconds):
         return cursor.lastrowid
 
 
-def get_hyrox_leaderboard(gender, category, format_):
+def get_hyrox_leaderboard(gender, category, format_, exclude_ids=None):
     """Every user's PB (fastest time) for one exact gender/category/format
     combo, fastest first -- a Pro Singles time isn't comparable to an Open
     Doubles one, so the four combos are always ranked separately, never
     mixed together. Returns the full ranked list (no limit); callers slice
     for display and can find any one user's rank by their position in it.
     """
-    with get_db() as conn:
-        rows = conn.execute(
-            """SELECT r.user_id, u.name, MIN(r.total_seconds) AS best_seconds
+    query = """SELECT r.user_id, u.name, MIN(r.total_seconds) AS best_seconds
                FROM hyrox_results r
                JOIN users u ON u.id = r.user_id
-               WHERE r.gender = ? AND r.category = ? AND r.format = ?
-               GROUP BY r.user_id
-               ORDER BY best_seconds ASC""",
-            (gender, category, format_),
-        ).fetchall()
+               WHERE r.gender = ? AND r.category = ? AND r.format = ?"""
+    params = [gender, category, format_]
+    # Same reason as the reps board: excluded in SQL so the caller's
+    # position-in-list rank matches what the viewer is shown.
+    if exclude_ids:
+        placeholders = ",".join("?" for _ in exclude_ids)
+        query += f" AND r.user_id NOT IN ({placeholders})"
+        params.extend(exclude_ids)
+    query += " GROUP BY r.user_id ORDER BY best_seconds ASC"
+    with get_db() as conn:
+        rows = conn.execute(query, params).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -1609,6 +1793,15 @@ def _purge_user_rows(conn, user_id):
     # Friendship is stored as one row per direction, so this user appears as
     # both user_id and friend_id and both sides have to go.
     conn.execute("DELETE FROM friends WHERE user_id = ? OR friend_id = ?", (user_id, user_id))
+
+    # Blocks and reports name an account on each side, so a purge has to take
+    # the rows where this user is the subject as well as the ones where they
+    # are the actor. A report whose reported account no longer exists has
+    # nothing left to moderate.
+    conn.execute("DELETE FROM blocked_users WHERE user_id = ? OR blocked_id = ?", (user_id, user_id))
+    conn.execute(
+        "DELETE FROM content_reports WHERE reporter_id = ? OR reported_id = ?", (user_id, user_id)
+    )
 
     for table, column in _USER_OWNED_TABLES:
         conn.execute(f"DELETE FROM {table} WHERE {column} = ?", (user_id,))

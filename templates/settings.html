@@ -52,6 +52,19 @@
      visually separated -- it is the only irreversible control in
      settings, so it should not read like the save buttons above it. */
   .st-card--danger { border-color: var(--red); }
+  .st-blocked-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-top: 1px solid var(--border);
+  }
+  .st-blocked-row:first-child { border-top: none; }
+  .st-blocked-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; word-break: break-word; }
+  .st-unblock {
+    flex: none; padding: 8px 16px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--card-bg); color: var(--text);
+    font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .st-unblock:hover { border-color: var(--text-secondary); }
+  .st-blocked-empty { font-size: 13px; color: var(--text-secondary); padding: 4px 0 2px; }
   .st-danger-body { margin: 0 0 8px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
   .st-danger-what { margin: 0 0 14px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
   .st-danger-btn {
@@ -121,6 +134,21 @@
       <button type="button" data-value="th" data-i18n="settings.language.th">TH ไทย</button>
     </div>
   </div>
+</div>
+
+<!--
+  Blocked accounts. The undo half of the block action offered on the
+  leaderboards (static/safety.js) -- App Store Guideline 1.2 wants blocking to
+  be reversible by the person who did it, and a block with no visible list is
+  a setting the user cannot audit.
+
+  Only accounts THIS user blocked. Being blocked by someone else is not shown:
+  it is not theirs to see and not theirs to undo.
+-->
+<div class="st-card" id="blocked">
+  <div class="st-card-title" data-i18n="settings.blocked.title">Blocked accounts</div>
+  <div class="st-card-sub" data-i18n="settings.blocked.sub">People you've blocked don't appear on any leaderboard, and can't add you as a friend.</div>
+  <div id="st-blocked-list"></div>
 </div>
 
 <div class="st-card" id="help">
@@ -492,6 +520,66 @@
       });
     }
 
+    // ---------- Blocked accounts ----------
+    // The undo half of the leaderboard block. Rendered here rather than in
+    // static/safety.js because this list is a settings screen, not a sheet --
+    // safety.js owns the ACTION, this owns the audit of it.
+    (function blockedAccounts() {
+      const listEl = document.getElementById("st-blocked-list");
+      if (!listEl) return;
+
+      // Names come from other accounts, so they never reach innerHTML raw and
+      // never go into an attribute (escapeHtml is textContent-based and does
+      // not escape quotes -- the id, an integer, is what the attribute holds).
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : String(text);
+        return div.innerHTML;
+      }
+
+      function renderEmpty() {
+        listEl.innerHTML = `<div class="st-blocked-empty">${t("settings.blocked.empty")}</div>`;
+      }
+
+      async function load() {
+        try {
+          const res = await fetch("/api/safety/blocks");
+          const data = await res.json();
+          if (!data.ok) return renderEmpty();
+          if (!data.blocked.length) return renderEmpty();
+          listEl.innerHTML = data.blocked
+            .map((b) => `
+              <div class="st-blocked-row">
+                <div class="st-blocked-name">${escapeHtml(b.name)}</div>
+                <button type="button" class="st-unblock" data-unblock="${Number(b.id)}">${t("settings.blocked.unblock")}</button>
+              </div>`)
+            .join("");
+        } catch (e) {
+          renderEmpty();
+        }
+      }
+
+      listEl.addEventListener("click", async (event) => {
+        const btn = event.target.closest("[data-unblock]");
+        if (!btn) return;
+        btn.disabled = true;
+        try {
+          await fetch("/api/safety/block", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: Number(btn.getAttribute("data-unblock")) }),
+          });
+        } finally {
+          load();
+        }
+      });
+
+      load();
+      // Blocking from a leaderboard while this screen is behind it should not
+      // leave a stale list.
+      document.addEventListener("repcheck:safety-changed", load);
+      document.addEventListener("repcheck:language-changed", load);
+    })();
     // ---------- Delete account ----------
     // Apple App Store Guideline 5.1.1(v). Scheduling is reversible for the
     // whole grace window, so this card has two states: "not scheduled"
@@ -555,6 +643,7 @@
         }
       });
     }
+
   })();
 </script>
 

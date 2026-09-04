@@ -43,6 +43,7 @@
   <script src="{{ asset_url('account_sync.js') }}"></script>
   <script src="{{ asset_url('units.js') }}"></script>
   <script src="{{ asset_url('i18n.js') }}"></script>
+  <script src="{{ asset_url('safety.js') }}"></script>
   <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
   <!-- Shared "what could I log next" rules (RepCheckSuggestions): this
@@ -1033,6 +1034,56 @@
         </div>
         <button type="button" class="ga-btn-secondary" id="ga-later-btn" data-i18n="mobile.goalAchieved.maybeLater">Maybe later</button>
       </div>
+    </div>
+  </div>
+
+  <!--
+    Report / block sheet (static/safety.js). Shell-level, not page-owned: the
+    leaderboards on Challenges and HYROX both open it, and it must survive the
+    page swap that a tap on another tab performs.
+  -->
+  <style>
+    .sf-target {
+      font-size: 13px; font-weight: 700; color: var(--text-secondary);
+      text-align: center; padding: 2px 0 12px; word-break: break-word;
+    }
+    .sf-row {
+      display: flex; align-items: center; gap: 14px; width: 100%;
+      padding: 14px 16px; margin-bottom: 8px;
+      border: 1px solid var(--border); border-radius: 14px;
+      background: var(--card-bg); color: var(--text);
+      font-family: inherit; font-size: 15px; text-align: left; cursor: pointer;
+    }
+    .sf-row:active { transform: scale(0.99); }
+    .sf-row-icon { font-size: 18px; line-height: 1; flex: none; }
+    .sf-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .sf-row-label { font-weight: 700; }
+    .sf-row-sub { font-size: 12px; color: var(--text-secondary); }
+    .sf-cancel {
+      width: 100%; padding: 14px; margin-top: 4px;
+      border: 0; border-radius: 14px;
+      background: var(--bg); color: var(--text);
+      font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .sf-error {
+      padding: 10px 12px; margin-bottom: 10px; border-radius: 10px;
+      background: var(--red); color: #fff; font-size: 13px; font-weight: 600;
+    }
+    .sf-done { text-align: center; padding: 12px 0 18px; }
+    .sf-done-icon {
+      width: 46px; height: 46px; margin: 0 auto 12px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--green, #2fbf71); color: #fff; font-size: 22px; font-weight: 800;
+    }
+    .sf-done-text { font-size: 15px; font-weight: 600; }
+  </style>
+  <div class="log-sheet-overlay" id="sf-sheet-overlay">
+    <div class="log-sheet">
+      <div class="log-sheet-handle"></div>
+      <div class="log-sheet-head" style="justify-content:flex-end;">
+        <button type="button" class="log-sheet-close" id="sf-sheet-close" data-i18n-aria-label="common.close" aria-label="Close">&times;</button>
+      </div>
+      <div class="log-sheet-body" id="sf-sheet-body"></div>
     </div>
   </div>
 

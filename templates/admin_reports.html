@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Reports{% endblock %}
+{% block heading %}Reports{% endblock %}
+
+{% block content %}
+<!--
+  Admin-only content reports (see app.py's admin_reports() -- gated to
+  ADMIN_EMAILS, 404s for everyone else).
+
+  This screen is what makes the commitment in the App Review reply true:
+  reports are reviewed, not just recorded. Oldest first, because the promise
+  made to a reporter is a response time. Deliberately plain, matching
+  admin_users.html: admin-only, single owner, no i18n.
+
+  Reporting also blocks, so the reporter is already protected before anyone
+  looks at this list -- what is left here is the decision about the reported
+  account itself, which is taken by hand (rename or remove) rather than by
+  anything on this page.
+-->
+<style>
+  .rep-count { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+  .rep-count strong { color: var(--text); font-weight: 800; }
+  .rep-list { display: flex; flex-direction: column; gap: 8px; }
+  .rep-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 12px; background: var(--card-bg);
+  }
+  .rep-main { flex: 1 1 240px; min-width: 0; }
+  .rep-name { font-weight: 700; font-size: 14px; word-break: break-word; }
+  .rep-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .rep-reason {
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 4px 8px; border-radius: 999px;
+    background: var(--red); color: #fff; white-space: nowrap;
+  }
+  .rep-done {
+    padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--card-bg); color: var(--text); font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+  .rep-done:hover { border-color: var(--text-secondary); }
+  .rep-empty { font-size: 14px; color: var(--text-secondary); padding: 24px 0; }
+</style>
+
+<div class="rep-count">
+  <strong>{{ reports|length }}</strong> open report{{ '' if reports|length == 1 else 's' }}
+</div>
+
+{% if reports %}
+<div class="rep-list">
+  {% for r in reports %}
+  <div class="rep-row">
+    <div class="rep-main">
+      <div class="rep-name">{{ r.reported_name }}</div>
+      <div class="rep-meta">
+        reported by {{ r.reporter_name }} &middot; {{ r.created_at }}
+      </div>
+    </div>
+    <span class="rep-reason">{{ r.reason.replace('_', ' ') }}</span>
+    <form method="post" action="{{ url_for('admin_report_handled', report_id=r.id) }}">
+      <button type="submit" class="rep-done">Mark handled</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="rep-empty">Nothing to review.</div>
+{% endif %}
+{% endblock %}

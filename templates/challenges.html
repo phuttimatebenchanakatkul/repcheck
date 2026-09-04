@@ -216,6 +216,14 @@
   }
   .ch-lb-reps { font-weight: 800; line-height: 1.15; margin-top: 3px; }
   .ch-lb-meta { font-size: 11.5px; color: var(--text-secondary); flex-shrink: 0; align-self: flex-start; }
+  /* Report/block, on other people's rows only -- see safetyFor() below. */
+  .ch-lb-more {
+    flex: none; align-self: center; width: 30px; height: 30px; padding: 0;
+    border: 0; border-radius: 50%; background: transparent;
+    color: var(--text-secondary); font-size: 16px; line-height: 1;
+    font-family: inherit; cursor: pointer;
+  }
+  .ch-lb-more:hover { background: var(--bg); color: var(--text); }
 
   /* The big numeral is deliberately scarce -- you and the podium only. If
      all 25 rows had it, none of it would read. */
@@ -477,7 +485,22 @@
     // same markup with `is-me`; nothing in the list uses a layout your own
     // row doesn't have. Only the numeral scale varies, and only for you
     // and the podium -- if all 25 rows shouted, none of them would read.
-    function lbRow({ rank, label, reps, kind, meta }) {
+    // Display names are the one thing on this screen written by someone
+    // else, so every row that shows one also offers the way to report or
+    // block it (App Store Guideline 1.2). userId is omitted on your own
+    // pinned row -- there is nothing to report about yourself.
+    //
+    // The id goes in the attribute and the NAME does not: escapeHtml() is
+    // textContent-based and so does not escape quotes, which is fine inside
+    // an element but would break out of an attribute. lbNames carries the
+    // name to the click handler instead.
+    const lbNames = new Map();
+
+    function lbRow({ rank, label, reps, kind, meta, userId }) {
+      const more = userId
+        ? `<button type="button" class="ch-lb-more" data-safety-user="${Number(userId)}"
+                   aria-label="${t("safety.moreActions")}">&#8942;</button>`
+        : "";
       return `
         <div class="ch-lb-row ${kind}" data-rank="${rank}">
           <div class="ch-lb-rank">${kind === "is-rest" ? "" : "#"}${rank}</div>
@@ -486,6 +509,7 @@
             <div class="ch-lb-reps">${reps} ${t("challenges.reps")}</div>
           </div>
           <div class="ch-lb-meta">${meta}</div>
+          ${more}
         </div>`;
     }
 
@@ -520,13 +544,17 @@
       const myReps = myRank ? myRank.total_reps : null;
       if (others.length) {
         listEl.innerHTML = others
-          .map((row) => lbRow({
-            rank: row.rank,
-            label: row.name,
-            reps: row.total_reps,
-            kind: row.rank <= 3 ? "is-podium" : "is-rest",
-            meta: lbGap(row.total_reps, myReps),
-          }))
+          .map((row) => {
+            lbNames.set(Number(row.user_id), row.name);
+            return lbRow({
+              rank: row.rank,
+              label: row.name,
+              reps: row.total_reps,
+              kind: row.rank <= 3 ? "is-podium" : "is-rest",
+              meta: lbGap(row.total_reps, myReps),
+              userId: row.user_id,
+            });
+          })
           .join("");
       } else if (myRank) {
         // You're the only one here. Your pinned row already says so, so the
@@ -577,6 +605,22 @@
       });
     });
     paintScopeTabs();
+
+    // Report/block. Delegated, because the rows are rebuilt on every scope
+    // switch and every refresh -- a per-button listener would go with them.
+    document.addEventListener("click", function onSafetyTap(event) {
+      const btn = event.target.closest(".ch-lb-more");
+      if (!btn || !window.RepCheckSafety) return;
+      const userId = Number(btn.getAttribute("data-safety-user"));
+      if (!userId) return;
+      window.RepCheckSafety.open({ userId, name: lbNames.get(userId) || "" });
+    });
+
+    // A block takes effect on the board immediately rather than at the next
+    // refresh: the point of blocking is not seeing that name any more.
+    document.addEventListener("repcheck:safety-changed", () => {
+      loadFullLeaderboard();
+    });
 
     // ---------- Cosmetic "analyzing" pose overlay (MediaPipe) ----------
     // Purely visual — draws a live pose skeleton over the user's own
