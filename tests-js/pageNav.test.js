@@ -510,3 +510,154 @@ describe("pagenav", () => {
     expect(nav.hardNavs).toEqual([]);
   });
 });
+
+// Every internal link, not only the five tabs.
+//
+// The production log is what put these here. /api/nav-state has recorded "on"
+// for every page load since the reporting shipped, and has never once
+// recorded an "off:" or a "swap-failed:" -- so pagenav starts on the phone and
+// no swap it attempted has ever fallen back. The full page loads the app still
+// does are therefore links it was never watching: the "+" sheet's Coach,
+// Friends, Settings and "Scan a meal" tiles, the home cards, the analyze
+// result's back arrow.
+describe("pagenav beyond the tab bar", () => {
+  const SETTINGS = page({
+    href: "/settings",
+    title: "RepCheck - Settings",
+    body: '<h1 id="heading">Settings</h1>',
+  });
+
+  it("swaps a link that is not a tab", async () => {
+    const nav = loadPageNav({
+      startHref: "/home",
+      startMain: '<a id="go" href="/settings">Settings</a>',
+      routes: { "/settings": SETTINGS },
+    });
+
+    const event = await nav.clickOn("#go");
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(nav.main().textContent).toContain("Settings");
+    expect(nav.hardNavs).toEqual([]);
+    expect(nav.historyEntries.some((e) => e.url === "/settings" && !e.replace)).toBe(true);
+  });
+
+  it("leaves a path that does not render the app shell to the browser", async () => {
+    // /login has no <main> to swap. Fetching it first would only cost a round
+    // trip before the navigation that has to happen anyway.
+    const nav = loadPageNav({ startHref: "/home", startMain: '<a id="go" href="/login">Log in</a>' });
+
+    const event = await nav.clickOn("#go");
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(nav.requests).toEqual([]);
+  });
+
+  it("leaves another origin, a download and a new tab to the browser", async () => {
+    const nav = loadPageNav({
+      startHref: "/home",
+      startMain:
+        '<a id="away" href="https://example.com/x">Away</a>' +
+        '<a id="file" href="/export.csv" download>Export</a>' +
+        '<a id="tab" href="/settings" target="_blank">New tab</a>',
+      routes: { "/settings": SETTINGS },
+    });
+
+    for (const id of ["#away", "#file", "#tab"]) {
+      const event = await nav.clickOn(id);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    // Not `requests` wholesale: three clicks take long enough to settle that
+    // pagenav's own one-off prefetch of the page the app opened on has fired
+    // by then, and that request is not one of these.
+    expect(nav.requests.map((r) => r.url)).toEqual(["/home"]);
+  });
+
+  it("closes the sheet a link was tapped inside", async () => {
+    // The shell's sheets -- the "+" menu, log weight -- sit outside <main> so
+    // they outlive a page. A link inside one used to load a document, which
+    // took the sheet with it; swapping in place does not, so it would have
+    // stayed open over the arriving screen with <body> still pinned.
+    const nav = loadPageNav({ startHref: "/home", routes: { "/settings": SETTINGS } });
+    const overlay = document.createElement("div");
+    overlay.className = "mt-sheet-overlay is-in is-open";
+    overlay.innerHTML = '<div class="mt-sheet"><a id="go" href="/settings">Settings</a></div>';
+    document.body.appendChild(overlay);
+    const closed = [];
+    nav.window.closeBottomSheet = (el) => closed.push(el);
+
+    await nav.clickOn("#go");
+
+    expect(closed).toEqual([overlay]);
+    expect(nav.main().textContent).toContain("Settings");
+    overlay.remove();
+  });
+
+  it("takes the arriving page's script elements out of the DOM", async () => {
+    // The page's scripts are run by hand, in one function scope, so a second
+    // visit does not redeclare. That only holds while the browser does not
+    // ALSO run them: an innerHTML'd <script> never runs, but one moved into
+    // the document does. So the elements are dropped and their source kept.
+    const nav = loadPageNav({
+      startHref: "/home",
+      routes: {
+        "/nutrition": page({
+          href: "/nutrition",
+          body: '<h1 id="heading">Nutrition Log</h1>',
+          scripts: ["window.__ranOnce = (window.__ranOnce || 0) + 1;"],
+        }),
+      },
+    });
+
+    await nav.tap("/nutrition");
+
+    expect(nav.main().querySelectorAll("script")).toHaveLength(0);
+    expect(window.__ranOnce).toBe(1);
+    delete window.__ranOnce;
+  });
+
+  it("clears the result screen's full-bleed class on the way out", async () => {
+    // templates/result.html adds an-result to <html> to go full-bleed and
+    // hide the tab bar, and only its own reset path takes it off -- so
+    // leaving a result stranded every later screen without a tab bar.
+    const nav = loadPageNav({
+      startHref: "/home",
+      startMain: '<a id="back" href="/settings">Back</a>',
+      routes: { "/settings": SETTINGS },
+    });
+    document.documentElement.classList.add("an-result");
+
+    await nav.clickOn("#back");
+
+    expect(nav.main().textContent).toContain("Settings");
+    expect(document.documentElement.classList.contains("an-result")).toBe(false);
+  });
+});
+
+describe("pagenav and the first-run tour", () => {
+  it("hands links back to the browser while a tour is on screen", async () => {
+    // The tour walks between pages and picks the next step up from tour.js
+    // booting on DOMContentLoaded, which a swap never fires. Read off the
+    // live overlay rather than the repcheck_pending_tour key: nothing clears
+    // that key if a tour is abandoned, and this file used to switch itself
+    // off permanently because of it.
+    const nav = loadPageNav({
+      startHref: "/home",
+      startMain: '<a id="go" href="/nutrition">Nutrition</a>',
+      routes: { "/nutrition": NUTRITION },
+    });
+    const overlay = document.createElement("div");
+    overlay.className = "tour-overlay";
+    document.body.appendChild(overlay);
+
+    const event = await nav.clickOn("#go");
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(nav.main().textContent).not.toContain("Nutrition Log");
+
+    overlay.remove();
+    const after = await nav.clickOn("#go");
+    expect(after.defaultPrevented).toBe(true);
+    expect(nav.main().textContent).toContain("Nutrition Log");
+  });
+});
