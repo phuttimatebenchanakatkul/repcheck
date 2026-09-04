@@ -2065,6 +2065,15 @@
     toast.className = "nl-save-error-toast";
     toast.textContent = RepCheckI18n.t("nutrition.log.saveError");
     document.body.appendChild(toast);
+    // Same reason window.openBottomSheet hands its sheets over (base.html):
+    // this lands in <body>, outside the <main> a tab swap replaces, while
+    // .nl-save-error-toast's rules are inline inside that <main> and go with
+    // it. Tapping another tab inside the six seconds would otherwise leave
+    // the toast's text sitting unstyled on the next screen until the timer
+    // caught up with it.
+    if (window.RepCheckNavScope && window.RepCheckNavScope.adopt) {
+      window.RepCheckNavScope.adopt(toast);
+    }
     setTimeout(() => toast.remove(), 6000);
   }
 

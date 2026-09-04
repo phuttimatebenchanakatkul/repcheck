@@ -415,6 +415,37 @@
         window.openBottomSheet = function(overlayEl, sheetSelector) {
           if (!overlayEl) return;
           if (overlayEl.parentElement !== document.body) {
+            // The move to <body> is what frees a sheet from the transformed
+            // stacking context inside .app (see moveOverlayToBody() in
+            // workouts.html for the measurement). It is also what takes the
+            // sheet out of <main> -- the only part of the document a tab
+            // swap replaces -- so a sheet that came from inside <main>
+            // belongs to a page that can leave without it.
+            //
+            // From a phone screenshot: open the food-analysis sheet on
+            // Nutrition, close it, tap another tab, open a recent analysis,
+            // scroll down, and the whole sheet is there at the bottom of the
+            // screen -- "Log food", the close button, the food's name, the
+            // macro donut. Unstyled, and therefore fully visible: a page
+            // template's CSS is inline INSIDE that <main>, so the swap took
+            // .af-modal-overlay's `position: fixed; opacity: 0` away and
+            // left the markup behind as ordinary block content.
+            //
+            // static/nav_scope.js already removes body-level nodes a page
+            // put there, but only ones added while the page's scripts were
+            // running; a sheet is moved when a thumb opens it, long after
+            // that. Hence adopt(), and hence the marker, which is also what
+            // the page-will-swap handler below looks for.
+            //
+            // The shell's own sheets -- the tab-bar "+" menu, log-weight,
+            // goal-adjust -- are rendered outside <main> and are deliberately
+            // not marked: they outlive every page, by design.
+            if (overlayEl.closest("main.main")) {
+              overlayEl.setAttribute("data-pc-page-sheet", "");
+              if (window.RepCheckNavScope && window.RepCheckNavScope.adopt) {
+                window.RepCheckNavScope.adopt(overlayEl);
+              }
+            }
             document.body.appendChild(overlayEl);
           }
           overlayEl.style.display = "";
@@ -472,6 +503,45 @@
           }
           setTimeout(cleanup, 500);
         };
+
+        // A tab swap is not a close, and a page can leave with one of its
+        // sheets still open -- the iOS back-swipe honours the gesture over a
+        // scrim without asking the sheet's opinion. nav_scope then removes
+        // the sheet's node (see adopt() above), which takes the sheet off
+        // screen but undoes none of what opening it did: the nesting count
+        // stays up, <body> stays pinned at the departed page's scroll offset
+        // and the scroller stays locked. The arriving screen simply does not
+        // move, with nothing on it to explain why.
+        //
+        // Only sheets that belong to the page being swapped away, which is
+        // exactly what the marker means. The scroll position is not restored
+        // here on purpose -- pagenav.js scrolls the new screen to the top a
+        // moment later, and a page is not arrived at where the last one was
+        // left.
+        //
+        // Bound once per document: this whole script block sits inside
+        // <main>, so every swap re-runs it, and without the guard every swap
+        // would add another copy of this listener.
+        if (!window.__pcSheetSwapUnlockBound) {
+          window.__pcSheetSwapUnlockBound = true;
+          document.addEventListener("repcheck:page-will-swap", function () {
+            document.querySelectorAll("body > [data-pc-page-sheet]").forEach(function (el) {
+              if (!el.classList.contains("is-in") && !el.classList.contains("is-open")) return;
+              el.classList.remove("is-in");
+              el.classList.remove("is-open");
+              window.__pcSheetLockCount = Math.max(0, window.__pcSheetLockCount - 1);
+              if (window.__pcSheetLockCount > 0) return;
+              document.documentElement.classList.remove("pc-sheet-active");
+              document.documentElement.classList.remove("pc-sheet-locked");
+              if (!RepCheck.framed()) {
+                document.body.style.position = "";
+                document.body.style.top = "";
+                document.body.style.left = "";
+                document.body.style.right = "";
+              }
+            });
+          });
+        }
       </script>
 
       <!--

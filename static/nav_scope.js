@@ -20,6 +20,8 @@
 // is bounded: it costs a duplicate handler on a revisit, not a broken page.
 // Widening the window to "the whole time the page is on screen" would sweep
 // up the shell's own late bindings and unbind those instead, which is worse.
+// Late DOM is a different matter -- a sheet left in <body> IS a broken page,
+// visibly -- so there is adopt() below for a page to hand one over by name.
 //
 // Loaded early and NOT deferred: it has to be in place before the first
 // page script runs, and those run inline in the body.
@@ -95,6 +97,17 @@
   var bodyAppend = null;
   var bodyInsert = null;
 
+  // The same move, made LATE: a sheet is re-parented to <body> when a thumb
+  // opens it, which is long after the bracket above closed. The patch cannot
+  // see those, so window.openBottomSheet hands them here instead (see
+  // templates/base.html) and they are released with the rest of the page's
+  // record. Until it did, closing the food sheet on Nutrition and tapping
+  // another tab left the sheet in the body of every screen afterwards --
+  // and unstyled, since a page template's CSS is inline inside the <main>
+  // the swap just replaced, so an opacity:0 overlay became ordinary block
+  // content at the bottom of the page.
+  var adopted = [];
+
   function patchBody() {
     var body = document.body;
     if (!body || bodyAppend) return;
@@ -151,6 +164,16 @@
       records = [];
       return pending;
     },
+    /**
+     * Record a node the page has just put in <body> outside any bracket, so
+     * the next release() takes it away with the page. A no-op while
+     * recording: the appendChild patch above has it already.
+     */
+    adopt: function (node) {
+      if (!node || node.nodeType !== 1 || recording) return;
+      adopted.push(["node", node]);
+    },
+
     /** Collect the last completed recording, once. */
     take: function () {
       var taken = pending;
@@ -159,9 +182,13 @@
     },
     /** Undo a record from stop(): unbind its listeners, cancel its timers. */
     release: function (taken) {
-      if (!taken) return;
-      for (var i = 0; i < taken.length; i++) {
-        var entry = taken[i];
+      // Drained unconditionally, and even when there is no recording to go
+      // with it: a page whose scripts bound nothing can still have opened a
+      // sheet.
+      var entries = (taken || []).concat(adopted);
+      adopted = [];
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
         try {
           if (entry[0] === "document") docRemove(entry[1], entry[2], entry[3]);
           else if (entry[0] === "window") winRemove(entry[1], entry[2], entry[3]);
