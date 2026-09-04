@@ -746,6 +746,69 @@
 **Priority:** P3
 **Depends on:** None
 
+## Reliability / release
+
+### No global error handler anywhere in the app
+
+**What:** There is no `window.onerror` and no `unhandledrejection` listener in
+any of `static/*.js` or `templates/*.html`. Every uncaught JS error and every
+rejected promise in production is silent: no user-facing message, and nothing
+recorded anywhere.
+
+**Why:** The app ships as a WKWebView pointing at the live site
+(`capacitor.config.json`'s `server.url`), so a JS error on a phone shows up as a
+dead button or a blank region and nothing else. When App Review rejected the app
+under Guideline 2.1 ("bugs and crashes") there was no way to find out what they
+actually hit, which is what made that rejection expensive to answer.
+
+**Context:** Noticed by `/qa` on 2026-09-04 while hunting the 2.1 rejection.
+Deferred from that pass because it adds a capability rather than fixing a bug.
+Worth pairing with something that surfaces the error to the user, not just a log.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** None
+
+### codemagic.yaml's pbxproj patch only parses on Python 3.12+
+
+**What:** The "Restrict the app to iPhone only" step runs an inline `python3`
+script whose final f-string contains a backslash inside the expression:
+`f"Replaced {content.count('TARGETED_DEVICE_FAMILY = \"1,2\";')} occurrence(s)"`.
+Backslashes inside f-string expressions were a `SyntaxError` before Python 3.12
+(PEP 701 relaxed it).
+
+**Why:** It currently works because Codemagic's macOS image ships a new enough
+`python3`. If that image moves back, or the step is copied to another runner,
+the build dies at that step. It fails loudly rather than silently, so it cannot
+produce a wrongly-configured build -- but it stops the release. Fix is to build
+the count into a variable before the f-string.
+
+**Context:** Found by `/qa` on 2026-09-04. Same step already has a history of
+silent no-ops (builds 28 and 29, see the comments around it).
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+### The 1GB Render disk holds uploads, progress photos and analyze videos
+
+**What:** `DATA_DIR` (`/var/data`, 1GB) backs `UPLOAD_DIR`, `PROGRESS_PHOTOS_DIR`
+and `ANALYZE_VIDEOS_DIR` as well as the SQLite database. Analyze clips are
+recorded at 1.5 Mbps for up to 60s (~11MB each, see
+`static/video_recorder.js`).
+
+**Why:** A few hundred saved clips fills the disk. Writes then fail, and the
+failure lands on the upload path rather than anywhere obvious -- and the same
+disk holds `repcheck.db`, so a full disk takes the database down with it.
+Nothing currently watches free space or prunes old videos.
+
+**Context:** Noticed by `/qa` on 2026-09-04 while ruling out storage as a cause
+of the App Review rejection. Not a live failure yet.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
 ## Completed
 
 <!-- Shipped items move here, newest first, with the version or date they landed. -->
