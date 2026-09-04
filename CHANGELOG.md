@@ -2,6 +2,20 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.8.1.0] - 2026-09-04
+
+### Changed
+
+- The "Log food" confirmation screen listed a dish's ingredients as dead
+  text ("Glass Noodles 180g"), so re-logging a meal meant logging the old
+  amounts first and correcting them in the timeline afterwards -- a second
+  helping is rarely the same plate. Each ingredient is now the same
+  editable card the timeline's ingredients panel uses: emoji or photo,
+  name, its own amount field and unit picker, and a remove button. The
+  ring, the per-ingredient macros and the "Ng total" line follow every
+  edit, and the "Log again" button writes exactly what is on screen. The
+  meal it was opened from is untouched -- the screen edits a copy.
+
 ## [0.8.0.0] - 2026-09-02
 
 ### Fixed

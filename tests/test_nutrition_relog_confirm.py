@@ -12,12 +12,20 @@ protein/fat/carbs (via the same donut-chart display used for a fresh
 photo-scan result) and only calls relogEntry() if the user explicitly
 taps "Log again" on that screen.
 
-templates/nutrition.html has no JS test harness in this repo (no build
-step, no jsdom), so -- following the pattern in test_analyze_nav.py's
-_analyze_hrefs() -- these tests inspect the rendered template source
-directly rather than executing the script. That's enough to catch the
-regression this bug represents: someone re-wiring the click handler
-straight back to relogEntry(), bypassing the confirm screen entirely.
+These tests inspect the rendered template source directly rather than
+executing the script -- following the pattern in test_analyze_nav.py's
+_analyze_hrefs() -- because the regression they exist to catch is a wiring
+one: someone re-pointing the click handler straight back at relogEntry() and
+bypassing the confirm screen entirely. What the screen DOES once it is up --
+the editable ingredient rows, and the fact that editing them cannot touch the
+entry being re-logged -- is a behavioural question, covered against the real
+source in jsdom by tests-js/nutritionRelogIngredients.test.js.
+
+The screen renders from `draft`, a copy of the entry made at the top of
+renderRelogConfirm, so amounts can be edited on the way to logging a new meal
+without rewriting the already-logged one they came from. The assertions below
+track that copy: reading `original` again anywhere on the screen would mean
+showing one set of numbers and logging another.
 """
 
 import re
@@ -86,7 +94,11 @@ def test_relog_confirm_screen_shows_macros_before_logging(nutrition_html):
     )
     assert fn_match, "renderRelogConfirm() is missing"
     body = fn_match.group(1)
-    assert "scaledMacros(original)" in body, (
+    assert re.search(r"const draft = \{ \.\.\.original \};", body), (
+        "renderRelogConfirm should render from a copy of the entry, so editing "
+        "the amounts here cannot rewrite the meal already logged"
+    )
+    assert "scaledMacros(draft)" in body, (
         "renderRelogConfirm should compute the entry's real macros, not guess"
     )
     assert "donutChartHtml(" in body, (
@@ -115,8 +127,9 @@ def test_relog_confirm_button_is_the_only_thing_that_logs(nutrition_html):
         re.DOTALL,
     )
     assert handler, "the Log again button should wire up its own click handler"
-    assert re.search(r"relogEntry\(original(,\s*\w+)?\)", handler.group(1)), (
-        "the confirm screen's Log again button should call relogEntry(original)"
+    assert re.search(r"relogEntry\(draft(,\s*\w+)?\)", handler.group(1)), (
+        "the confirm screen's Log again button should call relogEntry(draft) -- "
+        "logging `original` would ignore every amount the user just edited"
     )
     # Comment lines are stripped first: the source explains the double-tap fix
     # by naming relogEntry() in prose, which is not a call site.
@@ -136,7 +149,7 @@ def test_relog_confirm_button_is_the_only_thing_that_logs(nutrition_html):
     )
     assert handler.group(1).index("relogConfirmBtn.disabled = true") < handler.group(
         1
-    ).index("relogEntry(original"), "the button should be disabled before logging"
+    ).index("relogEntry(draft"), "the button should be disabled before logging"
     # Cancel goes back to wherever the screen was opened from: renderAfChoice
     # for the recent-scans list, or a caller-supplied handler for the
     # food-search sheet, whose "back" is not the scan screen. Either way it
@@ -166,7 +179,7 @@ def test_relog_confirm_shows_the_serving_amount(nutrition_html):
     )
     assert fn_match, "renderRelogConfirm() is missing"
     body = fn_match.group(1)
-    assert "entryTotals(original)" in body, (
+    assert "entryTotals(draft)" in body, (
         "renderRelogConfirm should read the entry's real total grams from "
         "entryTotals() -- scaledMacros() alone discards the amount"
     )
@@ -185,13 +198,28 @@ def test_relog_confirm_lists_per_ingredient_amounts(nutrition_html):
         re.DOTALL,
     )
     assert fn_match, "renderRelogConfirm() is missing"
-    body = fn_match.group(1)
-    assert "ing.grams" in body, (
+    assert "afRelogIngredientRowsHtml(draft)" in fn_match.group(1), (
+        "the confirm screen should draw the dish's ingredient rows"
+    )
+    rows_match = re.search(
+        r"function afRelogIngredientRowsHtml\(draft\)\s*\{(.*?)\n  \}",
+        script,
+        re.DOTALL,
+    )
+    assert rows_match, "afRelogIngredientRowsHtml() is missing"
+    rows = rows_match.group(1)
+    assert "ing.grams" in rows, (
         "each ingredient's own gram amount should be shown"
     )
-    assert "escapeHtml(ing.name)" in body, (
+    assert "escapeHtml(ing.name)" in rows, (
         "ingredient names are Gemini-authored and must be escaped before "
         "reaching innerHTML"
+    )
+    # The amount is editable, not merely printed: the rows reuse the timeline
+    # ingredients panel's own card classes, so the two editors stay one design.
+    assert "nl-ingredient-row" in rows and "nl-ingredient-grams" in rows, (
+        "the confirm screen's ingredient rows should be the same editable "
+        "cards the timeline's ingredients panel uses"
     )
 
 
