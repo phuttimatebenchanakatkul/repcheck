@@ -247,14 +247,37 @@
       dockEl.style.transform = "";
       dockEl.classList.remove("is-pulling");
     }
+    // onTouchMove has to preventDefault() to hold the pull preview under the
+    // finger, so its listener must be non-passive -- and a non-passive
+    // touchmove on `document` is scroll-blocking for the entire page, for as
+    // long as it is attached. It is only ever useful for a pull that starts
+    // at the very top with the dock closed, which onTouchStart already
+    // decides, so bind it for that one gesture and take it off again at the
+    // end. touchstart always precedes touchmove within a gesture, so the
+    // pull still sees every move it needs; every other scroll on the analyze
+    // and result screens now reaches the compositor without waiting on the
+    // main thread.
+    let moveArmed = false;
+    function armMove() {
+      if (moveArmed) return;
+      moveArmed = true;
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
+    }
+    function disarmMove() {
+      if (!moveArmed) return;
+      moveArmed = false;
+      document.removeEventListener("touchmove", onTouchMove);
+    }
+
     function onTouchStart(e) {
       pulling = window.scrollY <= 0 && !isOpen();
       pullStartY = e.touches[0].clientY;
       pullDy = 0;
+      if (pulling) armMove(); else disarmMove();
     }
     function onTouchMove(e) {
       if (!pulling) return;
-      if (window.scrollY > 0) { pulling = false; clearPullPreview(); return; }
+      if (window.scrollY > 0) { pulling = false; disarmMove(); clearPullPreview(); return; }
       const dy = e.touches[0].clientY - pullStartY;
       pullDy = dy;
       if (dy <= 14) { clearPullPreview(); return; }
@@ -263,6 +286,7 @@
       dockEl.style.transform = `translateY(${Math.min((dy - 14) * 0.35, 28)}px)`;
     }
     function onTouchEnd() {
+      disarmMove();
       if (!pulling) return;
       pulling = false;
       const passed = pullDy >= PULL_OPEN;
@@ -292,7 +316,6 @@
     // Pull-to-open and close-on-scroll are top-dock behaviours only.
     if (!bottomMode) {
       document.addEventListener("touchstart", onTouchStart, { passive: true });
-      document.addEventListener("touchmove", onTouchMove, { passive: false });
       document.addEventListener("touchend", onTouchEnd, { passive: true });
       document.addEventListener("touchcancel", onTouchEnd, { passive: true });
       window.addEventListener("scroll", onScroll, { passive: true });
