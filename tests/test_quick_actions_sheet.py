@@ -56,12 +56,12 @@ def _more_pane(base_html):
     return base_html[start:end]
 
 
-def test_actions_pane_has_exactly_four_tiles(base_html):
+def test_actions_pane_has_exactly_five_tiles(base_html):
     tiles = re.findall(r'class="qa-tile[ "]', _actions_pane(base_html))
-    assert len(tiles) == 4, (
-        f"expected 4 action tiles in the quick-actions sheet, found {len(tiles)}. "
-        "If a fifth action is genuinely needed, something has to move into the "
-        "More pane."
+    assert len(tiles) == 5, (
+        f"expected 5 action tiles in the quick-actions sheet, found {len(tiles)}. "
+        "If a sixth action is genuinely needed, something has to move into the "
+        "More pane -- the sheet's max-height is what this count protects."
     )
 
 
@@ -71,20 +71,29 @@ def test_log_a_workout_is_not_a_quick_action(base_html):
     assert "mobile.logWorkout" not in _actions_pane(base_html)
 
 
-def test_the_four_tiles_are_the_expected_actions(base_html):
+def test_the_five_tiles_are_the_expected_actions(base_html):
     pane = _actions_pane(base_html)
     for key in (
         "mobile.scanMeal",
         "mobile.analyzeLift",
         "mobile.logWeight",
         "mobile.scanBarcode",
+        "mobile.challenges",
     ):
         assert key in pane, f"{key} is missing from the quick-actions tiles"
 
 
-def test_challenges_is_not_a_quick_action(base_html):
-    # Hidden from the app: no tile here.
-    assert "mobile.challenges" not in _actions_pane(base_html)
+def test_challenges_is_reachable_from_the_app(base_html):
+    """This tile is the ONLY route into /challenges. #256 removed it and the
+    Friends-page pointer together, which left the whole feature -- the daily
+    challenge, the attempt recorder and the reps leaderboard -- reachable
+    only by typing the URL. Nothing else links there, so if this tile goes
+    again the page goes with it."""
+    pane = _actions_pane(base_html)
+    assert "mobile.challenges" in pane
+    assert "url_for('challenges')" in pane, (
+        "the tile must link to the challenges route, not just carry its label"
+    )
 
 
 def test_more_pages_are_not_on_the_actions_pane(base_html):

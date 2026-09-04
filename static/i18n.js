@@ -81,6 +81,7 @@
       "mobile.goalAchieved.checkInNow": "Check in now",
       "mobile.goalAchieved.maybeLater": "Maybe later",
       "mobile.scanBarcode": "Scan barcode",
+      "mobile.challenges": "Challenges",
       "mobile.scanBarcodeSub": "Get exact nutrition from the label",
       "mobile.cancel": "Cancel",
 
@@ -971,6 +972,7 @@
       "mobile.goalAchieved.checkInNow": "เช็คอินตอนนี้",
       "mobile.goalAchieved.maybeLater": "ไว้ทีหลัง",
       "mobile.scanBarcode": "สแกนบาร์โค้ด",
+      "mobile.challenges": "ชาเลนจ์",
       "mobile.scanBarcodeSub": "รับข้อมูลโภชนาการที่แม่นยำจากฉลาก",
       "mobile.cancel": "ยกเลิก",
 

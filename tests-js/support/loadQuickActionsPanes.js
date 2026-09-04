@@ -45,6 +45,7 @@ export function quickActionsFixture() {
               <a class="qa-tile qa-blue"></a>
               <button class="qa-tile qa-red" id="mt-fab-log-weight"></button>
               <button class="qa-tile qa-purple" id="mt-fab-scan-barcode"></button>
+              <a class="qa-tile qa-pink"></a>
             </div>
             <button type="button" class="qa-more-link" id="qa-more-open"
                     aria-controls="qa-pane-more" aria-expanded="false">More options</button>
