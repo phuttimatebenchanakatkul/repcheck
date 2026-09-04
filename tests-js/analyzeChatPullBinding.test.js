@@ -83,6 +83,33 @@ describe("analyze chat dock: the pull listener is scoped to the pull", () => {
     expect(log).toContain("-touchmove");
   });
 
+  it("disarms on touchcancel, not just touchend", () => {
+    // The interruption a phone actually takes: incoming call, system gesture,
+    // scroll takeover. touchcancel is routed to the same handler as touchend;
+    // if it were not, one interrupted pull would leave the page's scrolling
+    // blocked for good, which is ISSUE-002 all over again.
+    mountWidget();
+    const log = trackDocumentTouchListeners();
+
+    touch("touchstart", 10);
+    expect(log).toContain("+touchmove:blocking");
+
+    touch("touchcancel", 10);
+    expect(log).toContain("-touchmove");
+  });
+
+  it("does not arm a pull when the dock is already open", () => {
+    mountWidget();
+    touch("touchstart", 10);
+    touch("touchmove", 90);
+    touch("touchend", 90);
+    expect(dock().classList.contains("is-open")).toBe(true);
+
+    const log = trackDocumentTouchListeners();
+    touch("touchstart", 10); // dock open -> pulling is false -> never arms
+    expect(log.filter((e) => e.includes("touchmove"))).toEqual([]);
+  });
+
   it("still previews the pull under the finger", () => {
     mountWidget();
     touch("touchstart", 10);

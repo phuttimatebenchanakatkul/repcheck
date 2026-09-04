@@ -28,6 +28,11 @@ last camera page without it.
 Pinned at the source level for the same reason as the analyze test: the
 teardown lives in an inline script with no vitest harness, and the contract at
 risk is the pairing of an event name in one file with a dispatch in another.
+
+Each function this walks is asserted on its own rather than trusting the
+handler's two calls to imply the rest: the first version of this file asserted
+only closeRecordModal(), which meant closeResultPopup() could be deleted from
+the handler with the suite still green.
 """
 
 import re
@@ -37,17 +42,28 @@ CHALLENGES_PATH = Path("templates/challenges.html")
 
 WILL_SWAP_EVENT = "repcheck:page-will-swap"
 
+# Matches `function name() { ... }` at the inline script's indentation, up to
+# the closing brace on its own line at that same indentation.
+FUNCTION_BODY = r"function {name}\(\)\s*\{{(.*?)\n    \}}"
+
 
 def _source():
     return CHALLENGES_PATH.read_text(encoding="utf-8")
 
 
+def _body_of(name):
+    """The body of a top-level function in challenges.html's inline script."""
+    match = re.search(FUNCTION_BODY.format(name=name), _source(), re.S)
+    assert match, f"{name}() not found in templates/challenges.html"
+    return match.group(1)
+
+
 def test_challenges_page_releases_the_camera_when_pagenav_swaps_it_away():
-    """The teardown hook exists and runs the recorder's own close path."""
+    """The teardown hook exists and runs both of the recorder's close paths."""
     source = _source()
     handlers = re.findall(
         rf'document\.addEventListener\(\s*["\']{re.escape(WILL_SWAP_EVENT)}["\']\s*,\s*'
-        r'(?:function\s+([A-Za-z0-9_$]+)|([A-Za-z0-9_$]+))',
+        r"(?:function\s+([A-Za-z0-9_$]+)|([A-Za-z0-9_$]+))",
         source,
     )
     names = [a or b for a, b in handlers]
@@ -63,19 +79,22 @@ def test_challenges_page_releases_the_camera_when_pagenav_swaps_it_away():
         re.S,
     )
     assert body, "the page-will-swap handler in challenges.html is not in the expected shape"
-    assert "closeRecordModal()" in body.group(1), (
+    inner = body.group(1)
+    assert "closeRecordModal()" in inner, (
         "the page-will-swap handler must call closeRecordModal() -- that is what "
         "stops the MediaRecorder, clears the countdown and the stop timer, and "
         "calls stopRecordingStream()."
+    )
+    assert "closeResultPopup()" in inner, (
+        "the page-will-swap handler must also call closeResultPopup() -- that is "
+        "the half that revokes resultBlobUrl and detaches the <video>. Without "
+        "this assertion that call could be deleted with the suite still green."
     )
 
 
 def test_close_record_modal_really_releases_the_stream():
     """closeRecordModal() must stop the tracks, not just hide the modal."""
-    source = _source()
-    body = re.search(r"function closeRecordModal\(\)\s*\{(.*?)\n    \}", source, re.S)
-    assert body, "closeRecordModal() not found in templates/challenges.html"
-    inner = body.group(1)
+    inner = _body_of("closeRecordModal")
     assert "stopRecordingStream()" in inner, (
         "closeRecordModal() must call stopRecordingStream() -- that is the call "
         "that stops the video tracks and frees the camera."
@@ -84,13 +103,39 @@ def test_close_record_modal_really_releases_the_stream():
         "closeRecordModal() must clear the countdown interval, or a swapped-away "
         "page keeps counting down and fires a submission from a dead screen."
     )
+    assert "clearTimeout(recordStopTimer)" in inner, (
+        "closeRecordModal() must clear recordStopTimer -- static/nav_scope.js "
+        "tracks setInterval but NOT setTimeout, so nothing else will."
+    )
+    assert "hideAnalyzeStage()" in inner, (
+        "closeRecordModal() must call hideAnalyzeStage(), which is what stops the "
+        "pose RAF loop and revokes analyzeVideoUrl."
+    )
 
 
 def test_stop_recording_stream_stops_every_track():
-    source = _source()
-    body = re.search(r"function stopRecordingStream\(\)\s*\{(.*?)\n    \}", source, re.S)
-    assert body, "stopRecordingStream() not found in templates/challenges.html"
-    assert re.search(r"getTracks\(\)\.forEach\(\s*\(?t\)?\s*=>\s*t\.stop\(\)\s*\)", body.group(1)), (
+    inner = _body_of("stopRecordingStream")
+    assert re.search(r"getTracks\(\)\.forEach\(\s*\(?t\)?\s*=>\s*t\.stop\(\)\s*\)", inner), (
         "stopRecordingStream() must stop every track on the stream; anything less "
         "leaves the camera held open."
+    )
+
+
+def test_hide_analyze_stage_stops_the_pose_loop_and_revokes_its_blob():
+    inner = _body_of("hideAnalyzeStage")
+    assert "stopPoseOverlay()" in inner, (
+        "hideAnalyzeStage() must call stopPoseOverlay() -- that is the "
+        "cancelAnimationFrame that stops the pose loop running on a dead page."
+    )
+    assert "revokeObjectURL(analyzeVideoUrl)" in inner, (
+        "hideAnalyzeStage() must revoke analyzeVideoUrl, or the recorded clip "
+        "stays in memory after the page it belonged to is gone."
+    )
+
+
+def test_close_result_popup_revokes_the_result_blob():
+    inner = _body_of("closeResultPopup")
+    assert "revokeObjectURL(resultBlobUrl)" in inner, (
+        "closeResultPopup() must revoke resultBlobUrl -- it is the only path that "
+        "frees the submitted clip's object URL."
     )

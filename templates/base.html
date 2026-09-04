@@ -577,6 +577,15 @@
               if (!el.classList.contains("is-in") && !el.classList.contains("is-open")) return;
               el.classList.remove("is-in");
               el.classList.remove("is-open");
+              // This path unlocks the sheet by hand instead of going through
+              // closeBottomSheet, so it has to do closeBottomSheet's disarm
+              // too. Otherwise a page-owned sheet that was still OPEN when
+              // its page swapped away keeps its non-passive, full-viewport
+              // touchmove -- the exact leak arming exists to prevent. It
+              // survives only as long as nav_scope actually removes the node,
+              // which is itself guarded (adopt() is behind a
+              // window.RepCheckNavScope check), so do not lean on that.
+              if (el._sheetDragDisarm) el._sheetDragDisarm();
               window.__pcSheetLockCount = Math.max(0, window.__pcSheetLockCount - 1);
               if (window.__pcSheetLockCount > 0) return;
               document.documentElement.classList.remove("pc-sheet-active");

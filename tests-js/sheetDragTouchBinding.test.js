@@ -170,6 +170,70 @@ describe("bottom-sheet drag: touch listeners are scoped to the open sheet", () =
     settleClose();
   });
 
+  it("ignores jitter inside the deadzone", () => {
+    const closeCb = mount();
+    openSheet();
+    touch(handle(), "touchstart", 400);
+    touch(handle(), "touchmove", 405); // 5px, inside the 6px deadzone
+    expect(sheet().style.transform).toBe("");
+    touch(handle(), "touchend", 405);
+    expect(closeCb).not.toHaveBeenCalled();
+  });
+
+  it("abandons the drag when the finger goes back up past the start", () => {
+    const closeCb = mount();
+    openSheet();
+    touch(handle(), "touchstart", 400);
+    touch(handle(), "touchmove", 460);
+    expect(sheet().style.transform).not.toBe("");
+
+    touch(handle(), "touchmove", 380); // above where it started
+    expect(sheet().style.transform).toBe("");
+
+    // The drag is over: a later downward move must not resume it.
+    touch(handle(), "touchmove", 600);
+    expect(sheet().style.transform).toBe("");
+    touch(handle(), "touchend", 600);
+    expect(closeCb).not.toHaveBeenCalled();
+  });
+
+  it("strict mode ignores a drag that is neither far nor fast", () => {
+    // The mt-fab sheet passes { strict: true } because its body is not a real
+    // scroll container, so any slow drag would otherwise dismiss it. 154px
+    // over 400ms is 0.385 px/ms -- past the default 120px threshold, but under
+    // both strict thresholds (220px, 0.7 px/ms).
+    const closeCb = mount({ strict: true });
+    openSheet();
+    touch(handle(), "touchstart", 400);
+    touch(handle(), "touchmove", 560);
+    vi.advanceTimersByTime(400);
+    touch(handle(), "touchend", 560);
+    expect(closeCb).not.toHaveBeenCalled();
+  });
+
+  it("strict mode accepts a short but fast flick", () => {
+    // The velocity escape: same 154px, thrown in 20ms (7.7 px/ms).
+    const closeCb = mount({ strict: true });
+    openSheet();
+    touch(handle(), "touchstart", 400);
+    touch(handle(), "touchmove", 560);
+    vi.advanceTimersByTime(20);
+    touch(handle(), "touchend", 560);
+    expect(closeCb).toHaveBeenCalledTimes(1);
+    settleClose();
+  });
+
+  it("strict mode accepts a genuinely long drag", () => {
+    const closeCb = mount({ strict: true });
+    openSheet();
+    touch(handle(), "touchstart", 400);
+    touch(handle(), "touchmove", 640); // 234px after the deadzone, past 220
+    vi.advanceTimersByTime(400); // slow, so this proves the DISTANCE branch
+    touch(handle(), "touchend", 640);
+    expect(closeCb).toHaveBeenCalledTimes(1);
+    settleClose();
+  });
+
   it("leaves a torn-down overlay with no touch listeners", () => {
     mount();
     openSheet();
@@ -208,6 +272,46 @@ describe("bottom-sheet drag: touch listeners are scoped to the open sheet", () =
       "-touchcancel",
     ]);
     settleClose();
+  });
+
+  it("disarms a page-owned sheet still open when its page swaps away", () => {
+    // base.html's page-will-swap unlock handler strips is-in/is-open by hand
+    // instead of calling closeBottomSheet, so it has to disarm too. Without
+    // that, a sheet left open when its page swapped kept a full-viewport
+    // scroll-blocking touchmove on every page that followed -- the exact
+    // leak arming exists to prevent. It is NOT enough that nav_scope usually
+    // removes the node: adopt() is itself behind a guard.
+    mount();
+    overlay().setAttribute("data-pc-page-sheet", "");
+    openSheet();
+
+    const log = trackTouchListeners(overlay());
+    document.dispatchEvent(new CustomEvent("repcheck:page-will-swap"));
+
+    expect(log).toEqual([
+      "-touchstart",
+      "-touchmove",
+      "-touchend",
+      "-touchcancel",
+    ]);
+  });
+
+  it("ends a drag cleanly on touchcancel", () => {
+    // The interruption a phone actually takes: incoming call, system gesture,
+    // scroll takeover. touchcancel is routed to the same handler as touchend,
+    // so a cancelled drag must leave no transform behind and must not be
+    // read as a dismiss.
+    const closeCb = mount();
+    openSheet();
+
+    touch(handle(), "touchstart", 400);
+    touch(handle(), "touchmove", 450);
+    expect(sheet().style.transform).not.toBe("");
+
+    touch(handle(), "touchcancel", 450);
+    expect(sheet().style.transform).toBe("");
+    expect(closeCb).not.toHaveBeenCalled();
+    expect(overlay().classList.contains("is-open")).toBe(true);
   });
 
   it("resets a transform left by a drag the same-tick close interrupted", () => {
