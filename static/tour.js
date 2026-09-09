@@ -480,6 +480,25 @@
 
       void overlay.offsetWidth;
       overlay.classList.add("is-visible");
+      setTourDim(true);
+    }
+
+    // Mirrors the overlay's visibility onto <html> so the stylesheet can
+    // paint the surround to match the dim.
+    //
+    // This overlay is `position: fixed`, and from 721px up the app is drawn
+    // inside a transformed box narrower than the screen -- which makes that
+    // box the containing block, so the dim stops at the column edge. On an
+    // iPad in landscape that leaves a bright 230px band down each side while
+    // the app is dimmed, which reads as a rendering fault rather than a
+    // design. tour.css paints the surround to match; this is its trigger.
+    //
+    // A class on <html> rather than an `html:has(.tour-overlay.is-visible)`
+    // match, for the reason auth.css already gives for its own lock: it must
+    // not depend on selector support in whatever WKWebView the shipped iOS
+    // shell happens to be running.
+    function setTourDim(on) {
+      document.documentElement.classList.toggle("tour-dim", !!on);
     }
 
     function hideFull() {
@@ -487,6 +506,7 @@
       clearPoll();
       overlay.classList.remove("is-visible");
       overlay.style.display = "none";
+      setTourDim(false);
     }
 
     // ---------- Low-key "still going" pill ----------
@@ -555,6 +575,7 @@
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
       document.removeEventListener("click", onAnyClick, true);
+      setTourDim(false);
       if (overlay) {
         overlay.classList.remove("is-visible");
         var toRemove = overlay;

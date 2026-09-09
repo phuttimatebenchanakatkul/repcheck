@@ -2406,6 +2406,40 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
   body { --app-h: calc(100vh - 32px); border-radius: 34px; border-width: 8px; }
 }
 
+/* ---------- Dimming the surround (tablet only) ----------
+   A full-bleed overlay in this layout is `position: fixed` inside the
+   transformed <body>, so it is clipped to the column and its dim stops at
+   the column edge. On an iPad in landscape that leaves a bright 230px band
+   down each side of a dimmed app, which reads as a rendering fault rather
+   than a design. <body> cannot simply be widened -- its `overflow: hidden`
+   is what gives the desk skin its bezel -- so the surround is painted to
+   match instead.
+
+   Deliberately NOT in the desk skin: there the dim SHOULD stop at the
+   phone's edge, because there the surround is a desk rather than part of
+   the app. Hence `pointer: coarse` rather than the shared block.
+
+   Gated on that one signal alone, unlike the desk skin's two, and the
+   asymmetry is the point: the worst case if this gate misses is the
+   undimmed band staying, which is cosmetic. The desk gate guards against
+   showing a fake phone, which is a rejection. Different stakes, different
+   strictness.
+
+   Both values are the exact composite of whatever is dimming the column:
+   rgba(8, 10, 18, 0.45) for the tour's spotlight backdrop, and
+   brightness(0.7) for the sheet recede, which multiplies toward black.
+   <body> is painted for the sheet case as well -- .app scales to 0.92
+   there, revealing body's own background as a ring inside the column. */
+@media (min-width: 721px) and (pointer: coarse) {
+  html.tour-dim {
+    background: color-mix(in srgb, var(--bg) 55%, rgb(8, 10, 18));
+  }
+  html.pc-sheet-active,
+  html.pc-sheet-active body {
+    background: color-mix(in srgb, var(--bg) 70%, #000);
+  }
+}
+
 /* ---------- Mascot empty states ----------
    The shared block behind every "there's nothing here yet" screen: the
    mascot drawing (see static/mascot.js), a short bold headline, and a

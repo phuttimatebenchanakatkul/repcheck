@@ -376,3 +376,65 @@ def test_onboarding_scroll_cues_do_not_read_the_window():
             f"{windowism} outside the scroller shim: it reads the window, "
             "which is not the scroller from 721px up"
         )
+
+
+def test_the_surround_is_dimmed_with_the_column_on_a_tablet():
+    """A full-bleed overlay is clipped to the column, so its dim stops there.
+
+    Regression: ISSUE-001 -- on an iPad in landscape the tour's backdrop and
+    the sheet recede dimmed the 720px app column and left a bright 230px
+    band down each side, which reads as a rendering fault rather than a
+    design.
+    Found by /qa on 2026-09-09.
+    Report: .gstack/qa-reports/qa-report-repcheck-2026-09-09.md
+
+    The surround has to be painted to match, because <body> cannot simply be
+    widened: its `overflow: hidden` is what gives the desk skin its bezel.
+    """
+    src = STYLE_CSS.read_text(encoding="utf-8")
+
+    # Tablet-scoped, so the desk skin keeps its gradient behind an open
+    # sheet -- there the dim SHOULD stop at the phone's edge.
+    # Trailing brace in the header on purpose: without it `src.index`
+    # matches a NARROWED gate as a prefix, and a tightened media query
+    # would silently pass while the rules never apply.
+    dim = _block(src, "@media (min-width: 721px) and (pointer: coarse) {")
+    assert "html.tour-dim" in dim, "the tour's surround must be dimmed to match"
+    assert "html.pc-sheet-active" in dim, (
+        "the sheet recede's surround must be dimmed to match"
+    )
+    assert "html.pc-sheet-active body" in dim, (
+        ".app scales to 0.92 behind a sheet, so <body>'s own background shows "
+        "as a ring inside the column and has to be painted too"
+    )
+
+    # And NOT in the shared block, which the desk also matches.
+    shared = _block(src, SHARED)
+    assert "tour-dim" not in shared, (
+        "the surround dim is in the shared >=721px block, so it repaints the "
+        "desk's gradient too -- there the dim is meant to stop at the bezel"
+    )
+
+
+def test_the_tour_tells_the_stylesheet_when_it_is_dimming():
+    """CSS cannot see a descendant overlay, so tour.js has to say so.
+
+    Regression: ISSUE-001 -- see the test above.
+    Found by /qa on 2026-09-09.
+
+    A class on <html> rather than `html:has(.tour-overlay.is-visible)`, for
+    the reason auth.css already gives for its own lock: it must not depend
+    on selector support in whatever WKWebView the shipped shell runs.
+    """
+    src = (ROOT / "static" / "tour.js").read_text(encoding="utf-8")
+
+    assert 'classList.toggle("tour-dim"' in src, (
+        "tour.js must stamp the dim state onto <html> for the stylesheet"
+    )
+    # Raised when the overlay appears, and cleared on BOTH exits -- a stale
+    # tour-dim would leave the whole app tinted with no tour on screen.
+    assert src.count("setTourDim(false)") >= 2, (
+        "the dim must be cleared on both the hide and the end paths, or it "
+        "outlives the tour and tints the app permanently"
+    )
+    assert "setTourDim(true)" in src, "the dim must be raised when the tour shows"
