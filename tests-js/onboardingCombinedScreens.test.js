@@ -201,9 +201,12 @@ describe("option taps preserve the page scroll position", () => {
     expect(firstRenderCall[0]).toBe("render()");
   });
 
-  it("renderKeepingScroll() saves scrollY before render() and restores it after", () => {
+  it("renderKeepingScroll() saves the scroll offset before render() and restores it after", () => {
+    // Through the scroller shim, not window: from 721px up `.ob-wrap` is the
+    // scroller and window.scrollY is pinned at 0, so reading the window here
+    // silently restored every rebuild to the top of the wizard on an iPad.
     const body = fnBody(src, "renderKeepingScroll");
-    expect(body).toMatch(/const y = window\.scrollY;\s*\n\s*render\(\);\s*\n\s*window\.scrollTo\(0, y\);/);
+    expect(body).toMatch(/const y = scrollTopNow\(\);\s*\n\s*render\(\);\s*\n\s*restoreScrollTop\(y\);/);
   });
 
   it("set-gender still invalidates a body-fat range from the other gender's table", () => {

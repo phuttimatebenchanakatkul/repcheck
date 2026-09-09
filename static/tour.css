@@ -199,7 +199,13 @@
 .tour-mini {
   position: fixed;
   left: 50%;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  /* Clears the fixed bottom tab bar (.mobile-tabbar, style.css) instead of
+     sitting behind it. Set here rather than in a `max-width: 720px` block,
+     which is where it used to live: the tab bar is drawn at EVERY width
+     (style.css's `@media all` block), so a phone-only clearance left the
+     mini bar tucked behind the tab bar on an iPad and inside the desktop
+     device frame -- the two places nobody was looking. */
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   transform: translate(-50%, 8px);
   z-index: 240;
   display: flex;
@@ -235,12 +241,6 @@
   display: flex; align-items: center; justify-content: center;
 }
 .tour-mini-skip:hover { color: var(--text); }
-
-/* Clears the fixed bottom tab bar (.mobile-tabbar, style.css) instead of
-   sitting underneath/behind it. */
-@media (max-width: 720px) {
-  .tour-mini { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .tour-spotlight { transition: none; }

@@ -121,12 +121,21 @@ def test_script_toggles_has_more_from_remaining_scroll(onboarding_js):
     assert re.search(
         r'classList\.toggle\(\s*"ob-has-more"', onboarding_js
     ), "nothing sets the class the CSS waits on"
+    # Through the scroller shim, not the window: from 721px up style.css
+    # makes .ob-wrap the scroller, and there window.scrollY is pinned at 0
+    # and document.scrollHeight equals innerHeight -- so the window form
+    # computed "nothing left to scroll" on every iPad, permanently.
     assert re.search(
-        r"scrollHeight\s*-\s*window\.innerHeight\s*-\s*window\.scrollY", onboarding_js
-    ), "the cue must be driven by how much scrolling is left"
+        r"contentH\(\)\s*-\s*viewportH\(\)\s*-\s*scrollTopNow\(\)", onboarding_js
+    ), "the cue must be driven by how much scrolling is left, via the shim"
     # A re-render changes the page height, and so does scrolling it.
     assert "requestAnimationFrame(updateScrollCue)" in onboarding_js
     assert 'window.addEventListener("scroll", updateScrollCue' in onboarding_js
+    # ...and the wrap fires the scroll events the window does not once it is
+    # the scroller. Both are bound, since a desktop resize can switch which.
+    assert 'wrapEl.addEventListener("scroll", updateScrollCue' in onboarding_js, (
+        "the cue must also listen to .ob-wrap, which is the scroller above 721px"
+    )
 
 
 def test_cue_is_rendered_on_question_screens_and_scrolls_down(onboarding_js):
@@ -146,6 +155,9 @@ def test_cue_is_rendered_on_question_screens_and_scrolls_down(onboarding_js):
         "body_activity",
         "preferences",
     ], "only the two multi-question screens may show the cue"
+    # scrollDownBy, not window.scrollBy: the window is not the scroller above
+    # 721px, so the window form made the cue's own button inert on an iPad --
+    # a visible "there is more below" pill that did nothing when tapped.
     assert re.search(
-        r'action === "scroll-more"[^}]*window\.scrollBy', onboarding_js, re.S
-    ), "tapping the cue must scroll the page down"
+        r'action === "scroll-more"[^}]*scrollDownBy\(', onboarding_js, re.S
+    ), "tapping the cue must scroll the page down, via the scroller shim"

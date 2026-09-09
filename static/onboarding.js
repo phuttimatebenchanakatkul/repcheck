@@ -273,6 +273,45 @@
   const progressEl = document.getElementById("ob-progress");
   const wrapEl = document.querySelector(".ob-wrap");
 
+  // ---------- Scroller shim ----------
+  // Below 721px <body> scrolls and the window IS the scroller. From 721px
+  // up style.css turns <body> into a fixed-size, non-scrolling app box
+  // (see "Wide screens: the app in a box") and .ob-wrap scrolls inside it.
+  // There, window.scrollY is permanently 0, window.scrollBy does nothing,
+  // and the window never fires a scroll event -- so the "more questions
+  // below" cue reads a page that can never scroll, and its button is dead.
+  //
+  // Asks the element whether it is ACTUALLY a scroller rather than
+  // re-testing the 721px media query here, so this cannot drift out of
+  // sync with the stylesheet that decides it.
+  function scrollerEl() {
+    if (!wrapEl) return null;
+    const overflowY = getComputedStyle(wrapEl).overflowY;
+    return overflowY === "auto" || overflowY === "scroll" ? wrapEl : null;
+  }
+  function scrollTopNow() {
+    const el = scrollerEl();
+    return el ? el.scrollTop : window.scrollY;
+  }
+  function restoreScrollTop(y) {
+    const el = scrollerEl();
+    if (el) el.scrollTop = y;
+    else window.scrollTo(0, y);
+  }
+  function scrollDownBy(px) {
+    const el = scrollerEl();
+    if (el) el.scrollBy({ top: px, behavior: "smooth" });
+    else window.scrollBy({ top: px, behavior: "smooth" });
+  }
+  function viewportH() {
+    const el = scrollerEl();
+    return el ? el.clientHeight : window.innerHeight;
+  }
+  function contentH() {
+    const el = scrollerEl();
+    return el ? el.scrollHeight : document.documentElement.scrollHeight;
+  }
+
   function currentStep() {
     return w.stepIndex >= 0 && w.stepIndex < STEPS.length ? STEPS[w.stepIndex] : null;
   }
@@ -300,7 +339,7 @@
     // engine-dependent (layout timing), so a tall combined screen could
     // otherwise open mid-page with its first question hidden above the
     // fold. renderKeepingScroll() undoes this for same-screen option taps.
-    window.scrollTo(0, 0);
+    restoreScrollTop(0);
     // After layout, not now: the new view's height is not known until the
     // browser has laid it out, and the cue depends on that height.
     requestAnimationFrame(updateScrollCue);
@@ -320,9 +359,9 @@
     const refocusSelector = active && active.dataset && active.dataset.action && active.dataset.value
       ? `[data-action="${active.dataset.action}"][data-value="${active.dataset.value}"]`
       : null;
-    const y = window.scrollY;
+    const y = scrollTopNow();
     render();
-    window.scrollTo(0, y);
+    restoreScrollTop(y);
     if (refocusSelector) {
       const replacement = bodyEl.querySelector(refocusSelector);
       if (replacement) replacement.focus({ preventScroll: true });
@@ -406,8 +445,7 @@
   // "there is more below" on <body> whenever the page can still scroll;
   // the fade and the pill above the button bar key off that class.
   function updateScrollCue() {
-    const doc = document.documentElement;
-    const remaining = doc.scrollHeight - window.innerHeight - window.scrollY;
+    const remaining = contentH() - viewportH() - scrollTopNow();
     document.body.classList.toggle("ob-has-more", remaining > 24);
   }
 
@@ -1272,7 +1310,7 @@
     if (action === "back-to-days") { w.error = null; w.stepIndex = lastVisibleIndex(); return render(); }
     if (action === "retry-generate") return generateAndCalculate();
     if (action === "scroll-more") {
-      window.scrollBy({ top: Math.round(window.innerHeight * 0.7), behavior: "smooth" });
+      scrollDownBy(Math.round(viewportH() * 0.7));
       return;
     }
 
@@ -1292,6 +1330,11 @@
   document.querySelector(".ob-card").addEventListener("click", handleClick);
   document.addEventListener("repcheck:language-changed", render);
   window.addEventListener("scroll", updateScrollCue, { passive: true });
+  // The window fires no scroll event once .ob-wrap is the scroller (see the
+  // shim above), so the cue has to listen to whichever one is live. Both
+  // are bound rather than picking one: the scroller can change under us
+  // when a desktop window is resized across the 721px boundary.
+  if (wrapEl) wrapEl.addEventListener("scroll", updateScrollCue, { passive: true });
   window.addEventListener("resize", updateScrollCue);
   // Screens change height without a re-render too -- body-type images
   // finish loading, a ruler seeds itself, the keyboard opens.

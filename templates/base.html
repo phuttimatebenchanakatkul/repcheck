@@ -432,17 +432,36 @@
         RepCheck.framed = function () {
           return window.matchMedia("(min-width: 721px)").matches;
         };
+        // framed() answers "is <body> a fixed-size box, with .app as the
+        // scroller?" -- true on a tablet AND on a desk. It used to double as
+        // "is this a desktop, so there is no on-screen keyboard?", which was
+        // the same question while every box was a desktop one. It is not any
+        // more: a tablet is a boxed layout WITH a keyboard. Anything reasoning
+        // about the keyboard has to ask this instead.
+        RepCheck.desk = function () {
+          return window.matchMedia(
+            "(min-width: 721px) and (hover: hover) and (pointer: fine)"
+          ).matches;
+        };
 
         function updatePcViewportVars() {
-          // Inside the device frame a sheet's `position: fixed` resolves
+          // Inside the desk frame a sheet's `position: fixed` resolves
           // against <body> -- the phone -- not the browser window, because
           // <body> carries the framing transform. window.visualViewport is
           // still the whole desktop window there, so feeding its raw
           // numbers in put --pc-vvh well past the frame's actual height and
           // let the sheet's bottom portion render outside the frame's
           // clipped edge (only the top of it visible). Measure the frame
-          // itself when framed instead.
-          if (RepCheck.framed()) {
+          // itself on a desk instead.
+          //
+          // desk(), NOT framed(): a tablet is also a boxed layout, but its
+          // box fills the screen, so visualViewport's numbers line up with it
+          // exactly as they do on a phone -- AND a tablet has a keyboard to
+          // dodge. Measuring the box there would hand back the full height
+          // and lay a keyboard-facing sheet (food search, exercise picker)
+          // out behind the keyboard, which is the exact bug this plumbing
+          // exists to prevent.
+          if (RepCheck.desk()) {
             const rect = document.body.getBoundingClientRect();
             document.documentElement.style.setProperty("--pc-vvh", `${rect.height}px`);
             document.documentElement.style.setProperty("--pc-vvt", "0px");

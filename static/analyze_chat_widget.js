@@ -272,6 +272,8 @@
     // rubber-banded underneath it. Arming on scroll state means the listener
     // is always in place BEFORE the finger lands.
     let moveArmed = false;
+    /** Teardown for the scroll subscription; see where it is assigned. */
+    let offScroll = null;
     function armMove() {
       if (moveArmed) return;
       moveArmed = true;
@@ -282,20 +284,38 @@
       moveArmed = false;
       document.removeEventListener("touchmove", onTouchMove);
     }
+    /**
+     * How far the page is scrolled.
+     *
+     * NOT window.scrollY: from 721px up style.css makes <body> a fixed-size
+     * box and `.app` the scroller (see "Wide screens: the app in a box"), so
+     * window.scrollY is pinned at 0 and the window fires no scroll event. On
+     * an iPad that read two things wrong at once -- syncPullArming() armed the
+     * non-passive touchmove and was never called again to disarm it, leaving a
+     * scroll-blocking listener attached for the life of the page (exactly what
+     * the comment above this block, and CLAUDE.md, say never to do), and
+     * `pulling` came back true no matter where the user actually was, so any
+     * drag past the threshold dragged the coach dock instead of scrolling the
+     * capture page.
+     */
+    function pageScrollY() {
+      return window.RepCheck && RepCheck.scrollTop ? RepCheck.scrollTop() : window.scrollY;
+    }
+
     /** The one state a pull can open the dock from. */
     function syncPullArming() {
       if (bottomMode) return; // docked bar: no pull gesture at all
-      if (window.scrollY <= 0 && !isOpen()) armMove(); else disarmMove();
+      if (pageScrollY() <= 0 && !isOpen()) armMove(); else disarmMove();
     }
 
     function onTouchStart(e) {
-      pulling = window.scrollY <= 0 && !isOpen();
+      pulling = pageScrollY() <= 0 && !isOpen();
       pullStartY = e.touches[0].clientY;
       pullDy = 0;
     }
     function onTouchMove(e) {
       if (!pulling) return;
-      if (window.scrollY > 0) { pulling = false; clearPullPreview(); return; }
+      if (pageScrollY() > 0) { pulling = false; clearPullPreview(); return; }
       const dy = e.touches[0].clientY - pullStartY;
       pullDy = dy;
       if (dy <= 14) { clearPullPreview(); return; }
@@ -315,9 +335,9 @@
     //    after opening or while the field is focused: the keyboard sliding up
     //    resizes the viewport and emits scroll events that would otherwise
     //    slam it shut the instant it opened.
-    let lastY = window.scrollY;
+    let lastY = pageScrollY();
     function onScroll() {
-      const y = window.scrollY;
+      const y = pageScrollY();
       const goingDown = y - lastY;
       lastY = y;
       if (isOpen() && goingDown > 4 && y > 8 &&
@@ -338,7 +358,15 @@
       document.addEventListener("touchstart", onTouchStart, { passive: true });
       document.addEventListener("touchend", onTouchEnd, { passive: true });
       document.addEventListener("touchcancel", onTouchEnd, { passive: true });
-      window.addEventListener("scroll", onScroll, { passive: true });
+      // Through RepCheck.onScroll, not window: the window fires no scroll
+      // event once `.app` is the scroller, which is what left the arming
+      // below stuck in whatever state page load happened to find. Returns its
+      // own teardown, since the scroller is a real element that a page swap
+      // can replace.
+      offScroll = window.RepCheck && RepCheck.onScroll
+        ? RepCheck.onScroll(onScroll)
+        : (window.addEventListener("scroll", onScroll, { passive: true }),
+           function () { window.removeEventListener("scroll", onScroll); });
       syncPullArming();
     }
 
@@ -348,7 +376,7 @@
       document.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener("touchend", onTouchEnd);
       document.removeEventListener("touchcancel", onTouchEnd);
-      window.removeEventListener("scroll", onScroll);
+      if (offScroll) { offScroll(); offScroll = null; }
       inputEl.removeEventListener("focus", onInputFocus);
       if (closeEl) closeEl.removeEventListener("click", onCloseClick);
       if (vv) {
