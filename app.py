@@ -70,6 +70,7 @@ from coaching_engine import (
     weekly_adjustment,
 )
 from database import (
+    auth_throttle_sweep,
     ACCOUNT_DELETION_GRACE_DAYS,
     account_deletion_due_at,
     cancel_account_deletion,
@@ -373,6 +374,15 @@ def _sweep_deleted_accounts():
     try:
         run_deletion_purge()
     except Exception:  # noqa: BLE001 -- a failed sweep must not 500 the request
+        traceback.print_exc()
+    try:
+        # Piggy-backs on the same hourly tick. auth_throttle rows are written
+        # by failed logins and signups, i.e. by anonymous callers, so without
+        # a sweep the table is an unbounded write target for exactly the
+        # traffic it exists to slow down. Anything older than a day is past
+        # every window this app uses (the longest is an hour).
+        auth_throttle_sweep(24 * 60 * 60, int(time.time()))
+    except Exception:  # noqa: BLE001 -- same reason as above
         traceback.print_exc()
 
 
