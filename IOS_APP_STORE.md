@@ -155,7 +155,27 @@ None of this can be done from the repo, and all of it needs you signed in.
   enrol as an Individual unless RepCheck is a registered company).
 - App Review: typically 24-48h per submission. Budget for at least one rejection.
 - Assets needed: 1024x1024 icon (no alpha, no rounded corners), 6.7" and 6.5"
-  iPhone screenshots, an app description, keywords, a support URL.
+  iPhone screenshots, **13" iPad screenshots**, an app description, keywords,
+  a support URL.
+
+### The app ships Universal, so iPad screenshots are required
+
+Not optional, and easy to trip over: App Store Connect will not accept a
+submission for an app whose device family includes iPad without at least one
+13-inch iPad screenshot set (2064x2752 or 2048x2732 portrait).
+
+The app used to dodge this by shipping iPhone-only -- `codemagic.yaml` rewrote
+`TARGETED_DEVICE_FAMILY` to `1`. That is exactly what got **0.7.1 (33)
+rejected under Guideline 4 on 2026-09-08**, reviewed on an iPad Air 11-inch:
+"your UI is zoomed in and hard to read". An iPhone-only app still installs on
+an iPad, where iPadOS runs it in compatibility mode -- rendering the app's
+390pt iPhone canvas and scaling that bitmap up to the iPad's screen. Nothing
+on the web side can fix that, because the webview never receives an
+iPad-sized viewport to lay out against.
+
+So the app ships Universal, `static/style.css` lays out a real tablet column
+at >=721px (see "Wide screens: the app in a box" there), and the screenshots
+are a hard prerequisite for every submission from now on.
 
 ## Order of work
 
@@ -172,7 +192,8 @@ None of this can be done from the repo, and all of it needs you signed in.
 8. Push notifications (APNs key) and HealthKit (entitlement) -- both need the
    live account, and both strengthen the 4.2 case beyond the camera.
 9. App Store Connect listing: privacy labels (health data, photos, email),
-   1024x1024 icon with no alpha, 6.7" and 6.5" screenshots, description,
+   1024x1024 icon with no alpha, 6.7" and 6.5" iPhone screenshots, 13" iPad
+   screenshots (mandatory now the app is Universal -- see above), description,
    support URL.
 10. Sign in with Apple, *if* review asks for it. Guideline 4.8 is triggered by
     the Google login, but the existing email/password option is commonly
