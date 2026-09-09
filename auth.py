@@ -40,6 +40,9 @@ from flask import (
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from database import (
+    auth_throttle_check,
+    auth_throttle_clear,
+    auth_throttle_record,
     consume_native_auth_token,
     create_local_user,
     create_native_auth_token,
@@ -122,6 +125,23 @@ def signup():
     name = request.form.get("name", "").strip()
     next_url = _safe_next(request.form.get("next", ""))
 
+    # Signup is open to the internet and creates a real row plus a real
+    # session, so it is the obvious target for scripted account creation.
+    # This is a server-side ceiling per address, not bot DETECTION -- a
+    # CAPTCHA still belongs here and is tracked separately; this stops the
+    # cheap case, which is one host looping the form.
+    signup_key = _signup_throttle_key()
+    blocked, wait = _throttled(signup_key, SIGNUP_LIMIT, SIGNUP_WINDOW)
+    if blocked:
+        return render_template(
+            "signup.html",
+            error=f"Too many accounts created from here. Please try again in about {wait}.",
+            name=name,
+            email=email,
+            next=next_url or "",
+            **_auth_context(),
+        ), 429
+
     # This name is what shows up to other users everywhere (leaderboards,
     # friends, challenges) -- validate it here at signup rather than let an
     # inappropriate one into the account and get caught later, if ever.
@@ -148,8 +168,55 @@ def signup():
         ), 400
 
     user_id = create_local_user(email, password, name)
+    # Spent only on a real account being created, so someone failing
+    # validation repeatedly is not locked out of signing up properly.
+    auth_throttle_record(signup_key, SIGNUP_WINDOW, int(time.time()))
     _login_session(get_user_by_id(user_id))
     return redirect(next_url or url_for("home"))
+
+
+# ---------- Brute-force throttle ----------
+# Failed logins were unlimited: measured against a running instance, twelve
+# wrong passwords in a row all answered normally, with nothing slowing the
+# thirteenth. Password guessing was bounded only by request speed.
+#
+# Counted per (client IP, email) so one attacker cannot lock out an innocent
+# user by guessing at their address from elsewhere, and so guessing many
+# addresses from one host still adds up. Successful logins clear the key, so
+# a real user who mistypes twice and then gets it right carries nothing.
+LOGIN_ATTEMPT_LIMIT = 10
+LOGIN_ATTEMPT_WINDOW = 15 * 60  # 15 minutes
+SIGNUP_LIMIT = 5
+SIGNUP_WINDOW = 60 * 60  # 1 hour
+
+
+def _client_ip():
+    """The caller's address. Render terminates TLS at a proxy, so the socket
+    address is the proxy's -- the left-most X-Forwarded-For entry is the
+    real client. Spoofable in general, which is why this is only ever a
+    throttle key and never an authorisation decision."""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()[:64]
+    return (request.remote_addr or "unknown")[:64]
+
+
+def _login_throttle_key(email):
+    return f"login:{_client_ip()}:{(email or '').lower().strip()[:120]}"
+
+
+def _signup_throttle_key():
+    return f"signup:{_client_ip()}"
+
+
+def _throttled(key, limit, window):
+    """(blocked, human wait string). Read-only -- does not spend an attempt."""
+    allowed, retry_after = auth_throttle_check(key, limit, window, int(time.time()))
+    if allowed:
+        return False, ""
+    minutes = max(1, round(retry_after / 60))
+    return True, f"{minutes} minute{'s' if minutes != 1 else ''}"
+
 
 
 @auth_bp.route("/login", methods=["GET"])
@@ -164,11 +231,30 @@ def login():
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
     next_url = _safe_next(request.form.get("next", ""))
+
+    throttle_key = _login_throttle_key(email)
+    blocked, wait = _throttled(throttle_key, LOGIN_ATTEMPT_LIMIT, LOGIN_ATTEMPT_WINDOW)
+    if blocked:
+        # Deliberately the same page and status as a wrong password, with a
+        # different message: this must not become an oracle telling an
+        # attacker which addresses are worth continuing to guess at.
+        return render_template(
+            "login.html",
+            error=f"Too many sign-in attempts. Please try again in about {wait}.",
+            email=email,
+            next=next_url or "",
+            **_auth_context(),
+        ), 429
+
     user = verify_password(email, password)
     if not user:
+        auth_throttle_record(throttle_key, LOGIN_ATTEMPT_WINDOW, int(time.time()))
         return render_template(
             "login.html", error="Incorrect email or password.", email=email, next=next_url or "", **_auth_context()
         ), 400
+    # Getting in clears the record, so ordinary typos never accumulate
+    # toward a lockout for someone who knows their own password.
+    auth_throttle_clear(throttle_key)
     _login_session(user)
     return redirect(next_url or url_for("home"))
 

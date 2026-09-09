@@ -28,8 +28,34 @@ def _client():
     return flask_app.test_client()
 
 
+def _logged_in_client():
+    """/api/nav-state is logged-in only now. It writes a line to the server
+    log on every call, and the only caller is pagenav.js, which ships in
+    base.html -- app pages, all already behind the login. Open, it was a free
+    way for a stranger to write into the log this app is diagnosed from.
+    """
+    import database
+
+    # Reused across tests in this file, so look before creating: the email
+    # column is UNIQUE and a second create would raise.
+    existing = database.get_user_by_email("nav-state@example.com")
+    user_id = existing["id"] if existing else database.create_local_user(
+        "nav-state@example.com", "irrelevant-password", "Nav State Tester"
+    )
+    flask_app.config["TESTING"] = True
+    client = flask_app.test_client()
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
+    return client
+
+
+def test_an_anonymous_caller_cannot_write_to_the_log():
+    """Regression: this answered 204 to anyone before the fix."""
+    assert _client().get("/api/nav-state?s=on").status_code == 401
+
+
 def test_the_state_is_logged(caplog):
-    client = _client()
+    client = _logged_in_client()
     with caplog.at_level(logging.INFO):
         response = client.get("/api/nav-state?s=on")
     assert response.status_code == 204
@@ -67,7 +93,7 @@ def test_a_beacon_post_is_accepted(caplog):
     exactly like "the phone never reported", which is the one answer this
     endpoint must never give by accident. Found by running it.
     """
-    client = _client()
+    client = _logged_in_client()
     with caplog.at_level(logging.INFO):
         response = client.post("/api/nav-state?s=on")
     assert response.status_code == 204, (
@@ -77,7 +103,7 @@ def test_a_beacon_post_is_accepted(caplog):
 
 
 def test_a_declined_state_says_why(caplog):
-    client = _client()
+    client = _logged_in_client()
     with caplog.at_level(logging.INFO):
         client.get("/api/nav-state?s=off:error:undefined is not an object")
     assert "NAV_STATE off:error:undefined is not an object" in caplog.text, (
@@ -94,7 +120,7 @@ def test_the_phone_is_distinguishable_from_a_desk(caplog):
     this check looked for "RepCheck", labelled the actual phone "browser",
     and nearly sent the investigation back to the start.
     """
-    client = _client()
+    client = _logged_in_client()
     iphone = (
         "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 "
         "(KHTML, like Gecko) Mobile/15E148"
@@ -117,7 +143,7 @@ def test_a_state_cannot_forge_extra_log_lines(caplog):
     from the app itself. It is stripped, and capped, so a log line stays one
     log line of bounded length.
     """
-    client = _client()
+    client = _logged_in_client()
     with caplog.at_level(logging.INFO):
         client.get("/api/nav-state?s=on\nNAV_STATE forged")
         client.get("/api/nav-state?s=" + "x" * 500)
@@ -131,7 +157,7 @@ def test_a_state_cannot_forge_extra_log_lines(caplog):
 
 
 def test_an_empty_state_still_logs_something_useful(caplog):
-    client = _client()
+    client = _logged_in_client()
     with caplog.at_level(logging.INFO):
         client.get("/api/nav-state")
     assert "NAV_STATE unknown" in caplog.text
