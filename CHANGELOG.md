@@ -2,6 +2,38 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.0.0] - 2026-09-09
+
+### Added
+
+- RepCheck now runs properly on an iPad. It used to install there only as a
+  magnified iPhone app: the App Store build was iPhone-only, so iPadOS drew
+  the phone-sized screen and scaled the picture up to fit, which is why
+  everything looked blurry and oversized. The app now ships for iPad as
+  well, and lays itself out for the screen it is on.
+- On a tablet the app fills the height of the screen in a comfortable
+  reading column, instead of the little phone-on-a-desk mockup a wide
+  browser window gets. That mockup was only ever meant for a desktop with
+  a mouse, and it now stays there.
+
+### Fixed
+
+- Onboarding could not be scrolled on a tablet. On the longer questions the
+  page simply ended, with the Next button below the edge and no way to
+  reach it. Signing up on an iPad now works all the way through.
+- The Log in and Sign up cards sat off to one side on a tablet, and the
+  keyboard covered the password field and the Log in button in landscape
+  with no way to move them. Both are fixed.
+- The coach's message box was hidden behind the tab bar. On a desktop it
+  was worse than hidden -- it rendered outside the phone frame entirely, so
+  there was no way to type at all.
+- The "more questions below" hint in onboarding, and its tap-to-scroll
+  button, did nothing on a tablet.
+- The first-run tour's step counter sat behind the tab bar on anything
+  wider than a phone.
+- On the analyze screen, dragging up and down could grab the coach panel
+  instead of scrolling the page.
+
 ## [0.9.0.1] - 2026-09-04
 
 ### Fixed
