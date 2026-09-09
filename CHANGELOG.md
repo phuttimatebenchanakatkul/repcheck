@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.10.0.0] - 2026-09-09
+## [0.10.2.0] - 2026-09-09
 
 ### Added
 
@@ -36,6 +36,30 @@ All notable changes to RepCheck are recorded here, newest first.
 - On a tablet, the dimming behind the welcome tour and behind any pop-up
   panel stopped partway across the screen, leaving a bright strip down both
   sides. It now covers the whole screen.
+
+## [0.10.1.0] - 2026-09-09
+
+### Security
+
+- Two features that call the AI service could be used by anyone on the
+  internet, without an account. Building a workout split had no limit at
+  all, and the HYROX race analysis only counted attempts against your
+  browser session, which resets if you clear it. Both now require you to be
+  signed in, and both count against a daily allowance per account like the
+  other AI features already did.
+- Signing in had no limit on wrong-password attempts, so someone could
+  guess at an account's password as fast as they could send requests. After
+  10 failed attempts, sign-in from that place pauses for 15 minutes. Getting
+  your password right clears the count, so ordinary typos never build up.
+  Account creation is capped per location per hour for the same reason.
+- A few smaller endpoints (food search, the calorie calculator, the
+  navigation diagnostic) answered anyone who asked, even signed out. They
+  gave nothing away, but they each cost the server something, and every one
+  of them is only used from a page you have to be signed in to see.
+- The app now sends the standard browser security headers. The one doing
+  the most work stops the app being loaded inside someone else's page,
+  which is how a signed-in person can be tricked into clicking something
+  like Delete account without realising.
 
 ## [0.9.0.1] - 2026-09-04
 

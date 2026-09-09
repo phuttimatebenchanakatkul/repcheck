@@ -70,6 +70,7 @@ from coaching_engine import (
     weekly_adjustment,
 )
 from database import (
+    auth_throttle_sweep,
     ACCOUNT_DELETION_GRACE_DAYS,
     account_deletion_due_at,
     cancel_account_deletion,
@@ -374,6 +375,15 @@ def _sweep_deleted_accounts():
         run_deletion_purge()
     except Exception:  # noqa: BLE001 -- a failed sweep must not 500 the request
         traceback.print_exc()
+    try:
+        # Piggy-backs on the same hourly tick. auth_throttle rows are written
+        # by failed logins and signups, i.e. by anonymous callers, so without
+        # a sweep the table is an unbounded write target for exactly the
+        # traffic it exists to slow down. Anything older than a day is past
+        # every window this app uses (the longest is an hour).
+        auth_throttle_sweep(24 * 60 * 60, int(time.time()))
+    except Exception:  # noqa: BLE001 -- same reason as above
+        traceback.print_exc()
 
 
 @app.before_request
@@ -444,6 +454,13 @@ RATE_LIMITS = {
     "workout_analysis": (1, 24 * 60 * 60),  # 1 per day
     "food_analysis": (3, 24 * 60 * 60),     # 3 per day
     "ai_chat": (3, 24 * 60 * 60),           # 3 messages per day
+    # Both of these call Gemini and neither was capped per account. The
+    # split wizard had no limit at all; the HYROX analyzer had one counted
+    # in the SESSION, which resets the moment a caller drops their cookie.
+    # A per-account window is the only one an attacker cannot reset for
+    # free, and these two are the ones that spend money per call.
+    "split_generation": (10, 24 * 60 * 60),   # 10 plans per day
+    "hyrox_analysis": (8, 5 * 60 * 60),       # matches the old session budget
 }
 
 # App Review demo accounts, from the environment as a comma-separated list
@@ -598,6 +615,71 @@ def cache_versioned_assets(response):
         and response.status_code == 200
     ):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
+
+# Content-Security-Policy is built from what the app actually loads rather
+# than from a template, so it is worth naming the sources: MediaPipe's WASM
+# and model files come from jsDelivr and Google's storage bucket (see
+# static/pose_worker.js), the font is Google Fonts, exercise clips are
+# YouTube iframes, and a few illustrations come from Unsplash.
+#
+# 'unsafe-inline' and 'unsafe-eval' are in script-src deliberately and are
+# NOT an oversight: this app is built out of inline <script> blocks in its
+# templates, and static/pagenav.js re-runs an arriving page's scripts
+# through `new Function`, which is eval. A policy without them would break
+# every page in the app. That means this CSP is not an XSS backstop -- it
+# restricts where scripts, frames and connections may come FROM, which is
+# still worth having, and frame-ancestors is the part doing real work.
+CSP = "; ".join([
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https://images.unsplash.com https://storage.googleapis.com",
+    "media-src 'self' blob: data:",
+    "connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com",
+    "worker-src 'self' blob:",
+    "frame-src https://www.youtube-nocookie.com https://www.youtube.com",
+    # The app has a delete-account button and a block/report flow. Framing
+    # it lets an attacker overlay their own page on top and trick a signed-in
+    # user into clicking those. Nothing here is ever meant to be embedded.
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+])
+
+
+@app.after_request
+def security_headers(response):
+    """The standard hardening headers. There were none before this.
+
+    Kept in one place so there is a single answer to "what does this app
+    send", and applied to every response including static assets and JSON.
+    """
+    response.headers.setdefault("Content-Security-Policy", CSP)
+    # Belt and braces with frame-ancestors above, for anything that only
+    # understands the older header.
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    # Stops a browser second-guessing a declared Content-Type, which is how
+    # an uploaded file gets treated as script.
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    # Full URLs of this app (which contain ids) should not travel to third
+    # parties in a Referer header.
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # Features this app never uses. Denying them means an injected frame or
+    # script cannot quietly ask for them either.
+    response.headers.setdefault(
+        "Permissions-Policy", "geolocation=(), microphone=(), payment=(), usb=()"
+    )
+    # HSTS only where TLS actually terminates. Sending it from a local http
+    # dev server would pin localhost to https in the developer's browser and
+    # is genuinely painful to undo, so it is gated on the same RENDER flag
+    # that controls SESSION_COOKIE_SECURE.
+    if os.environ.get("RENDER"):
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
     return response
 
 
@@ -1513,6 +1595,12 @@ def api_lookup_barcode():
 
 @app.route("/api/search-food-online", methods=["GET"])
 def api_search_food_online():
+    # Logged in only. This proxies an outbound request to Open Food Facts on
+    # every call, so left open it is a free, anonymous way to drive traffic
+    # from this server's IP -- and the only thing that ever calls it is the
+    # food-log search bar, which is behind the login anyway.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
     # Extends the food-log search bar beyond the curated FOOD_LIBRARY
     # (food_library.py) out to Open Food Facts' full product database, so
     # branded/packaged items that aren't in the hand-curated library can
@@ -2599,6 +2687,30 @@ def api_workout_chat():
 
 @app.route("/api/hyrox/analyze", methods=["POST"])
 def api_hyrox_analyze():
+    # This calls Gemini. It used to be reachable with no account at all, and
+    # the only budget on it lived in the session cookie -- so anyone could
+    # spend from this project's Gemini quota indefinitely just by not
+    # sending a cookie. Verified against a running instance: an
+    # unauthenticated POST returned a real generated analysis in 5.7s.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    blocked, retry_after = _rate_limit_blocked("hyrox_analysis")
+    if blocked:
+        # The client already understands this shape (see hyrox_coach.py's
+        # own limited branch), so an over-limit answer renders as a normal
+        # message rather than an error.
+        return jsonify({
+            "ok": True,
+            "overall": (
+                f"You've analyzed {RATE_LIMITS['hyrox_analysis'][0]} races today. "
+                f"Please check back in {_friendly_wait(retry_after)}."
+            ),
+            "overall_detail": [],
+            "tips": [],
+            "limited": True,
+            "retry_after_seconds": retry_after,
+        })
     payload = request.get_json(silent=True) or {}
     race = payload.get("race") or {}
     if not isinstance(race, dict):
@@ -2609,6 +2721,9 @@ def api_hyrox_analyze():
         return jsonify({"ok": False, "error": "Race has no segments to analyze."}), 400
 
     result = get_hyrox_race_analysis(race)
+    # Spend the budget only once the call actually happened.
+    if not result.get("limited"):
+        _rate_limit_record("hyrox_analysis")
     _track_feature("hyrox_ai_analysis")
     return jsonify({
         "ok": True,
@@ -2636,6 +2751,24 @@ def _optional_positive_float(value):
 
 @app.route("/api/generate-split", methods=["POST"])
 def api_generate_split():
+    # This calls Gemini too, and had neither a login check nor any limit.
+    # Verified against a running instance: an unauthenticated POST returned
+    # a real AI-generated plan in 4.7s, which is a stranger spending this
+    # project's Gemini quota on demand.
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    blocked, retry_after = _rate_limit_blocked("split_generation")
+    if blocked:
+        return jsonify({
+            "ok": False,
+            "error": (
+                f"You've built {RATE_LIMITS['split_generation'][0]} plans today. "
+                f"Please check back in {_friendly_wait(retry_after)}."
+            ),
+            "limited": True,
+            "retry_after_seconds": retry_after,
+        }), 429
     payload = request.get_json(silent=True) or {}
     split_type = str(payload.get("split_type", "")).strip()
     days_per_week = payload.get("days_per_week")
@@ -2693,15 +2826,22 @@ def api_generate_split():
             current_weight_kg=_optional_positive_float(payload.get("current_weight_kg")),
             location=location,
         )
+        _rate_limit_record("split_generation")
         _track_feature("split_ai_suggested")
         return jsonify({"ok": True, **plan})
 
     plan = generate_split_plan(split_type, days_per_week, custom_days, goal, custom_days_exercises, location)
+    _rate_limit_record("split_generation")
     return jsonify({"ok": True, **plan})
 
 
 @app.route("/api/coaching/body-fat-ranges", methods=["GET"])
 def api_coaching_body_fat_ranges():
+    # Defence in depth rather than a leak: these are static constants. But
+    # the whole app is behind a login, and an endpoint that does not need to
+    # be open should not be.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
     gender = request.args.get("gender", "male")
     ranges = FEMALE_BODY_FAT_RANGES if gender == "female" else MALE_BODY_FAT_RANGES
     return jsonify({"ok": True, "ranges": ranges})
@@ -2805,6 +2945,11 @@ def _validate_coaching_profile(payload):
 
 @app.route("/api/coaching/calculate", methods=["POST"])
 def api_coaching_calculate():
+    # No secrets and no AI here, just arithmetic -- but it is server CPU any
+    # stranger could spend, and its only caller is the onboarding wizard,
+    # which is behind the login.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
     payload = request.get_json(silent=True) or {}
     profile, error = _validate_coaching_profile(payload)
     if error:
@@ -3143,6 +3288,13 @@ def api_nav_state():
     Deliberately minimal: no user id, no page, no body. The state string is
     capped and stripped of newlines so a log line stays a log line.
     """
+    # Logged in only. It writes a line to the server log on every call, and
+    # the only thing that sends it is pagenav.js, which ships in base.html --
+    # i.e. app pages, all of which are already behind the login. Open, it is
+    # a free way for a stranger to write to the logs this app is diagnosed
+    # from.
+    if not current_user():
+        return ("", 401)
     state = (request.args.get("s") or "")[:120]
     state = re.sub(r"[^\x20-\x7e]", "", state).strip() or "unknown"
     # The iOS shell is the case this exists for; a desktop browser hitting it
