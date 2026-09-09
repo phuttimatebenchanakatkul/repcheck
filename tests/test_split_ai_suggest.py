@@ -299,13 +299,53 @@ def test_weight_direction_is_spelled_out_for_the_model():
 
 # ---------- the HTTP surface ----------
 
+# These endpoints call Gemini, so they now require a logged-in account and
+# count against that account's daily budget -- see RATE_LIMITS in app.py.
+# Anonymous callers get a 401 before any of this runs, which is the point:
+# a stranger could previously spend the project's Gemini quota on demand.
+def _logged_in_client():
+    import app as app_module
+    import database
+
+    # Reused across tests in this file, so look before creating: the email
+    # column is UNIQUE and a second create would raise.
+    existing = database.get_user_by_email("split-endpoint@example.com")
+    user_id = existing["id"] if existing else database.create_local_user(
+        "split-endpoint@example.com", "irrelevant-password", "Split Endpoint Tester"
+    )
+    app_module.app.config["TESTING"] = True
+    client = app_module.app.test_client()
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
+    return client
+
+
+def test_the_endpoint_refuses_an_anonymous_caller():
+    """Regression: this route was open to the internet and called Gemini.
+
+    Verified against a running instance before the fix -- an unauthenticated
+    POST came back with a real AI-generated plan in 4.7 seconds.
+    """
+    import app as app_module
+
+    client = app_module.app.test_client()
+    res = client.post(
+        "/api/generate-split",
+        data=json.dumps({"split_type": "ai_suggest", "days_per_week": 3}),
+        content_type="application/json",
+    )
+    assert res.status_code == 401, (
+        "a paid AI endpoint must not be reachable without an account"
+    )
+
+
 def test_endpoint_returns_the_chosen_split_type(monkeypatch):
     import app as app_module
 
     days = [{"label": "Full Body", "exercises": ["Squat", "Flat Bench Press", "Pull-Up", "Plank"]}] * 3
     _fake_gemini(monkeypatch, _plan_payload(days, "full_body"))
 
-    client = app_module.app.test_client()
+    client = _logged_in_client()
     res = client.post("/api/generate-split", data=json.dumps({
         "split_type": "ai_suggest", "days_per_week": 3, "location": "gym",
         "goal": "build muscle", "gender": "male",
@@ -333,7 +373,7 @@ def test_endpoint_tolerates_a_junk_or_absent_profile(monkeypatch, bad_profile):
     import app as app_module
 
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    client = app_module.app.test_client()
+    client = _logged_in_client()
     res = client.post("/api/generate-split", data=json.dumps({
         "split_type": "ai_suggest", "days_per_week": 3, "location": "gym", **bad_profile,
     }), content_type="application/json")
@@ -343,9 +383,7 @@ def test_endpoint_tolerates_a_junk_or_absent_profile(monkeypatch, bad_profile):
 
 
 def test_endpoint_still_rejects_an_out_of_range_day_count():
-    import app as app_module
-
-    client = app_module.app.test_client()
+    client = _logged_in_client()
     for days in (0, 8, "many"):
         res = client.post("/api/generate-split", data=json.dumps({
             "split_type": "ai_suggest", "days_per_week": days,

@@ -151,6 +151,20 @@ def init_db():
                 PRIMARY KEY (user_id, feature)
             )
         """)
+        # Throttle for actions taken BEFORE there is a logged-in user, so
+        # rate_limits above (keyed on a real users.id) cannot be reused:
+        # failed logins and signups. Keyed on an opaque string -- see
+        # app.py's _auth_throttle_key -- rather than a user id, and in the
+        # database rather than in memory because gunicorn runs several
+        # workers and a per-process dict would give an attacker one full
+        # budget per worker.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_throttle (
+                key TEXT PRIMARY KEY,
+                window_start INTEGER NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0
+            )
+        """)
         # Lifetime per-user usage counters for the admin activity view:
         # one row per (user, event), where event is "page:<endpoint>" for
         # page views or "feature:<name>" for feature uses (AI analysis,
@@ -1023,6 +1037,59 @@ def rate_limit_consume(user_id, feature, window_seconds, now):
             "ON CONFLICT(user_id, feature) DO UPDATE SET "
             "window_start = excluded.window_start, count = excluded.count",
             (user_id, feature, window_start, count + 1),
+        )
+
+
+# ---------- Pre-login throttle ----------
+# Same window semantics as rate_limit_* above, but keyed on a string instead
+# of a users.id, because the thing being throttled happens before anyone is
+# logged in. Used for failed logins and signups: without it, password
+# guessing is limited only by how fast an attacker can send requests.
+def auth_throttle_check(key, limit, window_seconds, now):
+    """Read-only: (allowed, retry_after_seconds) for one more attempt."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT window_start, count FROM auth_throttle WHERE key = ?", (key,)
+        ).fetchone()
+    if row is None or now - row["window_start"] >= window_seconds:
+        return True, 0
+    if row["count"] >= limit:
+        return False, int(window_seconds - (now - row["window_start"]))
+    return True, 0
+
+
+def auth_throttle_record(key, window_seconds, now):
+    """Record one attempt, opening a fresh window if the last has elapsed."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT window_start, count FROM auth_throttle WHERE key = ?", (key,)
+        ).fetchone()
+        if row is None or now - row["window_start"] >= window_seconds:
+            window_start, count = now, 0
+        else:
+            window_start, count = row["window_start"], row["count"]
+        conn.execute(
+            "INSERT INTO auth_throttle (key, window_start, count) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET "
+            "window_start = excluded.window_start, count = excluded.count",
+            (key, window_start, count + 1),
+        )
+
+
+def auth_throttle_clear(key):
+    """Forget a key's attempts. Called on a SUCCESSFUL login so a user who
+    mistyped their password twice and then got it right does not keep
+    carrying those failures toward a lockout."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM auth_throttle WHERE key = ?", (key,))
+
+
+def auth_throttle_sweep(older_than_seconds, now):
+    """Drop windows that have fully elapsed, so the table stays small."""
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM auth_throttle WHERE window_start < ?",
+            (now - older_than_seconds,),
         )
 
 
