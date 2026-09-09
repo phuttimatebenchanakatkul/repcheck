@@ -36,10 +36,16 @@ describe("auth viewport sync", () => {
 
     phone.tap("email", KEYBOARD);
 
-    // No height is written at all: <body> keeps the full height `inset: 0`
-    // gives it, so the card renders at the size the design was measured at and
-    // the keyboard draws on top of it.
-    expect(phone.body.style.height).toBeUndefined();
+    // No height is applied: <body> keeps the full height `inset: 0` gives it,
+    // so the card renders at the size the design was measured at and the
+    // keyboard draws on top of it.
+    //
+    // toBeFalsy, not toBeUndefined: the phone path now explicitly clears the
+    // height (an empty string) rather than never touching it, because the
+    // tablet path below DOES write one and a resize across the breakpoint must
+    // not leave it stranded. "" and undefined both mean "no height applied";
+    // an actual length is what this is guarding against.
+    expect(phone.body.style.height).toBeFalsy();
   });
 
   it("follows the visual viewport instead of sliding off the top", () => {
@@ -155,14 +161,73 @@ describe("auth viewport sync", () => {
     expect(phone.body.style.transform).toBe(settled);
   });
 
-  it("leaves the desktop device frame alone", () => {
-    // Above 721px <body> IS the simulated phone -- a fixed-size transformed box
-    // -- so moving it would slide the phone around the desk.
+  it("leaves the desktop desk frame alone", () => {
+    // On a desk <body> IS the simulated phone -- a fixed-size transformed box
+    // -- so moving it would slide the phone around the desk. And there is no
+    // on-screen keyboard there to move it for in the first place.
     const desktop = loadAuthViewport({ layoutHeight: 900, framed: true });
 
     desktop.tap("email", { height: 500, offsetTop: 120 });
 
     expect(desktop.body.style.transform).toBe("");
-    expect(desktop.body.style.height).toBeUndefined();
+    expect(desktop.body.style.height).toBeFalsy();
+  });
+
+  // ---------- Tablet ----------
+  // An iPad is ALSO a >=721px box, but a touch one, so it has a keyboard the
+  // desk frame never had. Doing nothing here (which is what a single
+  // ">=721px means desktop" test did) left the password field and the Log in
+  // button underneath the keyboard in landscape, with no scroll range for iOS
+  // to reach them: auth.css only pins and compacts below 721px, and
+  // .auth-wrap cannot scroll while its content fits.
+
+  it("resizes the tablet box to the strip above the keyboard", () => {
+    // iPad Air landscape: 820pt tall, ~350pt of keyboard.
+    const ipad = loadAuthViewport({ layoutHeight: 820, tablet: true });
+
+    ipad.tap("email", { height: 470, offsetTop: 0 });
+
+    // The box becomes the visible strip, and `top` is the point the -50%
+    // translate centres it on -- the middle of that strip.
+    expect(ipad.body.style.height).toBe("470px");
+    expect(ipad.body.style.top).toBe("235px");
+  });
+
+  it("compensates for a visual viewport iOS has slid down", () => {
+    const ipad = loadAuthViewport({ layoutHeight: 820, tablet: true });
+
+    ipad.tap("email", { height: 470, offsetTop: 60 });
+
+    expect(ipad.body.style.height).toBe("470px");
+    expect(ipad.body.style.top).toBe("295px"); // 60 + 470/2
+  });
+
+  it("never writes a translate on a tablet, which would fight the centring", () => {
+    // <body> already carries translate(-50%, -50%) for the centring. A
+    // translateY on top of that throws the whole box off screen.
+    const ipad = loadAuthViewport({ layoutHeight: 820, tablet: true });
+
+    ipad.tap("email", { height: 470, offsetTop: 60 });
+
+    expect(ipad.body.style.transform || "").toBe("");
+  });
+
+  it("writes back the resting geometry on a tablet with no keyboard up", () => {
+    // Same rule as the phone at rest: with nothing to dodge, what gets
+    // written must be what the stylesheet already said, so nothing moves.
+    const ipad = loadAuthViewport({ layoutHeight: 820, tablet: true });
+
+    expect(ipad.body.style.height).toBe("820px");
+    expect(ipad.body.style.top).toBe("410px");
+  });
+
+  it("ignores an implausible strip height rather than collapsing the box", () => {
+    // visualViewport.height reads back 0 if measured before layout; a
+    // 0-height box would put the card nowhere.
+    const ipad = loadAuthViewport({ layoutHeight: 820, tablet: true });
+
+    ipad.tap("email", { height: 0, offsetTop: 0 });
+
+    expect(ipad.body.style.height).toBe("820px"); // the last good geometry
   });
 });

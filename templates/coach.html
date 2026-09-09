@@ -41,8 +41,22 @@
     box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 40px); /* .app has 20px padding top + bottom */
-    min-height: 420px;
+    /* Sized against the APP BOX, not the window. --app-h is the height of
+       whatever the app is drawn in (style.css: 100vh on a phone, 100dvh
+       inside the tablet column, the device height inside the desktop
+       frame), so this one expression is right in all three.
+
+       It used to be `100dvh - 40px` here with the real math -- the one
+       that also subtracts the tab bar -- kept in a `max-width: 720px`
+       block below. Above 720px that block does not match, so the card was
+       sized to the whole WINDOW while living inside a much shorter box:
+       in the desktop frame the input pill rendered ~60px past the frame's
+       clipped bottom edge and could not be seen or tapped at all, and on
+       an iPad the floating tab bar sat straight on top of it.
+
+       102px = .app's 12px top padding + the 78px tab bar + 12px below it. */
+    height: calc(var(--app-h) - 102px - env(safe-area-inset-bottom, 0px));
+    min-height: 380px;
     overflow: hidden;
   }
 
@@ -261,8 +275,8 @@
   }
 
   @media (max-width: 720px) {
-    /* .app: 12px top padding; .main: 78px tab bar + safe area; .app: 12px bottom. */
-    .cc-chat { height: calc(100dvh - 102px - env(safe-area-inset-bottom, 0px)); min-height: 380px; }
+    /* Height is no longer set here -- the base .cc-chat rule above now
+       carries this block's own tab-bar math for every width. */
     .cc-messages { padding: 16px 14px 6px; }
     .cc-bubble { max-width: 92%; font-size: 15px; }
     .cc-input-pill { margin: 6px 10px 10px; }

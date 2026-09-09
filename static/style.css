@@ -61,10 +61,20 @@
   --radius-lg: 20px;
   --radius-md: 14px;
   /* Height of the app viewport. On a phone that is the real viewport; on
-     a wide screen the device frame redefines it, so anything sized to a
-     fraction of the screen tracks the frame instead of the desktop
-     window. Every rule that used vh for layout now derives from this. */
+     a wide screen the box redefines it, so anything sized to a fraction of
+     the screen tracks the box instead of the desktop window. Every rule
+     that used vh for layout now derives from this.
+
+     dvh, not vh: on mobile Safari `100vh` is the LARGE viewport -- the one
+     you get with the URL bar hidden -- so anything pinned to the bottom of
+     a 100vh box sits 60-90px below the fold while the bar is showing. The
+     coach composer used to spell out `100dvh` for exactly this reason, and
+     folding that rule into --app-h silently downgraded it. Declared twice
+     because `dvh` is Safari 15.4+: an older engine drops the second line
+     as invalid and keeps the vh fallback, which is the same
+     belt-and-braces pattern nutrition.html and hyrox.css already use. */
   --app-h: 100vh;
+  --app-h: 100dvh;
   --shadow: 0 1px 2px rgba(16, 17, 20, 0.03), 0 8px 24px rgba(16, 17, 20, 0.05);
 }
 
@@ -2185,57 +2195,79 @@ html.an-result .ag-dock.is-open .ag-close {
 html.an-result .ag-close svg { width: 13px; height: 13px; }
 
 /* ================================================================
-   Device frame: RepCheck as a phone, on a desktop screen
+   Wide screens: one app box, two skins
    ================================================================
    RepCheck is a phone app. It used to grow a second, sidebar-based
    layout above 720px, which meant every screen had to work twice and the
    desktop version was always the neglected one. Instead the phone layout
-   is now the only layout (see the `@media all` block above) and a wide
-   screen simply draws it inside a device.
+   is the only layout (see the `@media all` block above) and a wide screen
+   just puts it in a box.
 
-   How this works, because it is load-bearing:
+   How that box works, because it is load-bearing:
 
-   - <body> becomes the device: a fixed-size, non-scrolling box centred in
+   - <body> becomes the app: a fixed-size, non-scrolling box centred in
      the window. It carries `transform`, which makes it the containing
      block for every `position: fixed` descendant -- the tab bar, the "+"
      sheets, the analyze ask bar. Without that they would pin to the
-     desktop window and float outside the phone entirely.
+     window and float outside the app entirely.
    - .app becomes the scroller. Because the fixed chrome hangs off <body>
-     rather than .app, it stays pinned to the device while content scrolls
+     rather than .app, it stays pinned to the box while content scrolls
      underneath, exactly as it does on a real phone.
    - That moves the scrollport off the window, so JS that reads
      window.scrollY has to ask the scroller instead. base.html exposes
      RepCheck.scroller() / scrollTop() / scrollTo() for that, and the
      handful of call sites use them.
 
+   The DEFAULT box is a tablet one: a comfortable centred column, full
+   screen height, no decoration. Below it, ONE exception re-skins that box
+   as a phone on a dark desk -- but only for a screen that is definitely a
+   desktop with a mouse.
+
+   That direction is deliberate, and it is the fix for a rejection. The
+   desk used to be the default for every window over 720px, which is every
+   iPad in both orientations (820pt portrait, 1180pt landscape). Apple
+   rejected 0.7.1 (33) on an iPad Air under Guideline 4 for it: inside a
+   native iPad app a drawn-on phone bezel is not a design flourish, it is
+   the app failing to lay out for the device it is running on.
+
+   So the exception has to prove itself with two independent signals --
+   `hover: hover` AND `pointer: fine` -- and anything failing either one
+   falls through to the tablet layout. A tablet reports `hover: none` and
+   `pointer: coarse`, so both would have to be wrong at once for it to get
+   the desk back. Written the other way round (tablet as the exception), a
+   single wrong signal on some future device puts a fake phone in front of
+   a reviewer again -- and that failure costs a whole review cycle to even
+   find out about.
+
    Below 721px none of this applies: <body> scrolls, fixed means fixed,
    and the app is just the app. */
 
 @media (min-width: 721px) {
   html {
-    /* The desk the phone sits on. Deliberately not pure grey -- a flat
-       mid-grey behind a floating object reads as an unstyled default. */
-    background:
-      radial-gradient(120% 90% at 50% 0%, #2b2f3a 0%, #1b1e26 55%, #14161c 100%);
     min-height: 100%;
-    /* The device <body> below is position:absolute, so it still contributes
+    /* The app <body> below is position:absolute, so it still contributes
        its pre-transform box to the window's scroll area -- leaving ~700px of
-       empty gradient you could scroll into under the phone. .app is the real
+       empty background you could scroll into under it. .app is the real
        scroller here (see below), so the window never needs to scroll. */
     overflow: hidden;
-  }
-  :root[data-theme="dark"] html,
-  html[data-theme="dark"] {
-    background:
-      radial-gradient(120% 90% at 50% 0%, #23262e 0%, #15171c 55%, #101216 100%);
+    /* The surround, not a contrasting "desk". The analyze result screen's
+       own `html.an-result` paper background (higher specificity, see the
+       an-result block above) still wins over this, so a full-bleed result
+       page keeps its surface out to the screen edge. */
+    background: var(--bg);
   }
 
   body {
-    /* --app-h drives everything that used to be sized in vh. Capped at
-       844 (a standard phone) but allowed to shrink on a short laptop
-       screen so the device is never taller than the window. */
-    --app-h: min(844px, calc(100vh - 96px));
-    width: 390px;
+    /* Full screen height: a tablet has no reason to letterbox itself.
+       --app-h is what everything that used to be sized in vh reads. */
+    --app-h: 100dvh;
+    /* Wide enough to read at a tablet's viewing distance, narrow enough
+       that phone-proportioned cards don't stretch into a letterbox. An
+       iPad in portrait (820pt) is very nearly the full width; in landscape
+       (1180pt) this column is centred with the app's own background either
+       side, so the surround reads as part of the app rather than as a wall
+       it has been propped against. */
+    width: min(100vw, 720px);
     height: var(--app-h);
     margin: 0 auto;
     position: absolute;
@@ -2243,15 +2275,7 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
     /* translate does the centring AND establishes the containing block
        for fixed descendants. Both jobs, one property. */
     transform: translate(-50%, -50%);
-    border-radius: 46px;
-    /* The bezel. A border rather than a wrapper element, so no page needs
-       extra markup to sit inside the device. */
-    border: 11px solid #0b0c0f;
     overflow: hidden;
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 40px 80px rgba(0, 0, 0, 0.55),
-      0 8px 24px rgba(0, 0, 0, 0.4);
   }
 
   /* .app takes over scrolling from the window. */
@@ -2262,18 +2286,69 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    /* A little more gutter than a phone gets -- 12px of edge padding on a
+       720px column reads as content jammed against the edge. The desk skin
+       below puts it back to 12px, since inside a 390px frame the roomier
+       gutter would only make the content narrower. */
+    padding-left: 20px;
+    padding-right: 20px;
   }
   .app::-webkit-scrollbar { display: none; }
 
+  /* The tab bar does NOT grow with the box. Stretched to 720px its five
+     items sit a thumb's width apart with the active bubble blown up into a
+     136px blob -- sparse, and nothing like the dense pill the design is.
+     Insets rather than a transform, deliberately: `transform` on this
+     element already belongs to the sheet-open recede
+     (html.pc-sheet-active), and centring with translateX(-50%) would be
+     silently cancelled the moment a sheet opened.
+
+     `100%` on a fixed element resolves against <body> -- the box, not the
+     window -- so this is (720 - 420) / 2 per side in the tablet column,
+     while in the 390px desk frame the calc goes negative and max() hands
+     back the phone's own 12px. One rule, right in both skins. */
+  .mobile-tabbar {
+    left: max(12px, calc((100% - 420px) / 2));
+    right: max(12px, calc((100% - 420px) / 2));
+  }
+
   /* The auth pages (login, signup, onboarding) do not use .app, so they
-     scroll on their own wrapper instead. */
-  .auth-body { display: block; }
-  .auth-wrap {
-    height: 100%;
+     scroll on their own wrapper instead.
+
+     .auth-body keeps auth.css's flex centring here. It used to be forced
+     to `display: block` so .auth-wrap could take `height: 100%` and be the
+     scroller -- but block layout also left the 400px card hard against the
+     left edge of the box. Inside the 390px desktop frame that is invisible
+     (the card is as wide as the frame), so it went unnoticed; in the
+     tablet column it put the login screen visibly off to one side, above a
+     screen and a half of empty space. `max-height` on the wrap gives the
+     same overflow safety net without taking the centring away.
+
+     Onboarding gets exactly the same treatment, and needs it more. <body>
+     here is a fixed-height box with `overflow: hidden`, and so is <html>,
+     so a page whose wrapper does not scroll has NO scrollport at all --
+     content past the bottom edge is clipped and unreachable, with no
+     gesture that can reach it. A combined onboarding step runs to about
+     twice a phone viewport (see updateScrollCue in static/onboarding.js),
+     and it is the first screen after signup, which is the first thing App
+     Review reaches after the login page. */
+  /* `html body.…` for specificity, not decoration: both pages set their own
+     `min-height: 100vh` in a stylesheet that loads AFTER this one (auth.css
+     for log in and sign up, an inline <style> for onboarding), so a plain
+     `.auth-body` loses on source order and `body.ob-body` outranks it
+     outright. Left unreleased, that min-height keeps the box at the LARGE
+     viewport while `height` above is the dynamic one, so on a browser
+     showing a URL bar the bottom of the card sits below the box's clipped
+     edge -- the same unreachable-content bug, one step subtler. */
+  html body.auth-body,
+  html body.ob-body { height: 100%; min-height: 0; }
+  .auth-wrap, .ob-wrap {
+    max-height: 100%;
     overflow-y: auto;
     scrollbar-width: none;
   }
-  .auth-wrap::-webkit-scrollbar { display: none; }
+  .auth-wrap::-webkit-scrollbar,
+  .ob-wrap::-webkit-scrollbar { display: none; }
 
   /* Analyze results paint their own full-bleed surface, so the device has
      to match or a paper-coloured sheet sits on a white body corner. */
@@ -2286,10 +2361,83 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
   html.pc-sheet-active .app { border-radius: 0; }
 }
 
+/* ---------- The exception: a desktop with a mouse ----------
+   Re-skins the box above as a presentation device: a 390px phone, bezel
+   and all, on a dark desk. Both `hover: hover` and `pointer: fine` are
+   required -- see the note at the top of this section for why the test is
+   deliberately hard to pass rather than easy. */
+@media (min-width: 721px) and (hover: hover) and (pointer: fine) {
+  html {
+    /* The desk the phone sits on. Deliberately not pure grey -- a flat
+       mid-grey behind a floating object reads as an unstyled default. */
+    background:
+      radial-gradient(120% 90% at 50% 0%, #2b2f3a 0%, #1b1e26 55%, #14161c 100%);
+  }
+  :root[data-theme="dark"] html,
+  html[data-theme="dark"] {
+    background:
+      radial-gradient(120% 90% at 50% 0%, #23262e 0%, #15171c 55%, #101216 100%);
+  }
+
+  body {
+    /* Capped at 844 (a standard phone) but allowed to shrink on a short
+       laptop screen so the device is never taller than the window. */
+    --app-h: min(844px, calc(100vh - 96px));
+    width: 390px;
+    border-radius: 46px;
+    /* The bezel. A border rather than a wrapper element, so no page needs
+       extra markup to sit inside the device. */
+    border: 11px solid #0b0c0f;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 40px 80px rgba(0, 0, 0, 0.55),
+      0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Back to the phone's own gutters: the column's roomier 20px would only
+     make the content narrower inside a 390px frame. */
+  .app { padding-left: 12px; padding-right: 12px; }
+}
+
 /* A short window would otherwise crop the device. Below this the phone
-   stops being a fixed 844 and just fills what is available. */
-@media (min-width: 721px) and (max-height: 700px) {
+   stops being a fixed 844 and just fills what is available. Desk skin
+   only: the tablet box is already full-height and has no bezel to shrink. */
+@media (min-width: 721px) and (hover: hover) and (pointer: fine) and (max-height: 700px) {
   body { --app-h: calc(100vh - 32px); border-radius: 34px; border-width: 8px; }
+}
+
+/* ---------- Dimming the surround (tablet only) ----------
+   A full-bleed overlay in this layout is `position: fixed` inside the
+   transformed <body>, so it is clipped to the column and its dim stops at
+   the column edge. On an iPad in landscape that leaves a bright 230px band
+   down each side of a dimmed app, which reads as a rendering fault rather
+   than a design. <body> cannot simply be widened -- its `overflow: hidden`
+   is what gives the desk skin its bezel -- so the surround is painted to
+   match instead.
+
+   Deliberately NOT in the desk skin: there the dim SHOULD stop at the
+   phone's edge, because there the surround is a desk rather than part of
+   the app. Hence `pointer: coarse` rather than the shared block.
+
+   Gated on that one signal alone, unlike the desk skin's two, and the
+   asymmetry is the point: the worst case if this gate misses is the
+   undimmed band staying, which is cosmetic. The desk gate guards against
+   showing a fake phone, which is a rejection. Different stakes, different
+   strictness.
+
+   Both values are the exact composite of whatever is dimming the column:
+   rgba(8, 10, 18, 0.45) for the tour's spotlight backdrop, and
+   brightness(0.7) for the sheet recede, which multiplies toward black.
+   <body> is painted for the sheet case as well -- .app scales to 0.92
+   there, revealing body's own background as a ring inside the column. */
+@media (min-width: 721px) and (pointer: coarse) {
+  html.tour-dim {
+    background: color-mix(in srgb, var(--bg) 55%, rgb(8, 10, 18));
+  }
+  html.pc-sheet-active,
+  html.pc-sheet-active body {
+    background: color-mix(in srgb, var(--bg) 70%, #000);
+  }
 }
 
 /* ---------- Mascot empty states ----------

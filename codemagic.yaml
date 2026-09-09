@@ -241,38 +241,67 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
 
-      - name: Restrict the app to iPhone only
+      - name: Ship as a Universal app (iPhone + iPad)
         script: |
-          # cap add ios defaults TARGETED_DEVICE_FAMILY to "1,2" (Universal),
-          # which makes App Store Connect require iPad screenshots for an app
-          # that has never been laid out or tested for a tablet.
+          # This step used to do the OPPOSITE: it rewrote every
+          # TARGETED_DEVICE_FAMILY to 1 (iPhone only), to dodge App Store
+          # Connect's iPad screenshot requirement for an app that had never
+          # been laid out for a tablet.
           #
-          # Editing Info.plist's UIDeviceFamily directly (build 28) did NOT
-          # work: Xcode's newer project template has "Generate Info.plist
-          # File" on, which regenerates Info.plist from the project's build
-          # settings at compile time and silently threw away that edit. The
-          # actual source of truth is TARGETED_DEVICE_FAMILY in
-          # project.pbxproj, so patch that instead -- every configuration
-          # (Debug/Release, for both the App and CapacitorCordova/Capacitor
-          # targets) sets it to "1,2"; replace all of them with 1.
-          # python3, not sed -i: Codemagic's Mac runner ships BSD sed, whose
-          # -i needs an explicit (possibly empty) backup-extension argument
-          # or it misparses the whole invocation -- exactly what happened in
-          # build 29 ("command i expects \ followed by text"), which silently
-          # left the file untouched while the step still reported success.
+          # That is what got 0.7.1 (33) rejected under Guideline 4 on
+          # 2026-09-08, reviewed on an iPad Air 11-inch: "your UI is zoomed
+          # in and hard to read". An iPhone-only app still installs on an
+          # iPad, where iPadOS runs it in compatibility mode -- it renders
+          # the app's 390pt iPhone canvas and scales that bitmap up to the
+          # iPad's screen. Everything is literally magnified and soft. No
+          # amount of CSS can fix it, because the web app never receives an
+          # iPad-sized viewport to lay out against; the scaling happens
+          # above the webview.
+          #
+          # So the app ships Universal, the webview gets the iPad's real
+          # 820pt (portrait) / 1180pt (landscape) viewport at native
+          # resolution, and style.css lays out a proper tablet column for
+          # it (see "Skin 1: tablet" in static/style.css).
+          #
+          # Capacitor's template already defaults to "1,2", so there is
+          # nothing to patch -- only something to ASSERT. Left unchecked, a
+          # future template change back to 1 would silently reintroduce the
+          # exact rejection above, and the symptom (an upload that builds
+          # and ships fine, then fails review weeks later) is about as far
+          # from its cause as it gets.
           PBXPROJ="ios/App/App.xcodeproj/project.pbxproj"
-          python3 - "$PBXPROJ" <<'PYEOF'
-          import sys
-          path = sys.argv[1]
-          with open(path) as f:
-              content = f.read()
-          patched = content.replace('TARGETED_DEVICE_FAMILY = "1,2";', "TARGETED_DEVICE_FAMILY = 1;")
-          with open(path, "w") as f:
-              f.write(patched)
-          print(f"Replaced {content.count('TARGETED_DEVICE_FAMILY = \"1,2\";')} occurrence(s)")
-          PYEOF
-          echo "--- remaining TARGETED_DEVICE_FAMILY lines (should all be 1) ---"
+          echo "--- TARGETED_DEVICE_FAMILY lines (every one must be \"1,2\") ---"
           grep -n "TARGETED_DEVICE_FAMILY" "$PBXPROJ"
+
+          # Counted, not pattern-matched. The value appears once per build
+          # configuration (Debug/Release) per target (App, and Capacitor's
+          # own), so "no line says 1" plus "some line says 1,2" would happily
+          # pass a project where the App target went iPhone-only and only
+          # Capacitor's stayed Universal -- and it is the App target that
+          # decides what the store lists. Requiring EVERY occurrence to be
+          # "1,2" also catches the quoted `= "1";` form, which Xcode writes
+          # in some paths and a `= 1;` pattern misses entirely.
+          TOTAL=$(grep -c "TARGETED_DEVICE_FAMILY" "$PBXPROJ" || true)
+          UNIVERSAL=$(grep -c 'TARGETED_DEVICE_FAMILY = "1,2";' "$PBXPROJ" || true)
+          echo "TARGETED_DEVICE_FAMILY: $UNIVERSAL of $TOTAL are Universal"
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "" >&2
+            echo "No TARGETED_DEVICE_FAMILY at all in $PBXPROJ -- cap add ios's" >&2
+            echo "project layout changed. Set the device family explicitly" >&2
+            echo "rather than assuming the template's default." >&2
+            exit 1
+          fi
+          if [ "$UNIVERSAL" -ne "$TOTAL" ]; then
+            echo "" >&2
+            echo "$((TOTAL - UNIVERSAL)) of $TOTAL TARGETED_DEVICE_FAMILY settings are not" >&2
+            echo "Universal (\"1,2\"). The app must ship Universal: shipping" >&2
+            echo "iPhone-only is what caused the Guideline 4 rejection of" >&2
+            echo "build 33 on an iPad Air -- iPadOS runs an iPhone-only app" >&2
+            echo "scaled up, and no amount of CSS can undo that. Fix the" >&2
+            echo "project template rather than removing this check." >&2
+            exit 1
+          fi
 
       - name: Run the test suites
         script: |

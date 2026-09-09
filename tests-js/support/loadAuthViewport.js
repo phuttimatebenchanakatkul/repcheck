@@ -30,7 +30,12 @@ export function readSource() {
  *
  * @param {object} opts
  *   layoutHeight - the layout viewport height (what the pin measures)
- *   framed       - true to simulate the >=721px desktop device frame
+ *   framed       - true to simulate the >=721px desktop desk frame (a mouse:
+ *                  hover:hover + pointer:fine, so auth_viewport's desk() is
+ *                  true and it does nothing)
+ *   tablet       - true to simulate an iPad: also a >=721px box, but touch, so
+ *                  boxed() is true while desk() is false and the script
+ *                  resizes the box to the strip above the keyboard
  *   fields       - [{name, top, height}] laid out in layout coordinates with no
  *                  keyboard up; defaults to the log in card at 375x812
  *   submit       - {top, height} for .auth-submit-btn, or null for none
@@ -41,6 +46,7 @@ export function readSource() {
 export function loadAuthViewport({
   layoutHeight = 812,
   framed = false,
+  tablet = false,
   fields = [
     { name: "email", top: 380, height: 44 },
     { name: "password", top: 460, height: 44 },
@@ -90,7 +96,15 @@ export function loadAuthViewport({
     visualViewport,
     pageYOffset: 0,
     scrollTo(_x, y) { windowStub.pageYOffset = y; },
-    matchMedia: (query) => ({ matches: framed && query.includes("721px") }),
+    // auth_viewport.js asks two different questions and they must not collapse
+    // into one here: boxed() is "(min-width: 721px)" while desk() adds
+    // "(hover: hover) and (pointer: fine)". A tablet answers yes to the first
+    // and no to the second, which is the whole distinction under test.
+    matchMedia: (query) => ({
+      matches: query.includes("hover")
+        ? framed
+        : (framed || tablet) && query.includes("721px"),
+    }),
     setTimeout(fn) { timers.push(fn); return timers.length; },
     addEventListener(type, handler) { listeners.window.push({ type, handler }); },
   };

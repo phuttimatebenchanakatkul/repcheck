@@ -187,15 +187,33 @@ def test_visual_viewport_sync_never_shrinks_the_screen():
     budget in this file's docstring was measured at.
 
     Behaviour is covered in tests-js/authViewport.test.js; this guards the
-    height write not creeping back in.
+    height write not creeping back in ON A PHONE.
+
+    A TABLET is the deliberate exception, added when the app went Universal
+    for iPad. There the card is a fraction of the screen rather than nearly
+    all of it, so resizing the box to the strip re-centres the card without
+    squeezing anything -- and doing nothing instead left the password field
+    and the Log in button under the keyboard in landscape, unreachable,
+    because auth.css only pins and compacts below 721px. So the assertion is
+    scoped to the phone branch rather than the whole file.
     """
     src = read("static/auth_viewport.js")
-    assert "style.height" not in src, (
-        "auth_viewport.js must not write <body>'s height. Sizing the page to "
-        "visualViewport.height re-centres the card into the strip above the "
-        "keyboard, which squeezes it and clips whichever field the strip ends "
-        "on -- the screen is meant to stay full size and let the keyboard "
-        "overlay it."
+
+    # The tablet branch above is allowed to size the box. The phone path
+    # begins at the reveal offset and everything from there down is not.
+    phone_start = "var offset = Math.max(0, Math.round(vv.offsetTop)) + reveal;"
+    assert phone_start in src, (
+        "expected auth_viewport.js's phone path to start at the reveal "
+        "offset; if that moved, re-scope this assertion rather than "
+        "deleting it"
+    )
+    phone_path = src.split(phone_start, 1)[1]
+    assert "style.height" not in phone_path, (
+        "auth_viewport.js must not write <body>'s height on a phone. Sizing "
+        "the page to visualViewport.height re-centres the card into the strip "
+        "above the keyboard, which squeezes it and clips whichever field the "
+        "strip ends on -- the phone screen is meant to stay full size and let "
+        "the keyboard overlay it."
     )
 
 

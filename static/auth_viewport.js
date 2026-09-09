@@ -71,18 +71,68 @@
   var reveal = 0;
   var focused = null;
 
-  // Above 721px style.css draws the app inside a device frame where <body> IS
-  // the phone -- a fixed-size, transformed box that .auth-wrap scrolls inside.
-  // Moving it there would slide the phone around the desk.
-  function framed() {
+  // Above 721px style.css draws the app inside a fixed-size, transformed box
+  // where <body> IS the box and .auth-wrap scrolls inside it. WHICH KIND of
+  // box decides what this file is allowed to do, and the two answers are
+  // opposites:
+  //
+  // - desk() -- a mouse-driven desktop. The box is a 390px phone sitting on a
+  //   desk and there is no on-screen keyboard to dodge, so this file does
+  //   nothing: moving it would slide the phone around the desk.
+  // - boxed() but not desk() -- a tablet. The box fills the screen and there
+  //   very much IS a keyboard. Doing nothing here is what left the password
+  //   field and the Log in button underneath it on an iPad in landscape,
+  //   where the strip above the keyboard is ~470pt and the vertically-centred
+  //   card runs to ~690. Nothing could reach them either: auth.css only pins
+  //   and compacts below 721px, and .auth-wrap has no scroll range while its
+  //   content fits.
+  function desk() {
+    return window.matchMedia(
+      "(min-width: 721px) and (hover: hover) and (pointer: fine)"
+    ).matches;
+  }
+  function boxed() {
     return window.matchMedia("(min-width: 721px)").matches;
   }
 
+  // Undo the tablet branch's inline geometry so a resize across a breakpoint
+  // never strands it on a layout that does not want it.
+  function clearBox() {
+    body.style.height = "";
+    body.style.top = "";
+  }
+
   function place() {
-    if (framed()) {
+    if (desk()) {
+      clearBox();
       body.style.transform = "";
       return;
     }
+    if (boxed()) {
+      // Tablet. <body> is BOTH the app box and the flex centring context for
+      // the card, and it already carries a translate(-50%, -50%) doing the
+      // centring -- writing translateY here would throw the whole box off
+      // screen. So resize the box to the strip the keyboard leaves visible
+      // and let the flex centring that is already there re-centre the card
+      // inside it. .auth-wrap's max-height:100%/overflow-y:auto supplies a
+      // scroll range for the rare card taller than the strip.
+      //
+      // This is deliberately the OPPOSITE of the phone rule at the top of
+      // this file ("the screen stays FULL SIZE"). There the card is nearly as
+      // tall as the screen, so shrinking <body> to the strip cut it off
+      // mid-field. A tablet's card is a fraction of its screen, and the strip
+      // is still taller than the card in portrait.
+      var strip = vv.height;
+      // Same implausible-measurement guard as revealFocused: a 0-height strip
+      // read before layout would collapse the box.
+      if (!(strip > MIN_USABLE_HEIGHT)) return;
+      body.style.height = strip + "px";
+      // `top` is a point, not an edge -- the -50% translate centres the box on
+      // it -- so this is the middle of the visible strip.
+      body.style.top = (Math.max(0, Math.round(vv.offsetTop)) + strip / 2) + "px";
+      return;
+    }
+    clearBox();
     var offset = Math.max(0, Math.round(vv.offsetTop)) + reveal;
     body.style.transform = offset ? "translateY(" + offset + "px)" : "";
 
@@ -112,7 +162,10 @@
   // leaves visible. Rects and visualViewport offsets are both measured against
   // the layout viewport, so they can be compared directly.
   function revealFocused() {
-    if (framed() || !focused || !focused.getBoundingClientRect) return;
+    // Not on a tablet either: there the box resize in place() has already put
+    // the card inside the visible strip, and a translateY on top of it would
+    // fight the centring transform.
+    if (boxed() || !focused || !focused.getBoundingClientRect) return;
     if (!(vv.height > MIN_USABLE_HEIGHT)) return;
 
     var stripTop = Math.max(0, Math.round(vv.offsetTop));
