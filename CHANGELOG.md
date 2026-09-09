@@ -33,6 +33,9 @@ All notable changes to RepCheck are recorded here, newest first.
   wider than a phone.
 - On the analyze screen, dragging up and down could grab the coach panel
   instead of scrolling the page.
+- On a tablet, the dimming behind the welcome tour and behind any pop-up
+  panel stopped partway across the screen, leaving a bright strip down both
+  sides. It now covers the whole screen.
 
 ## [0.9.0.1] - 2026-09-04
 
