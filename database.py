@@ -1559,7 +1559,7 @@ def create_hyrox_result(user_id, gender, category, format_, total_seconds):
         return cursor.lastrowid
 
 
-def get_hyrox_leaderboard(gender, category, format_, exclude_ids=None):
+def get_hyrox_leaderboard(gender, category, format_, exclude_ids=None, min_seconds=None):
     """Every user's PB (fastest time) for one exact gender/category/format
     combo, fastest first -- a Pro Singles time isn't comparable to an Open
     Doubles one, so the four combos are always ranked separately, never
@@ -1571,6 +1571,18 @@ def get_hyrox_leaderboard(gender, category, format_, exclude_ids=None):
                JOIN users u ON u.id = r.user_id
                WHERE r.gender = ? AND r.category = ? AND r.format = ?"""
     params = [gender, category, format_]
+    # The same plausibility floor /api/hyrox/results enforces on the way in,
+    # applied again on the way out. Two reasons it belongs here as well:
+    # rows stored before that floor existed (it was a flat 20 minutes, half
+    # an hour below what the app itself calls possible) would otherwise sit
+    # at the top of this board forever, and a row reaching the table by any
+    # future route still could not rank.
+    #
+    # Filtering BEFORE the MIN() matters: a user with one impossible time
+    # and one real one still ranks, on the real one, rather than vanishing.
+    if min_seconds is not None:
+        query += " AND r.total_seconds >= ?"
+        params.append(min_seconds)
     # Same reason as the reps board: excluded in SQL so the caller's
     # position-in-list rank matches what the viewer is shown.
     if exclude_ids:
