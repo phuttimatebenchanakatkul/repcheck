@@ -2742,7 +2742,8 @@ def api_hyrox_leaderboard():
         return jsonify({"ok": False, "error": "Invalid gender, category, or format."}), 400
 
     rows = get_hyrox_leaderboard(
-        gender, category, format_, exclude_ids=hidden_user_ids(user["id"])
+        gender, category, format_, exclude_ids=hidden_user_ids(user["id"]),
+        min_seconds=HYROX_MIN_PLAUSIBLE_SECONDS.get(f"{gender}|{format_}")
     )
     my_rank = None
     for i, row in enumerate(rows):

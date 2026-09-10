@@ -117,3 +117,111 @@ def test_a_genuine_doubles_time_below_the_singles_floor_still_counts():
     """
     client = _logged_in("hyrox-doubles@example.com")
     assert _post(client, 48 * 60, fmt="doubles").status_code == 200
+
+
+# --------------------------------------------------------------------------
+# Rows that predate the floor
+# --------------------------------------------------------------------------
+
+def test_a_row_stored_before_the_floor_existed_cannot_rank():
+    """The floor guards the way in; this guards the way out.
+
+    A flat 20-minute floor shipped for a while, so the table can contain
+    times half an hour below what the app calls possible. Rejecting new ones
+    does nothing about those -- they would sit at the top of the board
+    forever. Deliberately filtered rather than deleted: this is somebody's
+    row, and a query that ignores it is reversible in a way a DELETE is not.
+    """
+    import database
+
+    client = _logged_in("hyrox-legacy@example.com")
+    user = database.get_user_by_email("hyrox-legacy@example.com")
+
+    # straight into the table, as an old client could have put it there
+    with database.get_db() as conn:
+        conn.execute(
+            "INSERT INTO hyrox_results (user_id, gender, category, format, total_seconds) "
+            "VALUES (?, 'men', 'open', 'singles', ?)",
+            (user["id"], 20 * 60),
+        )
+
+    rows = database.get_hyrox_leaderboard(
+        "men", "open", "singles",
+        min_seconds=app_module.HYROX_MIN_PLAUSIBLE_SECONDS["men|singles"],
+    )
+    assert all(r["best_seconds"] >= 50 * 60 for r in rows), (
+        "an impossible time stored before the floor existed must not rank"
+    )
+    assert user["id"] not in [r["user_id"] for r in rows]
+
+
+def test_a_user_with_one_bad_time_still_ranks_on_their_good_one():
+    """Filtering before the MIN(), not after.
+
+    Otherwise the fix would punish a real athlete for one junk row: their
+    genuine PB would be replaced by nothing at all.
+    """
+    import database
+
+    client = _logged_in("hyrox-mixed@example.com")
+    user = database.get_user_by_email("hyrox-mixed@example.com")
+
+    with database.get_db() as conn:
+        conn.executemany(
+            "INSERT INTO hyrox_results (user_id, gender, category, format, total_seconds) "
+            "VALUES (?, 'men', 'open', 'singles', ?)",
+            [(user["id"], 20 * 60), (user["id"], 58 * 60)],
+        )
+
+    rows = database.get_hyrox_leaderboard(
+        "men", "open", "singles",
+        min_seconds=app_module.HYROX_MIN_PLAUSIBLE_SECONDS["men|singles"],
+    )
+    mine = [r for r in rows if r["user_id"] == user["id"]]
+    assert mine, "a real time must still rank"
+    assert mine[0]["best_seconds"] == 58 * 60, (
+        "the impossible row must be filtered before MIN(), not become the PB"
+    )
+
+
+def test_the_leaderboard_ROUTE_applies_the_floor_not_just_the_query():
+    """Through HTTP, because the query accepting a floor proves nothing if
+    the route forgets to pass one.
+
+    Caught by mutation testing twice over. Blanking min_seconds at the call
+    site left the direct-query tests passing, because they supply the floor
+    themselves -- and the first version of THIS test read a "rows" key that
+    does not exist, so it asserted all([]) and passed against everything.
+    Hence the non-empty assertion below: a vacuous truth is not a test.
+    """
+    import database
+
+    client = _logged_in("hyrox-route@example.com")
+    user = database.get_user_by_email("hyrox-route@example.com")
+
+    with database.get_db() as conn:
+        conn.executemany(
+            "INSERT INTO hyrox_results (user_id, gender, category, format, total_seconds) "
+            "VALUES (?, 'men', 'open', 'singles', ?)",
+            [(user["id"], 20 * 60), (user["id"], 58 * 60)],
+        )
+
+    res = client.get("/api/hyrox/leaderboard?gender=men&category=open&format=singles")
+    assert res.status_code == 200
+    body = res.get_json()
+
+    board = body["leaderboard"]
+    assert board, "the good time must still be on the board"
+    assert all(r["best_seconds"] >= 50 * 60 for r in board), (
+        "the route must pass the floor into the query, not leave it to the "
+        "caller to remember"
+    )
+
+    mine = [r for r in board if r["user_id"] == user["id"]]
+    assert mine and mine[0]["best_seconds"] == 58 * 60
+
+    # "me" is rendered from the same ranking and must not disagree with it.
+    assert body["me"]["best_seconds"] == 58 * 60, (
+        "the viewer's own row has to respect the floor too, or the board "
+        "says one thing and their own line says another"
+    )
