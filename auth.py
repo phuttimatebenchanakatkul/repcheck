@@ -191,13 +191,18 @@ SIGNUP_WINDOW = 60 * 60  # 1 hour
 
 
 def _client_ip():
-    """The caller's address. Render terminates TLS at a proxy, so the socket
-    address is the proxy's -- the left-most X-Forwarded-For entry is the
-    real client. Spoofable in general, which is why this is only ever a
-    throttle key and never an authorisation decision."""
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()[:64]
+    """The caller's address, as a throttle key -- never an authorisation
+    decision.
+
+    Deliberately request.remote_addr and NOTHING else. An earlier version
+    read the left-most X-Forwarded-For entry itself, which is the entry the
+    CLIENT writes: sending a different one per request handed the caller a
+    fresh throttle bucket every time and defeated both throttles completely
+    (measured: 20 of 20 signups, 25 of 25 wrong passwords). Behind Render,
+    app.py's ProxyFix(x_for=1) has already resolved remote_addr from the
+    right-most entry -- the one Render appended -- and locally there is no
+    proxy, so remote_addr is the socket address. Either way it is a value
+    the caller cannot choose."""
     return (request.remote_addr or "unknown")[:64]
 
 

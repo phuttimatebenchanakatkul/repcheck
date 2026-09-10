@@ -70,6 +70,7 @@ from coaching_engine import (
     weekly_adjustment,
 )
 from database import (
+    count_user_rows,
     auth_throttle_sweep,
     ACCOUNT_DELETION_GRACE_DAYS,
     account_deletion_due_at,
@@ -269,8 +270,19 @@ app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
 # gated on RENDER, the same production switch used for the Secure cookie
 # flag above. Locally the app is reached directly over http://localhost and
 # url_for already builds the right thing.
+#
+# x_for=1 is what makes request.remote_addr the real caller rather than
+# Render's edge, and it is load-bearing for the login/signup throttles in
+# auth.py, which key on that address. Werkzeug takes the entry 1 from the
+# RIGHT of X-Forwarded-For -- the one Render itself appended -- so a caller
+# sending its own X-Forwarded-For only pollutes entries to the left and
+# cannot move its own bucket. Measured with auth.py reading the header
+# directly instead: 20 of 20 signups and 25 of 25 wrong passwords got
+# through by varying it per request. Without x_for at all, remote_addr is
+# the edge for everyone, and one shared bucket would throttle the whole app
+# down to one account's budget.
 if os.environ.get("RENDER"):
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 app.register_blueprint(auth_bp)
 init_db()
@@ -931,6 +943,43 @@ SYNCED_DATA_KEYS = {
 }
 
 
+# ---------- Per-account ceilings ----------
+# Not product limits -- every number here is far above any real use. They
+# exist because one account could otherwise write rows and bytes without
+# end, and on Render that is someone else's disk and someone else's bill.
+#
+# Measured before these existed: 200 custom foods created in a loop with
+# nothing refusing, and a single /api/sync key accepted a 50 MB value (the
+# database file grew to 55 MB from that one request), which is about a
+# gigabyte per account across the keys that endpoint allows.
+#
+# analyze_results is deliberately absent: it was already bounded, by
+# prune_analyze_results(keep=20).
+PER_USER_LIMITS = {
+    "custom_foods": 500,
+    "custom_exercises": 500,
+    "progress_photos": 500,
+    "challenges": 200,
+    "hyrox_results": 500,
+}
+
+# One synced key's value, serialized. A real one is a few KB; a year of
+# food logging is well under a megabyte.
+MAX_SYNC_VALUE_BYTES = 2 * 1024 * 1024
+
+
+def _over_user_limit(table, user_id):
+    """A JSON 429 response if this user is at `table`'s ceiling, else None."""
+    limit = PER_USER_LIMITS[table]
+    if count_user_rows(table, user_id) < limit:
+        return None
+    return jsonify({
+        "ok": False,
+        "error": f"You've reached the maximum of {limit:,} saved items here. "
+                 "Delete some to add more.",
+    }), 429
+
+
 def is_synced_data_key(key):
     """Whether /api/sync accepts writes for this key. Everything in
     SYNCED_DATA_KEYS, plus the per-analysis chat threads, which are keyed by
@@ -1036,6 +1085,19 @@ def api_sync_put(key):
     if "value" not in payload:
         return jsonify({"ok": False, "error": "Missing value."}), 400
     value = payload["value"]
+    # Sized before anything is stored. Without this one account could park
+    # ~1 GB here (measured: a 50 MB value accepted for a single key), and
+    # MAX_CONTENT_LENGTH is no help -- it is 300 MB because video upload
+    # needs it to be.
+    try:
+        value_bytes = len(json.dumps(value).encode("utf-8"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Value is not storable."}), 400
+    if value_bytes > MAX_SYNC_VALUE_BYTES:
+        return jsonify({
+            "ok": False,
+            "error": "That's too much data to sync for one key.",
+        }), 413
     if key == COACHING_PROFILE_KEY:
         value = _merge_coaching_profile_write(user["id"], value)
     set_user_data(user["id"], key, value)
@@ -1179,6 +1241,9 @@ def api_checkin_photo_upload():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    at_limit = _over_user_limit("progress_photos", user["id"])
+    if at_limit:
+        return at_limit
 
     angle = request.form.get("angle")
     if angle not in ("front", "back"):
@@ -1633,6 +1698,9 @@ def api_create_custom_food():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    at_limit = _over_user_limit("custom_foods", user["id"])
+    if at_limit:
+        return at_limit
 
     payload = request.get_json(silent=True) or {}
     name = str(payload.get("name") or "").strip()
@@ -1754,6 +1822,9 @@ def api_create_custom_exercise():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    at_limit = _over_user_limit("custom_exercises", user["id"])
+    if at_limit:
+        return at_limit
 
     payload = request.get_json(silent=True) or {}
     name = str(payload.get("name") or "").strip()
@@ -2346,6 +2417,9 @@ def api_challenges_create():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    at_limit = _over_user_limit("challenges", user["id"])
+    if at_limit:
+        return at_limit
     # The exercise is no longer a user choice -- one exercise rotates in
     # per day for everybody, so there's nothing to read from the request
     # body anymore.
@@ -2538,6 +2612,9 @@ def api_create_hyrox_result():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    at_limit = _over_user_limit("hyrox_results", user["id"])
+    if at_limit:
+        return at_limit
 
     payload = request.get_json(silent=True) or {}
     gender = str(payload.get("gender") or "").strip()

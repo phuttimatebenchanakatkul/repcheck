@@ -1,0 +1,175 @@
+"""What one caller can spend of somebody else's disk, bill and patience.
+
+Two findings, both measured against a running instance rather than reasoned
+about, and both fixed here:
+
+1. The login and signup throttles were keyed on an address the CALLER chose.
+   _client_ip() read the left-most X-Forwarded-For entry, which is the entry
+   a client writes. Sending a different one per request handed the caller a
+   fresh bucket every time: 20 of 20 signups and 25 of 25 wrong passwords
+   went straight through. So the throttles added the day before were, in
+   production, no throttle at all.
+
+2. Nothing bounded what one account could store. A single /api/sync key
+   accepted a 50 MB value (the database file grew to 55 MB from that one
+   request, and the endpoint allows ~22 keys), and 200 custom foods were
+   created in a loop with nothing refusing.
+"""
+
+import io
+import json
+import re
+from pathlib import Path
+
+import pytest
+
+import app as app_module
+import database
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def _read(rel):
+    return io.open(ROOT / rel, encoding="utf-8").read()
+
+
+def _client(email):
+    """A logged-in test client. Reuses the account if it already exists --
+    the email column is UNIQUE and these tests share a database."""
+    existing = database.get_user_by_email(email)
+    user_id = existing["id"] if existing else database.create_local_user(
+        email, "irrelevant-password", "Ceiling Tester"
+    )
+    app_module.app.config["TESTING"] = True
+    client = app_module.app.test_client()
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
+    return client, user_id
+
+
+# --------------------------------------------------------------------------
+# 1. The throttle key must be one the caller cannot choose
+# --------------------------------------------------------------------------
+
+def test_the_client_address_never_comes_from_the_request_header():
+    """Regression: reading X-Forwarded-For directly defeated both throttles.
+
+    The header is caller-controlled. Behind Render, ProxyFix has already
+    resolved remote_addr from the RIGHT-most entry -- the one Render itself
+    appended -- and locally there is no proxy, so remote_addr is the socket
+    address. Either way it is not something the caller can pick.
+    """
+    src = _read("auth.py")
+    body = re.search(r"def _client_ip\(\):(.*?)\ndef ", src, re.S)
+    assert body, "_client_ip must exist"
+
+    # The literal call, not the word: the docstring below _client_ip
+    # explains this history and legitimately names the header.
+    assert 'request.headers.get("X-Forwarded-For"' not in body.group(1), (
+        "_client_ip must not read X-Forwarded-For itself -- that header is "
+        "written by the caller, so keying a throttle on it lets anyone mint "
+        "a fresh bucket per request. Let ProxyFix resolve remote_addr."
+    )
+    assert "request.remote_addr" in body.group(1), (
+        "_client_ip should use remote_addr, which ProxyFix corrects in "
+        "production"
+    )
+
+
+def test_proxyfix_resolves_the_client_address_in_production():
+    """Regression: ProxyFix ran with x_proto/x_host but not x_for.
+
+    Without x_for, remote_addr stays Render's edge address, every caller
+    shares one throttle bucket, and _client_ip has nothing trustworthy to
+    read -- which is why it reached for the raw header in the first place.
+    """
+    src = _read("app.py")
+    call = re.search(r"ProxyFix\(app\.wsgi_app[^)]*\)", src)
+    assert call, "ProxyFix must be applied"
+    assert "x_for=1" in call.group(0), (
+        "ProxyFix needs x_for=1 or request.remote_addr is the proxy, not the "
+        f"caller. Got: {call.group(0)}"
+    )
+    # Still gated on RENDER: trusting these headers without a proxy in front
+    # would hand the spoofing hole straight back.
+    assert re.search(r'if os\.environ\.get\("RENDER"\):\s*\n\s*app\.wsgi_app = ProxyFix', src), (
+        "ProxyFix must stay gated on RENDER -- off Render there is no proxy "
+        "overwriting these headers, so trusting them would be the same bug"
+    )
+
+
+# --------------------------------------------------------------------------
+# 2. Ceilings on what one account can store
+# --------------------------------------------------------------------------
+
+def test_a_sync_value_that_is_too_large_is_refused():
+    """Regression: a single key accepted 50 MB, ~1 GB across the key list."""
+    client, _ = _client("sync-ceiling@example.com")
+
+    oversized = "A" * (app_module.MAX_SYNC_VALUE_BYTES + 1024)
+    res = client.put(
+        "/api/sync/repcheck_split_plan_v1",
+        data=json.dumps({"value": oversized}),
+        content_type="application/json",
+    )
+    assert res.status_code == 413, (
+        "an oversized sync value must be refused before it is stored; "
+        "MAX_CONTENT_LENGTH is no help because it is 300 MB for video upload"
+    )
+
+
+def test_a_normal_sized_sync_value_still_works():
+    """The ceiling must not break the thing it is protecting."""
+    client, user_id = _client("sync-ceiling@example.com")
+
+    plan = {"days": [{"label": "Push", "exercises": ["Bench Press", "Dip"]}]}
+    res = client.put(
+        "/api/sync/repcheck_split_plan_v1",
+        data=json.dumps({"value": plan}),
+        content_type="application/json",
+    )
+    assert res.status_code == 200
+    assert database.get_all_user_data(user_id)["repcheck_split_plan_v1"] == plan
+
+
+@pytest.mark.parametrize("table", sorted(app_module.PER_USER_LIMITS))
+def test_every_capped_table_is_actually_countable(table):
+    """A ceiling that cannot count its table is a ceiling that never fires."""
+    client, user_id = _client("count-ceiling@example.com")
+    # Raises ValueError for a table missing from the whitelist.
+    assert database.count_user_rows(table, user_id) >= 0
+
+
+def test_the_custom_food_ceiling_refuses_the_row_past_the_limit():
+    """Regression: 200 created in a loop with nothing refusing.
+
+    Seeded to the boundary rather than making 500 requests -- the assertion
+    is about the edge, not about throughput.
+    """
+    client, user_id = _client("food-ceiling@example.com")
+    limit = app_module.PER_USER_LIMITS["custom_foods"]
+
+    with database.get_db() as conn:
+        conn.executemany(
+            "INSERT INTO custom_foods (user_id, name, emoji, calories, protein, fat, carbs) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(user_id, f"Seed {i}", "🍎", 100, 5, 2, 10) for i in range(limit - 1)],
+        )
+
+    def create(name):
+        return client.post(
+            "/api/custom-foods",
+            data=json.dumps({
+                "name": name, "emoji": "🍎",
+                "calories": 100, "protein": 5, "fat": 2, "carbs": 10,
+            }),
+            content_type="application/json",
+        )
+
+    assert create("At the limit").status_code == 200, (
+        "the row that reaches the limit must still be allowed"
+    )
+    assert create("Past the limit").status_code == 429, (
+        "the row past the limit must be refused"
+    )
+    assert database.count_user_rows("custom_foods", user_id) == limit
