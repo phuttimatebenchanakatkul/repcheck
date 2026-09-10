@@ -2,6 +2,15 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.7.0] - 2026-09-10
+
+### Fixed
+
+- HYROX times saved before the last release's check could still sit at the
+  top of the leaderboard. They no longer appear. Nothing was deleted, and
+  if one of your own races was affected, your other times still rank
+  normally.
+
 ## [0.10.6.0] - 2026-09-10
 
 ### Fixed
