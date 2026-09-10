@@ -161,6 +161,20 @@ PROGRESS_PHOTOS_DIR = DATA_DIR / "progress_photos"
 PROGRESS_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
+# A progress photo off a phone camera is 2-5 MB; 12 leaves generous room for
+# a high-end sensor without leaving the door open. Needed because the only
+# other bound is MAX_CONTENT_LENGTH, which is 300 MB for video upload's
+# sake: measured before this existed, a 100 MB file named ".jpg" was
+# accepted and written to disk, and at 500 photos per account that is 150 GB
+# of someone else's disk.
+MAX_PHOTO_BYTES = 12 * 1024 * 1024
+
+# What Pillow must actually recognise the bytes AS. The extension is just
+# the end of a filename the caller chose -- checking it says nothing about
+# the content, which is how the same endpoint doubled as free storage for
+# arbitrary bytes.
+ALLOWED_PHOTO_FORMATS = {"JPEG", "PNG", "WEBP"}
+
 # The trimmed clip each analysis was actually run on, kept so the history
 # view can replay it alongside the stored feedback. Same access rule as
 # progress photos: never a public static route, always /analyze/video/<id>
@@ -1278,6 +1292,35 @@ def api_checkin_photo_upload():
         return jsonify({"ok": False, "error": "No photo uploaded."}), 400
     ext = Path(secure_filename(file.filename)).suffix.lower()
     if ext not in ALLOWED_PHOTO_EXTENSIONS:
+        return jsonify({"ok": False, "error": "Unsupported image format."}), 400
+
+    # Size, measured off the stream rather than trusted from a header.
+    file.stream.seek(0, os.SEEK_END)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size > MAX_PHOTO_BYTES:
+        return jsonify({
+            "ok": False,
+            "error": f"That photo is too large. Please keep it under "
+                     f"{MAX_PHOTO_BYTES // (1024 * 1024)} MB.",
+        }), 413
+
+    # And it has to actually BE an image. verify() parses the header and
+    # structure without decoding the whole thing, and Pillow's own
+    # MAX_IMAGE_PIXELS guard turns a decompression bomb into an exception
+    # here rather than a problem later. verify() leaves the file unusable
+    # for reading, hence the seek back before it is saved.
+    try:
+        from PIL import Image
+
+        probe = Image.open(file.stream)
+        image_format = probe.format
+        probe.verify()
+    except Exception:  # noqa: BLE001 -- anything unparseable is "not an image"
+        return jsonify({"ok": False, "error": "That file isn't a readable image."}), 400
+    finally:
+        file.stream.seek(0)
+    if image_format not in ALLOWED_PHOTO_FORMATS:
         return jsonify({"ok": False, "error": "Unsupported image format."}), 400
 
     # Filename is a fresh uuid, not the user's original filename or any

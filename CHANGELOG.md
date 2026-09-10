@@ -2,6 +2,15 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.4.0] - 2026-09-10
+
+### Security
+
+- Progress photo upload only checked the file's name, not what was in it.
+  A 100 MB file that was not an image at all, just named ".jpg", was
+  accepted and saved. Uploads are now capped at 12 MB and have to actually
+  be a readable JPEG, PNG or WebP.
+
 ## [0.10.3.0] - 2026-09-10
 
 ### Security
