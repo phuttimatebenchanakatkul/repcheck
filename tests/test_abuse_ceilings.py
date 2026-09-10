@@ -173,3 +173,84 @@ def test_the_custom_food_ceiling_refuses_the_row_past_the_limit():
         "the row past the limit must be refused"
     )
     assert database.count_user_rows("custom_foods", user_id) == limit
+
+
+# --------------------------------------------------------------------------
+# 3. A progress photo has to be a photo, and a reasonable one
+# --------------------------------------------------------------------------
+
+def _jpeg_bytes(width=800, height=1000):
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), (90, 120, 200)).save(buf, "JPEG", quality=85)
+    return buf.getvalue()
+
+
+def _post_photo(client, data, filename="p.jpg"):
+    import datetime
+
+    return client.post(
+        "/api/checkin/photo",
+        data={
+            "photo": (io.BytesIO(data), filename),
+            "date": datetime.date.today().isoformat(),
+            "angle": "front",
+        },
+        content_type="multipart/form-data",
+    )
+
+
+def test_an_oversized_photo_is_refused():
+    """Regression: a 100 MB file named .jpg was accepted and written to disk.
+
+    The extension whitelist was the only gate, and MAX_CONTENT_LENGTH is no
+    help -- it is 300 MB because video upload needs it to be. At 500 photos
+    per account that was 150 GB of someone else's disk.
+    """
+    client, _ = _client("photo-size@example.com")
+
+    oversized = b"\xff\xd8\xff\xe0" + b"A" * (app_module.MAX_PHOTO_BYTES + 1024)
+    assert _post_photo(client, oversized).status_code == 413
+
+
+def test_a_file_that_is_not_an_image_is_refused():
+    """Regression: the endpoint doubled as storage for arbitrary bytes.
+
+    Checking the extension says nothing about the content -- the extension
+    is just the end of a filename the caller chose.
+    """
+    client, _ = _client("photo-content@example.com")
+
+    assert _post_photo(client, b"this is not an image" * 100).status_code == 400
+
+
+def test_a_real_photo_still_uploads():
+    """The guard must not break the feature it is protecting."""
+    client, user_id = _client("photo-ok@example.com")
+
+    before = database.count_user_rows("progress_photos", user_id)
+    assert _post_photo(client, _jpeg_bytes()).status_code == 200
+    assert database.count_user_rows("progress_photos", user_id) == before + 1
+
+
+def test_a_valid_image_in_a_format_we_do_not_accept_is_refused():
+    """The format whitelist, specifically.
+
+    Unparseable bytes already fail at verify(). This covers the other case:
+    a genuine, decodable image whose format is not one we serve back --
+    named .jpg, because the extension is chosen by the caller and proves
+    nothing about the content.
+    """
+    from PIL import Image
+
+    client, _ = _client("photo-format@example.com")
+
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 40), (10, 200, 10)).save(buf, "BMP")
+    res = _post_photo(client, buf.getvalue(), filename="looks-like.jpg")
+
+    assert res.status_code == 400, (
+        "a real BMP renamed .jpg parses fine, so only the format check can "
+        "stop it"
+    )

@@ -39,13 +39,28 @@ def _client(tmp_path, monkeypatch, created_at=None):
     return client, user_id
 
 
+def _real_png():
+    """A genuinely decodable PNG.
+
+    These tests are about the DATE bound, and used to send a PNG magic
+    number followed by junk as a stand-in. The endpoint now verifies that an
+    upload really is an image (it was otherwise storage for arbitrary
+    bytes), so the stand-in gets a 400 before the date is ever looked at.
+    """
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (120, 120, 120)).save(buf, "PNG")
+    return buf.getvalue()
+
+
 def _upload(client, date_iso):
     return client.post(
         "/api/checkin/photo",
         data={
             "angle": "front",
             "date": date_iso,
-            "photo": (io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"0" * 32), "photo.png"),
+            "photo": (io.BytesIO(_real_png()), "photo.png"),
         },
     )
 
