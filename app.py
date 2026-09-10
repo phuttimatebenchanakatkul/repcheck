@@ -1136,6 +1136,29 @@ def api_sync_delete(key):
     return jsonify({"ok": True})
 
 
+def _is_real_calendar_date(date_iso):
+    r"""Whether `date_iso` is a date that exists.
+
+    The three log endpoints below matched ^\d{4}-\d{2}-\d{2}$ and called it
+    validated, which accepts 9999-99-99, 0000-00-00 and 2026-02-31 -- all
+    measured getting a 200 and being stored as keys in the user's own log.
+    The shape is not the question; date.fromisoformat answering is.
+
+    Deliberately NOT bounded to today the way the check-in photo's date is.
+    That one feeds the streak's server-side back-fill, so a forged date there
+    invents history; these do not (see ACTIVITY_DATE_SOURCES), and the day
+    strip in the nutrition and workout UIs lets you tap forward and log
+    ahead, which is a real feature rather than something to reject.
+    """
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+        return False
+    try:
+        date.fromisoformat(date_iso)
+    except ValueError:
+        return False
+    return True
+
+
 @app.route("/api/nutrition/log-entry", methods=["POST"])
 def api_nutrition_log_entry():
     # Authoritative, synchronous "add one food entry" write path. The
@@ -1157,7 +1180,7 @@ def api_nutrition_log_entry():
     date_iso = str(payload.get("date") or "").strip()
     entry = payload.get("entry")
 
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+    if not _is_real_calendar_date(date_iso):
         return jsonify({"ok": False, "error": "Invalid date."}), 400
     if not isinstance(entry, dict) or not entry.get("id"):
         return jsonify({"ok": False, "error": "Invalid entry."}), 400
@@ -1184,7 +1207,7 @@ def api_nutrition_log_entry_delete():
     date_iso = str(payload.get("date") or "").strip()
     entry_id = payload.get("entry_id")
 
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+    if not _is_real_calendar_date(date_iso):
         return jsonify({"ok": False, "error": "Invalid date."}), 400
     if not entry_id:
         return jsonify({"ok": False, "error": "Invalid entry."}), 400
@@ -1210,7 +1233,7 @@ def api_weight_log_entry():
     date_iso = str(payload.get("date") or "").strip()
     entry = payload.get("entry")
 
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+    if not _is_real_calendar_date(date_iso):
         return jsonify({"ok": False, "error": "Invalid date."}), 400
     if not isinstance(entry, dict) or not isinstance(entry.get("kg"), (int, float)) or entry["kg"] <= 0 or entry["kg"] > 400:
         return jsonify({"ok": False, "error": "Invalid entry."}), 400
@@ -1236,7 +1259,7 @@ def api_workout_log_day():
     date_iso = str(payload.get("date") or "").strip()
     entries = payload.get("entries")
 
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_iso):
+    if not _is_real_calendar_date(date_iso):
         return jsonify({"ok": False, "error": "Invalid date."}), 400
     # Caps entry count (a real workout day tops out at a few dozen
     # exercises; 200 is generous headroom) and requires dict shape per

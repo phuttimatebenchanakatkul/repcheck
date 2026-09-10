@@ -299,3 +299,45 @@ def test_a_valid_friend_code_is_not_spent_from_the_guess_budget():
             content_type="application/json",
         )
         assert res.status_code == 200, "a real code must keep working"
+
+
+# --------------------------------------------------------------------------
+# 5. "Invalid date." should mean the date is invalid
+# --------------------------------------------------------------------------
+
+def _log_weight(client, date_iso):
+    return client.post(
+        "/api/weight/log-entry",
+        data=json.dumps({"date": date_iso, "entry": {"kg": 80}}),
+        content_type="application/json",
+    )
+
+
+@pytest.mark.parametrize("bad", ["9999-99-99", "0000-00-00", "2026-02-31", "2025-13-01"])
+def test_a_date_that_does_not_exist_is_refused(bad):
+    """Regression: the check was ^\d{4}-\d{2}-\d{2}$ and nothing more.
+
+    All four of these were measured getting a 200 and being stored as keys
+    in the user's own log, under an error message that says "Invalid date."
+    """
+    client, _ = _client("date-bad@example.com")
+    assert _log_weight(client, bad).status_code == 400
+
+
+def test_a_real_date_still_logs():
+    client, _ = _client("date-good@example.com")
+    assert _log_weight(client, "2026-02-28").status_code == 200
+
+
+def test_logging_a_day_ahead_is_still_allowed():
+    """Not bounded to today, deliberately.
+
+    The day strip in the nutrition and workout UIs lets you tap forward and
+    log ahead. Only the check-in photo's date is bounded, because that one
+    feeds the streak's back-fill and a forged date there invents history.
+    """
+    import datetime
+
+    client, _ = _client("date-ahead@example.com")
+    ahead = (datetime.date.today() + datetime.timedelta(days=3)).isoformat()
+    assert _log_weight(client, ahead).status_code == 200
