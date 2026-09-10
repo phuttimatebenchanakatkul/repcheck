@@ -2,6 +2,14 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.8.0] - 2026-09-10
+
+### Fixed
+
+- Dates that do not exist, like 31 February, could be saved against a food,
+  weight or workout entry and would then show up as a broken point on your
+  charts. Logging a day ahead still works.
+
 ## [0.10.7.0] - 2026-09-10
 
 ### Fixed
