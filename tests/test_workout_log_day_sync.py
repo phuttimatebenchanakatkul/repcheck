@@ -496,18 +496,38 @@ def test_log_day_route_rejects_an_empty_body(client):
     assert res.get_json()["ok"] is False
 
 
-def test_log_day_route_date_validation_is_shape_only_not_calendar_aware(client):
-    """The date regex (^\\d{4}-\\d{2}-\\d{2}$) checks shape, not that the date
-    is a real calendar date. Documented here as the current, intentional
-    behavior (workouts.html only ever sends real dates it generated itself)
-    so a future tightening of the regex is a deliberate choice made against
-    a failing test, not an accidental behavior change."""
-    user_id = _make_user("route-shape-only-date@example.com")
+def test_log_day_route_rejects_a_date_that_is_not_a_real_calendar_date(client):
+    """This replaces test_..._is_shape_only_not_calendar_aware, which pinned
+    the opposite and said so:
+
+        "Documented here as the current, intentional behavior (workouts.html
+        only ever sends real dates it generated itself) so a future
+        tightening of the regex is a deliberate choice made against a failing
+        test, not an accidental behavior change."
+
+    This is that deliberate choice, and the tripwire worked -- the tightening
+    was noticed because this test failed, not after it shipped.
+
+    What changed is the reasoning, not the facts. "workouts.html only ever
+    sends real dates it generated itself" is still true, and is exactly why
+    tightening costs nothing: no client this app ships can notice. But the
+    route is reachable by anything, it answers "Invalid date." while storing
+    2026-13-99, and the key it stores is parsed back into a Date by the
+    pages that render the log. A validator that names the thing it is not
+    checking is worth fixing even when today's only caller behaves.
+
+    Bounds are still deliberately absent -- logging a day ahead is a real
+    feature (the day strip tapping forward). Only impossible dates go.
+    """
+    user_id = _make_user("route-calendar-date@example.com")
     _login(client, user_id)
 
     res = client.post("/api/workout/log-day", json={"date": "2026-13-99", "entries": []})
-    assert res.status_code == 200
-    assert res.get_json()["workout_log"]["2026-13-99"] == []
+    assert res.status_code == 400
+
+    ok = client.post("/api/workout/log-day", json={"date": "2026-02-28", "entries": []})
+    assert ok.status_code == 200
+    assert ok.get_json()["workout_log"]["2026-02-28"] == []
 
 
 def test_log_day_route_repeated_writes_to_same_date_converge_on_the_latest(client):
