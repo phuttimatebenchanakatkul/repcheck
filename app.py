@@ -70,6 +70,8 @@ from coaching_engine import (
     weekly_adjustment,
 )
 from database import (
+    auth_throttle_check,
+    auth_throttle_record,
     count_user_rows,
     auth_throttle_sweep,
     ACCOUNT_DELETION_GRACE_DAYS,
@@ -980,6 +982,11 @@ PER_USER_LIMITS = {
 # One synced key's value, serialized. A real one is a few KB; a year of
 # food logging is well under a megabyte.
 MAX_SYNC_VALUE_BYTES = 2 * 1024 * 1024
+
+# Wrong friend codes one account may try. Far above anyone typing a code off
+# a friend's screen and fat-fingering it; far below walking a 16.7M space.
+FRIEND_CODE_LOOKUP_LIMIT = 30
+FRIEND_CODE_LOOKUP_WINDOW = 60 * 60
 
 
 def _over_user_limit(table, user_id):
@@ -2274,8 +2281,34 @@ def api_friends_add():
     code = (payload.get("code") or "").strip()
     if not code:
         return jsonify({"ok": False, "error": "Enter a friend code."}), 400
+    # A friend code is "RC-" plus 6 hex characters: 16,777,216 of them. That
+    # is plenty against someone guessing at one person's code, and not
+    # remotely enough against someone walking the whole space -- measured
+    # unthrottled at about 6 lookups a second from a single host with no
+    # concurrency, which is days, not centuries.
+    #
+    # Finding a live code is not nothing: add_friendship() is mutual and
+    # asks nobody, so a hit puts the guesser in a stranger's friends list
+    # and the stranger in theirs. (It leaks no contact details -- /api/friends
+    # returns id and name only, verified -- but it is still unwanted contact.)
+    #
+    # Counted per account and only on MISSES, so ordinary use never trips it,
+    # and combined with the signup throttle an attacker needs a new account
+    # per 30 guesses.
+    throttle_key = f"friendcode:{user['id']}"
+    allowed, retry_after = auth_throttle_check(
+        throttle_key, FRIEND_CODE_LOOKUP_LIMIT, FRIEND_CODE_LOOKUP_WINDOW, int(time.time())
+    )
+    if not allowed:
+        return jsonify({
+            "ok": False,
+            "error": f"Too many friend codes tried. Please wait "
+                     f"{_friendly_wait(retry_after)} and try again.",
+        }), 429
+
     other = get_user_by_friend_code(code)
     if not other:
+        auth_throttle_record(throttle_key, FRIEND_CODE_LOOKUP_WINDOW, int(time.time()))
         return jsonify({"ok": False, "error": "No user found with that code."}), 404
     if other["id"] == user["id"]:
         return jsonify({"ok": False, "error": "That's your own code."}), 400
