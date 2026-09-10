@@ -2632,11 +2632,27 @@ def api_leaderboard():
 HYROX_GENDERS = {"men", "women"}
 HYROX_CATEGORIES = {"open", "pro"}
 HYROX_FORMATS = {"singles", "doubles"}
-# Anything faster than this for a full race is not a real finish (matches
-# the same implausibly-fast guard static/hyrox.js already applies before
-# a run is even offered to save locally) -- rejected here too so a bad
-# client request can't pollute the global leaderboard.
-HYROX_MIN_PLAUSIBLE_SECONDS = 20 * 60
+# Anything faster than this for a full race is not a real finish, rejected
+# here so a bad client request cannot pollute the GLOBAL leaderboard.
+#
+# These are static/hyrox.js's FLAG_THRESHOLD_SECONDS, and the two must stay
+# identical -- tests/test_hyrox_plausible_floor.py fails if they drift. The
+# comment here used to claim they already matched. They did not: this was a
+# flat 20 minutes against the client's 47-53, so a fabricated 20:00 was
+# accepted and went straight to the top of the global board, ahead of an
+# honest 57:30. Measured, with two accounts, before this was fixed.
+#
+# Per gender and format rather than one number, because doubles genuinely is
+# faster -- two athletes split the stations -- so a flat floor set at the
+# singles pace would reject real doubles results the app itself accepts
+# locally. Category (open/pro) is deliberately not part of the key, matching
+# the client.
+HYROX_MIN_PLAUSIBLE_SECONDS = {
+    "men|singles": 50 * 60,
+    "women|singles": 53 * 60,
+    "men|doubles": 47 * 60,
+    "women|doubles": 51 * 60,
+}
 
 
 @app.route("/api/hyrox/history-entry", methods=["POST"])
@@ -2703,7 +2719,10 @@ def api_create_hyrox_result():
 
     if gender not in HYROX_GENDERS or category not in HYROX_CATEGORIES or format_ not in HYROX_FORMATS:
         return jsonify({"ok": False, "error": "Invalid gender, category, or format."}), 400
-    if total_seconds < HYROX_MIN_PLAUSIBLE_SECONDS:
+    floor = HYROX_MIN_PLAUSIBLE_SECONDS.get(f"{gender}|{format_}")
+    if floor is None:
+        return jsonify({"ok": False, "error": "Invalid gender, category, or format."}), 400
+    if total_seconds < floor:
         return jsonify({"ok": False, "error": "That time isn't a plausible race finish."}), 400
 
     result_id = create_hyrox_result(user["id"], gender, category, format_, total_seconds)
