@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.6.0] - 2026-09-10
+
+### Fixed
+
+- A made-up HYROX time could top the leaderboard everyone sees. The app
+  already knew what an impossible time looks like and refused to save one
+  locally, but the server accepted anything over 20 minutes, so a doctored
+  request went straight to first place ahead of a real 57:30 finish. The
+  server now applies the same limits the app does, per gender and format.
+
 ## [0.10.5.0] - 2026-09-10
 
 ### Security
