@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.5.0] - 2026-09-10
+
+### Security
+
+- Friend codes could be guessed in bulk. There was no limit on how many
+  wrong codes one account could try, and adding a friend happens in both
+  directions without the other person agreeing, so someone working through
+  codes could have put themselves in strangers' friends lists. Wrong codes
+  are now limited to 30 an hour per account; a correct code is unaffected.
+
 ## [0.10.4.0] - 2026-09-10
 
 ### Security

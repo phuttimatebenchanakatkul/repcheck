@@ -254,3 +254,48 @@ def test_a_valid_image_in_a_format_we_do_not_accept_is_refused():
         "a real BMP renamed .jpg parses fine, so only the format check can "
         "stop it"
     )
+
+
+# --------------------------------------------------------------------------
+# 4. Friend codes are guessable in bulk unless something counts the misses
+# --------------------------------------------------------------------------
+
+def test_wrong_friend_codes_are_throttled():
+    """Regression: 60 of 60 wrong codes answered, ~6/s from one host.
+
+    "RC-" plus 6 hex characters is 16,777,216 codes -- fine against guessing
+    at one person's, days rather than centuries against walking the space.
+    A hit is not harmless: add_friendship() is mutual and asks nobody, so it
+    puts the guesser in a stranger's friends list and vice versa.
+    """
+    client, _ = _client("friend-guesser@example.com")
+
+    codes = [f"RC-{i:06X}" for i in range(app_module.FRIEND_CODE_LOOKUP_LIMIT + 5)]
+    statuses = [
+        client.post(
+            "/api/friends/add",
+            data=json.dumps({"code": c}),
+            content_type="application/json",
+        ).status_code
+        for c in codes
+    ]
+
+    assert statuses.count(404) == app_module.FRIEND_CODE_LOOKUP_LIMIT, (
+        "misses up to the limit should answer normally"
+    )
+    assert statuses[-1] == 429, "past the limit the lookup must be refused"
+
+
+def test_a_valid_friend_code_is_not_spent_from_the_guess_budget():
+    """Only misses count, so ordinary use never trips the limit."""
+    owner_client, owner_id = _client("friend-owner@example.com")
+    code = database.get_or_create_friend_code(owner_id)
+
+    adder_client, _ = _client("friend-adder@example.com")
+    for _ in range(3):
+        res = adder_client.post(
+            "/api/friends/add",
+            data=json.dumps({"code": code}),
+            content_type="application/json",
+        )
+        assert res.status_code == 200, "a real code must keep working"
