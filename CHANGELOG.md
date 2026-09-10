@@ -2,6 +2,23 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.3.0] - 2026-09-10
+
+### Security
+
+- The limits on wrong-password attempts and on new accounts, added
+  yesterday, were not actually working once the app was live. They counted
+  attempts per internet address, but took that address from a value the
+  caller sends, so anyone could change it on each try and get a fresh
+  allowance. Measured: 20 accounts created and 25 password guesses made
+  with the limits fully in place. The address now comes from the hosting
+  layer instead, which a caller cannot set.
+- Nothing capped how much one account could store. A single sync request
+  was able to save 50 MB, and there are around twenty such keys, so one
+  account could have parked roughly a gigabyte. Saved items like custom
+  foods had no limit either. Both are now bounded, well above anything
+  normal use reaches.
+
 ## [0.10.2.0] - 2026-09-09
 
 ### Added

@@ -1040,6 +1040,39 @@ def rate_limit_consume(user_id, feature, window_seconds, now):
         )
 
 
+
+# ---------- Per-account row ceilings ----------
+# Tables one account can add rows to, and the column naming the owner. A
+# whitelist, not a parameter: the table and column are interpolated into the
+# SQL below (SQLite cannot bind an identifier), so they must never come from
+# a caller. Everything a user creates lands in exactly one of these.
+_COUNTABLE_USER_TABLES = {
+    "custom_foods": "user_id",
+    "custom_exercises": "user_id",
+    "progress_photos": "user_id",
+    "challenges": "creator_id",
+    "hyrox_results": "user_id",
+}
+
+
+def count_user_rows(table, user_id):
+    """How many rows in `table` belong to this user.
+
+    Used to enforce the ceilings in app.py's PER_USER_LIMITS. Only
+    analyze_results was bounded before (prune_analyze_results); every other
+    per-user table would accept rows indefinitely -- measured by creating
+    200 custom foods in a loop with nothing refusing.
+    """
+    column = _COUNTABLE_USER_TABLES.get(table)
+    if column is None:
+        raise ValueError(f"{table!r} is not a countable per-user table")
+    with get_db() as conn:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS n FROM {table} WHERE {column} = ?", (user_id,)
+        ).fetchone()
+    return row["n"] if row else 0
+
+
 # ---------- Pre-login throttle ----------
 # Same window semantics as rate_limit_* above, but keyed on a string instead
 # of a users.id, because the thing being throttled happens before anyone is
