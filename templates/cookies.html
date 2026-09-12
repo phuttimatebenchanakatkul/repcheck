@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Cookie Policy{% endblock %}
+{% block heading %}Cookie Policy{% endblock %}
+
+{% block content %}
+<!--
+  Public (see _PUBLIC_ENDPOINTS in app.py), for the same reason /privacy and
+  /terms are: it is linked from the signup and login consent notices, which
+  are by definition read by someone with no account.
+
+  Everything on this page is rendered from the code that actually sets the
+  storage, not typed in by hand, so the policy cannot drift from the app:
+    - session_days  <- app.config["PERMANENT_SESSION_LIFETIME"]
+    - oauth_state_minutes <- auth.APPLE_STATE_MAX_AGE
+    - session_samesite / session_secure <- the SESSION_COOKIE_* config
+  If you change any of those, this page follows. Adding a NEW cookie means
+  adding a row here -- tests/test_legal_policy_integrity.py fails if the
+  app sets a cookie this page does not document.
+-->
+<div class="policy-page">
+  <p class="policy-updated">Last updated 12 September 2026</p>
+
+  <p>This page lists every cookie RepCheck sets, everything it stores in your
+  browser, and why. It covers the RepCheck app and the iOS app, which is the
+  same site in a native shell.</p>
+
+  <h2>Do we ask for cookie consent?</h2>
+  <p>No, and here is the reasoning, so you can check it. Under Thailand's PDPA
+  and the EU/UK ePrivacy rules, consent is required for storage that is
+  <em>not</em> necessary to deliver the service you asked for — chiefly
+  advertising and cross-site tracking. RepCheck sets none of that:</p>
+  <ul>
+    <li>There is <strong>no advertising</strong> anywhere in the app, and no
+      advertising or marketing cookies.</li>
+    <li>There is <strong>no third-party analytics</strong> — no Google
+      Analytics, no Meta pixel, no Segment, Mixpanel, Amplitude, Hotjar or
+      similar. Nothing on any page reports your behaviour to another company.</li>
+    <li>We do <strong>not sell or share</strong> your data, and nothing here is
+      used for profiling or automated decisions about you.</li>
+  </ul>
+  <p>What is left is the strictly necessary cookies listed below, and some
+  local storage that holds your own training data on your own device. Those are
+  exempt from consent — but you are still entitled to know about them, which is
+  what the rest of this page is for.</p>
+
+  <h2>Cookies we set</h2>
+  <p>Both first-party, both strictly necessary, and neither one tracks you
+  across other websites.</p>
+  <ul>
+    <li><strong><code>session</code></strong> — signs you in and keeps you
+      signed in. This is the cookie that makes your account yours; without it
+      every page would ask you to log in again. It holds a signed reference to
+      your account, not your password.
+      {% if session_httponly %}Set <code>HttpOnly</code> (so page
+      scripts cannot read it), {% endif %}<code>SameSite={{ session_samesite }}</code>
+      (so it is not attached when another site quietly makes a request to us in
+      the background; it <em>is</em> still sent if you click a link to
+      RepCheck from elsewhere, which is what keeps you signed in)
+      {%- if session_secure %} and
+      <code>Secure</code> (so it is only ever sent over HTTPS){% endif %}.
+      Lasts up to <strong>{{ session_days }} days</strong>, and refreshes while
+      you keep using the app. Logging out clears it.</li>
+    <li><strong><code>apple_oauth_state</code></strong> — set only if you tap
+      <em>Continue with Apple</em>, and only for the length of that sign-in.
+      It carries a one-time random value that lets us confirm the login coming
+      back from Apple is the one you started, which is what stops someone
+      else's sign-in being replayed into your browser. Expires after
+      <strong>{{ oauth_state_minutes }} minutes</strong> and is deleted as soon
+      as the sign-in finishes.</li>
+  </ul>
+
+  <h2>Data stored on your device</h2>
+  <p>Most of what you log lives in your browser's local storage as well as on
+  our servers, so the app still works when your connection drops. This is not
+  a tracking mechanism — it is your training data, on your device, readable
+  only by RepCheck. It includes your workout log, nutrition log, weight log,
+  saved analyses, coaching profile and HYROX history, plus small preferences
+  like your theme, language and units, and how far you got in the app tour.</p>
+  <p>Clearing your browser's site data for RepCheck, or deleting the iOS app,
+  removes all of it from that device. Doing so does not delete your account —
+  see <a href="{{ url_for('privacy') }}">the Privacy Policy</a> for that.</p>
+
+  <h2>Fonts and other page assets</h2>
+  <p>The typefaces the app uses (Inter and Noto Sans Thai) are served from our
+  own servers, not from Google's font CDN. That matters more than it sounds:
+  loading them the usual way would make your browser contact Google on every
+  page — including the sign-up page, before you had agreed to anything — and
+  hand over your IP address to do it. They are local instead, so that request
+  never happens.</p>
+  <p>A few files are <em>not</em> ours, and we would rather say so than leave
+  you to find out:</p>
+  <ul>
+    <li>When you start a workout analysis or a challenge, the page downloads
+      the pose-detection code from <strong>cdn.jsdelivr.net</strong> and the
+      pose model itself from <strong>storage.googleapis.com</strong> (Google).
+      Those requests happen only when you begin an analysis, never on an
+      ordinary page load. Your video is not sent to them — the pose detection
+      they power runs on your own device.</li>
+    <li>One illustration on the HYROX training-space screen is hosted by
+      <strong>images.unsplash.com</strong>.</li>
+  </ul>
+  <p>Downloading a file from any of those reveals your IP address to them, in
+  the ordinary way any download does. Nothing about your training, your
+  account or your content goes with it.</p>
+
+  <h2>Embedded videos</h2>
+  <p>Exercise tutorial and HYROX demonstration videos are embedded from
+  YouTube. We use <code>youtube-nocookie.com</code>, YouTube's
+  privacy-enhanced mode, and the player is only loaded <strong>after you open
+  a video</strong> — not on page load. If you never open one, nothing is
+  requested from YouTube and nothing of YouTube's is stored. Once you do,
+  YouTube may store what it needs to play the video, under
+  <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's
+  privacy policy</a>, which we do not control.</p>
+
+  <h2>How to refuse or remove them</h2>
+  <p>Every browser lets you block or delete cookies and site data in its
+  settings. Because the <code>session</code> cookie is what holds your login,
+  blocking cookies for RepCheck means you will not be able to stay signed in —
+  the app cannot work without it. If you would rather not have an account at
+  all, the honest answer is not to create one.</p>
+
+  <h2>Changes</h2>
+  <p>If we add or remove a cookie, this page changes with it and the date at
+  the top moves.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about anything on this page:
+  <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a></p>
+
+  <p>See also our <a href="{{ url_for('privacy') }}">Privacy Policy</a>,
+  <a href="{{ url_for('terms') }}">Terms of Service</a> and
+  <a href="{{ url_for('refunds') }}">Refund Policy</a>.</p>
+</div>
+{% endblock %}

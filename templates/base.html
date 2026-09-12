@@ -12,8 +12,6 @@
       }
     })();
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- SF Pro TH is an Apple system font — not distributable as a web
        font, so it only renders on Apple devices that already have it
        installed. Noto Sans Thai is loaded as the real, always-available
@@ -24,7 +22,30 @@
        loaded, browsers fake it by synthetically thickening 700, which
        renders visibly different (thinner, uneven strokes) from the real
        Inter Extra Bold cut. -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Self-hosted (static/fonts/), NOT fonts.googleapis.com. The Google
+       stylesheet made the browser hand the visitor's IP to Google on every
+       page load, before any consent -- which LG Muenchen I, 3 O 17493/20
+       held to breach the GDPR on its own, and which happened on /signup
+       too, the screen where we ask for consent. /cookies says the app loads
+       no fonts from Google; keep that true. -->
+  <!-- Preload the face first paint actually needs. fonts.css is
+       render-blocking and the woff2 inside it are only discovered once it
+       parses, and the fonts.gstatic.com preconnect that used to soften
+       that chain is gone with the Google link. Inter latin is the English
+       UI; the Thai face is deliberately NOT preloaded, because the
+       language lives in localStorage and is not known at render time, so
+       preloading it would be a wasted 27KB for most visitors.
+
+       url_for, NOT asset_url: the href has to be byte-identical to the URL
+       fonts.css resolves, or the browser treats them as two resources and
+       downloads the face twice. fonts.css references it relatively and
+       therefore bare, so this must be bare too. asset_url would append a
+       ?v= mtime that changes on every deploy (Render builds from a fresh
+       clone), making the mismatch permanent rather than occasional. The
+       woff2 are cache-immutable by filename anyway -- see the font branch in
+       cache_versioned_assets -- so they need no ?v=. -->
+  <link rel="preload" href="{{ url_for('static', filename='fonts/inter-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ asset_url('fonts.css') }}">
   <link rel="stylesheet" href="{{ asset_url('style.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='logo-mark.png') }}">
   <script>

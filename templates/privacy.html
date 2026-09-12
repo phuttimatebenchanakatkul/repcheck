@@ -13,18 +13,41 @@
   The deletion window below is rendered from ACCOUNT_DELETION_GRACE_DAYS
   rather than hardcoded, so the policy can never drift from what the code
   actually does. If you change the constant, this page follows.
+
+  Written to Thailand's PDPA as the primary law (the operator is a sole
+  trader in Thailand) while also granting GDPR/UK-GDPR rights, because the
+  App Store distributes worldwide and EU/UK users are therefore in scope
+  regardless of where we sit. Do not remove the "Who we are" block: a
+  policy with no identifiable controller is itself a defect under both.
 -->
 <div class="policy-page">
-  <p class="policy-updated">Last updated 25 August 2026</p>
+  <p class="policy-updated">Last updated 12 September 2026</p>
 
   <p>RepCheck is a training app. This page explains what it collects, why, who
   it is shared with, and how to get rid of it.</p>
+
+  <h2>Who we are</h2>
+  <p>RepCheck is operated by <strong>Phuttimate Benchanakatkul</strong>, a sole
+  trader based in <strong>Thailand</strong>. That means there is one person
+  responsible for your data, and this is how you reach them:</p>
+  <ul>
+    <li><strong>Data controller</strong> — Phuttimate Benchanakatkul (a sole
+      trader, not an incorporated company, so there is no company registration
+      number to quote).</li>
+    <li><strong>Contact for any privacy question or request</strong> —
+      <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a></li>
+  </ul>
+  <p>We are not large enough to be required to appoint a formal Data Protection
+  Officer, and we have not appointed one. The address above reaches the person
+  who makes these decisions.</p>
 
   <h2>What we collect</h2>
   <ul>
     <li><strong>Account details</strong> — your email address and display name.
       If you sign in with Google, we receive your email, name and profile
-      picture from Google; we never receive your Google password.</li>
+      picture from Google; we never receive your Google password. If you sign
+      in with Apple, we receive your name and email, or Apple's relay address
+      if you chose <em>Hide My Email</em>.</li>
     <li><strong>Training data</strong> — workouts, sets, reps and weights, body
       weight, HYROX race times, streaks and challenge results.</li>
     <li><strong>Nutrition data</strong> — the meals you log, including photos of
@@ -33,15 +56,46 @@
     <li><strong>Progress photos</strong> — the check-in photos of your body, if
       you choose to take them.</li>
     <li><strong>Usage data</strong> — which pages you open and how often, used to
-      understand what parts of the app are worth building on.</li>
+      understand what parts of the app are worth building on. This is a running
+      count per page, kept on our own servers. There is no third-party
+      analytics in RepCheck: no Google Analytics, no advertising pixel, and
+      nothing that reports your behaviour to another company.</li>
   </ul>
+  <p>We do not collect your contacts, your location, your device advertising
+  identifier, or health data from Apple Health or any other app.</p>
 
   <h2>Health and body data</h2>
   <p>Body weight, progress photos and lift videos are health-related and are
-  treated as the most sensitive data in the app. Progress photos are private to
-  your account: every route that serves or deletes one checks it belongs to
-  you first. They are never shown to other users, never used in leaderboards
-  and never used for advertising.</p>
+  treated as the most sensitive data in the app. Under Thailand's PDPA this is
+  <em>sensitive personal data</em>, and under the GDPR it is <em>special
+  category data</em>. Either way it may only be processed with your
+  <strong>explicit consent</strong> — which is what you give when you create an
+  account and choose to upload these things, and which you can withdraw at any
+  time by deleting the content or your account.</p>
+  <p>Progress photos are private to your account: every route that serves or
+  deletes one checks it belongs to you first. They are never shown to other
+  users, never used in leaderboards and never used for advertising.</p>
+
+  <h2>Why we are allowed to process it</h2>
+  <p>Our legal bases, so you can hold us to them:</p>
+  <ul>
+    <li><strong>To provide the app you asked for</strong> (performance of our
+      contract with you) — your account, your logs, your analyses. Without this
+      there is no app.</li>
+    <li><strong>Your explicit consent</strong> — for health and body data, and
+      for sending your photos, videos and messages to third-party AI providers
+      to generate a result. You give this when you create an account, and you
+      can withdraw it by deleting the content or your account.</li>
+    <li><strong>Our legitimate interests</strong> — keeping the service secure
+      and working: rate limits, abuse and fraud prevention, and the page counts
+      described above. We have weighed this against your privacy and kept it to
+      aggregate counts and security measures.</li>
+    <li><strong>Legal obligation</strong> — where the law requires us to keep or
+      disclose something.</li>
+  </ul>
+  <p>We do <strong>not</strong> sell your personal data, we do not share it for
+  advertising, and we do not use it for profiling or for automated decisions
+  that have a legal effect on you.</p>
 
   <h2>AI processing by third parties</h2>
   <p>Some features work by sending your content to third-party AI providers:</p>
@@ -56,10 +110,53 @@
   <p>These providers process the content to return a result. We do not sell
   your data to anyone, and we do not use it for advertising.</p>
 
-  <h2>Where it is stored</h2>
-  <p>Your data is stored on our servers, hosted with Render. Uploaded lift
-  videos are deleted right after analysis — only the resulting scores and
-  feedback text are kept, plus the trimmed clip if you saved the analysis.</p>
+  <h2>Who else your data reaches</h2>
+  <p>The full list of companies that can touch your data, and why:</p>
+  <ul>
+    <li><strong>Render</strong> — hosts our servers and database.</li>
+    <li><strong>Google</strong> — Gemini, for the AI features above, and Google
+      Sign-In if you use it.</li>
+    <li><strong>OpenAI</strong> — some lift-video analysis.</li>
+    <li><strong>Apple</strong> — Apple Sign-In if you use it, and App Store
+      distribution.</li>
+    <li><strong>FatSecret and barcode food databases</strong> — looked up by
+      barcode or food name to return nutrition figures. We send the barcode or
+      the search term, not anything that identifies you.</li>
+    <li><strong>YouTube</strong> — only if you open an embedded tutorial video.
+      See our <a href="{{ url_for('cookies') }}">Cookie Policy</a>.</li>
+    <li><strong>jsDelivr and Google's model storage</strong> — when you start a
+      workout analysis, your browser downloads the pose-detection code and
+      model from <code>cdn.jsdelivr.net</code> and
+      <code>storage.googleapis.com</code>. That download reveals your IP
+      address to them. Your video is not sent there; the detection runs on your
+      device.</li>
+    <li><strong>Unsplash</strong> — one illustration on the HYROX
+      training-space screen is loaded from <code>images.unsplash.com</code>,
+      which reveals your IP address to them.</li>
+  </ul>
+
+  <h2>Where it goes, and where it is stored</h2>
+  <p>Your data is stored on our servers, hosted with Render. The providers above
+  are largely based in the <strong>United States</strong>, so using RepCheck
+  involves transferring your data outside Thailand and outside the EU and UK.
+  Those transfers rely on your consent and on the contractual terms and
+  standard data protection clauses those providers offer. If you are not
+  comfortable with that, the AI features are the ones to avoid — the rest of
+  the app does not depend on them.</p>
+
+  <h2>How long we keep it</h2>
+  <ul>
+    <li><strong>Uploaded lift videos</strong> — deleted right after analysis.
+      Only the resulting scores and feedback text are kept, plus the trimmed
+      clip if you saved the analysis.</li>
+    <li><strong>Your account and everything in it</strong> — kept while your
+      account exists, then erased on the schedule below.</li>
+    <li><strong>Anything you delete yourself</strong> — a log, a photo, a saved
+      analysis — goes when you delete it.</li>
+    <li><strong>Sign-in state</strong> — see the
+      <a href="{{ url_for('cookies') }}">Cookie Policy</a> for how long the
+      session cookie lasts.</li>
+  </ul>
 
   <h2>Deleting your account</h2>
   <p>You can delete your account at any time from
@@ -75,10 +172,40 @@
   <p>You can view and correct your account details in Settings, and you can
   delete individual logs, photos and saved analyses at any time without
   deleting your whole account.</p>
+  <p>Beyond what the app lets you do directly, you have the right to ask us to:
+  give you <strong>access</strong> to your data or a <strong>copy</strong> of it
+  in a portable form; <strong>correct</strong> it; <strong>erase</strong> it;
+  <strong>restrict</strong> or <strong>object</strong> to how we use it; and
+  <strong>withdraw consent</strong> where we relied on it. These are your rights
+  under Thailand's PDPA, and we extend the equivalent GDPR and UK GDPR rights to
+  users in the EU and the UK.</p>
+  <p>Email
+  <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a>
+  and we will answer within <strong>one month</strong>. Asking costs nothing, and
+  we will not treat you differently for asking.</p>
+
+  <h2>Complaints</h2>
+  <p>If you think we have handled your data badly, please tell us first — it is
+  the fastest way to get it fixed. You also have the right to complain to a
+  regulator without going through us: in Thailand, the <strong>Office of the
+  Personal Data Protection Committee (PDPC)</strong>; in the EU or UK, your
+  national data protection authority, which in the UK is the
+  <strong>Information Commissioner's Office</strong>.</p>
+
+  <h2>Security</h2>
+  <p>Passwords are stored hashed, never in plain text. The site is served over
+  HTTPS, the session cookie cannot be read by page scripts, and the login and
+  AI endpoints are rate-limited. No system is perfect: if we discover a breach
+  affecting your personal data, we will notify you and the regulator as the
+  PDPA and GDPR require.</p>
 
   <h2>Children</h2>
   <p>RepCheck is not intended for children under 13, and we do not knowingly
-  collect data from them.</p>
+  collect data from them. Because RepCheck handles health data, a young person
+  old enough to use it but still a minor where they live — under 20 in
+  Thailand, or under the age of digital consent in their EU or UK country —
+  needs a parent or guardian's consent first. If you believe a child has given
+  us data, email us and we will delete it.</p>
 
   <h2>Changes</h2>
   <p>If this policy changes materially, the updated date at the top of this page
@@ -86,5 +213,9 @@
 
   <h2>Contact</h2>
   <p>Questions about your data: <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a></p>
+
+  <p>See also our <a href="{{ url_for('terms') }}">Terms of Service</a>,
+  <a href="{{ url_for('cookies') }}">Cookie Policy</a> and
+  <a href="{{ url_for('refunds') }}">Refund Policy</a>.</p>
 </div>
 {% endblock %}

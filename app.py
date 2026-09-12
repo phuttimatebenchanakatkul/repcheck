@@ -38,11 +38,13 @@ from pathlib import Path
 import markdown as markdown_lib
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
+import posixpath
+
 from werkzeug.utils import secure_filename
 
 from analyze_chat import get_analysis_chat_reply
 from analyze_food_gemini import FoodAnalysisError, analyze_food_photo
-from auth import auth_bp, current_user
+from auth import auth_bp, current_user, APPLE_STATE_MAX_AGE
 from hyrox_coach import get_hyrox_race_analysis
 from barcode_scanner import (
     BarcodeScanError,
@@ -271,6 +273,14 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=3650)
 # the production/local switch instead of a value this app controls.
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
+# Explicit rather than left to the Flask default, because /cookies publishes it
+# as a promise to the reader ("so page scripts cannot read it") and it is the
+# one attribute on that cookie doing actual XSS work. Every sibling attribute
+# is already interpolated into the page from this config; stating HttpOnly as
+# prose while relying on a framework default meant a default change, or one
+# careless override, would leave a public page describing a protection the
+# browser was no longer being given.
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 # Render terminates TLS at its edge and forwards to gunicorn over plain
 # HTTP, so Flask sees scheme "http" and url_for(..., _external=True) builds
@@ -385,7 +395,16 @@ _PUBLIC_ENDPOINTS = frozenset({
     # The privacy policy and terms have to be readable without an account:
     # App Store Connect needs a public privacy-policy URL, and App Review
     # opens it without logging in.
-    "privacy", "terms", "support",
+    #
+    # /cookies and /refunds are public for their own reasons, not for
+    # symmetry. A cookie policy has to be readable BEFORE the storage it
+    # describes is set, which for a login cookie means before you have an
+    # account -- gating it behind login is circular. The refund terms are a
+    # store-listing surface: App Review opens them without signing in. Both
+    # are also one hop from the signup consent notice, which links /privacy
+    # and /terms, and those two link on to these -- so the whole set resolves
+    # for someone who has agreed to nothing yet.
+    "privacy", "terms", "support", "cookies", "refunds",
 })
 
 
@@ -637,9 +656,36 @@ def cache_versioned_assets(response):
     # re-ask for that HTML before every reuse, so a deploy's new asset URLs
     # arrive on the very next navigation and are fetched fresh because they
     # are different URLs.
+    #
+    # The woff2 files are the one exception to the ?v= rule, and they have to
+    # be: fonts.css is loaded WITH a ?v=, but the url() references inside it
+    # are relative and a stylesheet's query string is not inherited by them,
+    # so /static/fonts/inter-latin.woff2 arrives bare and would fall through to
+    # Flask's no-cache default. These bytes used to come from fonts.gstatic.com
+    # with a 1-year immutable header; self-hosting them (see static/fonts.css)
+    # must not turn that into a revalidation round trip per face on every cold
+    # load.
+    #
+    # Matched on the RESOLVED filename, normalised, and only for .woff2 --
+    # never on request.path. A first cut of this tested
+    # request.path.startswith("/static/fonts/"), which is the path as ASKED
+    # FOR, not the file that gets served. Browsers do not decode %2e before
+    # normalising, so /static/fonts/%2e%2e/i18n.js reached the handler
+    # verbatim, resolved to static/i18n.js, and was served with a year-long
+    # immutable header -- which would let one poisoned URL pin stale app JS in
+    # any shared proxy for a year and destroyed the ?v= invariant this whole
+    # block rests on. tests/test_font_cache_headers.py pins the fix.
+    #
+    # Immutable is safe for these because the filenames are content-stable: a
+    # different cut of a face is a different subset or family and so a
+    # different filename. test_every_font_file_matches_its_recorded_digest
+    # turns that convention into something enforced.
+    resolved = (request.view_args or {}).get("filename", "") if request.endpoint == "static" else ""
+    normalised = posixpath.normpath("/" + resolved.replace("\\", "/"))
+    is_font = normalised.startswith("/fonts/") and normalised.endswith(".woff2")
     if (
         request.endpoint == "static"
-        and request.args.get("v")
+        and (request.args.get("v") or is_font)
         and response.status_code == 200
     ):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
@@ -649,8 +695,9 @@ def cache_versioned_assets(response):
 # Content-Security-Policy is built from what the app actually loads rather
 # than from a template, so it is worth naming the sources: MediaPipe's WASM
 # and model files come from jsDelivr and Google's storage bucket (see
-# static/pose_worker.js), the font is Google Fonts, exercise clips are
-# YouTube iframes, and a few illustrations come from Unsplash.
+# static/pose_worker.js), the fonts are our own (static/fonts/, no longer
+# Google Fonts), exercise clips are YouTube iframes, and a few
+# illustrations come from Unsplash.
 #
 # 'unsafe-inline' and 'unsafe-eval' are in script-src deliberately and are
 # NOT an oversight: this app is built out of inline <script> blocks in its
@@ -662,8 +709,12 @@ def cache_versioned_assets(response):
 CSP = "; ".join([
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    # No Google Fonts host in either of these any more: the fonts are served
+    # from static/fonts/ (see static/fonts.css). Leaving the hosts allowlisted
+    # would let a stray <link> silently reintroduce the third-party request
+    # that /cookies now says does not happen.
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
     "img-src 'self' data: blob: https://images.unsplash.com https://storage.googleapis.com",
     "media-src 'self' blob: data:",
     "connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com",
@@ -2258,6 +2309,26 @@ def terms():
 @app.route("/support", methods=["GET"])
 def support():
     return render_template("support.html")
+
+
+# Every value this page quotes comes from the config that actually sets the
+# cookie, so the policy cannot drift from the app. PERMANENT_SESSION_LIFETIME
+# is a timedelta; the template wants whole days.
+@app.route("/cookies", methods=["GET"])
+def cookies():
+    return render_template(
+        "cookies.html",
+        session_days=app.config["PERMANENT_SESSION_LIFETIME"].days,
+        session_samesite=app.config["SESSION_COOKIE_SAMESITE"],
+        session_secure=app.config["SESSION_COOKIE_SECURE"],
+        session_httponly=app.config["SESSION_COOKIE_HTTPONLY"],
+        oauth_state_minutes=APPLE_STATE_MAX_AGE // 60,
+    )
+
+
+@app.route("/refunds", methods=["GET"])
+def refunds():
+    return render_template("refunds.html")
 
 
 # ---------- Friends ----------

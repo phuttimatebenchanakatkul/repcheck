@@ -17,8 +17,27 @@
     window.REPCHECK_LOGGED_IN = true;
     window.REPCHECK_USER_NAME = {{ (current_user.name.split(" ")[0] if current_user else "") | tojson }};
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Self-hosted; see the comment in base.html. This page is the signup /
+       login surface, so a third-party request here fires before the user has
+       agreed to anything at all. -->
+  <!-- Preload the face first paint actually needs. fonts.css is
+       render-blocking and the woff2 inside it are only discovered once it
+       parses, and the fonts.gstatic.com preconnect that used to soften
+       that chain is gone with the Google link. Inter latin is the English
+       UI; the Thai face is deliberately NOT preloaded, because the
+       language lives in localStorage and is not known at render time, so
+       preloading it would be a wasted 27KB for most visitors.
+
+       url_for, NOT asset_url: the href has to be byte-identical to the URL
+       fonts.css resolves, or the browser treats them as two resources and
+       downloads the face twice. fonts.css references it relatively and
+       therefore bare, so this must be bare too. asset_url would append a
+       ?v= mtime that changes on every deploy (Render builds from a fresh
+       clone), making the mismatch permanent rather than occasional. The
+       woff2 are cache-immutable by filename anyway -- see the font branch in
+       cache_versioned_assets -- so they need no ?v=. -->
+  <link rel="preload" href="{{ url_for('static', filename='fonts/inter-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ asset_url('fonts.css') }}">
   <link rel="stylesheet" href="{{ asset_url('style.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='logo-mark.png') }}">
   <script src="{{ asset_url('account_sync.js') }}"></script>

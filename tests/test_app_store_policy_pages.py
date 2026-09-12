@@ -35,7 +35,14 @@ def db(tmp_path, monkeypatch):
 
 # ---------- Reachable without an account ----------
 
-@pytest.mark.parametrize("path", ["/privacy", "/terms"])
+# /cookies and /refunds joined this list with the legal pass. They are public
+# for a reason the App Store one does not cover: the signup and login consent
+# notices link to the policies, and whoever is reading those has no account
+# yet. A gated policy link is a policy nobody can have agreed to.
+POLICY_PATHS = ["/privacy", "/terms", "/support", "/cookies", "/refunds"]
+
+
+@pytest.mark.parametrize("path", POLICY_PATHS)
 def test_policy_pages_are_public(db, path):
     """App Store Connect requires a privacy-policy URL App Review can open
     without logging in, and the listing links straight at it."""
@@ -46,7 +53,7 @@ def test_policy_pages_are_public(db, path):
     )
 
 
-@pytest.mark.parametrize("path", ["/privacy", "/terms"])
+@pytest.mark.parametrize("path", POLICY_PATHS)
 def test_policy_pages_are_listed_as_public_endpoints(db, path):
     """The 200 above would also pass if require_login were removed entirely.
     Pin the actual mechanism: the endpoint is named in _PUBLIC_ENDPOINTS."""
@@ -157,6 +164,8 @@ def test_both_dictionaries_carry_every_deletion_string():
         "settings.danger.error",
         "settings.legal.privacy",
         "settings.legal.terms",
+        "settings.legal.cookies",
+        "settings.legal.refunds",
         "banner.deletion.text",
         "banner.deletion.action",
     )

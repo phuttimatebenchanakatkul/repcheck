@@ -9,14 +9,39 @@
   a terms page, but App Store Connect has an EULA field that points at one,
   and the "not medical advice" disclaimer below matters for a training app
   that generates coaching from AI.
+
+  The "Who you are agreeing with" block is not decoration: consumer law in
+  Thailand and the EU/UK both require the trader to be identifiable before
+  the contract is formed, and the signup screen links here to do that.
+
+  Governing law is Thailand because that is where the operator is. The
+  consumer carve-out in that clause is deliberate -- an EU/UK consumer
+  cannot be stripped of their home forum by a term, so claiming otherwise
+  would make the clause unenforceable and look like overreach.
 -->
 <div class="policy-page">
-  <p class="policy-updated">Last updated 25 August 2026</p>
+  <p class="policy-updated">Last updated 12 September 2026</p>
+
+  <h2>Who you are agreeing with</h2>
+  <p>RepCheck is operated by <strong>Phuttimate Benchanakatkul</strong>, a sole
+  trader based in <strong>Thailand</strong>, reachable at
+  <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a>.
+  "We" and "us" below mean that person. These terms are the agreement between
+  you and us for your use of RepCheck, on the web and in the iOS app.</p>
 
   <h2>Using RepCheck</h2>
   <p>RepCheck is provided as-is for personal training use. You need an account
   to use it, you are responsible for keeping your login details safe, and you
-  are responsible for what you upload.</p>
+  are responsible for what you upload. You must be at least 13 to have an
+  account, and if you are under the age of majority where you live you need a
+  parent or guardian's permission — see the
+  <a href="{{ url_for('privacy') }}">Privacy Policy</a>.</p>
+
+  <h2>What it costs</h2>
+  <p>RepCheck is free. There is nothing to buy in the app and no payment
+  system in it. Some AI features have daily per-account limits instead of a
+  price. See the <a href="{{ url_for('refunds') }}">Refund Policy</a> for what
+  happens if we ever add a paid plan.</p>
 
   <h2>Not medical or professional advice</h2>
   <p>RepCheck's form analysis, coaching, calorie estimates and training plans
@@ -35,27 +60,57 @@
   <h2>Your content</h2>
   <p>The videos, photos and logs you upload stay yours. You give us permission
   to process them in order to run the features you asked for — analysing a lift,
-  estimating a meal, generating a plan. See the
+  estimating a meal, generating a plan. That permission is limited to running
+  those features and ends when you delete the content or your account; we do
+  not take a licence to publish, sell or advertise with your content. See the
   <a href="{{ url_for('privacy') }}">Privacy Policy</a> for who that processing
   involves.</p>
 
   <h2>Acceptable use</h2>
   <p>Do not upload content that is illegal, that you do not have the right to
   upload, or that contains other people who have not agreed to it. Do not use
-  a display name intended to harass or impersonate. Accounts that break these
-  rules can be suspended.</p>
+  a display name intended to harass or impersonate. Do not try to break,
+  overload or work around the app's limits and security. Accounts that break
+  these rules can be suspended.</p>
+
+  <h2>Reporting other users</h2>
+  <p>You can report or block an account from a leaderboard or your friends
+  list. Reports are reviewed within 24 hours. See
+  <a href="{{ url_for('support') }}">Support</a> if something is not covered by
+  the in-app report.</p>
 
   <h2>Ending your account</h2>
   <p>You can delete your account at any time from Settings. See the
   <a href="{{ url_for('privacy') }}">Privacy Policy</a> for exactly what is
-  erased and when.</p>
+  erased and when. We may suspend or end an account that breaks these terms,
+  and we will tell you why where we are able to.</p>
+
+  <h2>Changes to the app and to these terms</h2>
+  <p>RepCheck is actively being built, so features change and some may be
+  withdrawn. If we change these terms materially, the date at the top of this
+  page changes with it. If you keep using RepCheck after that, you are
+  accepting the new version; if you would rather not, you can delete your
+  account.</p>
 
   <h2>Liability</h2>
   <p>To the extent the law allows, RepCheck is not liable for injury, loss or
   damage arising from using the app, including from relying on its estimates
-  or generated plans.</p>
+  or generated plans. Nothing in these terms limits liability that cannot be
+  limited by law — including for death or personal injury caused by
+  negligence, for fraud, or any of your rights as a consumer that a term
+  cannot remove.</p>
+
+  <h2>Governing law</h2>
+  <p>These terms are governed by the law of <strong>Thailand</strong>, and the
+  Thai courts have jurisdiction. If you are a consumer resident in the EU or
+  UK, this does not deprive you of the protection of your own country's
+  consumer law, or of your right to bring a claim in your local courts.</p>
 
   <h2>Contact</h2>
   <p><a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a></p>
+
+  <p>See also our <a href="{{ url_for('privacy') }}">Privacy Policy</a>,
+  <a href="{{ url_for('cookies') }}">Cookie Policy</a> and
+  <a href="{{ url_for('refunds') }}">Refund Policy</a>.</p>
 </div>
 {% endblock %}
