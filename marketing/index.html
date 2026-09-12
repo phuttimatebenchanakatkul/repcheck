@@ -11,9 +11,14 @@
 <meta property="og:description" content="Film your set. RepCheck scores every rep against the movement's real standards and ranks the fixes.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://repcheck.app/">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+<!-- Fonts are self-hosted (assets/fonts/), not loaded from Google. Pulling
+     them from fonts.googleapis.com hands every visitor's IP address to Google
+     before they have consented to anything -- a GDPR breach on its own per
+     LG Muenchen I, 3 O 17493/20. With these local, this page makes ZERO
+     third-party requests, which is also why it needs no cookie banner.
+     Please do not reintroduce a Google Fonts <link> here. -->
+<link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -26,19 +31,36 @@
     <span class="brand">RepCheck</span>
     <nav class="nav-links" aria-label="Sections">
       <a href="#what" data-magnet="">What it does</a>
-      <a href="#waitlist" class="nav-cta" data-magnet="">Download</a>
+      <!-- Said "Download"; it scrolls to a waitlist form. Same problem as the
+           hero button, smaller type. -->
+      <a href="#waitlist" class="nav-cta" data-magnet="">Join waitlist</a>
     </nav>
   </header>
 
   <div class="hero-mid">
     <h1>Your form, your food, your training week checked</h1>
     <div class="hero-actions">
-      <a class="btn btn-dark btn-store" href="#" data-magnet="">
+      <!--
+        Was "Download with Apple" on href="#". RepCheck is not on the App
+        Store yet, so that button promised a download that did not exist and
+        went nowhere when tapped. Advertising availability you do not have is
+        a misleading commercial practice, so the label now says what is
+        actually true and the link goes to the waitlist, which is the real
+        next step. Change this back to a store link only when there IS one.
+      -->
+      <a class="btn btn-dark btn-store" href="#waitlist" data-magnet="">
         <svg class="btn-store-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.087 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zm3.435-3.14c.83-1.012 1.395-2.415 1.246-3.79-1.192.06-2.635.86-3.494 1.867-.77.9-1.442 2.335-1.26 3.66 1.279.08 2.622-.68 3.508-1.737z"/>
         </svg>
-        Download with Apple
+        Join the waitlist
       </a>
+      <!-- The availability statement lives here rather than inside the pill.
+           As a button label ("Coming to the App Store - join the waitlist")
+           it was 43 characters against ~330px of hero width on a 375px
+           phone, so it wrapped to two lines inside a 999px-radius button
+           with the Apple glyph centred against the block. Same information,
+           outside the control. -->
+      <p class="hero-availability">Not on the App Store yet &mdash; the waitlist is how you get in first.</p>
     </div>
   </div>
 
@@ -51,25 +73,32 @@
   <div class="strip"><span>01 — What it does</span><span>Six parts, one week</span></div>
   <div class="what-grid">
     <div class="feature-list">
-      <button class="feature is-active" type="button" data-feature="0">
+      <button class="feature is-active" type="button" data-feature="0" aria-pressed="true">
         <span class="feature-head"><span class="idx">01</span><span class="feature-title">Analyze a Workout</span></span>
       </button>
-      <button class="feature" type="button" data-feature="1">
+      <button class="feature" type="button" data-feature="1" aria-pressed="false">
         <span class="feature-head"><span class="idx">02</span><span class="feature-title">Nutrition Log</span></span>
       </button>
-      <button class="feature" type="button" data-feature="2">
+      <button class="feature" type="button" data-feature="2" aria-pressed="false">
         <span class="feature-head"><span class="idx">03</span><span class="feature-title">Weekly Check-in</span></span>
       </button>
-      <button class="feature" type="button" data-feature="3">
+      <button class="feature" type="button" data-feature="3" aria-pressed="false">
         <span class="feature-head"><span class="idx">04</span><span class="feature-title">Workout Log</span></span>
       </button>
-      <button class="feature" type="button" data-feature="4" id="feature-hyrox">
+      <button class="feature" type="button" data-feature="4" id="feature-hyrox" aria-pressed="false">
         <span class="feature-head"><span class="idx">05</span><span class="feature-title">HYROX Race Simulator</span></span>
       </button>
-      <button class="feature" type="button" data-feature="5">
+      <button class="feature" type="button" data-feature="5" aria-pressed="false">
         <span class="feature-head"><span class="idx">06</span><span class="feature-title">Friends</span></span>
       </button>
       <p class="hint">Tap a feature to watch it in the phone →</p>
+      <!--
+        The handset shows made-up numbers, names and race times -- a product
+        mockup, which is normal, but an unlabelled screenshot of "results" is
+        the kind of thing that reads as a performance claim. Saying so costs
+        one line and means nothing on this page is pretending to be evidence.
+      -->
+      <p class="hint hint-demo">Example data, for illustration &mdash; not a real user's results</p>
     </div>
 
     <div class="phone-stage">
@@ -214,28 +243,92 @@
   </div>
 </section>
 
+<!--
+  Every number here is checkable against the app, and each was verified
+  against main at the time of writing. If you change one, re-derive it:
+    exercises -> len(EXERCISE_DETAILS)   (exercise_details.py -- the same
+                 symbol tests/test_marketing_site_compliance.py imports.
+                 app.py's EXERCISE_LIBRARY is the same size but comes from
+                 workout_library.py; quote one source, not two. Was 527 when
+                 this page shipped at v0.3.0.0: the library grew and the page
+                 did not, which is why the number is now derived in a test)
+    foods     -> len(FOOD_LIBRARY)       (food_library.py)
+    stations  -> the 8 HYROX stations
+    languages -> the locale tables in static/i18n.js (en, th)
+  Do not round any of these up.
+-->
 <section class="stats">
-      <div><b>527</b><span>exercises in the library</span></div>
+      <div><b>735</b><span>exercises in the library</span></div>
       <div><b>744</b><span>foods, Thai included</span></div>
       <div><b>8</b><span>HYROX stations tracked</span></div>
       <div><b>2</b><span>languages, EN &amp; TH</span></div>
 </section>
 
 <section id="waitlist" class="cta">
-  <p class="kicker">02 — Limited early-access slots</p>
+  <!-- Was "Limited early-access slots". Nothing in this site or the app caps
+       the list, so that was manufactured urgency -- a listed unfair practice
+       in the EU (UCPD Annex I) and the kind of claim Thai CPA treats as
+       misleading. Only put a number back here if a real one exists. -->
+  <p class="kicker">02 — Early access</p>
   <h2>Be in the first group in</h2>
   <form class="waitlist-form" id="waitlist-form" novalidate="">
     <label class="sr-only" for="email">Email address</label>
-    <input type="email" id="email" name="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required="" style="">
-    <button type="submit" data-magnet="">Join</button>
+    <!--
+      aria-describedby ties the status line below to the field, so a screen
+      reader reads the "that doesn't look like a valid email" text as part of
+      the input rather than leaving it stranded further down the page. It is
+      the same element app.js already writes into.
+    -->
+    <input type="email" id="email" name="email" inputmode="email" autocomplete="email"
+           placeholder="you@example.com" required="" aria-describedby="waitlist-note">
+    <button type="submit" data-magnet="">Join the waitlist</button>
   </form>
-  <p class="form-note" data-note="">No spam, no drip sequence. One email when we open the doors.</p>
+  <!--
+    role="status" (an implicit aria-live="polite") is the whole point: app.js
+    swaps this text to report success and failure, and without a live region
+    a screen-reader user submits the form and is told nothing at all.
+  -->
+  <p class="form-note" id="waitlist-note" data-note="" role="status" aria-live="polite">No spam, no drip sequence. One email when we open the doors.</p>
+  <!--
+    Collecting an email address is processing personal data, so the purpose,
+    the operator and the policy have to be stated AT the point of collection
+    -- a footer link is not enough (PDPA s.23 / GDPR Art. 13). Kept to one
+    sentence, and deliberately not a pre-ticked box: for a waitlist the
+    consent IS the act of submitting, provided this notice is right here.
+  -->
+  <p class="form-consent">
+    By joining you agree we may email you once about RepCheck's launch, and to
+    our <a href="privacy.html">Privacy Policy</a>. We will not pass your
+    address to anyone else, and you can ask us to delete it at any time by
+    emailing <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a>.
+  </p>
 </section>
 
+<!--
+  The legal links and the operator line were reachable from nowhere before: a
+  site that collects an email address needs its privacy notice and terms
+  linked from every page, and the trader has to be identifiable.
+
+  Grouped into two halves rather than left as five loose children. The footer
+  is `flex-wrap` with `space-between`, and five unequal items -- the widest
+  being the 57-character operator line -- wrap into a last row with one item
+  pushed to the far edge and a hole beside it, which reads as a bug. Two
+  groups wrap as two groups.
+-->
 <footer class="footer">
-  <span class="brand">RepCheck</span>
-  <span>Training guidance only — not medical advice</span>
-  <span>© <span id="year">2026</span></span>
+  <div class="footer-group">
+    <span class="brand">RepCheck</span>
+    <span>Training guidance only — not medical advice</span>
+  </div>
+  <div class="footer-group">
+    <nav class="footer-legal" aria-label="Legal">
+      <a href="privacy.html">Privacy</a>
+      <a href="cookies.html">Cookies</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+    <span class="footer-operator">Operated by Phuttimate Benchanakatkul, Thailand &middot; <a href="mailto:phuttimatebenchanakatkul@gmail.com">contact</a></span>
+    <span>© <span id="year">2026</span></span>
+  </div>
 </footer>
 
 <script src="app.js"></script>
