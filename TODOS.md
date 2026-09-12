@@ -698,6 +698,97 @@
 **Priority:** P3
 **Depends on:** None
 
+### No password reset, no password change, and no mail transport at all
+
+**What:** A user who signs up with email + password and forgets it has no way
+back in on their own. There is no reset route in `auth.py` or `app.py`, no
+change-password control in Settings, and no SMTP/SendGrid/Resend/Mailgun
+dependency anywhere in the project, so there is nothing to build a reset flow
+on top of.
+
+**Why:** Permanent lockout for anyone whose signup email is not also a Google
+or Apple account. `templates/support.html` used to tell users to use a "Forgot
+password" link that does not exist -- that copy is fixed (it now points at
+Google/Apple sign-in on the same address, which genuinely adopts the existing
+account), but the copy fix documents the gap rather than closing it.
+
+**Context:** Found while auditing RepCheck against Apple's App Store Review
+Guidelines for the 0.10.9.0 submission. Not itself a guideline violation --
+Apple does not require password reset -- so it was out of scope for that PR.
+Closing it needs a decision the code cannot make: which email provider to add,
+which is a new dependency, a new secret, and a new deliverability problem.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Choosing an email provider
+
+### static/safety.js has no JavaScript test of any kind
+
+**What:** The report/block sheet's own state machine -- `open()`, the actions
+view, the reasons view, `renderError()`, and `post()`'s behaviour when the
+server answers with a non-JSON error page -- is never executed by a test. Its
+server side is well covered (`tests/test_safety_block_report.py`, 24 tests)
+and its escaping is pinned at source level, but nothing drives the sheet.
+
+**Why:** This is the App Store Guideline 1.2 surface. It now has three entry
+points rather than two (the friends list joined the two leaderboards in
+0.10.9.0), so a break in it takes out reporting and blocking everywhere at
+once, and no test would notice.
+
+**Context:** Flagged by the coverage audit during `/ship` on
+`fix/guideline-1-2-contact-and-block`. Deferred because that PR added the
+third entry point rather than changing `safety.js` itself.
+`tests-js/support/loadFriendsRow.js` (added in the same PR) is the pattern to
+copy -- it extracts an inline template function and runs it in jsdom, with a
+document proxy so document-level listeners do not leak between tests.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### The three report/block buttons all announce the same generic label
+
+**What:** `.fr-friend-more` (`templates/friends.html`), `.ch-lb-more`
+(`templates/challenges.html`) and `.hx-lb-more` (`static/hyrox.js`) each set
+`aria-label="${t("safety.moreActions")}"` -- "More options" for every row. A
+screen-reader user tabbing a list hears it N times with nothing to tell the
+rows apart.
+
+**Why:** The control is how a user reports or blocks somebody, so "which
+account does this one act on" is the entire meaning of the button.
+
+**Context:** Flagged by the design review during `/ship` on
+`fix/guideline-1-2-contact-and-block`. Not a one-line fix, which is why it was
+deferred: the obvious version, `t("safety.moreActions", { name })`, puts a
+name chosen by another account into an HTML **attribute**, and
+`RepCheckI18n.t()` does not escape its vars while the codebase's `escapeHtml`
+is `textContent`-based and does not escape quotes. `challenges.html` keeps the
+name out of the attribute deliberately for exactly this reason (it passes it
+via the `lbNames` map). A fix needs an attribute-safe escaper, or it needs to
+set the label from JS with `setAttribute` instead of interpolating it.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** An attribute-safe escaping helper
+
+### The report/block buttons have hover feedback but no :active state
+
+**What:** All three `⋮` controls define `:hover` and nothing else. There is no
+hover on touch, so tapping gives no feedback for the ~0.48s before the sheet
+finishes animating in.
+
+**Why:** Small, but it is the control App Review taps, and the app does have
+the pattern elsewhere (`.sf-row:active { transform: scale(0.99) }` in
+`templates/base.html`).
+
+**Context:** Flagged [LOW] by the design review during `/ship` on
+`fix/guideline-1-2-contact-and-block`; verify on a real device before
+changing, since it is three files for a cosmetic gain.
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
 ## Design
 
 ### 42 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
