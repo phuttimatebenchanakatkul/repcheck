@@ -662,6 +662,31 @@
 
 ## Security
 
+### The session cookie lasts 10 years, and the Cookie Policy now says so in public
+
+**What:** `PERMANENT_SESSION_LIFETIME = timedelta(days=3650)` (`app.py`). `/cookies` renders that figure from the config, so the published policy states "Lasts up to 3650 days".
+
+**Why:** A stolen session cookie stays valid for a decade, and storage limitation applied to an authentication credential (PDPA; GDPR Art. 5(1)(e)) is a soft spot now that the number is published rather than merely true. The counter-argument is real: this is a training app people open a few times a week, and a shorter lifetime means more re-logins on a phone, which is exactly the friction the long expiry was chosen to avoid.
+
+**Context:** Raised by Claude's adversarial review during `/ship` on `legal-compliance-pass`. Not changed there because shortening it is a product/UX decision (it logs people out), not a compliance fix, and the page is accurate either way. If it is shortened, `/cookies` follows automatically -- the figure is interpolated, not typed.
+
+**Effort:** S (the change) / M (deciding, and handling re-auth UX)
+**Priority:** P2
+**Depends on:** None
+
+### The five public policy pages serve the whole logged-in app shell to anonymous visitors
+
+**What:** `/cookies` returns ~91KB of HTML to an anonymous request, including the tab bar and nine links to gated routes that each bounce to `/login`, plus `base.html`'s ~15 assets (`i18n.js` 147KB, `style.css` 104KB). `pagenav.js` intercepts those clicks and fetches the target before handing off, so each costs a wasted round trip.
+
+**Why:** ~440KB unauthenticated and unrate-limited per policy-page view on a free-tier instance, and a tab bar the reader cannot use. Pre-existing for `/privacy`, `/terms` and `/support`; the legal pass took it from three endpoints to five.
+
+**Context:** Raised by Claude's adversarial review during `/ship` on `legal-compliance-pass`. The fix is a minimal layout for the policy pages when `current_user()` is None (they extend `base.html` purely for styling), which is a template change rather than a security one -- but it is also the difference between a policy page and a whole app shell.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+
 ### RepCheckI18n.t() does not escape its vars, and ~8 innerHTML sinks rely on it
 
 **What:** `t(key, vars)` (`static/i18n.js`) substitutes with `text = text.split("{"+k+"}").join(vars[k])` -- no escaping. Nearly every list row in the app is a template literal assigned via `innerHTML`, so any `t()` call carrying a user-controlled var inside one is an injection sink. Remaining unescaped sinks are the user's OWN custom exercise and food names: `templates/workouts.html` (`exerciseRowHtml`'s `data-name`/`${name}`/`data-fav-toggle`, and `renderList`'s `data-exercise`), plus the food equivalents in `templates/nutrition.html`. Names are stored raw (`create_custom_exercise` caps length at 60 but does not sanitize).
@@ -682,7 +707,9 @@
 
 **Context:** Flagged by the design specialist during `/ship` on `feat/food-sheet-custom-tab`. Deferred: the fix is a theme-aware accent token (a lighter blue under `:root[data-theme="dark"]`) applied across every blue-on-card use -- a design-system change, not something to do inside one feature branch.
 
-**Effort:** M
+**Addendum (legal-compliance-pass, v0.11.0.0):** the token this item asks for now EXISTS. `--link` is defined on `:root` (`#2f66e8`, 5.02:1 on white) and overridden under `:root[data-theme="dark"]` (`#6d9bf5`, 6.20:1 on `--card-bg`), and `tests/test_legal_pass_asset_integrity.py::test_link_text_clears_wcag_aa_on_the_surfaces_it_sits_on` pins both themes. It was applied to the two places that had to be fixed for the legal pass -- `.auth-consent a` and `.auth-switch a`, the Terms/Privacy links you agree to at sign-up -- and deliberately NOT swept across the rest. So the remaining work is narrower than when this was written: point the other blue-on-card text at `--link`, starting with `.nl-create-food-label` and `static/style.css:1471`. Note `--blue` itself is deliberately unchanged and must stay so: it is also a FILL under white text (`.cta-blue`), where lightening it breaks the pairing in the other direction.
+
+**Effort:** S (was M -- the token exists)
 **Priority:** P2
 **Depends on:** None
 
@@ -791,6 +818,31 @@ changing, since it is three files for a cosmetic gain.
 
 ## Design
 
+### Accent-on-tint text fails AA across the light theme, systemically
+
+**What:** The house `background: var(--X-bg); color: var(--X)` pill pairing fails AA in the LIGHT theme for three of the four accents. Measured: `--green #1fa971` on `--green-bg #e7f6ee` is **2.70:1**; `--amber #b9832a` on `--amber-bg #fbf1e2` is **2.96:1**; `--red #d1453b` on `--red-bg #fdeceb` is **3.97:1** (`--purple` passes at 4.53:1). Separately, `.pc-ck-day[data-status="logged"]` sets `background: var(--green); color: #fff`, which is **2.60:1** -- white on mid-green. The pairing is used in ~25 places across `coaching.css`, `hyrox.css` and `style.css`.
+
+**Why:** These are the pills that carry status meaning -- "standard" rate badges, macro deltas, saved/flagged banners, the logged-day chips. At 13px they are non-large text, so 4.5:1 applies.
+
+**Context:** Measured during the legal-compliance pass (v0.11.0.0) while checking contrast for the consent links. Deliberately NOT fixed there: the accents are used both as text on tints AND as chart fills and solid backgrounds, so darkening the base tokens changes ~25 components' appearance and needs a visual pass across the app. This is the light-theme twin of the `--link` item above, and probably wants the same shape: dedicated on-tint tokens rather than retuning the base accents.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+### The marketing feature switcher uses `aria-pressed` where a tablist fits better
+
+**What:** `showFeature()` (`marketing/app.js`) writes `aria-pressed` across six buttons of which exactly one is ever active. `aria-pressed` is the toggle-button pattern; a single-select group is a tablist (`role="tab"` + `aria-selected`, with arrow-key navigation) or a radiogroup. A screen reader announces "pressed" on one and "not pressed" on five, rather than "selected, 1 of 6".
+
+**Why:** It works and is a large improvement on what was there (nothing), but it under-communicates, and the arrow-key navigation a tablist implies is genuinely missing.
+
+**Context:** Raised by Claude's adversarial review during `/ship` on `legal-compliance-pass`. Shipped as `aria-pressed` because it was a one-line change inside a legal/a11y pass; the full APG tabs pattern is its own piece of work. Note `tests-js/marketingFeatureSwitcher.test.js` asserts the `aria-pressed` contract, so changing the pattern means updating that suite.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+
 ### 42 tinted icon-badge glows still ship after DESIGN.md dropped the pattern
 
 **What:** DESIGN.md used to prescribe a matching tinted `box-shadow` behind every gradient icon badge. It no longer does (corrected on `feat/hyrox-pb-leaderboard`) because the glow kept getting removed by hand everywhere it landed. The CSS has not caught up: 42 tinted glows remain by this item's own grep (recounted 2026-08-21; `feat/onboarding-5-steps` removed one, on `.ob-result-hero-icon` — the rest of the drift from the original 46 came from other branches in passing), mostly `static/coaching.css` (the `.pc-ck-chip-*` set, `.pc-card-icon-*`, `.pc-day-cell-dot`) and `static/hyrox.css`, plus two in `templates/home.html`.
@@ -878,6 +930,31 @@ changing, since it is three files for a cosmetic gain.
 **Depends on:** None
 
 ## Reliability / release
+
+### P0 before launch: the waitlist form posts to a placeholder, so every signup fails
+
+**What:** `marketing/app.js`'s `ENDPOINT` is still `https://formspree.io/f/YOUR_FORM_ID`. Submissions fail closed and the visitor sees "Something went wrong on our end". Meanwhile `marketing/privacy.html` now names Formspree as the processor and declares a United States transfer of the visitor's email on the basis of consent, and `index.html` carries a consent notice promising one launch email.
+
+**Why:** The pre-launch site's single job is collecting those addresses, and it currently collects none. It is also the one remaining place where the legal text describes a data flow that does not happen -- the mirror image of the defect the compliance pass fixed everywhere else.
+
+**Context:** Pre-existing and documented in `marketing/README.md`, re-surfaced by Claude's adversarial review during `/ship` on `legal-compliance-pass`. Cannot be fixed from here: it needs a real form ID from the owner's own Formspree (or another provider) account. If a provider other than Formspree is chosen, `marketing/privacy.html` must change in the same commit -- `tests/test_marketing_site_compliance.py::test_the_privacy_notice_names_the_processor_the_form_actually_posts_to` enforces that.
+
+**Effort:** S
+**Priority:** P0
+**Depends on:** None
+
+### `/cookies` describes browser storage in prose, with nothing pinning the list
+
+**What:** The page says it lists "everything it stores in your browser", then describes the categories in prose (workout log, nutrition log, weight log, saved analyses, coaching profile, HYROX history, theme, language, units, tour progress). There are ~25 `repcheck_*` localStorage keys across `static/*.js` and the inline template scripts, and no test cross-checks them against the page -- unlike the cookies, where `test_every_cookie_the_app_sets_is_named_on_the_cookie_policy` walks the source.
+
+**Why:** A new stored category becomes undisclosed with nothing failing. Lower stakes than a cookie (this is the user's own data on their own device, not a tracking mechanism) which is why the prose was accepted, but the page makes a completeness claim it cannot currently back.
+
+**Context:** Raised by the testing specialist during `/ship` on `legal-compliance-pass`. The fix is a scan for storage key literals grouped by prefix, with a curated prefix -> disclosed-phrase map and a floor assertion, mirroring the cookie inventory test.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
 
 ### No global error handler anywhere in the app
 
