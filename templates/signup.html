@@ -61,6 +61,31 @@
         <button type="submit" class="auth-submit-btn">Sign up</button>
       </form>
 
+      <!--
+        App Store Guideline 5.1.2(i) has two halves: disclose where personal
+        data goes, INCLUDING to third-party AI, and "obtain explicit
+        permission before doing so." /privacy has carried the disclosure
+        since it was written, but it was only reachable from Settings, which
+        an account already exists by the time you can open -- so consent was
+        never actually asked for before a food photo, a lift video or a
+        check-in photo went to Gemini.
+
+        Placed below both the OAuth buttons and the password form, and
+        outside the <form>, because it governs all three ways in. Named
+        rather than left to the policy link: "third-party AI providers" is
+        the specific thing the guideline wants a user to have been told.
+
+        The two links go to public pages (see _PUBLIC_ENDPOINTS) -- they have
+        to open for someone who has no account yet, which is the whole point.
+      -->
+      <p class="auth-consent">
+        By creating an account you agree to our
+        <a href="{{ url_for('terms') }}">Terms of Service</a> and
+        <a href="{{ url_for('privacy') }}">Privacy Policy</a>, including that
+        photos, videos and messages you submit are processed by third-party
+        AI providers to generate your results.
+      </p>
+
       <div class="auth-switch">Already have an account? <a href="{{ url_for('auth.login_page', next=next) if next else url_for('auth.login_page') }}">Log in</a></div>
     </div>
   </div>
