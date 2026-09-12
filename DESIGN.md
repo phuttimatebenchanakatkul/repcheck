@@ -41,6 +41,17 @@ lightness moved in whichever direction that theme needs:
 | `--green-ink` | `#177e54` | reverts to `--green` |
 | `--amber-ink` | `#916721` | `#c68c2d` |
 | `--blue-ink` | `#2b63e8` | `#5884ed` |
+| `--link` | `#2f66e8` | `#6d9bf5` |
+
+`--link` is the same idea applied to links rather than to labels: policy and
+consent links (`.auth-consent a`, `.auth-switch a`, the settings Legal list)
+plus the focus ring below. It exists because `--blue` measures 3.39:1 against
+`--card-bg` on dark — an AA failure on the one piece of text a user is being
+asked to agree to. Light is deliberately the same LITERAL as `--blue`, not
+`var(--blue)`: `--blue` is also a fill under white text (`.cta-blue` and
+friends), so retuning it for a fill must not silently restyle every policy
+link. `tests/test_legal_pass_asset_integrity.py` computes the real ratio on
+every surface `--link` can land on.
 
 **There is no "always darken" rule -- check, don't assume.** Each accent fails
 somewhere different:
@@ -61,14 +72,26 @@ Only the three accents we currently set text in have inks; add the matching
 one when red, purple or pink is first used as text rather than reaching for
 the fill accent.
 
-Live so far in `marketing/styles.css`. `tests/test_marketing_contrast.py`
-computes the real ratios from the real tokens for every ink against every
-surface in both themes, so it survives a repalette and fails only on a real
-regression. It also checks that the two dark blocks (the
-`prefers-color-scheme` one and the `[data-theme="dark"]` one) define every ink
-identically -- they are hand-duplicated, and an ink added to one and forgotten
-in the other breaks only the OS-default path, which is the one nobody clicks
-to check.
+**Status check, 2026-09-12: `--green-ink`, `--amber-ink` and `--blue-ink` are
+specified here but do NOT exist in any stylesheet yet** — `git grep green-ink`
+hits this file and nothing else, and the `tests/test_marketing_contrast.py`
+this section used to cite was never added either. Treat the three rows above
+as the agreed values to use when coloured text next needs one, not as tokens
+you can reference today. `--link` is the only one of the four that is live
+(`static/style.css`, used in `static/auth.css`).
+
+When an ink does ship, the check it needs is the one
+`tests/test_legal_pass_asset_integrity.py` already performs for `--link`:
+compute real ratios from the real tokens against every surface in both themes,
+so it survives a repalette and fails only on a real regression. It should also
+assert that the two dark blocks (the `prefers-color-scheme` one and the
+`[data-theme="dark"]` one) define every ink identically — they are
+hand-duplicated, and an ink added to one and forgotten in the other breaks
+only the OS-default path, which is the one nobody clicks to check.
+
+The marketing site keeps its own pair: `--ink` (`#0a0a0a`, the near-black text
+and the focus ring) and `--ink-body` (`#2a2a2a`, softer, for the long-form
+body copy on the legal pages at a 68ch measure).
 
 Icon badges come in two treatments, and which one you use depends on where the
 badge sits, not on what it does. Neither treatment has a glow.
@@ -124,8 +147,23 @@ some props are drawn on top of it. Long-form reasoning is in `static/mascot.js`.
 
 ## Type
 
-System font stack, no webfont: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`.
-Thai text gets its own stack layered in: `"SF Pro TH", "SF Thonburi", "Thonburi", "Noto Sans Thai", ...`.
+Webfonts, but **self-hosted** — no Google Fonts link anywhere, in the app or
+on the marketing site. The app loads Inter from `static/fonts.css`
+(`font-family: "Inter", -apple-system, "Segoe UI", Roboto, Arial, sans-serif`),
+and Thai mode swaps the whole stack for
+`"SF Pro TH", "SF Thonburi", "Thonburi", "Noto Sans Thai", "Sarabun", ...`
+(`:root[data-lang="th"]` in `static/style.css`). The marketing site uses
+Archivo for text and JetBrains Mono for eyebrows/labels, from
+`marketing/assets/fonts.css`.
+
+The faces are served from `static/fonts/` and `marketing/assets/fonts/`, one
+variable face per family+subset declaring a weight RANGE — never one file per
+weight. Do not reintroduce a `fonts.googleapis.com` link or a
+`fonts.gstatic.com` preconnect: the CSP no longer allowlists either host, and
+`/cookies` tells the reader the app loads no fonts from Google. The reasoning,
+the subset split, and the per-face weight ranges are documented at the top of
+each `fonts.css`; the app-side cache and filename invariants are in CLAUDE.md
+under "Fonts are self-hosted".
 
 Observed scale (px, weight):
 - 17px / 800 — sheet/modal titles
@@ -155,6 +193,41 @@ Numeric values that line up in columns (calories, weights, times) should use
     to `border-radius: 0`, or the sheet reads as a bare rectangle on the one
     viewport where it is used most.
 - Mobile breakpoint: `max-width: 380px` gets tighter padding and smaller icon/label sizes — see `.af-action-row` / `.af-action-title` in `templates/nutrition.html` for the pattern
+
+## Focus: `:focus-visible`, and never a bare `outline: none`
+
+Every keyboard-reachable thing needs a visible focus indicator (WCAG 2.4.7),
+and the indicator goes on `:focus-visible`, not `:focus` — so clicking a field
+with a mouse does not draw a ring, and tabbing into it does.
+
+An `outline: none` is only allowed when something else visibly replaces it.
+Two patterns are in use, and which one applies depends on whether the control
+has a surface of its own:
+
+- **Light the wrapper on `:focus-within`** — `.log-sheet-search`,
+  `.pc-ck-weight-field`, `.hx-space-input-wrap`. Use this where there is a
+  padded container to tint or border.
+- **Ring the input itself** — `outline: 2px solid var(--link)` with
+  `outline-offset: 2px`, as on `.auth-field input` and `.ag-inputrow input`.
+  Use this where the control has no container to work with. `--link`, not
+  `--blue`: `--blue` is 3.39:1 against the dark card, barely over the 3:1
+  floor a non-text indicator needs.
+
+A border-colour change on `:focus` is a mouse treatment, not a focus
+indicator; keep it and add the ring on top for keyboard.
+
+The marketing site solves the same problem once for the whole page:
+`:where(a, button, input, [tabindex]):focus-visible` paints a
+`3px solid var(--ink)` ring, and the three dark grounds (`.nav-cta`,
+`.btn-dark`, anything inside `.phone-screen`) override `outline-color` to
+`var(--paper)` rather than adding per-element rules. The `:where()` wrapper
+keeps that base rule at zero specificity on purpose; it also means the rule
+declares no `border-radius`, which would otherwise square off any element
+with its own radius.
+
+`tests/test_legal_pass_asset_integrity.py` asserts that every input which
+suppresses its outline lights up on keyboard focus, so a new
+`outline: none` with nothing behind it fails the suite rather than shipping.
 
 ## Component pattern: choice screens
 

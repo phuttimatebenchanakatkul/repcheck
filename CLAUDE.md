@@ -14,6 +14,17 @@ Use /browse for all web browsing. Use ~/.claude/skills/gstack/... for gstack fil
 ## API server
 Don't start the backend/API server unless the current task actually requires it running.
 
+## The other docs in here
+There is no root README -- this file is the entry point.
+
+- [DESIGN.md](DESIGN.md) -- design tokens, type, focus rules. Source of truth
+  for `/design-shotgun` and `/design-html`; reuse its values.
+- [IOS_APP_STORE.md](IOS_APP_STORE.md) -- the App Store plan, the Guideline
+  4.2/4.8 defences, what still needs an Apple account by hand.
+- [CHANGELOG.md](CHANGELOG.md) -- written by `/ship`, newest first.
+- [TODOS.md](TODOS.md) -- deferred work, with a Completed section.
+- [marketing/README.md](marketing/README.md) -- the pre-launch site.
+
 ## Testing
 
 Two suites, both must pass before shipping:
@@ -86,6 +97,68 @@ comes back false and `preventDefault()` silently does nothing, so the preview
 follows the finger while the page rubber-bands underneath it. Arm from scroll or
 open state instead, so the listener is in place before the finger lands.
 
+## Fonts are self-hosted, and immutable by filename
+
+Inter + Noto Sans Thai (`static/fonts.css`, faces in `static/fonts/`) and
+Archivo + JetBrains Mono on the marketing site
+(`marketing/assets/fonts.css`, faces in `marketing/assets/fonts/`). Four
+invariants, each with a test behind it:
+
+1. **Never reintroduce a Google Fonts `<link>`** (or a `fonts.gstatic.com`
+   preconnect). The CSP's `style-src`/`font-src` no longer allowlist any
+   host, so a stray link is refused by the browser with nothing but a console
+   error to show for it -- the page just renders in the fallback face. And
+   `/cookies` tells the reader the app loads no fonts from Google, which a
+   re-added link turns into a false statement in a published policy.
+   `tests/test_legal_policy_integrity.py` pins both the templates and the CSP.
+2. **One variable face per family+subset, with a weight RANGE** -- not one
+   file per weight. Inter and Noto Sans Thai are both variable, so Google's
+   css2 API returned the SAME bytes for each weight asked for individually,
+   one per request: the first cut of
+   `static/fonts.css` shipped five byte-identical copies of one 48KB blob and
+   made an English page download that face five times. If a heavier cut is
+   needed, WIDEN THE RANGE; do not add a block.
+   `test_no_font_file_is_shipped_twice` and
+   `test_the_font_faces_cover_every_weight_the_stylesheets_use` hold this.
+3. **A changed face needs a NEW filename.** `.woff2` files under
+   `/static/fonts/` get a one-year `immutable` Cache-Control with no `?v=`
+   query, because a stylesheet's query string is not inherited by the
+   relative `url()`s inside it. That is only safe while filenames are
+   content-stable, so `tests/fixtures/font_digests.json` records a SHA-256
+   per file and `test_every_font_file_matches_its_recorded_digest` fails if
+   the bytes behind a name change. Re-subsetting a face means a new name plus
+   a new digest entry, never an in-place swap. (The digest pin covers
+   `static/fonts/` only -- the marketing site's faces are served by Render, not
+   by this rule.)
+4. **That cache rule matches the RESOLVED filename, never `request.path`.**
+   Browsers do not decode `%2e` before normalising, so the first cut's
+   `request.path.startswith("/static/fonts/")` handed
+   `/static/fonts/%2e%2e/i18n.js` a year-long immutable header on app JS --
+   one poisoned URL could pin stale JS in a shared proxy for a year. See
+   `cache_versioned_assets` in `app.py` and
+   `tests/test_font_cache_headers.py`.
+
+## Public pages are an explicit allowlist
+
+The whole app is auth-gated by the `require_login` `before_request` hook in
+`app.py`; anything reachable without an account has to be named in
+`_PUBLIC_ENDPOINTS` (`/api/*` is separately exempt because those routes answer
+their own JSON 401). Alongside `static`, `library_asset` and the auth flows,
+the public policy pages are `privacy`, `terms`, `support`, `cookies` and
+`refunds`. Adding a policy page means adding its endpoint there too, or it
+302s to `/login` for exactly the readers it exists for: App Review, and anyone
+at the signup consent notice who does not have an account yet.
+
+`/cookies` renders every figure it quotes -- session lifetime, SameSite,
+Secure, HttpOnly, the OAuth state window -- from `app.config` rather than
+hardcoding them, so the page cannot drift from the cookie the app actually
+sets. Keep new claims on that page sourced the same way.
+`tests/test_legal_policy_integrity.py` cross-checks the pages against the
+code: every cookie the app sets is named, every third party the code talks to
+appears on `/privacy`, the policy pages link to each other, and settings links
+all of them. A new processor or a new cookie breaks that suite until the
+policy is updated, which is the point.
+
 ## Versioning
 
 `VERSION` (4-digit `MAJOR.MINOR.PATCH.MICRO`) is the source of truth; `package.json`
@@ -145,6 +218,18 @@ directory `.`, no build command. It shares brand colors/type with the app
 (see `DESIGN.md`) but has its own HTML/CSS/JS and does not import from
 `static/` or `templates/`.
 
+It carries its OWN legal pages (`marketing/privacy.html`, `cookies.html`,
+`terms.html`) rather than linking to the Flask app's, because the waitlist
+collects an email address before anyone has an account. They are separate
+files describing the same operator, so a change to what the app collects or
+who processes it has to land on both sides.
+`tests/test_marketing_site_compliance.py` checks the marketing copy against
+the real app.
+
 Before this is live: `marketing/app.js`'s `ENDPOINT` constant is a Formspree
 placeholder and needs swapping for a real form endpoint, or waitlist
-submissions will fail.
+submissions will fail. **If you switch to a provider other than Formspree,
+update `marketing/privacy.html` in the same commit** -- it names Formspree as
+the processor and the country the address is transferred to, and naming the
+wrong processor in a privacy notice is a compliance failure, not a stale
+comment.

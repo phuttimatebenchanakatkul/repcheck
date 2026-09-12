@@ -5,6 +5,28 @@ app in the repo root — this folder is entirely self-contained and safe to
 deploy as its own Render **Static Site**, separate from the main `repcheck`
 web service.
 
+Self-contained now includes the fonts and the legal pages:
+
+- `index.html` — the pre-launch page.
+- `privacy.html`, `cookies.html`, `terms.html` — the site's own policies,
+  reachable from the footer's Legal nav. They exist separately from the Flask
+  app's `/privacy`, `/cookies`, `/terms` because the waitlist collects an
+  email address from people who have no account. Same operator, two sets of
+  files: a change to what is collected or who processes it has to land on
+  both. `tests/test_marketing_site_compliance.py` checks this copy against
+  the real app.
+- `assets/fonts.css` + `assets/fonts/` — Archivo and JetBrains Mono, served
+  first-party. **Do not add a `fonts.googleapis.com` link back.** With these
+  local the site makes zero third-party requests on load and needs no cookie
+  banner; the waitlist POST to the form provider is the one deliberate
+  cross-origin request, and it is disclosed in `privacy.html` and
+  `cookies.html`. The OFL texts ship beside the faces because the licence
+  requires it. `test_no_page_loads_anything_from_another_company` in
+  `tests/test_marketing_site_compliance.py` fails on any off-site URL that
+  is not on its click-through allowlist, so a re-added font host, script,
+  iframe or pixel breaks the suite rather than quietly making
+  `cookies.html` untrue.
+
 ## Local preview
 
 ```bash
@@ -35,10 +57,13 @@ doesn't touch the existing `repcheck-q0m4` service at all.
 
 ### Option A — Blueprint (repo root `render.yaml`)
 
-`render.yaml` at the repo root defines this site and nothing else, so
-creating a Blueprint instance from it leaves the dashboard-configured Flask
-service alone. Render dashboard → **New** → **Blueprint** → connect this
-repo → apply.
+**There is no `render.yaml` in the repo** — both services are configured in
+the Render dashboard, and the live site was created via Option B. This option
+is kept because it is the cleaner setup if you ever want it in version
+control: write a `render.yaml` at the repo root defining this static site and
+nothing else, so creating a Blueprint instance from it leaves the
+dashboard-configured Flask service alone. Render dashboard → **New** →
+**Blueprint** → connect this repo → apply.
 
 ### Option B — Dashboard, by hand
 

@@ -83,6 +83,17 @@ These are required regardless of the wrapper and can all be done on Windows.
    (Gemini / OpenAI, per `analyze_food_gemini.py`, `analyze_form_gpt.py`).
 3. **Terms of service** -- `/terms`. Not strictly required by Apple, but required
    for the EULA field and expected for a paid-tier app later.
+
+   The public policy set is now four pages, all reachable without an account
+   (they are in `_PUBLIC_ENDPOINTS` in `app.py`) and all linked from Settings
+   -> Legal and from each other:
+   `/privacy`, `/terms`, `/cookies`, and `/refunds` (v0.11.0.0). Use
+   `/privacy` for the App Store Connect Privacy Policy URL and `/terms` for
+   the EULA field. `/refunds` currently states that the app is free and there
+   is nothing to buy, which is true -- there is no payment code in the repo.
+   **It has to be rewritten with real refund and cancellation terms before any
+   purchase code ships**, and `tests/test_legal_policy_integrity.py` fails if
+   purchase code lands while the page still says the app is free.
 4. **Sign in with Apple** -- Guideline 4.8. `auth.py` offers Google OAuth, so an
    equivalent privacy-preserving option is required on iOS. Sign in with Apple
    is the safe route. Needs a new `/auth/apple` + callback pair, an Apple
