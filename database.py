@@ -524,6 +524,31 @@ def mark_onboarding_completed(user_id):
         conn.execute("UPDATE users SET onboarding_completed = 1 WHERE id = ?", (user_id,))
 
 
+def oauth_display_name(name, provider):
+    """The name to store for an account created through Google or Apple.
+
+    The third place a display name gets set, and the one that had no guard.
+    App Store Guideline 1.2 asks for objectionable material to be FILTERED,
+    and this app applies validate_display_name at signup (auth.py) and at
+    rename (update_account above) -- but a name arriving from an OAuth
+    profile went straight into the row, so a Google account named with a
+    blocked word landed on the global leaderboard every other user sees.
+
+    Also covers blank. `name.strip()` used to run on whatever the provider
+    sent: "" for an empty name, and AttributeError for a null one. A blank
+    display name is not cosmetic -- templates/friends.html renders the
+    avatar initial as f.name[0].toUpperCase(), which throws on "" and takes
+    that whole list to zero rows.
+
+    Here rather than in each callback, because there are two callers and the
+    next provider would be a third.
+    """
+    fallback = f"{(provider or 'App').capitalize()} User"
+    candidate = (name or "").strip()
+    # validate_display_name returns an error string, or None when it is fine.
+    return fallback if validate_display_name(candidate) else candidate
+
+
 def create_oauth_user(email, name, provider, provider_user_id, avatar_url=None):
     with get_db() as conn:
         cur = conn.execute(
@@ -531,7 +556,7 @@ def create_oauth_user(email, name, provider, provider_user_id, avatar_url=None):
                VALUES (?, ?, ?, ?, ?)""",
             (
                 (email or f"{provider}-{provider_user_id}@no-email.repcheck.local").lower().strip(),
-                name.strip(),
+                oauth_display_name(name, provider),
                 provider,
                 provider_user_id,
                 avatar_url,
