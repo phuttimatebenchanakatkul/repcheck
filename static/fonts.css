@@ -1,0 +1,85 @@
+/* Self-hosted Inter + Noto Sans Thai, served first-party.
+
+   WHY SELF-HOSTED: these used to load from fonts.googleapis.com on EVERY
+   page, including /signup -- so the browser handed the visitor's IP to
+   Google before they had agreed to anything, on the very screen where we
+   ask for consent. LG Muenchen I (3 O 17493/20) held that dynamic Google
+   Fonts loading breaches the GDPR by itself. Self-hosting removes the
+   request, which is why /cookies can say the app loads no fonts from
+   Google. Do NOT reintroduce a Google Fonts <link>.
+
+   ONE FACE PER FAMILY+SUBSET, with a weight RANGE -- not one file per
+   weight. Both are variable fonts, so Google's css2 API hands back the
+   SAME file for every weight requested individually. The first cut of
+   this file asked for wght@400;500;600;700;800 and got five @font-face
+   blocks pointing at five byte-identical copies of one 48KB blob, which
+   made an English page download that face five times. The range syntax
+   returns one face declaring `font-weight: 400 900`. If a heavier or
+   lighter cut is ever needed, WIDEN THE RANGE -- do not add a block.
+
+   Inter is 400..900, not 400..800, because coaching.css's
+   .pc-ck-hero-delta sets font-weight: 900 at 68px. The old Google link
+   only requested up to 800, so that number was being synthesised (a
+   browser thickening 700) for as long as it has existed. 900 costs no
+   extra bytes here: it is the same variable file.
+
+   Subsets: Inter is latin + latin-ext. Noto Sans Thai also carries the
+   latin subsets on purpose -- style.css's :root[data-lang="th"] rule
+   makes it the entire stack in Thai mode, Inter is not in it, so Latin
+   characters inside Thai copy come from this font too.
+
+   Both families are SIL Open Font License 1.1. Licences ship beside the
+   files in static/fonts/, because the OFL requires that. */
+
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url(fonts/inter-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url(fonts/inter-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* thai */
+@font-face {
+  font-family: 'Noto Sans Thai';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(fonts/noto-sans-thai-thai.woff2) format('woff2');
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+
+/* latin-ext */
+@font-face {
+  font-family: 'Noto Sans Thai';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(fonts/noto-sans-thai-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* latin */
+@font-face {
+  font-family: 'Noto Sans Thai';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(fonts/noto-sans-thai-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

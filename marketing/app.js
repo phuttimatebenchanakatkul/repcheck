@@ -95,7 +95,13 @@
   // whichever one is showing, and pause + rewind the rest so they don't keep
   // running silently behind the screens you can't see.
   function showFeature(i) {
-    featureBtns.forEach(function (b, n) { b.classList.toggle("is-active", n === i); });
+    // aria-pressed alongside the class: is-active is a colour change, which a
+    // screen reader cannot see, so without this the switcher gives no clue
+    // which of the six features is currently in the handset.
+    featureBtns.forEach(function (b, n) {
+      b.classList.toggle("is-active", n === i);
+      b.setAttribute("aria-pressed", n === i ? "true" : "false");
+    });
     screens.forEach(function (s, n) { s.classList.toggle("is-active", n === i); });
     tabs.forEach(function (t, n) { t.classList.toggle("is-active", n === TAB_FOR_FEATURE[i]); });
     screens.forEach(function (s, n) {

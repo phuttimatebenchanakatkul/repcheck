@@ -2,6 +2,88 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.11.0.0] - 2026-09-12
+
+A legal, privacy and accessibility pass over both the app and the pre-launch
+site at repcheck.app, so that neither one is making a claim it cannot stand
+behind. Written to Thailand's PDPA as the primary law, and granting the
+equivalent GDPR / UK GDPR rights, because the App Store distributes worldwide.
+
+### Added
+
+- A **Cookie Policy** at `/cookies`. It lists every cookie the app sets and
+  what it is for, explains what is kept in your browser and why, and sets out
+  the reasoning for there being no cookie banner: RepCheck has no advertising
+  and no third-party analytics, so there is nothing that requires consent.
+  Every figure on it — the cookie lifetimes, the SameSite and Secure and
+  HttpOnly flags — is rendered from the configuration that actually sets the
+  cookie, so the page cannot drift from the app.
+- A **Refund Policy** at `/refunds`, which says plainly that RepCheck is free,
+  that there is nothing to buy and nothing to refund, and what will happen if
+  a paid plan is added later (Apple handles App Store refunds; we cannot).
+- **Who we are** on the Privacy Policy and Terms: the operator named, the
+  country, and one address to reach them. A policy with no identifiable
+  controller is itself a defect under both the PDPA and the GDPR.
+- The Privacy Policy now states **why** we are allowed to process each kind of
+  data, that health and body data rests on your explicit consent, how long
+  each kind is kept, that the AI providers and our host are in the United
+  States, the full list of companies your data reaches, your rights, and your
+  right to complain to the PDPC or your own regulator without going through us.
+- **Cookie Policy** and **Refund Policy** links in Settings → Legal, in both
+  English and Thai.
+- The pre-launch site at repcheck.app has its own **privacy notice, cookie
+  policy and website terms**, scoped to that site and the waitlist, plus the
+  operator's identity and those links in the footer of every page. It had no
+  legal pages at all and collected an email address.
+- A consent notice beside the waitlist field saying what the address is used
+  for and linking the privacy notice, because the notice has to be where the
+  data is collected, not only in a footer.
+
+### Changed
+
+- **Inter and Noto Sans Thai are now served from RepCheck's own servers**
+  rather than from Google's font CDN, on every page of the app and on the
+  marketing site. Loading them from Google meant every visitor's IP address
+  was sent to Google before they had agreed to anything — including on the
+  sign-up screen, which is where we ask for consent. A German court has held
+  that this alone breaches the GDPR. The Content-Security-Policy no longer
+  allowlists Google's font hosts either, so it cannot quietly come back.
+- The marketing site now makes **no third-party requests at all** when it
+  loads, which is why it needs no cookie banner.
+- Clearer labels on the pre-launch site: the hero button said "Download with
+  Apple" and led nowhere, for an app that is not on the App Store yet. It now
+  says what is true. The nav said "Download" for a link to a waitlist.
+
+### Fixed
+
+- **A cache header could be applied to the wrong file.** The rule that keeps
+  the new font files cached matched the requested path rather than the file
+  actually served, so `/static/fonts/%2e%2e/i18n.js` returned the app's
+  JavaScript with a one-year, never-revalidated cache header. One such URL
+  stored by any shared proxy would have pinned stale app code for a year.
+- **The Terms and Privacy links you agree to at sign-up were too faint to
+  read on the dark theme** — 3.39:1 against the card, below the accessibility
+  minimum, on the one piece of text you are being asked to agree to. Now
+  6.20:1.
+- **Keyboard focus was invisible in three places.** The waitlist email field
+  on the marketing site had its focus ring removed with nothing in its place;
+  the analyze chat box had none at all; and the sign-up fields showed only a
+  faint border change. All three now show a visible ring when you tab to them.
+- The success and error messages under the waitlist form failed the contrast
+  minimum on white (3.01:1 for the success message). Both now pass, and the
+  form announces its result to screen readers, which it previously did not.
+- The feature switcher on the marketing site changed the phone's contents with
+  no indication to a screen reader of which of the six was showing.
+- `HttpOnly` on the session cookie is now set explicitly rather than left to a
+  framework default, because the Cookie Policy publishes it as a promise.
+- **Figures on the pre-launch site now match the app.** It advertised 527
+  exercises; the library holds 735, and had for months. The waitlist also
+  claimed "limited early-access slots" when nothing limits it, and the phone
+  mockup showed invented race times and calorie totals with nothing saying so.
+- The app's own third-party requests are now disclosed: the pose-detection
+  code and model downloaded from jsDelivr and Google's storage when you start
+  an analysis, and one illustration loaded from Unsplash.
+
 ## [0.10.9.0] - 2026-09-12
 
 ### Added

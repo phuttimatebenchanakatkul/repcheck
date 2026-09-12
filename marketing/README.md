@@ -5,6 +5,28 @@ app in the repo root — this folder is entirely self-contained and safe to
 deploy as its own Render **Static Site**, separate from the main `repcheck`
 web service.
 
+Self-contained now includes the fonts and the legal pages:
+
+- `index.html` — the pre-launch page.
+- `privacy.html`, `cookies.html`, `terms.html` — the site's own policies,
+  reachable from the footer's Legal nav. They exist separately from the Flask
+  app's `/privacy`, `/cookies`, `/terms` because the waitlist collects an
+  email address from people who have no account. Same operator, two sets of
+  files: a change to what is collected or who processes it has to land on
+  both. `tests/test_marketing_site_compliance.py` checks this copy against
+  the real app.
+- `assets/fonts.css` + `assets/fonts/` — Archivo and JetBrains Mono, served
+  first-party. **Do not add a `fonts.googleapis.com` link back.** With these
+  local the site makes zero third-party requests on load and needs no cookie
+  banner; the waitlist POST to the form provider is the one deliberate
+  cross-origin request, and it is disclosed in `privacy.html` and
+  `cookies.html`. The OFL texts ship beside the faces because the licence
+  requires it. `test_no_page_loads_anything_from_another_company` in
+  `tests/test_marketing_site_compliance.py` fails on any off-site URL that
+  is not on its click-through allowlist, so a re-added font host, script,
+  iframe or pixel breaks the suite rather than quietly making
+  `cookies.html` untrue.
+
 ## Local preview
 
 ```bash
@@ -35,10 +57,13 @@ doesn't touch the existing `repcheck-q0m4` service at all.
 
 ### Option A — Blueprint (repo root `render.yaml`)
 
-`render.yaml` at the repo root defines this site and nothing else, so
-creating a Blueprint instance from it leaves the dashboard-configured Flask
-service alone. Render dashboard → **New** → **Blueprint** → connect this
-repo → apply.
+**There is no `render.yaml` in the repo** — both services are configured in
+the Render dashboard, and the live site was created via Option B. This option
+is kept because it is the cleaner setup if you ever want it in version
+control: write a `render.yaml` at the repo root defining this static site and
+nothing else, so creating a Blueprint instance from it leaves the
+dashboard-configured Flask service alone. Render dashboard → **New** →
+**Blueprint** → connect this repo → apply.
 
 ### Option B — Dashboard, by hand
 
@@ -59,9 +84,15 @@ repo → apply.
   Waitlist submissions will fail until this points at a real form endpoint.
   Create a free form at https://formspree.io (or swap in Buttondown/another
   provider) and paste the real endpoint in.
+  **If you pick a provider other than Formspree, update `privacy.html` in the
+  same commit** — its "Who else sees it" section names Formspree as the
+  processor and the country the address is transferred to. Naming the wrong
+  processor in a privacy notice is a compliance failure, not a stale comment.
 - `robots.txt` points its sitemap at `https://repcheck.app/sitemap.xml`,
   which doesn't exist yet — either generate one or drop that line.
-- Content mirrors the real app (527 exercises, 744 foods, 8 HYROX stations,
-  EN/TH) as of 2026-08-23 pulled from `workout_library.py`,
-  `food_library.py` and the HYROX station list in `app.py`/`hyrox.html`. If
+- Content mirrors the real app (735 exercises, 744 foods, 8 HYROX stations,
+  EN/TH) — re-verified 2026-09-12 against `len(EXERCISE_DETAILS)` and
+  `len(FOOD_LIBRARY)`, which is what `tests/test_marketing_site_compliance.py`
+  asserts against. The exercise figure said 527 for months after the
+  library grew past it; re-derive these rather than trusting the page. If
   those numbers move, update the stats band and feature copy here too.

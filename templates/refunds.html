@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Refund Policy{% endblock %}
+{% block heading %}Refund Policy{% endblock %}
+
+{% block content %}
+<!--
+  Public (see _PUBLIC_ENDPOINTS in app.py).
+
+  READ THIS BEFORE EDITING. This page says RepCheck is free and that there is
+  nothing to buy. That is true as of v0.10.9.0: there is no payment code in
+  this repository at all -- no Stripe, no StoreKit, no in-app purchase, no
+  price anywhere in a shipped route or template.
+
+  A "RepCheck Pro" settings screen (with THB prices) exists on an unmerged
+  branch and is explicitly labelled "Payments aren't connected yet". The
+  moment any of that ships, THIS PAGE MUST BE REWRITTEN FIRST -- publishing
+  refund terms for something nobody can buy is itself a misleading statement,
+  and so is charging with no refund terms published.
+
+  tests/test_legal_policy_integrity.py enforces the direction that actually
+  bites: if purchase code lands while this page still says the app is free,
+  the test fails.
+-->
+<div class="policy-page">
+  <p class="policy-updated">Last updated 12 September 2026</p>
+
+  <h2>RepCheck is free</h2>
+  <p>There is nothing to buy in RepCheck today. There are no subscriptions, no
+  in-app purchases, no one-off unlocks and no paid tiers. We do not ask for a
+  card, and the app contains no payment system of any kind.</p>
+  <p>So there is nothing to refund, and this page has no charges to describe.
+  If you are ever asked to pay for RepCheck by anything claiming to be us,
+  it is not us — please
+  <a href="mailto:phuttimatebenchanakatkul@gmail.com">tell us</a>.</p>
+
+  <h2>What the free app costs you</h2>
+  <p>Some features cost us money to run, so they have daily limits per
+  account rather than a price: form analysis, food photo analysis and coach
+  chat each have a fixed number of uses per day. Hitting a limit is not a
+  prompt to pay — there is no way to pay. It resets.</p>
+
+  <h2>If we introduce a paid plan</h2>
+  <p>We intend to add an optional paid plan after RepCheck is released on the
+  App Store. The free features you use today are not being taken away to make
+  room for it. When that happens, and <em>before</em> anyone can be charged:</p>
+  <ul>
+    <li>This page will be replaced with full refund and cancellation terms,
+      and the date at the top will change.</li>
+    <li>The price, the billing period and what renewal costs will be shown to
+      you on the purchase screen, before you confirm — never after.</li>
+    <li>Purchases made through the iOS app would be handled by
+      <strong>Apple</strong>, not by us. That means Apple takes the payment and
+      Apple issues the refunds, through
+      <a href="https://reportaproblem.apple.com" target="_blank" rel="noopener noreferrer">reportaproblem.apple.com</a>.
+      We are not able to refund an Apple purchase directly, and we will say so
+      plainly rather than leaving you to find out.</li>
+    <li>You would be able to cancel at any time, keep access until the end of
+      the period you already paid for, and not be charged again.</li>
+    <li>Any statutory right you have to cancel or be refunded — under
+      Thailand's consumer protection law, or the EU/UK right of withdrawal for
+      consumers — applies on top of all of the above. Nothing we publish here
+      can take those away, and nothing on this page is intended to.</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p>Anything about billing, now or later:
+  <a href="mailto:phuttimatebenchanakatkul@gmail.com">phuttimatebenchanakatkul@gmail.com</a>.
+  We answer by email.</p>
+
+  <p>See also our <a href="{{ url_for('terms') }}">Terms of Service</a>,
+  <a href="{{ url_for('privacy') }}">Privacy Policy</a> and
+  <a href="{{ url_for('cookies') }}">Cookie Policy</a>.</p>
+</div>
+{% endblock %}
