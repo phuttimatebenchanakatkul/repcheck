@@ -376,3 +376,16 @@ def test_both_leaderboards_refresh_when_a_block_happens():
         "short-circuits on a matching key, so a bare render() would redraw "
         "the same rows, blocked name included"
     )
+
+    # The friends list is the third surface, added when friend rows got their
+    # own report/block button. It is the one where the account is most likely
+    # to still be on screen when the sheet closes.
+    friends = read("templates/friends.html")
+    assert 'document.addEventListener("repcheck:safety-changed"' in friends, (
+        "blocking from a friend row must clear that row, not leave the name "
+        "the user just blocked sitting underneath the sheet"
+    )
+    assert "loadFriends()" in friends.split('"repcheck:safety-changed"', 1)[1][:200], (
+        "the handler has to actually RELOAD -- an empty listener satisfies "
+        "the line above and changes nothing on screen"
+    )

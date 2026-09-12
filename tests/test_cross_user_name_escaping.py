@@ -64,8 +64,17 @@ def test_friends_list_escapes_friend_names():
     assert "${escapeHtml(f.name)}" in src, "friend rows must escape f.name"
     # The avatar initial is also interpolated into innerHTML, so a name
     # beginning with "<" would inject through that too.
-    assert "${escapeHtml(f.name[0].toUpperCase())}" in src, (
-        "the avatar initial must be escaped as well"
+    # Matched as "escapes, and the thing escaped is f.name" rather than as
+    # one frozen expression: the initial is now guarded against a blank name
+    # ((f.name || "?")), and pinning the exact old string would have made a
+    # crash fix look like an escaping regression.
+    avatar = re.search(r'fr-friend-avatar">\$\{([^}]*)\}', src)
+    assert avatar, "could not find the avatar initial interpolation"
+    assert avatar.group(1).startswith("escapeHtml("), (
+        f"the avatar initial must be escaped as well, got: {avatar.group(1)}"
+    )
+    assert "f.name" in avatar.group(1), (
+        "and it must be the friend's own name being escaped"
     )
     assert "<div>${f.name}</div>" not in src, "found a raw ${f.name}"
 
@@ -78,15 +87,52 @@ def test_each_screen_defines_the_escaper_it_uses():
         assert "function escapeHtml(" in read(rel), f"{rel} calls escapeHtml but never defines it"
 
 
+def _escaper_bodies(src):
+    """Every `function escapeHtml(...) { ... }` body in `src`, brace-matched.
+
+    Every one of them, not the first: a file that grows a second copy has
+    two things to get right, and the weaker one is the one that ships.
+    """
+    bodies = []
+    marker = "function escapeHtml("
+    at = src.find(marker)
+    while at != -1:
+        open_brace = src.index("{", at)
+        depth, i = 0, open_brace
+        while i < len(src):
+            if src[i] == "{":
+                depth += 1
+            elif src[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        bodies.append(src[open_brace:i + 1])
+        at = src.find(marker, i)
+    assert bodies, "no escapeHtml found at all"
+    return bodies
+
+
 def test_escaper_round_trips_through_textcontent():
     # textContent -> innerHTML is the codebase's established escape idiom
     # (workouts.html, nutrition.html). It covers < > &, which is what
     # matters for a text node; these names are never placed in a bare
     # attribute, where quotes would also need handling.
+    #
+    # Scoped to the function's OWN braces. This used to read a flat 400
+    # characters from "function escapeHtml(", which runs off the end of a
+    # short function and into the next one -- replacing the whole body with
+    # `return text;` still passed, because an unrelated `.textContent` a few
+    # lines down landed inside the window. friends.html used to carry two
+    # copies of this escaper and now carries one, so the assertion is the
+    # only thing standing behind it.
     for rel in ("static/hyrox.js", "templates/challenges.html", "templates/friends.html"):
         src = read(rel)
-        block = src[src.index("function escapeHtml("):]
-        assert "textContent" in block[:400], f"{rel}'s escapeHtml must round-trip via textContent"
+        for body in _escaper_bodies(src):
+            assert "textContent" in body, (
+                f"{rel}'s escapeHtml must round-trip via textContent, not "
+                f"hand the string back unescaped: {body!r}"
+            )
 
 
 # ---------- The report/block UI (App Store Guideline 1.2) ----------

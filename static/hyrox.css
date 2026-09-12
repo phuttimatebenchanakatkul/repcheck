@@ -1206,10 +1206,15 @@
 .hx-lb-row.is-me { background: var(--blue-bg); }
 /* Report/block, on other athletes' rows only (App Store Guideline 1.2). */
 .hx-lb-more {
-  flex: none; width: 28px; height: 28px; padding: 0; margin-left: 2px;
+  flex: none; width: 28px; height: 28px;
   border: 0; border-radius: 50%; background: transparent;
   color: var(--text-secondary); font-size: 15px; line-height: 1;
   font-family: inherit; cursor: pointer;
+  /* Drawn small to sit quietly in the row, but a 44px target: the padding
+     grows the hit area and the negative margin hands the space back, so
+     nothing moves. Matches .fr-friend-more and .ch-lb-more -- the three are
+     the same Guideline 1.2 control and a reviewer may tap any. */
+  padding: 8px; margin: -8px -8px -8px -6px; box-sizing: content-box;
 }
 .hx-lb-more:hover { background: var(--bg); color: var(--text); }
 .hx-lb-rank {
