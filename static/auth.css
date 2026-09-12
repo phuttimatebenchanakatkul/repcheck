@@ -169,6 +169,15 @@
   font-family: inherit;
 }
 .auth-field input:focus { outline: none; border-color: var(--blue); }
+/* The border-colour change above is the mouse-focus treatment and is kept.
+   For keyboard focus it is too quiet on its own -- var(--blue) is only
+   3.39:1 against the dark card, barely over the 3:1 floor a non-text
+   indicator needs -- so keyboard users additionally get a real ring.
+   :focus-visible, so clicking a field does not draw it. */
+.auth-field input:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
 .auth-field-hint { font-size: 11px; color: var(--text-secondary); margin-top: 5px; }
 
 /* The signup consent line (Guideline 5.1.2). Small print, but it has to be
@@ -178,7 +187,10 @@
   font-size: 12px; line-height: 1.5; color: var(--text-secondary);
   text-align: center; margin: 16px 0 0;
 }
-.auth-consent a { color: var(--blue); text-decoration: underline; }
+/* --link, not --blue: this is the Terms/Privacy consent notice, and on the
+   dark theme --blue is 3.39:1 against the card -- an AA failure on the one
+   piece of text the user is being asked to agree to. */
+.auth-consent a { color: var(--link); text-decoration: underline; }
 
 .auth-submit-btn {
   min-height: 44px; box-sizing: border-box;
@@ -196,7 +208,9 @@
 .auth-submit-btn:hover { opacity: 0.88; }
 
 .auth-switch { text-align: center; font-size: 13px; color: var(--text-secondary); margin-top: 20px; }
-.auth-switch a { color: var(--blue); font-weight: 600; text-decoration: none; }
+/* --link for the same reason as .auth-consent a above: --blue is 3.39:1
+   against the dark card, and this is the link between log in and sign up. */
+.auth-switch a { color: var(--link); font-weight: 600; text-decoration: none; }
 .auth-switch a:hover { text-decoration: underline; }
 
 /* Short viewports: shave enough vertical spacing that sign up -- the taller

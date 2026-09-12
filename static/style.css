@@ -42,6 +42,18 @@
   --amber-bg: #fbf1e2;
   --blue: #2f66e8;
   --blue-bg: #eaf0fd;
+  /* Link text on a surface: the Terms/Privacy consent notice, the log in /
+     sign up switch, and the keyboard focus rings.
+
+     It exists because --blue measures 3.39:1 against --card-bg on the dark
+     theme -- an AA failure on the one piece of text the user is being asked
+     to agree to. The dark block overrides it; see there.
+
+     Deliberately the same LITERAL as --blue rather than var(--blue): --blue
+     is also a fill under white text (.cta-blue and friends), so the two want
+     to move independently. Retuning --blue for a fill must not silently
+     restyle every policy link. */
+  --link: #2f66e8;
   --purple: #7c4fe0;
   --purple-bg: #f3edfd;
   /* Sixth accent. Challenges used to share amber with "Log a workout",
@@ -93,6 +105,12 @@
   --red-bg: #3a1f1e;
   --amber-bg: #3a2f14;
   --blue-bg: #14213f;
+  /* 6.20:1 on --card-bg and 7.17:1 on --bg, against --blue's failing
+     3.39:1. Only lightened enough to clear AA with headroom -- it still
+     reads as the same blue. --blue itself is deliberately NOT changed
+     here: it is also used as a FILL under white text (.cta-blue and
+     friends), where lightening it would break that pairing instead. */
+  --link: #6d9bf5;
   --purple-bg: #2a1f45;
   --pink-bg: #3a1830;
   --dark-card: #232329;
@@ -845,6 +863,17 @@ input[type="file"], select {
   color: var(--text); font-family: inherit;
   /* 16px so iOS Safari doesn't zoom the page on focus. */
   font-size: 16px;
+}
+/* This input carried `outline: none` with nothing replacing it anywhere --
+   unlike .log-sheet-search, .pc-ck-weight-field and .hx-space-input-wrap,
+   which all light their wrapper on :focus-within. So tabbing into the
+   analyze chat box moved focus with no visible change at all (WCAG 2.4.7).
+   The ring goes on the input itself because .ag-inputrow has no background
+   of its own to outline. */
+.ag-inputrow input:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 .ag-inputrow input::placeholder { color: var(--text-secondary); }
 .ag-send {
