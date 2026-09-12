@@ -362,7 +362,11 @@ def google_callback():
         user = get_user_by_email(email) if email else None
         if not user:
             user_id = create_oauth_user(
-                email, info.get("name", "Google User"), "google", info["sub"], info.get("picture")
+                # Passed raw, including a missing, empty, whitespace-only or
+                # blocked name: database.oauth_display_name() is the one place
+                # that decides, so Apple's callback and the next provider's
+                # get the same treatment instead of each repeating it.
+                email, info.get("name"), "google", info["sub"], info.get("picture")
             )
             user = get_user_by_id(user_id)
 

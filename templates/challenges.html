@@ -218,10 +218,15 @@
   .ch-lb-meta { font-size: 11.5px; color: var(--text-secondary); flex-shrink: 0; align-self: flex-start; }
   /* Report/block, on other people's rows only -- see safetyFor() below. */
   .ch-lb-more {
-    flex: none; align-self: center; width: 30px; height: 30px; padding: 0;
+    flex: none; align-self: center; width: 30px; height: 30px;
     border: 0; border-radius: 50%; background: transparent;
     color: var(--text-secondary); font-size: 16px; line-height: 1;
     font-family: inherit; cursor: pointer;
+    /* Drawn small to sit quietly in the row, but a 44px target: the
+       padding grows the hit area and the equal negative margin hands the
+       space back, so nothing moves. Matches .fr-friend-more -- the three
+       are the same Guideline 1.2 control and a reviewer may tap any. */
+    padding: 7px; margin: -7px -7px -7px 0; box-sizing: content-box;
   }
   .ch-lb-more:hover { background: var(--bg); color: var(--text); }
 

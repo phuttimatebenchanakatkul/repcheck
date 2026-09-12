@@ -238,9 +238,20 @@
   ACCOUNT_DELETION_GRACE_DAYS in app.py, and account_deletion_due is the
   computed purge date (None when nothing is scheduled).
 -->
+<!--
+  Support belongs in this list because of two guidelines at once. 1.5 wants
+  the app ITSELF to carry an easy way to reach the developer, not only the
+  Support URL on the store listing, and 1.2 asks for "published contact
+  information so users can easily reach you" wherever there is
+  user-generated content -- which display names on the global leaderboards
+  are. /support has existed and been public the whole time; nothing in the
+  app linked to it, so the only contact address a user could actually find
+  was a mailto buried in the privacy policy's prose.
+-->
 <div class="st-card" id="legal">
   <div class="st-card-title" data-i18n="settings.legal.title">Legal</div>
   <div class="st-legal-links">
+    <a href="{{ url_for('support') }}" data-i18n="settings.legal.support">Contact us</a>
     <a href="{{ url_for('privacy') }}" data-i18n="settings.legal.privacy">Privacy Policy</a>
     <a href="{{ url_for('terms') }}" data-i18n="settings.legal.terms">Terms of Service</a>
   </div>

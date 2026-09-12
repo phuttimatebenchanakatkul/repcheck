@@ -46,6 +46,39 @@
     display: flex; align-items: center; gap: 10px;
     background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 16px; font-weight: 600;
   }
+  /* Report/block, App Store Guideline 1.2. Same affordance and the same
+     sheet as the leaderboards' .ch-lb-more -- see the listener below for
+     why this row needs one at all. */
+  .fr-friend-more {
+    flex: none; margin-left: auto; width: 30px; height: 30px;
+    border: 0; border-radius: 50%; background: transparent;
+    color: var(--text-secondary); font-size: 16px; line-height: 1;
+    font-family: inherit; cursor: pointer;
+    /* Drawn 30px to match the two leaderboards' version of this control,
+       but a 44px target -- the padding grows the hit area and the equal
+       negative margin gives the space back to the layout, so nothing moves.
+       This is the button App Review taps to check that blocking works. */
+    padding: 7px; margin-top: -7px; margin-bottom: -7px; margin-right: -7px;
+    box-sizing: content-box;
+  }
+  /* --border, not --card-bg: the row is already var(--bg), and the card
+     colour would read as a hole punched in it. NOT var(--card), which is
+     what this said first and is not a token anywhere in the project -- an
+     undefined custom property with no fallback makes the whole declaration
+     invalid, so the hover surface simply never painted. */
+  .fr-friend-more:hover { background: var(--border); color: var(--text); }
+
+  /* Without these the row has no way to give: the name div keeps
+     min-width:auto, so its longest unbreakable run sets the row's minimum
+     and shoves the button past the edge of the card. Thai is the case that
+     bites -- written with no spaces between words, a whole name is one run.
+     Both sibling leaderboards already do exactly this (.ch-lb-body /
+     .hx-lb-name). */
+  .fr-friend-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
   .fr-friend-avatar {
     width: 28px; height: 28px; border-radius: 50%; background: var(--blue-bg); color: var(--blue);
     display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
@@ -172,23 +205,62 @@
         `));
         return;
       }
+      // (f.name || "?") on the initial because a blank name is fatal here,
+      // not cosmetic: ""[0] is undefined and .toUpperCase() throws, which
+      // aborts this whole loop and leaves the list at zero rows -- including
+      // the button you would block them with. The source of a blank name is
+      // closed (auth.py strips Google's; signup and update_account refuse
+      // one), so this only covers a row stored before that.
+      //
+      // A JS comment, deliberately. The same note lived inside the template
+      // literal below as an HTML comment and contained a backtick, which
+      // ENDED the literal: every row rendered as the comment alone, with no
+      // avatar, no name and no button. Nothing caught it -- the tests that
+      // pin this markup read the file as text, where the button is still
+      // present, so only opening the page in a browser showed it. Hence
+      // tests-js/friendsRow.test.js, which executes it.
       myFriends.forEach((f) => {
         listEl.appendChild(el(`
           <div class="fr-friend-row">
-            <div class="fr-friend-avatar">${escapeHtml(f.name[0].toUpperCase())}</div>
-            <div>${escapeHtml(f.name)}</div>
+            <div class="fr-friend-avatar">${escapeHtml((f.name || "?")[0].toUpperCase())}</div>
+            <div class="fr-friend-name">${escapeHtml(f.name)}</div>
+            <button type="button" class="fr-friend-more" data-safety-user="${Number(f.id)}"
+                    aria-label="${t("safety.moreActions")}">&#8942;</button>
           </div>
         `));
       });
     }
 
-    // Friend names come from other accounts and are stored exactly as
-    // typed, so they are escaped before reaching innerHTML below.
-    function escapeHtml(text) {
-      const div = document.createElement("div");
-      div.textContent = text == null ? "" : text;
-      return div.innerHTML;
-    }
+    // Report/block, opening the shared sheet in static/safety.js.
+    //
+    // Guideline 1.2 asks for the ability to block abusive users, and until
+    // this existed the only way in was a leaderboard row. That left the one
+    // screen where an unwanted account actually turns up with no way to act
+    // on it: /api/friends/add is mutual and asks nobody, so whoever has your
+    // friend code puts their own display name in this list, and if they
+    // never posted a challenge or race time there was no row to reach them
+    // through -- nowhere in the app could block them at all. Settings only
+    // lists accounts already blocked.
+    //
+    // Blocking here really does remove them: database.get_friends() filters
+    // hidden_user_ids() in both directions, so the row disappears on the
+    // reload below rather than needing its own unfriend path.
+    //
+    // Delegated, because renderFriendList() rebuilds every row on each load.
+    // Not torn down by hand: static/nav_scope.js records what a page script
+    // binds to document and pagenav.js releases it on the way out.
+    document.addEventListener("click", function onFriendSafetyTap(event) {
+      const btn = event.target.closest(".fr-friend-more");
+      if (!btn || !window.RepCheckSafety) return;
+      const userId = Number(btn.getAttribute("data-safety-user"));
+      if (!userId) return;
+      const friend = myFriends.find((f) => Number(f.id) === userId);
+      window.RepCheckSafety.open({ userId, name: friend ? friend.name : "" });
+    });
+
+    // A block has to leave this screen immediately -- not seeing that name
+    // any more is the whole point of it.
+    document.addEventListener("repcheck:safety-changed", () => { loadFriends(); });
 
     function el(html) {
       const wrap = document.createElement("div");

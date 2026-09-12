@@ -75,10 +75,18 @@ def test_leaderboard_row_escapes_other_users_names(challenges_html):
 
 def test_friend_row_escapes_the_friend_name(friends_html):
     """f.name is the friend's own name, chosen by them, not the viewer."""
-    match = re.search(r"fr-friend-avatar\">(.*?)</div>\s*<div>(.*?)</div>", friends_html)
+    # The name div carries a class now (.fr-friend-name, so a long unbreakable
+    # name can ellipsize instead of shoving the row's button off the card), so
+    # match its attributes rather than a bare <div>.
+    match = re.search(
+        r"fr-friend-avatar\">(.*?)</div>\s*<div[^>]*>(.*?)</div>", friends_html
+    )
     assert match, "could not find the friend row"
-    assert "escapeHtml(f.name" in match.group(1), (
+    assert match.group(1).lstrip("$ {").startswith("escapeHtml("), (
         "the friend avatar initial renders the friend's name unescaped"
+    )
+    assert "f.name" in match.group(1), (
+        "the avatar initial must be built from the friend's own name"
     )
     assert match.group(2) == "${escapeHtml(f.name)}", (
         "the friend row renders the friend's display name unescaped"

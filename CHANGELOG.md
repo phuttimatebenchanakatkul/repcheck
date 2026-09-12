@@ -2,6 +2,37 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.10.9.0] - 2026-09-12
+
+### Added
+
+- You can now report or block someone from your friends list, using the same
+  menu the leaderboards have. Before this the only way in was a leaderboard
+  row, so if someone added themselves with your friend code and never posted
+  a score, there was no way to block them anywhere in the app.
+- A **Contact us** link in Settings, under Legal. The support page has always
+  been there; nothing in the app pointed at it.
+- The sign-up and log-in screens now say, before you create an account, that
+  photos, videos and messages you send are processed by third-party AI
+  providers, and link the Terms and Privacy Policy.
+
+### Fixed
+
+- A display name coming from Google or Apple skipped the word filter that
+  names typed into RepCheck go through, so an offensive one could reach the
+  global leaderboard. Both now use the same filter.
+- A Google account with a blank name broke the friends list of everyone who
+  had added it: the list rendered no rows at all, including the button you
+  would have used to block them.
+- Long names no longer push the report button off the edge of the row. This
+  showed up in Thai, which is written without spaces between words.
+- The report/block button is now a full-size tap target on all three screens
+  that have one.
+- The support page said to use a "Forgot password" link. There isn't one. It
+  now describes what actually works: signing in with Google or Apple on the
+  same email opens your existing account, and it says when that will not
+  work rather than leaving you in an empty account wondering.
+
 ## [0.10.8.0] - 2026-09-10
 
 ### Fixed

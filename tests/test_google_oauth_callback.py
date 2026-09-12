@@ -19,6 +19,8 @@ after the tokens come back, and hitting Google for real would make the
 suite depend on network and live credentials.
 """
 
+import pytest
+
 import auth
 import database
 from app import app as flask_app
@@ -137,3 +139,74 @@ def test_mismatched_state_is_rejected(tmp_path, monkeypatch):
     assert response.headers["Location"].endswith("/login")
     with client.session_transaction() as session:
         assert "user_id" not in session
+
+
+@pytest.mark.parametrize("supplied", [None, "", "   ", "\t\n "])
+def test_a_blank_name_from_google_does_not_become_a_blank_display_name(
+    tmp_path, monkeypatch, supplied
+):
+    """`info.get("name", "Google User")` only defaulted on a MISSING key.
+
+    Google sending "name": "" or null handed that straight to
+    create_oauth_user, which does name.strip(). An empty display name is
+    unreachable everywhere else (signup runs validate_display_name;
+    update_account refuses a blank), and templates/friends.html renders the
+    avatar initial as f.name[0].toUpperCase(), which throws on "" -- one
+    blank-named friend takes the whole list to zero rows for whoever added
+    them, including the button they would block them with.
+
+    Behavioural and parametrised rather than a source regex, because the
+    first fix here was `or` alone and a source check could not see what it
+    missed: "   " is TRUTHY, so it sailed past the `or` and create_oauth_user
+    stripped it to "" anyway. Same dict.get trap as the loss_rate_pct fix in
+    app.py, plus the truthiness trap on top.
+    """
+    userinfo = {"sub": "google-sub-blank", "email": "blank@example.com", "email_verified": True}
+    if supplied is not None:
+        userinfo["name"] = supplied
+    client = _client(tmp_path, monkeypatch, userinfo)
+
+    assert _callback(client).status_code == 302
+
+    user = database.get_user_by_email("blank@example.com")
+    assert user is not None
+    assert user["name"] == "Google User", (
+        f"a name of {supplied!r} from Google became {user['name']!r}"
+    )
+
+
+def test_a_blocked_word_in_a_google_profile_name_does_not_reach_the_leaderboard(
+    tmp_path, monkeypatch
+):
+    """Guideline 1.2's FIRST obligation: filter objectionable material.
+
+    validate_display_name guarded signup and rename. OAuth account creation
+    is the third place a display name gets set and it had no guard at all,
+    so a Google profile named with a blocked word went straight onto the
+    global leaderboard every other account sees -- past the same filter the
+    app applies to a name typed into its own signup form.
+
+    Guarded in database.oauth_display_name() rather than in each callback,
+    so Apple and any future provider inherit it.
+    """
+    import name_filter
+
+    blocked = next(iter(name_filter._BAD_WORDS))
+    client = _client(tmp_path, monkeypatch, {
+        "sub": "google-sub-rude", "email": "rude@example.com",
+        "email_verified": True, "name": blocked,
+    })
+
+    assert _callback(client).status_code == 302
+
+    stored = database.get_user_by_email("rude@example.com")["name"]
+    assert stored == "Google User", (
+        f"a blocked word passed straight through as the display name: {stored!r}"
+    )
+
+
+def test_a_normal_google_name_is_left_alone():
+    """The filter must not rewrite ordinary names."""
+    assert database.oauth_display_name("Ada Lovelace", "google") == "Ada Lovelace"
+    assert database.oauth_display_name("  Ada  ", "google") == "Ada"
+    assert database.oauth_display_name("", "apple") == "Apple User"

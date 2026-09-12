@@ -29,13 +29,32 @@ import database
 ROOT = Path(__file__).resolve().parent.parent
 
 
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    """A fresh database per test.
+
+    These ran against the repo's real repcheck.db, so every ceiling they
+    filled stayed filled: the file passed on a clean checkout and then
+    failed on the next run, with a DIFFERENT set of tests each time
+    depending on which limit tipped over first. Measured on identical code
+    across three runs: 0, 2 and 5 failures.
+
+    That is worse than a flaky test. Both suites passing is the gate before
+    shipping, and a gate that answers differently to the same question
+    cannot tell a real break from a leftover row.
+    """
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "repcheck-test.db")
+    database.init_db()
+    yield database
+
+
 def _read(rel):
     return io.open(ROOT / rel, encoding="utf-8").read()
 
 
 def _client(email):
     """A logged-in test client. Reuses the account if it already exists --
-    the email column is UNIQUE and these tests share a database."""
+    the email column is UNIQUE and a test may ask for the same one twice."""
     existing = database.get_user_by_email(email)
     user_id = existing["id"] if existing else database.create_local_user(
         email, "irrelevant-password", "Ceiling Tester"

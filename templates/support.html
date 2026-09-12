@@ -6,7 +6,19 @@
 {% block content %}
 <!--
   Public (see _PUBLIC_ENDPOINTS in app.py). App Store Connect requires a
-  working Support URL that App Review can open without an account.
+  working Support URL that App Review can open without an account, and
+  Guideline 1.5 wants the app itself to carry a way to reach us too --
+  Settings -> Legal links straight here.
+
+  Everything below has to describe what the app ACTUALLY does. The first
+  answer used to say "use Forgot password on the login screen"; there is no
+  such link, no reset route and no mail transport in the whole project, so
+  the one page App Review opens to check support was documenting a feature
+  that does not exist (Guideline 2.1). What it says now is the recovery path
+  that genuinely works: both OAuth callbacks in auth.py adopt an existing
+  password account when the provider vouches for the address, so signing in
+  with Google or Apple on the same email opens the same account, with its
+  history intact.
 -->
 <div class="policy-page">
   <p>Need help with RepCheck? Email
@@ -15,8 +27,15 @@
 
   <h2>Common questions</h2>
   <ul>
-    <li><strong>I can't log in.</strong> Use "Forgot password" on the login
-      screen, or sign in with Google if that's how you originally signed up.</li>
+    <li><strong>I can't log in.</strong> If you signed up with an email and
+      password and can't remember it, tap <strong>Continue with Google</strong>
+      or <strong>Continue with Apple</strong> on the login screen using that
+      same email address — it opens your existing account with all your
+      history. Two cases where it won't: if the provider doesn't confirm that
+      address as yours, and if you use Apple's <strong>Hide My Email</strong>
+      (the relay address isn't the one your account is under). You'll land in
+      a new empty account rather than an error, so if your training history
+      isn't there, stop and email us instead of signing in again.</li>
     <li><strong>I want to delete my account.</strong> Go to
       Settings → Delete account, inside the app. See our
       <a href="{{ url_for('privacy') }}">Privacy Policy</a> for details on the
@@ -25,6 +44,11 @@
       your device model and iOS version and we'll look into it.</li>
     <li><strong>I found a bug or have feedback.</strong> Email us — screenshots
       or a short description of what you were doing help a lot.</li>
+    <li><strong>Someone's name or behaviour is offensive.</strong> Tap the
+      &#8942; next to them on a leaderboard or in your friends list to report
+      or block the account. Reports are reviewed within 24 hours, and
+      reporting blocks them for you straight away. You can email us about
+      anything the in-app report doesn't cover.</li>
   </ul>
 
   <p>See also our <a href="{{ url_for('terms') }}">Terms of Service</a> and
