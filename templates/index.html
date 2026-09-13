@@ -503,7 +503,7 @@
      a tall portrait clip at the bottom while the skeleton canvas measured the
      clipped box, so every landmark was drawn ~12% too high. Capped here, the
      frame is contain-fitted (pillar-boxed) inside the video's box and
-     drawPose() maps onto that fitted frame -- see poseFrameRect(). */
+     drawPoseAt() maps onto that fitted frame -- see poseFrameRect(). */
   .video-wrap video {
     width: 100%;
     height: auto;
@@ -788,9 +788,9 @@
       // the new clip, nor lower the flag for a frame it does not own.
       if (msg.ts !== poseFrameTs) return;
       poseFrameInFlight = false;
-      // A result landing after the analysis finished must not repaint a
-      // canvas stopPoseLoop() has just cleared.
-      if (poseWanted) drawPose(msg);
+      // A result landing after the analysis finished must not file a sample
+      // the next analysis would then extrapolate its first frames from.
+      if (poseWanted) recordPoseSample(msg.landmarks, poseFrameVideoTime);
     } else if (msg.type === "error") {
       onPoseWorkerError(msg.message);
     }
@@ -898,6 +898,12 @@
     poseFrameInFlight = true;
     poseFrameTs = ts;
     poseFrameDeadlineAt = ts;
+    // Read BEFORE the grab below, and in the same tick as it:
+    // createImageBitmap(video) snapshots the frame showing when it is
+    // called, so this is that frame's own position in the clip. Reading it
+    // when the result comes back would instead record where the clip had got
+    // to by then, which is the lag this is here to measure out.
+    poseFrameVideoTime = previewVideo.currentTime;
     const options = poseResizeUnsupported ? null : poseFrameOptions();
     // Not every browser that has createImageBitmap accepts the resize
     // options; a full-size bitmap is still a working frame. Remembered, so
@@ -1037,31 +1043,169 @@
     return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h };
   }
 
-  function drawPose(result) {
+  // ---- Keeping the skeleton on the body ----
+  //
+  // A detection is neither free nor instant: grabbing the frame, shipping it
+  // to the worker, running the model and posting landmarks back costs
+  // 40-110ms on a phone. Painted the moment it lands, the skeleton sits
+  // where the body WAS a tenth of a second ago -- which, through the fast
+  // half of a rep, is most of a limb's travel. And since a result only
+  // arrives once per detection, the canvas used to hold one still pose for
+  // several video frames and then jump: the overlay stepped while the clip
+  // underneath played smoothly. Those are the two complaints, and they have
+  // the same root -- the skeleton was drawn on the wrong clock.
+  //
+  // So results are no longer drawn on arrival. Each is filed with the VIDEO
+  // time of the frame it was computed from, and every animation frame the
+  // renderer asks "where is the body at previewVideo.currentTime?", answered
+  // from the two most recent samples. Video time, not the wall clock,
+  // because the clip is what the skeleton has to line up with: a stall, a
+  // slow decode or a backgrounded tab all move the wall clock without moving
+  // the footage.
+  //
+  // The pair is kept rather than just the newest because two samples are the
+  // fewest that carry a direction. With them, the pose at any moment in
+  // between is an interpolation (smooth), and the pose slightly AFTER the
+  // newest sample -- which is where the clip always is by the time a result
+  // lands -- is the same line carried forward.
+
+  // Each sample is { at, pose }: `at` the video time of the grabbed frame,
+  // `pose` that frame's landmark array. Only the first pose is kept, which
+  // is every pose the model returns -- both landmarkers are built with
+  // numPoses: 1. Poses carry no identity across frames, so a second one
+  // could not be paired up over time anyway.
+  let poseSampleA = null;     // the older of the pair
+  let poseSampleB = null;     // the newest result
+  let poseFrameVideoTime = 0; // video time the in-flight frame was grabbed at
+
+  // Two samples either side of a discontinuity describe no real motion. The
+  // clip is `loop`ed, so every lap wraps currentTime back to 0, and a decode
+  // stall can leave an arbitrary gap; carrying the pair across either would
+  // aim the extrapolation at nothing. Anything longer than this (or going
+  // backwards) starts a fresh pair.
+  const POSE_SAMPLE_MAX_GAP_S = 0.5;
+
+  // How far past the newest sample the renderer may carry the motion,
+  // measured in sample intervals. At 0 this is the old placement: draw the
+  // newest result and accept its lag.
+  //
+  // 0.5 is measured, not guessed. Running the real pipeline over
+  // `shoulder press.mp4` (8357 rendered frames, wrists tracked, error against
+  // the same detections low-passed forwards AND backwards so the reference
+  // carries no lag of its own) gave, in pixels on a 284px-wide frame:
+  //
+  //   lead  0     0.25   0.5    0.75   1.0
+  //   mean  18.2  16.7   15.6   15.0   15.2
+  //   p90   36.6  33.5   31.2   29.9   29.3
+  //   max   116   140    163    186    209
+  //
+  // Mean and p90 flatten out around 0.75 while the worst case keeps climbing
+  // in a straight line, because extrapolation scales the model's own jitter
+  // along with the motion. A single frame that throws a limb 200px off the
+  // body is far more noticeable than half a pixel of average error, so this
+  // sits at the knee rather than at the minimum.
+  //
+  // Smoothing the landmark track was tried here too and made it worse: a
+  // causal low-pass (One Euro, four settings) cost more lag than the jitter
+  // it removed, because detections only arrive every 86-143ms. The residual
+  // is the model's noise floor -- off-track jitter measured 7.5px mean
+  // against 10.7px of real travel between detections -- and no renderer can
+  // take that out. A heavier model would.
+  const POSE_MAX_LEAD = 0.5;
+
+  // ---- pose interpolation core (extracted by tests-js/support/loadPoseInterp.js) ----
+
+  // Where the two samples put the body at video time `at`.
+  //
+  // One formula covers both directions. alpha is measured in sample
+  // intervals from B: at alpha 0 the answer is B, at -1 it is A, and above 0
+  // it is the A->B line carried past B. So a render between the samples
+  // interpolates and a render after them extrapolates, with no branch
+  // between the two cases and no discontinuity where they meet.
+  function poseAt(a, b, at, maxLead) {
+    if (!b || !b.pose) return null;
+    // Nothing to draw a direction from yet (the first result of a clip, or
+    // the first after a wrap): the newest sample is the whole answer.
+    if (!a || !a.pose || a.pose.length !== b.pose.length) return b.pose;
+    const span = b.at - a.at;
+    if (!(span > 0)) return b.pose;
+
+    let alpha = (at - b.at) / span;
+    // Below -1 would run off the far side of A, inventing motion before the
+    // samples the same way an uncapped lead invents it after.
+    if (!(alpha > -1)) alpha = -1;      // also catches NaN
+    if (alpha > maxLead) alpha = maxLead;
+    if (alpha === 0) return b.pose;
+
+    const out = new Array(b.pose.length);
+    for (let i = 0; i < b.pose.length; i++) {
+      const p1 = a.pose[i];
+      const p2 = b.pose[i];
+      if (!p1 || !p2) { out[i] = p2 || p1 || null; continue; }
+      out[i] = {
+        x: p2.x + (p2.x - p1.x) * alpha,
+        y: p2.y + (p2.y - p1.y) * alpha,
+      };
+    }
+    return out;
+  }
+
+  // Files a result against the video time its frame was grabbed at, dropping
+  // the pair when the two samples cannot describe one continuous movement.
+  function nextPoseSamples(a, b, pose, at, maxGap) {
+    if (b && !(at > b.at && at - b.at <= maxGap)) {
+      // A wrap, a seek, or a gap long enough that the body could be anywhere
+      // by now. Start over rather than draw a line across it.
+      a = null;
+      b = null;
+    }
+    if (!pose || !pose.length) {
+      // No body in this frame. Keeping the old pair would leave the last
+      // skeleton hanging on screen over footage it no longer describes.
+      return { a: null, b: null };
+    }
+    return { a: b, b: { at, pose } };
+  }
+
+  // ---- end pose interpolation core ----
+
+  function recordPoseSample(landmarks, at) {
+    const pose = landmarks && landmarks.length ? landmarks[0] : null;
+    const next = nextPoseSamples(poseSampleA, poseSampleB, pose, at, POSE_SAMPLE_MAX_GAP_S);
+    poseSampleA = next.a;
+    poseSampleB = next.b;
+  }
+
+  function clearPoseSamples() {
+    poseSampleA = null;
+    poseSampleB = null;
+  }
+
+  function drawPoseAt(at) {
     if (!syncPoseCanvasSize()) return;
     poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
-    if (!result.landmarks || !result.landmarks.length) return;
+    const landmarks = poseAt(poseSampleA, poseSampleB, at, POSE_MAX_LEAD);
+    if (!landmarks) return;
 
     const frame = poseFrameRect();
-    for (const landmarks of result.landmarks) {
-      poseCtx.strokeStyle = "rgba(70, 255, 140, 0.9)";
-      poseCtx.lineWidth = Math.max(2, frame.w * 0.004);
-      for (const [a, b] of POSE_CONNECTIONS) {
-        const p1 = landmarks[a];
-        const p2 = landmarks[b];
-        if (!p1 || !p2) continue;
-        poseCtx.beginPath();
-        poseCtx.moveTo(frame.x + p1.x * frame.w, frame.y + p1.y * frame.h);
-        poseCtx.lineTo(frame.x + p2.x * frame.w, frame.y + p2.y * frame.h);
-        poseCtx.stroke();
-      }
-      poseCtx.fillStyle = "rgba(255, 70, 70, 0.95)";
-      const dotRadius = Math.max(2.5, frame.w * 0.006);
-      for (const p of landmarks) {
-        poseCtx.beginPath();
-        poseCtx.arc(frame.x + p.x * frame.w, frame.y + p.y * frame.h, dotRadius, 0, 2 * Math.PI);
-        poseCtx.fill();
-      }
+    poseCtx.strokeStyle = "rgba(70, 255, 140, 0.9)";
+    poseCtx.lineWidth = Math.max(2, frame.w * 0.004);
+    for (const [a, b] of POSE_CONNECTIONS) {
+      const p1 = landmarks[a];
+      const p2 = landmarks[b];
+      if (!p1 || !p2) continue;
+      poseCtx.beginPath();
+      poseCtx.moveTo(frame.x + p1.x * frame.w, frame.y + p1.y * frame.h);
+      poseCtx.lineTo(frame.x + p2.x * frame.w, frame.y + p2.y * frame.h);
+      poseCtx.stroke();
+    }
+    poseCtx.fillStyle = "rgba(255, 70, 70, 0.95)";
+    const dotRadius = Math.max(2.5, frame.w * 0.006);
+    for (const p of landmarks) {
+      if (!p) continue;
+      poseCtx.beginPath();
+      poseCtx.arc(frame.x + p.x * frame.w, frame.y + p.y * frame.h, dotRadius, 0, 2 * Math.PI);
+      poseCtx.fill();
     }
   }
 
@@ -1073,12 +1217,21 @@
   // never appearing. Guarding on this makes the late resolve a no-op.
   let poseWanted = false;
 
-  // How often a frame is sent for detection. The skeleton is decorative and
-  // does not need 60Hz; between detections the last-drawn one stays on
-  // screen. On the worker path this is a floor, not a schedule: the next
-  // frame is only sent once the previous result is back, so a slow device
-  // simply detects less often rather than queueing up work.
-  const POSE_DETECT_INTERVAL_MS = 120;
+  // Minimum gap between detections on the WORKER path. It is a floor, not a
+  // schedule: the next frame only goes out once the previous result is back,
+  // so the real rate is whatever the device can manage and this just caps a
+  // fast desktop at 30Hz. It used to be 120ms, which on a phone was pure
+  // idle stacked on top of the model's own 25-80ms -- the worker sat doing
+  // nothing for longer than it spent working, and the overlay updated maybe
+  // eight times a second against a 30fps clip. That gap is half of why the
+  // skeleton trailed the body; the renderer above is the other half.
+  const POSE_DETECT_INTERVAL_MS = 33;
+  // The main-thread fallback keeps the old, much wider spacing. There the
+  // model runs ON the render thread, so every detection is 25-80ms the
+  // <video> spends not being decoded -- detecting more often would buy a
+  // tighter skeleton by making the clip underneath stutter, which is the
+  // trade the worker exists to avoid taking.
+  const POSE_MAIN_THREAD_INTERVAL_MS = 120;
   let lastDetectTs = 0;
 
   function startPoseLoop() {
@@ -1097,19 +1250,24 @@
       // mid-flight can't be outlived by an already-scheduled callback.
       if (!poseWanted) { poseRafId = null; return; }
       const frameReady = previewVideo.readyState >= 2 && previewVideo.videoWidth;
-      if (frameReady && now - lastDetectTs >= POSE_DETECT_INTERVAL_MS) {
+      if (frameReady) {
         if (poseWorker) {
           if (!poseFrameInFlight) {
-            lastDetectTs = now;
-            sendPoseFrame(poseWorker, now);
+            if (now - lastDetectTs >= POSE_DETECT_INTERVAL_MS) {
+              lastDetectTs = now;
+              sendPoseFrame(poseWorker, now);
+            }
           } else if (now - poseFrameDeadlineAt > POSE_RESULT_TIMEOUT_MS) {
             onPoseWorkerError(new Error("no result within " + POSE_RESULT_TIMEOUT_MS + "ms"));
           }
-        } else if (poseLandmarker) {
+        } else if (poseLandmarker && now - lastDetectTs >= POSE_MAIN_THREAD_INTERVAL_MS) {
           lastDetectTs = now;
           try {
+            // Same rule as the worker path: the frame's own position in the
+            // clip, read before the model is handed the element.
+            const at = previewVideo.currentTime;
             const result = poseLandmarker.detectForVideo(previewVideo, now);
-            drawPose(result);
+            recordPoseSample(result.landmarks, at);
           } catch (err) {
             // detectForVideo() throws on a non-monotonically-increasing
             // timestamp -- confirmed by hand, and confirmed that once it has
@@ -1125,6 +1283,12 @@
             poseLandmarkerPromise = null;
           }
         }
+        // Redrawn every frame, not just when a result arrives. Detection
+        // and rendering are now separate rates: the model runs as often as
+        // the device allows, and the skeleton is re-placed at the clip's
+        // current position at the display's rate, so it moves with the
+        // footage instead of stepping between detections.
+        drawPoseAt(previewVideo.currentTime);
       }
       poseRafId = requestAnimationFrame(loop);
     }
@@ -1139,6 +1303,10 @@
     }
     // A frame that never came back must not gate the next analysis's sends.
     poseFrameInFlight = false;
+    // Nor may this clip's last pose seed the next one: the first result of
+    // the next analysis would be paired with a sample from different footage
+    // and the renderer would extrapolate straight across the two.
+    clearPoseSamples();
     poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
     // Every caller is about to hide the analyzing view, and a hidden <video>
     // keeps decoding: left playing, this clip would run behind the results
