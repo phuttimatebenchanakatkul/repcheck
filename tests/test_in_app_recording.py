@@ -153,13 +153,37 @@ def test_the_analyze_page_opens_the_camera_on_arrival(page):
     )
 
 
-def test_the_capture_screen_carries_exactly_two_controls(page):
-    """Record and switch lens. Anything else on this screen is something
-    standing between the user and the set they are filming."""
+def test_the_capture_screen_carries_exactly_three_controls(page):
+    """Upload, record, switch lens -- and nothing else.
+
+    This asserted exactly TWO controls (shutter, flip) until v0.12.1.0, on the
+    reasoning that "anything else on this screen is something standing between
+    the user and the set they are filming". That reasoning still holds for
+    anything that belongs to the act of filming.
+
+    Upload is the exception, and deliberately so: it is not a filming control,
+    it is the other way IN to the feature. The page could already accept a
+    video file -- POST /analyze takes one and the markup has the input -- but
+    that input sat inside #an-cam-fallback, which only appears when the camera
+    CANNOT run. So a lift already filmed on a tripod or by a training partner
+    could not be analysed at all unless your camera happened to be broken.
+
+    It sits in the slot opposite the flip button, which was previously an
+    empty spacer holding the shutter centred, so the filming controls do not
+    move and nothing is displaced.
+
+    Still "exactly", still named, still ordered: this is a guard against creep,
+    and one justified exception is not a licence for a fourth.
+    """
     row = page[page.index('<div class="an-cam-controls"'):page.index('id="an-cam-fallback"')]
     buttons = re.findall(r'<button[^>]*id="([^"]+)"', row)
 
-    assert buttons == ["an-shutter", "an-cam-flip"]
+    assert buttons == ["an-cam-upload", "an-shutter", "an-cam-flip"], (
+        "the capture screen's controls changed. Left-to-right they are upload, "
+        "shutter, flip -- the shutter stays centred because the two side slots "
+        "are equal flex. Adding a fourth needs a better reason than the third "
+        "had; see this docstring."
+    )
 
 
 def test_one_shutter_toggles_between_record_and_stop(page):

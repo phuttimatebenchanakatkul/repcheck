@@ -32,7 +32,18 @@
     <div class="an-cam-controls" id="an-cam-controls">
       {# Spacer, so the shutter sits dead centre with a single control
          beside it rather than being pushed off-axis by the flip button. #}
-      <div class="an-cam-slot" aria-hidden="true"></div>
+      {# Was an empty spacer that existed only to keep the shutter centred
+         against the flip button. The upload entry point lives here now: it
+         balances the row for free, and it is where someone looking at the
+         viewfinder would expect to find "use a clip I already have".
+         Reuses .an-cam-flip rather than a new class -- same 44px circle,
+         same press feedback, nothing to keep in sync. #}
+      <div class="an-cam-slot">
+        <button type="button" class="an-cam-flip" id="an-cam-upload"
+                data-i18n-aria-label="analyze.uploadInstead" aria-label="Upload a video instead">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+        </button>
+      </div>
       <button type="button" class="an-shutter" id="an-shutter" data-i18n-aria-label="analyze.startRecording" aria-label="Start recording">
         <span class="an-shutter-core" id="an-shutter-core"></span>
       </button>
@@ -1624,6 +1635,7 @@
   const camElapsed = document.getElementById("an-cam-elapsed");
   const camHint = document.getElementById("an-cam-hint");
   const camControls = document.getElementById("an-cam-controls");
+  const camUploadBtn = document.getElementById("an-cam-upload");
   const camFallback = document.getElementById("an-cam-fallback");
   const camFallbackMsg = document.getElementById("an-cam-fallback-msg");
   const shutter = document.getElementById("an-shutter");
@@ -1816,6 +1828,14 @@
   }
 
   function showReview(file) {
+    // Release the camera on the way in, whichever route got here. Recording
+    // already tears its own session down before calling this; upload and
+    // drag-drop did not, because until the upload button existed they only
+    // ran in the no-camera fallback. Leaving the stream live behind the
+    // review pane keeps the indicator light on while the user studies a clip
+    // -- the privacy surprise the visibility handler below exists to avoid.
+    // Guarded on camSession, so it is a no-op after a recording.
+    closeCamera();
     recordedFile = file;
     // A failure message from the previous clip must not survive onto the
     // next one -- it would be reporting on a video that no longer exists.
@@ -1868,6 +1888,16 @@
 
   // The upload fallback feeds the same review view, so a chosen file and a
   // recorded one are indistinguishable from here on.
+  // The <input type="file"> lives inside the camera fallback, where it also
+  // serves as the dropzone's click target (position:absolute, inset:0).
+  // Rather than move it out and break the dropzone, or add a second input and
+  // end up with two sources of truth for selectedVideo(), this opens the one
+  // that is already there. A display:none ancestor does not stop .click() on
+  // a file input.
+  camUploadBtn.addEventListener("click", () => {
+    videoInput.click();
+  });
+
   videoInput.addEventListener("change", () => {
     const file = videoInput.files[0];
     updateFileDropDisplay();
