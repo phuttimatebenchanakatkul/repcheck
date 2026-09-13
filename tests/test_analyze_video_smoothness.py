@@ -229,11 +229,20 @@ def test_a_page_swap_tears_down_the_loop_and_the_worker(page):
     assert "stopPoseLoop();" in body and "dropPoseWorker();" in body
 
 
-def test_late_results_cannot_repaint_a_cleared_canvas(page):
+def test_late_results_cannot_reach_the_canvas_or_the_next_analysis(page):
     """A frame posted just before the analysis finished answers after
-    stopPoseLoop() has cleared the canvas; drawing it would leave a
-    skeleton on the results view's stage."""
-    assert "if (poseWanted) drawPose(msg);" in js_function(page, "onPoseWorkerMessage")
+    stopPoseLoop() has run.
+
+    It used to be drawn, which left a skeleton on the results view's stage.
+    Results are now filed as samples rather than drawn, so the same late
+    answer would instead seed the NEXT analysis: its first result would be
+    paired against a sample from different footage, and the renderer would
+    carry a line straight across the two clips. Same guard, one step further
+    back."""
+    assert (
+        "if (poseWanted) recordPoseSample(msg.landmarks, poseFrameVideoTime);"
+        in js_function(page, "onPoseWorkerMessage")
+    )
 
 
 def test_a_new_analysis_starts_with_no_frame_in_flight(page):
@@ -368,7 +377,10 @@ def test_the_main_thread_fallback_keeps_its_guards(page):
     landmarker dropped rather than reused."""
     loop = js_function(page, "startPoseLoop")
     assert "if (poseRafId) return;" in loop
-    main = re.search(r"\} else if \(poseLandmarker\) \{(.*?)\n        \}\n", loop, re.S)
+    # The branch now carries its own detection interval -- the worker's floor
+    # was lowered to the device's own rate, which on the render thread would
+    # be the model stalling the decode every 33ms.
+    main = re.search(r"\} else if \(poseLandmarker && [^)]*\) \{(.*?)\n        \}\n", loop, re.S)
     assert main, "main-thread branch missing"
     assert "poseLandmarker.detectForVideo(previewVideo, now)" in main.group(1)
     assert "poseLandmarker = null;" in main.group(1)
@@ -407,7 +419,7 @@ def test_the_skeleton_canvas_is_sized_to_its_box_not_the_clip(page):
     assert "videoWidth" not in sync, "the clip's pixel grid must never size the overlay"
     loop = js_function(page, "startPoseLoop")
     assert "poseCanvas.width = previewVideo.videoWidth" not in loop
-    draw = js_function(page, "drawPose")
+    draw = js_function(page, "drawPoseAt")
     assert draw.lstrip().startswith("if (!syncPoseCanvasSize()) return;")
 
 
@@ -548,7 +560,7 @@ def test_the_skeleton_is_drawn_onto_the_fitted_frame_not_the_whole_box(page):
     rect = js_function(page, "poseFrameRect")
     assert "Math.min(boxW / vw, boxH / vh)" in rect
     assert "x: (boxW - w) / 2, y: (boxH - h) / 2" in rect
-    draw = js_function(page, "drawPose")
+    draw = js_function(page, "drawPoseAt")
     assert "const frame = poseFrameRect();" in draw
     assert "frame.x + p1.x * frame.w, frame.y + p1.y * frame.h" in draw
     assert "p.x * poseCanvas.width" not in draw

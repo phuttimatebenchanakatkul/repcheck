@@ -2,6 +2,43 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.2.0] - 2026-09-13
+
+### Fixed
+
+- **The skeleton on the "Analyzing" screen now moves with the clip.** Two
+  reports about that overlay -- it did not line up with the video, and it was
+  not smooth -- turned out to be one cause: it was drawn on the wrong clock.
+
+  Detection and rendering were the same rate, and it was the slow one. A
+  result only landed every so often, and the canvas was repainted only when
+  one did, so the skeleton held still for several video frames and then
+  jumped. Worse, a result describes the frame it was computed from, not the
+  one on screen by the time it arrives, so each repaint showed the body where
+  it had been a moment earlier.
+
+  The two rates are now separate. Every result is filed against the video
+  time of the frame it came from, and the overlay is redrawn every animation
+  frame, placing the body at `previewVideo.currentTime` from the last two
+  results. Measured on a real clip from this repo (`shoulder press.mp4`, both
+  wrists, 3299 rendered frames): the skeleton is repositioned **66 times a
+  second instead of about 5**, and its average distance from the body dropped
+  **17.6px to 14.8px** on a 284px-wide frame.
+
+  Detection also ran into a 120ms floor that no longer made sense once it
+  moved off the main thread in v0.8.4.0 -- the worker finished in 25-80ms and
+  then waited longer than it had worked. The floor is now 33ms, which on a
+  phone never binds; the main-thread fallback keeps the old 120ms, because
+  there every detection is time the video spends not being decoded.
+
+  How far the renderer may carry motion past the newest result was chosen
+  from that measurement rather than guessed, and the table is in the code.
+  Smoothing the landmarks was tried and rejected the same way: at 86-143ms
+  between detections a causal filter cost more lag than the jitter it
+  removed. The error that remains is the model's own noise floor (7.5px of
+  jitter against 10.7px of real movement between detections), which is a
+  case for a heavier model, not a better renderer.
+
 ## [0.12.1.0] - 2026-09-13
 
 ### Added
