@@ -1189,23 +1189,36 @@ button.stchip:hover { background: #34343a; }
    and the ghost just hung there. These are the only thing saying it is
    moving. */
 .rc-ghost-speed { stroke: var(--meta); }
-/* Running on the spot: the body bobs, the speed lines streak past it. */
+/* Running on the spot: the body strides, the speed lines stream past it.
+   Two strides per cycle rather than one bob, because a single rise and fall
+   reads as hovering -- the thing has no legs, so the stride pattern is all
+   there is to say it is running rather than floating. Each stride lands
+   squashed and leaves the ground stretched, and the lean deepens on the push
+   and eases at the top. Amplitude is up from 4px to 9: at the size this
+   draws, 4px in a 150-unit viewBox was a shimmer. */
 .rc-ghost-run {
   transform-box: view-box;
-  transform-origin: 85px 70px;
-  animation: rc-ghost-bob 0.42s ease-in-out infinite;
+  transform-origin: 85px 120px;
+  animation: rc-ghost-run 0.62s ease-in-out infinite;
 }
-@keyframes rc-ghost-bob {
-  0%, 100% { transform: translate(30px, 4px) rotate(13deg); }
-  50% { transform: translate(30px, -4px) rotate(10deg); }
+@keyframes rc-ghost-run {
+  0%   { transform: translate(30px, 7px) rotate(15deg) scale(1.04, 0.95); }
+  25%  { transform: translate(33px, -9px) rotate(10deg) scale(0.97, 1.05); }
+  50%  { transform: translate(30px, 6px) rotate(14deg) scale(1.03, 0.96); }
+  75%  { transform: translate(27px, -8px) rotate(11deg) scale(0.98, 1.04); }
+  100% { transform: translate(30px, 7px) rotate(15deg) scale(1.04, 0.95); }
 }
-.rc-ghost-speed line { animation: rc-ghost-streak 0.42s linear infinite; }
-.rc-ghost-speed line:nth-child(2) { animation-delay: 0.14s; }
-.rc-ghost-speed line:nth-child(3) { animation-delay: 0.28s; }
+/* Held at full strength across the middle of each line's pass and staggered
+   by a third of the cycle, so one is always streaking -- they used to fade
+   up and straight back down, which flickered instead of streamed. */
+.rc-ghost-speed line { animation: rc-ghost-streak 0.45s linear infinite; }
+.rc-ghost-speed line:nth-child(2) { animation-delay: 0.15s; }
+.rc-ghost-speed line:nth-child(3) { animation-delay: 0.3s; }
 @keyframes rc-ghost-streak {
-  0% { opacity: 0; transform: translateX(14px); }
-  40% { opacity: 1; }
-  100% { opacity: 0; transform: translateX(-10px); }
+  0% { opacity: 0; transform: translateX(20px); }
+  20% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-18px); }
 }
 
 @media (max-width: 720px) {

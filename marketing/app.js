@@ -9,14 +9,32 @@
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
   // ---------- loading screen ----------
-  // The screen already has a CSS animation that takes it away on its own,
-  // which is what guarantees nobody is ever stuck behind it. All this does
-  // is bring that forward once the page has actually finished loading, so a
-  // fast connection is not made to sit and watch a timer. Deliberately never
-  // the reverse: nothing here can keep the screen up for longer.
+  // The screen has a CSS animation that takes it away on its own, which is
+  // what guarantees nobody is ever stuck behind it. This decides when it
+  // leaves in the normal case, between two bounds:
+  //
+  //   * it waits for the page to finish loading, and
+  //   * it stays at least LOADER_MIN_MS whatever happens.
+  //
+  // The floor is the point. Dismissing the moment `load` fired meant that on
+  // anything quick -- which is most visits, the page is static and the fonts
+  // are local -- the screen was gone in a couple of hundred milliseconds and
+  // read as a flash of white rather than an arrival.
+  //
+  // Measured from performance.now(), which counts from navigation start
+  // rather than from whenever this script happened to run, so the floor is
+  // 1.5s of the visitor's time and not 1.5s of ours.
+  var LOADER_MIN_MS = 1500;
   var loader = $("#rc-loader");
   if (loader) {
-    var dismissLoader = function () { loader.classList.add("is-done"); };
+    var dismissLoader = function () {
+      var since = window.performance && window.performance.now
+        ? window.performance.now()
+        : LOADER_MIN_MS;
+      window.setTimeout(function () {
+        loader.classList.add("is-done");
+      }, Math.max(0, LOADER_MIN_MS - since));
+    };
     if (document.readyState === "complete") dismissLoader();
     else window.addEventListener("load", dismissLoader);
   }
