@@ -63,7 +63,6 @@
 </section>
 
 <section id="what" class="what">
-  <div class="strip"><span>01 — What it does</span><span>Six parts, one week</span></div>
   <!--
     The scroll story wraps the grid and nothing else. It is empty markup on
     purpose: app.js fills it with one scroll marker per feature and only then
@@ -72,6 +71,16 @@
     until that class lands.
   -->
   <div class="rc-story">
+  <!--
+    The strip moved inside here from just above. With the hero pinned over the
+    top of the section, a strip left in its old place sat behind the hero and
+    scrolled away before the hero had finished fading -- on screen for nobody.
+    Inside the pinned panel it holds its place as the section's header for the
+    whole run of features. Plain divs until .rc-story-on lands, so with no JS
+    this still renders as the strip above the grid, exactly as before.
+  -->
+  <div class="rc-story-view">
+  <div class="strip"><span>01 — What it does</span><span>Six parts, one week</span></div>
   <div class="what-grid">
     <div class="feature-list">
       <button class="feature is-active" type="button" data-feature="0" aria-pressed="true">
@@ -339,6 +348,7 @@
       <!-- Filled by app.js once the race starts; empty (and hidden) until then. -->
       <div class="watch-rig" id="rc-watch" hidden></div>
     </div>
+  </div>
   </div>
   </div>
 </section>

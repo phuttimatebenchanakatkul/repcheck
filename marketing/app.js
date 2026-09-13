@@ -224,12 +224,23 @@
     var rail = document.createElement("div");
     rail.className = "rc-story-rail";
     rail.setAttribute("aria-hidden", "true");
-    var marks = featureBtns.map(function () {
+    // One marker per feature, plus a leading one for the screen the hero
+    // dissolves over. That leading marker is not decoration: without it the
+    // hero's screen is a gap no marker covers, so nothing sets the feature
+    // there and the panel keeps whatever was last showing. Scroll to the
+    // bottom and back to the top and the hero would be dissolving to reveal
+    // Friends. It maps to the first feature, so the top of the page always
+    // resolves to 01 no matter which way the reader arrived at it.
+    var marks = [];
+    for (var m = 0; m <= featureBtns.length; m++) {
       var mark = document.createElement("div");
       mark.className = "rc-story-mark";
       rail.appendChild(mark);
-      return mark;
-    });
+      marks.push(mark);
+    }
+    // Marker 0 and marker 1 both mean feature 0 -- one for the hero's screen,
+    // one for its own.
+    var featureForMark = function (i) { return Math.max(0, i - 1); };
     story.style.setProperty("--rc-stages", String(featureBtns.length));
     story.insertBefore(rail, story.firstChild);
     document.documentElement.classList.add("rc-story-on");
@@ -260,32 +271,46 @@
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
         var i = marks.indexOf(entry.target);
-        if (i >= 0 && i !== activeFeature) showFeature(i);
+        if (i < 0) return;
+        var feature = featureForMark(i);
+        if (feature !== activeFeature) showFeature(feature);
       });
     }, { rootMargin: "-50% 0px -50% 0px", threshold: 0 });
     marks.forEach(function (mark) { stages.observe(mark); });
 
-    // The hero copy thins out as the first stage comes up. This one IS tied
-    // to scroll position -- a fade that lands in one step is not what it is
-    // for -- so it touches opacity and transform only, off a passive listener
-    // throttled to one paint per frame. Skipped outright under reduced
-    // motion, where the hero simply scrolls away at full strength.
-    var heroFade = [$(".hero-mid"), $(".hero-foot")].filter(Boolean);
-    if (heroFade.length && !reduced) {
+    // The hero dissolves in place while the feature panel, already pinned
+    // behind it, is uncovered. Tied to scroll position, because a fade that
+    // lands in one step is not what this is for, and it writes opacity only
+    // -- no transform. The hero is not supposed to travel; that was the whole
+    // complaint about the first version of this.
+    //
+    // The whole section fades, not just the copy inside it: with the hero
+    // fixed, its --paper ground is what hides the panel, so fading the words
+    // and leaving the ground would leave a white sheet over the section.
+    //
+    // Reduced motion gets none of it. The fixed positioning is gated on the
+    // class set here, so skipping the fade also means skipping the pin, and
+    // the hero scrolls away normally rather than covering the page forever.
+    var hero = $(".hero");
+    var panel = $(".rc-story-view");
+    if (hero && panel && !reduced) {
+      document.documentElement.classList.add("rc-hero-pin");
       var queued = false;
+      var clamp01 = function (n) { return Math.min(1, Math.max(0, n)); };
       var paintHero = function () {
         queued = false;
         var vh = window.innerHeight || 1;
         var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-        // Gone by 60% of a viewport: the hero stands 100vh tall, so the copy
-        // has cleared well before the first feature reaches the middle.
-        var p = Math.min(1, Math.max(0, y / (vh * 0.6)));
-        heroFade.forEach(function (el) {
-          el.style.opacity = String(1 - p);
-          el.style.transform = "translate3d(0," + (p * -24).toFixed(1) + "px,0)";
-          // A button at zero opacity is still a button you can click.
-          el.style.pointerEvents = p >= 1 ? "none" : "";
-        });
+        // One after the other, not together. Both layers sit in the same
+        // place, so dissolving them at once drew the hero's headline across
+        // the handset and its nav across the section strip -- two pages of
+        // text over each other. The hero clears the screen first, and only
+        // then does the panel come up into the empty space it left.
+        hero.style.opacity = String(1 - clamp01(y / (vh * 0.5)));
+        panel.style.opacity = String(clamp01((y - vh * 0.5) / (vh * 0.35)));
+        // An invisible hero is still a fixed sheet across the whole viewport:
+        // without this it would swallow every click meant for the panel.
+        hero.style.pointerEvents = y >= vh * 0.5 ? "none" : "";
       };
       window.addEventListener("scroll", function () {
         if (queued) return;
