@@ -8,6 +8,19 @@
   var yearEl = $("#year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
+  // ---------- loading screen ----------
+  // The screen already has a CSS animation that takes it away on its own,
+  // which is what guarantees nobody is ever stuck behind it. All this does
+  // is bring that forward once the page has actually finished loading, so a
+  // fast connection is not made to sit and watch a timer. Deliberately never
+  // the reverse: nothing here can keep the screen up for longer.
+  var loader = $("#rc-loader");
+  if (loader) {
+    var dismissLoader = function () { loader.classList.add("is-done"); };
+    if (document.readyState === "complete") dismissLoader();
+    else window.addEventListener("load", dismissLoader);
+  }
+
   // ---------- hero dot field: a grid of dots that pushes away from the cursor ----------
   var canvas = $("#dotfield");
   var hero = $(".hero");
@@ -306,11 +319,15 @@
         // the handset and its nav across the section strip -- two pages of
         // text over each other. The hero clears the screen first, and only
         // then does the panel come up into the empty space it left.
-        hero.style.opacity = String(1 - clamp01(y / (vh * 0.5)));
-        panel.style.opacity = String(clamp01((y - vh * 0.5) / (vh * 0.35)));
+        // Two thirds of the screen to go, rather than a half: the hero is
+        // the first thing anyone sees and it was thinning out faster than a
+        // reader scrolls into it. The panel still waits for it to finish and
+        // is fully in by the time feature 01's own screen begins.
+        hero.style.opacity = String(1 - clamp01(y / (vh * 0.68)));
+        panel.style.opacity = String(clamp01((y - vh * 0.7) / (vh * 0.25)));
         // An invisible hero is still a fixed sheet across the whole viewport:
         // without this it would swallow every click meant for the panel.
-        hero.style.pointerEvents = y >= vh * 0.5 ? "none" : "";
+        hero.style.pointerEvents = y >= vh * 0.68 ? "none" : "";
       };
       window.addEventListener("scroll", function () {
         if (queued) return;
