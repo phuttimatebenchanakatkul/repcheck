@@ -236,124 +236,133 @@
   });
   showFeature(0);
 
-  // ---------- scroll story: the same six features, paced by scroll ----------
+  // ---------- scroll story: the same six features, driven by GSAP ----------
   // This block decides WHEN to call showFeature, and nothing else. The
   // switcher above still owns what a swap does -- which screen shows, which
   // video plays, what is announced -- so click and hover keep working exactly
   // as they did and there is only one code path for a feature change.
   //
-  // Everything is behind `window.IntersectionObserver`, the same guard the
-  // race walkthrough below uses. jsdom has no IO, so the suites that run this
-  // file over the shipped markup skip the whole thing; a browser without it
-  // gets the plain two-column list. .rc-story-on is set from here rather than
-  // written into the HTML for that reason: the class IS the statement that
-  // the JS is alive, and every style in the story block hangs off it.
+  // Guarded on window.gsap and window.ScrollTrigger, which is the same
+  // contract the IntersectionObserver version had: jsdom loads this file
+  // without them, so the suites that run app.js over the shipped markup skip
+  // the whole thing, and a browser that fails to fetch the two vendored
+  // scripts gets the plain two-column list rather than a broken page.
+  // .rc-story-on is set from here for that reason -- the class IS the
+  // statement that the animation is alive, and every style hangs off it.
   var story = $(".rc-story");
-  if (story && window.IntersectionObserver && featureBtns.length) {
-    // The markers are built rather than authored so their count can never
-    // drift from the number of features actually on the page.
-    var rail = document.createElement("div");
-    rail.className = "rc-story-rail";
-    rail.setAttribute("aria-hidden", "true");
-    // One marker per feature, plus a leading one for the screen the hero
-    // dissolves over. That leading marker is not decoration: without it the
-    // hero's screen is a gap no marker covers, so nothing sets the feature
-    // there and the panel keeps whatever was last showing. Scroll to the
-    // bottom and back to the top and the hero would be dissolving to reveal
-    // Friends. It maps to the first feature, so the top of the page always
-    // resolves to 01 no matter which way the reader arrived at it.
-    var marks = [];
-    for (var m = 0; m <= featureBtns.length; m++) {
-      var mark = document.createElement("div");
-      mark.className = "rc-story-mark";
-      rail.appendChild(mark);
-      marks.push(mark);
-    }
-    // Marker 0 and marker 1 both mean feature 0 -- one for the hero's screen,
-    // one for its own.
-    var featureForMark = function (i) { return Math.max(0, i - 1); };
+  if (story && window.gsap && window.ScrollTrigger && featureBtns.length) {
+    var gsap = window.gsap;
+    var ScrollTrigger = window.ScrollTrigger;
+    gsap.registerPlugin(ScrollTrigger);
+
     story.style.setProperty("--rc-stages", String(featureBtns.length));
-    story.insertBefore(rail, story.firstChild);
     document.documentElement.classList.add("rc-story-on");
 
-    // The waitlist is observed first, and deliberately: .rc-story-on has just
-    // hidden it, so anything that threw between there and here would leave
-    // the one form on the page invisible.
+    // The waitlist first, and deliberately: .rc-story-on has just hidden it,
+    // so anything that threw between there and here would leave the one form
+    // on the page invisible.
     var cta = $(".cta");
     if (cta) {
-      new IntersectionObserver(function (entries, obs) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
-          // Once in, it stays in -- stop watching rather than fade it back
-          // out when it leaves.
-          entry.target.classList.add("is-in");
-          obs.unobserve(entry.target);
-        });
-      }, { threshold: 0.15 }).observe(cta);
+      ScrollTrigger.create({
+        trigger: cta,
+        start: "top 85%",
+        once: true,
+        onEnter: function () { cta.classList.add("is-in"); }
+      });
     }
 
-    // A rootMargin that pulls both edges to the middle leaves a root one line
-    // tall across the centre of the viewport, so exactly one full-height
-    // marker is ever intersecting: whichever stage the middle of the screen
-    // is currently in. That makes the swap a discrete trigger on entry, not
-    // a per-frame scrub of scroll position -- the cross-fade between two
-    // titles is CSS, and it runs at its own pace once the class flips.
-    var stages = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (!entry.isIntersecting) return;
-        var i = marks.indexOf(entry.target);
-        if (i < 0) return;
-        var feature = featureForMark(i);
-        if (feature !== activeFeature) showFeature(feature);
+    // One trigger for the whole section rather than a marker per stage.
+    // The section is (features + 2) screens tall and the panel is pinned by
+    // CSS for all but the last, so progress runs across (features + 1)
+    // screens of scrolling: screen 0 is the hero zoom, screen n+1 belongs to
+    // feature n. Clamped at both ends, so the top of the page always resolves
+    // to feature 01 however the reader arrived there -- scrolling from the
+    // bottom back to the top used to leave whatever was last showing.
+    // One trigger per stage, each naming the feature it is responsible for,
+    // rather than one trigger deriving an index from overall progress. The
+    // derived version was wrong in a way that was not obvious from reading
+    // it: it would climb but never come back down past the second feature,
+    // and calling its own callback by hand at a known progress refused to
+    // move it, so the fault was the arithmetic and not how often it ran.
+    // A start and an end per stage is the shape ScrollTrigger is built
+    // around, and each one says out loud which feature it means.
+    //
+    // Stage n runs from n+1 screens into the section to n+2, because the
+    // first screen belongs to the hero zoom. The hero's own screen maps to
+    // feature 01 too, so the top of the page always resolves to 01 however
+    // the reader arrived there.
+    var screenPx = function (n) {
+      return function () { return "top top-=" + (n * window.innerHeight); };
+    };
+    var stageAt = function (from, to, feature) {
+      ScrollTrigger.create({
+        trigger: story,
+        start: screenPx(from),
+        end: screenPx(to),
+        onEnter: function () { showFeature(feature); },
+        onEnterBack: function () { showFeature(feature); }
       });
-    }, { rootMargin: "-50% 0px -50% 0px", threshold: 0 });
-    marks.forEach(function (mark) { stages.observe(mark); });
+    };
+    stageAt(0, 1, 0);
+    for (var f = 0; f < featureBtns.length; f++) {
+      stageAt(f + 1, f + 2, f);
+    }
 
-    // The hero dissolves in place while the feature panel, already pinned
-    // behind it, is uncovered. Tied to scroll position, because a fade that
-    // lands in one step is not what this is for, and it writes opacity only
-    // -- no transform. The hero is not supposed to travel; that was the whole
-    // complaint about the first version of this.
+    // The zoom. The hero is a fixed sheet over the whole viewport, so scaling
+    // it up while it fades reads as the reader being pushed through it rather
+    // than it being taken away, and the panel coming up from slightly under
+    // size reads as arriving at something rather than it sliding in. Scrubbed,
+    // so it is the scroll doing it and not a timer.
     //
-    // The whole section fades, not just the copy inside it: with the hero
-    // fixed, its --paper ground is what hides the panel, so fading the words
-    // and leaving the ground would leave a white sheet over the section.
+    // Only transform and opacity, which is what keeps it on the compositor.
     //
-    // Reduced motion gets none of it. The fixed positioning is gated on the
-    // class set here, so skipping the fade also means skipping the pin, and
-    // the hero scrolls away normally rather than covering the page forever.
+    // gsap.matchMedia, not an `if`: reduced motion gets no zoom AND no pin,
+    // which matters because .rc-hero-pin is what makes the hero fixed -- a
+    // fixed hero with nothing fading it would cover the page for good.
     var hero = $(".hero");
     var panel = $(".rc-story-view");
-    if (hero && panel && !reduced) {
-      document.documentElement.classList.add("rc-hero-pin");
-      var queued = false;
-      var clamp01 = function (n) { return Math.min(1, Math.max(0, n)); };
-      var paintHero = function () {
-        queued = false;
-        var vh = window.innerHeight || 1;
-        var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-        // One after the other, not together. Both layers sit in the same
-        // place, so dissolving them at once drew the hero's headline across
-        // the handset and its nav across the section strip -- two pages of
-        // text over each other. The hero clears the screen first, and only
-        // then does the panel come up into the empty space it left.
-        // Two thirds of the screen to go, rather than a half: the hero is
-        // the first thing anyone sees and it was thinning out faster than a
-        // reader scrolls into it. The panel still waits for it to finish and
-        // is fully in by the time feature 01's own screen begins.
-        hero.style.opacity = String(1 - clamp01(y / (vh * 0.68)));
-        panel.style.opacity = String(clamp01((y - vh * 0.7) / (vh * 0.25)));
-        // An invisible hero is still a fixed sheet across the whole viewport:
-        // without this it would swallow every click meant for the panel.
-        hero.style.pointerEvents = y >= vh * 0.68 ? "none" : "";
-      };
-      window.addEventListener("scroll", function () {
-        if (queued) return;
-        queued = true;
-        window.requestAnimationFrame(paintHero);
-      }, { passive: true });
-      // Reloading half way down the page should not start from full opacity.
-      paintHero();
+    if (hero && panel) {
+      gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", function () {
+        document.documentElement.classList.add("rc-hero-pin");
+
+        var zoom = gsap.timeline({
+          scrollTrigger: {
+            trigger: story,
+            start: "top top",
+            end: function () { return "+=" + window.innerHeight; },
+            scrub: 0.4,
+            onUpdate: function (self) {
+              // An invisible sheet is still a sheet: without this the hero
+              // keeps swallowing every click meant for the panel behind it.
+              hero.style.pointerEvents = self.progress > 0.72 ? "none" : "";
+            }
+          }
+        });
+
+        // Scale and opacity are separate tweens on purpose, and the opacity
+        // is the shorter of the two. Run as one, the hero was still legible
+        // at a tenth of its strength while the panel came up, so the headline
+        // ghosted straight through the handset -- two pages of text over each
+        // other, which is the thing this section keeps being asked not to do.
+        // The hero is out of sight by 0.55 while its scale keeps climbing to
+        // the end, so the movement carries on under the arrival instead of
+        // stopping dead the moment it goes.
+        zoom
+          .fromTo(hero, { scale: 1 }, { scale: 1.5, ease: "power1.in", duration: 0.9 }, 0)
+          .fromTo(hero, { opacity: 1 }, { opacity: 0, ease: "power2.in", duration: 0.55 }, 0)
+          .fromTo(panel,
+            { scale: 0.88, opacity: 0 },
+            { scale: 1, opacity: 1, ease: "power2.out", duration: 0.42 }, 0.55);
+
+        // Everything this branch touched, undone if the preference flips.
+        return function () {
+          document.documentElement.classList.remove("rc-hero-pin");
+          zoom.scrollTrigger && zoom.scrollTrigger.kill();
+          zoom.kill();
+          gsap.set([hero, panel], { clearProps: "all" });
+          hero.style.pointerEvents = "";
+        };
+      });
     }
   }
 
