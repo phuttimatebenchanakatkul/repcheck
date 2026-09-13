@@ -22,13 +22,46 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<!-- ---------- loading screen ----------
+     The ghost is the app's own mascot in its `sprint` pose, copied from
+     static/mascot.js rather than imported: marketing/ is a separate static
+     deploy that shares no files with the Flask app, and the one thing this
+     page must never do is fetch from somewhere else.
+
+     It takes itself off screen from CSS (see .rc-loader's animation), so a
+     JS error, a blocked script or a slow connection can never leave a
+     visitor staring at a white sheet. app.js only ever makes it leave
+     EARLIER, once the page has actually loaded. -->
+<div class="rc-loader" id="rc-loader" role="status" aria-live="polite" aria-label="Loading RepCheck">
+  <div class="rc-loader-inner">
+    <img class="rc-loader-logo" src="assets/rc-logo.png" width="1290" height="248" alt="RepCheck">
+    <svg class="rc-ghost" viewBox="0 0 190 150" aria-hidden="true" focusable="false">
+      <g class="rc-ghost-speed" stroke-width="4.5" stroke-linecap="round">
+        <line x1="8" y1="52" x2="40" y2="52"/>
+        <line x1="4" y1="76" x2="32" y2="76"/>
+        <line x1="12" y1="100" x2="38" y2="100"/>
+      </g>
+      <g class="rc-ghost-run" transform="translate(30 4) rotate(13 85 70)">
+        <path class="rc-ghost-body" d="M85 14 C112 14 131 36 131 68 C131 94 129 110 125 118 C121 126 113 118 107 123 C101 128 95 120 89 125 C83 130 77 121 71 125 C65 129 59 120 53 123 C47 126 41 126 37 118 C33 110 31 94 31 68 C31 36 58 14 85 14 Z"/>
+        <circle class="rc-ghost-face" cx="70" cy="64" r="6"/>
+        <circle class="rc-ghost-face" cx="103" cy="64" r="6"/>
+        <g class="rc-ghost-brow" stroke-width="4.5" stroke-linecap="round">
+          <line x1="61" y1="50" x2="79" y2="55"/>
+          <line x1="112" y1="50" x2="94" y2="55"/>
+        </g>
+        <path class="rc-ghost-face" d="M74 84 Q86 100 98 84 Z"/>
+      </g>
+    </svg>
+  </div>
+</div>
+
 <a class="skip-link" href="#waitlist">Skip to the waitlist</a>
 
 <section class="hero" id="top">
   <canvas class="dotfield" id="dotfield" aria-hidden="true" width="1280" height="899"></canvas>
 
   <header class="nav">
-    <span class="brand">RepCheck</span>
+    <span class="brand"><img class="brand-logo" src="assets/rc-logo.png" width="1290" height="248" alt="RepCheck"></span>
     <nav class="nav-links" aria-label="Sections">
       <a href="#what" data-magnet="">What it does</a>
       <!-- Said "Download"; it scrolls to a waitlist form. Same problem as the
@@ -81,6 +114,13 @@
   -->
   <div class="rc-story-view">
   <div class="strip"><span>01 — What it does</span><span>Six parts, one week</span></div>
+  <!--
+    The scroll cue, pinned to the foot of the panel rather than stacked in
+    the left column under the title. Only ever shown with the story running:
+    without it the features are a list you click, and telling someone to
+    scroll would be pointing at the wrong control. See .rc-scroll-cue.
+  -->
+  <p class="rc-scroll-cue" aria-hidden="true">Scroll down</p>
   <div class="what-grid">
     <div class="feature-list">
       <button class="feature is-active" type="button" data-feature="0" aria-pressed="true">
@@ -102,19 +142,23 @@
         <span class="feature-head"><span class="idx">06</span><span class="feature-title">Friends</span></span>
       </button>
       <!--
-        Two hints, one per mode, because the interaction genuinely differs.
-        With the scroll story on, the other five names are not on screen to
-        tap, so "tap a feature" would be describing a control the visitor
-        cannot see; without it, the list is the only way through. CSS shows
-        exactly one -- see the .rc-hint rules.
+        Only the no-JS hint lives here now. With the scroll story on, the
+        other five names are not on screen to tap, so "tap a feature" would
+        be describing a control the visitor cannot see; without the story the
+        list is the only way through, so it has to be said. The story's own
+        cue is .rc-scroll-cue, pinned to the foot of the panel rather than
+        stacked under the title.
       -->
       <p class="hint rc-hint-tap">Tap a feature to try it in the phone →</p>
-      <p class="hint rc-hint-scroll">Keep scrolling to move through the app ↓</p>
       <!--
         The handset shows made-up numbers, names and race times -- a product
         mockup, which is normal, but an unlabelled screenshot of "results" is
-        the kind of thing that reads as a performance claim. Saying so costs
-        one line and means nothing on this page is pretending to be evidence.
+        the kind of thing that reads as a performance claim. It has to keep
+        saying so: nothing on this page is pretending to be evidence. Do not
+        drop this line -- move it if it is in the way. With the story running
+        it is lifted out of the title column to the foot of the panel, which
+        is what .rc-story-on .hint-demo does; without it, it sits here in the
+        column as it always has.
       -->
       <p class="hint hint-demo">Example data, for illustration &mdash; not a real user's results</p>
     </div>
@@ -432,7 +476,7 @@
     against 11px mono, which wrecks the two-group wrap the comment above
     describes. Its own full-width row leaves that wrap exactly as it was.
   -->
-  <span class="brand rc-wordmark">RepCheck</span>
+  <span class="brand rc-wordmark"><img class="brand-logo" src="assets/rc-logo.png" width="1290" height="248" alt="RepCheck"></span>
   <div class="footer-group">
     <span>Training guidance only — not medical advice</span>
   </div>

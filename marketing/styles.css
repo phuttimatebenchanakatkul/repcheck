@@ -1015,10 +1015,22 @@ button.stchip:hover { background: #34343a; }
 /* Scaled rather than resized: the handset's 640px screen is a fixed height
    the six mock screens are laid out against, so shrinking it for a short
    window has to happen after layout, not to it. */
-.rc-story-on .phone { transform: scale(var(--rc-phone-scale, 1)); }
+/* scale() shrinks what is drawn and not what is occupied, so a scaled
+   handset still claimed its full 662px and the flex centring was really
+   centring an overflow -- padding at the foot of the column moved the
+   drawing by half of what it should, and the lines down there ended up on
+   the bezel. The negative margin takes back exactly the height the scale
+   stops using (662px is the handset: a 640px screen in 11px of bezel), so
+   the box it occupies matches the box it paints. Anchored at the top so the
+   two line up. */
+.rc-story-on .phone {
+  transform: scale(var(--rc-phone-scale, 1));
+  transform-origin: center top;
+  margin-bottom: calc((var(--rc-phone-scale, 1) - 1) * 662px);
+}
 @media (max-height: 900px) { .rc-story-on .phone { --rc-phone-scale: 0.88; } }
 @media (max-height: 800px) { .rc-story-on .phone { --rc-phone-scale: 0.78; } }
-@media (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.66; } }
+@media (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.58; } }
 
 @media (max-width: 720px) {
   /* One column: the title rides above the handset instead of beside it.
@@ -1053,21 +1065,6 @@ button.stchip:hover { background: #34343a; }
 }
 .rc-story-on .cta.is-in { opacity: 1; transform: none; }
 
-/* The closing wordmark. Its own full-width row in the footer's flex wrap.
-   The word sets about 5.1x its own font-size wide in Archivo 900, so 16vw
-   leaves roughly 15% of the padded width spare at every size from 390px up.
-   That margin is deliberate rather than wasteful: if the self-hosted font
-   fails and the fallback sans is wider, the wordmark still has somewhere to
-   go instead of running off the right edge. line-height leaves room for the
-   p's descender, which at 0.82 sat on top of the mono line underneath it. */
-.footer .rc-wordmark {
-  flex: 1 0 100%;
-  font-size: clamp(52px, 16vw, 240px);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.055em;
-  margin-bottom: 10px;
-}
 
 @media (prefers-reduced-motion: reduce) {
   /* The layout stays -- it is what makes the six features reachable -- but
@@ -1080,4 +1077,162 @@ button.stchip:hover { background: #34343a; }
   }
   .rc-story-on .feature { transition: visibility 0s linear 0s; }
   .rc-story-on .what .screen.is-active { animation: none; }
+}
+
+/* ---------- the real wordmark ---------- */
+/* The brand was set in Archivo 800 -- close to the logo but not it. This is
+   the actual mark (native/logo-full-master.png, trimmed to its glyphs and
+   stored grey+alpha since the artwork is pure black, 376KB -> 43KB). The
+   width/height attributes on the <img> are the file's real pixel size, so
+   the box is reserved before it decodes and nothing jumps as it loads. */
+/* The height goes on the image itself, not on an ancestor. It was on
+   `.nav .brand`, which quietly missed the legal pages: their header is
+   .legal-nav, so the rule never matched and a 1290px logo rendered at full
+   size across the top of the privacy notice. Sizing the thing itself cannot
+   miss a wrapper it does not know about. */
+.brand { display: block; }
+.brand-logo { display: block; width: auto; height: 19px; }
+.footer .brand-logo { height: 15px; }
+
+/* The closing wordmark. Its own full-width row in the footer's flex wrap.
+   Capped at the artwork's own 1290px: past that it is being enlarged rather
+   than displayed, and a logo is the last thing that should look soft. */
+.footer .rc-wordmark {
+  flex: 1 0 100%;
+  height: auto;
+  margin-bottom: 10px;
+}
+.footer .rc-wordmark .brand-logo { width: min(100%, 1290px); height: auto; }
+
+/* ---------- scroll cue ---------- */
+/* Sits at the foot of the pinned panel, centred, instead of stacked under
+   the feature title. Only with the story on: without it the features are a
+   list you click, and "scroll down" would be pointing at the wrong control. */
+.rc-scroll-cue { display: none; }
+.rc-story-on .rc-scroll-cue {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 26px;
+  text-align: center;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--meta);
+  /* Under the handset rather than over it: the panel's own children paint in
+     order and the phone is interactive. */
+  pointer-events: none;
+}
+/* The example-data line keeps its place in the markup -- so with no JS it
+   still sits in the column where it always did -- and is lifted out to the
+   foot of the panel only while the story is running, clear of the title. It
+   is left-aligned against the centred cue so the two never meet. */
+.rc-story-on .hint-demo {
+  position: absolute;
+  left: 0;
+  bottom: 22px;
+  width: auto;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin: 0;
+}
+
+.rc-scroll-cue::after {
+  content: " ↓";
+  display: inline-block;
+  animation: rc-cue-nudge 1.8s ease-in-out infinite;
+}
+@keyframes rc-cue-nudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+/* ---------- loading screen ---------- */
+/* Leaves on its own from CSS. app.js only ever brings that forward, so a
+   script that never runs cannot strand a visitor behind a white sheet. */
+.rc-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  animation: rc-loader-out 0.45s ease 1.9s forwards;
+}
+.rc-loader.is-done { animation: rc-loader-out 0.4s ease forwards; }
+@keyframes rc-loader-out {
+  to { opacity: 0; visibility: hidden; }
+}
+.rc-loader-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  padding: 24px;
+}
+.rc-loader-logo { width: min(260px, 54vw); height: auto; }
+
+.rc-ghost { width: min(190px, 42vw); height: auto; overflow: visible; }
+.rc-ghost-body { fill: var(--ink); }
+.rc-ghost-face { fill: var(--paper); }
+.rc-ghost-brow { stroke: var(--paper); }
+/* --meta, not --hair: at #e6e6e6 the trails were all but invisible on white
+   and the ghost just hung there. These are the only thing saying it is
+   moving. */
+.rc-ghost-speed { stroke: var(--meta); }
+/* Running on the spot: the body bobs, the speed lines streak past it. */
+.rc-ghost-run {
+  transform-box: view-box;
+  transform-origin: 85px 70px;
+  animation: rc-ghost-bob 0.42s ease-in-out infinite;
+}
+@keyframes rc-ghost-bob {
+  0%, 100% { transform: translate(30px, 4px) rotate(13deg); }
+  50% { transform: translate(30px, -4px) rotate(10deg); }
+}
+.rc-ghost-speed line { animation: rc-ghost-streak 0.42s linear infinite; }
+.rc-ghost-speed line:nth-child(2) { animation-delay: 0.14s; }
+.rc-ghost-speed line:nth-child(3) { animation-delay: 0.28s; }
+@keyframes rc-ghost-streak {
+  0% { opacity: 0; transform: translateX(14px); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-10px); }
+}
+
+@media (max-width: 720px) {
+  /* One column, so left-aligned and centred are the same column of space:
+     the two lines are stacked instead of set side by side. */
+  .rc-story-on .hint-demo { bottom: 46px; right: 0; }
+  .rc-story-on .rc-scroll-cue { bottom: 16px; }
+}
+
+/* On a short screen the two lines at the foot of the panel are sitting where
+   the handset already is -- the grey text landed on the black bezel. The
+   padding goes on the columns rather than on the grid so that the hairline
+   between them, which is a border on the column, still runs the full height
+   instead of stopping short of the bottom. */
+@media (max-height: 760px) {
+  /* Top-aligned rather than centred. Centring only buys back half of any
+     padding you add at the foot, so clearing the two lines by centring meant
+     padding the column by twice the space actually needed. Pinned to the top
+     of its row, the handset ends where it ends and the rest of the row is
+     free. */
+  .rc-story-on .phone-stage {
+    align-items: flex-start;
+    padding-bottom: 74px;
+  }
+  .rc-story-on .feature-list { padding-bottom: 74px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The screen still goes, and sooner -- what it must not do is run on the
+     spot in front of someone who asked for no motion. */
+  .rc-loader { animation: rc-loader-out 0.01ms linear 0.4s forwards; }
+  .rc-ghost-run,
+  .rc-ghost-speed line,
+  .rc-scroll-cue::after { animation: none; }
+  .rc-ghost-run { transform: translate(30px, 4px) rotate(13deg); }
 }
