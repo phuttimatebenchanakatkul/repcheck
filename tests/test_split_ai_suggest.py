@@ -313,6 +313,26 @@ def _logged_in_client():
     user_id = existing["id"] if existing else database.create_local_user(
         "split-endpoint@example.com", "irrelevant-password", "Split Endpoint Tester"
     )
+    # This account calls a rate-limited endpoint (split_generation: 10/day)
+    # and this test module runs it against the REAL repcheck.db, not an
+    # isolated one -- there is no fixture here that gives it its own DB the
+    # way test_account_deletion.py's `db` fixture does. Because the account
+    # is reused across every test in this file (see above) AND across every
+    # `pytest` invocation within the same 24h window (the counter is a row in
+    # that persistent database), a handful of suite re-runs in one day is
+    # enough to burn through the budget: every test below then gets a 429
+    # instead of whatever it actually expects, including ones asserting a
+    # 400 for bad input -- the endpoint checks the rate limit before it
+    # validates the payload. Clear this account's counter for the one
+    # feature these tests exercise before each client is handed out, so the
+    # suite's own repeated runs can never be what exhausts it. (Matches
+    # test_account_deletion.py's own technique of writing `rate_limits` rows
+    # directly for a test.)
+    with database.get_db() as conn:
+        conn.execute(
+            "DELETE FROM rate_limits WHERE user_id = ? AND feature = 'split_generation'",
+            (user_id,),
+        )
     app_module.app.config["TESTING"] = True
     client = app_module.app.test_client()
     with client.session_transaction() as session:
