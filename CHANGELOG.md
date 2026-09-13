@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.11.2.0] - 2026-09-13
+
+### Fixed
+
+- **The app was downloading a megabyte of logo on every first visit.** The
+  browser tab icon was a 1254x1254 image weighing 700KB, displayed at 16
+  pixels across. The RepCheck wordmark on the login, sign-up and onboarding
+  screens was 1774x887 and 376KB, displayed at 88x44. Together that was
+  1,076KB of images delivering about 230 pixels of anything you could
+  actually see. Both are now sized for where they appear -- 35KB for the
+  pair, a 97% reduction -- and look identical, including on a high-density
+  phone screen and in dark mode.
+- The full-resolution originals are kept, outside the folder the browser
+  downloads from, so the App Store icon can still be regenerated from them.
+
 ## [0.11.1.0] - 2026-09-13
 
 ### Fixed
