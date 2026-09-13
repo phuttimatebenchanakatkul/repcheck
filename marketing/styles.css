@@ -1160,11 +1160,17 @@ button.stchip:hover { background: #34343a; }
   align-items: center;
   justify-content: center;
   background: var(--paper);
-  animation: rc-loader-out 0.45s ease 1.9s forwards;
+  animation: rc-loader-out 0.62s cubic-bezier(0.65, 0, 0.35, 1) 1.9s forwards;
 }
-.rc-loader.is-done { animation: rc-loader-out 0.4s ease forwards; }
+.rc-loader.is-done { animation: rc-loader-out 0.62s cubic-bezier(0.65, 0, 0.35, 1) forwards; }
+/* Pulled up and off the top rather than dissolved, so the site is uncovered
+   from the bottom edge of the screen upwards -- the loader behaves like a
+   sheet being lifted off it. It stays fully opaque the whole way: fading it
+   at the same time would show the page through it before it had gone, which
+   is the thing the movement is there to avoid. visibility at the end so a
+   sheet parked off screen cannot take a click meant for the page. */
 @keyframes rc-loader-out {
-  to { opacity: 0; visibility: hidden; }
+  to { transform: translateY(-100%); visibility: hidden; }
 }
 .rc-loader-inner {
   display: flex;
