@@ -1388,6 +1388,62 @@ input[type="file"], select {
   .mt-fab { width: 54px; height: 54px; }
 }
 
+/* ---------- The tab bar stops growing once the window is wider than a phone
+   ----------
+   The tab bar does NOT grow with the box. Stretched wide, its five items sit
+   a thumb's width apart with the active bubble blown up into a blob --
+   sparse, and nothing like the dense pill the design is.
+
+   This used to live inside the `min-width: 721px` block, which left the whole
+   481-720px band uncovered -- and that band is exactly where an iPad sits in
+   Split View. Measured before this moved: at a 720px viewport the bar was
+   696px wide, then snapped to 420px at 721px. Dragging a split-view divider
+   across that boundary jumped the bar by 276px, and everywhere below it the
+   five destinations were spread across the full width of a tablet, which is
+   the failure this rule was written to prevent in the first place.
+
+   481px rather than 0: at or below 480px the phone rule's tighter 8px
+   gutters win, and a real phone should keep them -- max() would otherwise
+   start capping from 444px up and quietly restyle the primary platform.
+
+   That boundary is a WIDTH, not a device, so a phone in landscape does land
+   in this band and does get the centred bar: an SE on its side is 667pt.
+   That is the right outcome for the same reason it is right on a tablet --
+   five destinations stretched across a landscape phone are no easier to
+   reach -- but "phones are untouched" is only true in portrait, and the next
+   person reading this should know which one it is. (Bigger phones in
+   landscape are past 721 and take the tablet box outright: an 8 Plus is
+   736pt, which is NOT this band.)
+
+   The two breakpoints are a PAIR: this must start exactly one pixel above
+   where the phone rule stops, or you get a gap (the bug this fixed) or an
+   overlap (the cap stripping the phone's 8px gutters, since both rules are
+   `.mobile-tabbar` at the same specificity). Moving one without the other is
+   caught by tests/test_ipad_layout.py.
+
+   This block must also stay AFTER the base `.mobile-tabbar` rule in the
+   `@media all` block. Same selector, same specificity, no media query adds
+   any -- so the cap wins on source order alone, and moving it earlier in the
+   file makes it silently inert at every width.
+
+   Insets rather than a transform, deliberately: `transform` on this element
+   already belongs to the sheet-open recede (html.pc-sheet-active), and
+   centring with translateX(-50%) would be silently cancelled the moment a
+   sheet opened.
+
+   `100%` on a fixed element resolves against its containing block: <body>
+   above 721px, where the transform makes the box the containing block, and
+   the viewport below it. Both are the width the bar should be centred in, so
+   one rule is right in all three skins -- phone, split view, tablet column --
+   and in the 390px desk frame the calc goes negative and max() hands back
+   the phone's own 12px. */
+@media (min-width: 481px) {
+  .mobile-tabbar {
+    left: max(12px, calc((100% - 420px) / 2));
+    right: max(12px, calc((100% - 420px) / 2));
+  }
+}
+
 /* Respect users who ask for less motion: drop the quick-actions stagger
    (the sheet still opens, just without the flourish). */
 @media (prefers-reduced-motion: reduce) {
@@ -2271,6 +2327,7 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
    Below 721px none of this applies: <body> scrolls, fixed means fixed,
    and the app is just the app. */
 
+
 @media (min-width: 721px) {
   html {
     min-height: 100%;
@@ -2324,22 +2381,8 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
   }
   .app::-webkit-scrollbar { display: none; }
 
-  /* The tab bar does NOT grow with the box. Stretched to 720px its five
-     items sit a thumb's width apart with the active bubble blown up into a
-     136px blob -- sparse, and nothing like the dense pill the design is.
-     Insets rather than a transform, deliberately: `transform` on this
-     element already belongs to the sheet-open recede
-     (html.pc-sheet-active), and centring with translateX(-50%) would be
-     silently cancelled the moment a sheet opened.
-
-     `100%` on a fixed element resolves against <body> -- the box, not the
-     window -- so this is (720 - 420) / 2 per side in the tablet column,
-     while in the 390px desk frame the calc goes negative and max() hands
-     back the phone's own 12px. One rule, right in both skins. */
-  .mobile-tabbar {
-    left: max(12px, calc((100% - 420px) / 2));
-    right: max(12px, calc((100% - 420px) / 2));
-  }
+  /* The tab bar cap lives in its own min-width: 481px block above, so it
+     also covers the split-view band. Nothing to do here. */
 
   /* The auth pages (login, signup, onboarding) do not use .app, so they
      scroll on their own wrapper instead.

@@ -2,6 +2,23 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.11.1.0] - 2026-09-13
+
+### Fixed
+
+- **The bottom nav no longer stretches across the screen in Split View.** On a
+  tablet sharing the screen with another app, RepCheck's five destinations
+  were spread across the full width of the window rather than sitting in the
+  compact pill they do everywhere else: at a 720px-wide window the bar was
+  696px, which is a long way for a thumb to travel. It was already capped on a
+  full-screen tablet, but the cap only applied from 721px up, so the entire
+  range a split screen actually uses was missed. Dragging the divider across
+  that line also jumped the bar 276px in one frame. The bar is now the same
+  centred pill at every width above a phone.
+- Phones are deliberately unchanged in portrait. A phone held sideways is
+  wider than the cutoff and does now get the centred bar, which is the right
+  outcome for the same reason it is on a tablet.
+
 ## [0.11.0.0] - 2026-09-12
 
 A legal, privacy and accessibility pass over both the app and the pre-launch

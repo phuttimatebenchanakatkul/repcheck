@@ -97,6 +97,29 @@ comes back false and `preventDefault()` silently does nothing, so the preview
 follows the finger while the page rubber-bands underneath it. Arm from scroll or
 open state instead, so the listener is in place before the finger lands.
 
+## CSS: a media query adds no specificity, so placement is the rule
+
+`static/style.css` is one long cascade with several rules writing the same
+properties on the same selector at different widths. A media query does NOT
+raise specificity -- `@media (min-width: 481px) { .mobile-tabbar { left: ... } }`
+and a bare `.mobile-tabbar { left: ... }` are both (0,1,0), so the later one
+in the file wins, at every width the query matches. Two consequences, both of
+which have already cost a release:
+
+- **A responsive override must sit AFTER the base rule it overrides.** The
+  481px tab-bar cap is placed directly after the `max-width: 480px` phone
+  block for that reason. Hoisting it above the base `.mobile-tabbar` rule in
+  the `@media all` section makes it silently inert -- no throw, no warning,
+  the bar just stops being capped.
+- **Adjacent width bands are a pair; edit them together.** `max-width: 480px`
+  and `min-width: 481px` have to stay exactly one pixel apart or you open a
+  gap (the v0.11.1.0 bug: 481-720px, the whole iPad Split View range, was
+  uncapped) or an overlap (the cap stripping the phone's gutters).
+
+`tests/test_ipad_layout.py` asserts both -- that the breakpoints stay
+adjacent, and that the cap is the last rule in the file to write the tab bar's
+insets. The full breakpoint ladder is in [DESIGN.md](DESIGN.md).
+
 ## Fonts are self-hosted, and immutable by filename
 
 Inter + Noto Sans Thai (`static/fonts.css`, faces in `static/fonts/`) and

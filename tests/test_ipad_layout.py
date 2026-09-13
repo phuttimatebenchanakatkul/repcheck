@@ -33,6 +33,9 @@ COACH_HTML = ROOT / "templates" / "coach.html"
 CODEMAGIC = ROOT / "codemagic.yaml"
 
 SHARED = "@media (min-width: 721px) {"
+# The tab-bar cap deliberately sits in its own, WIDER block: it has to cover
+# the 481-720px band as well, which is where a tablet lands in Split View.
+TABBAR_CAP = "@media (min-width: 481px) {"
 DESK = "@media (min-width: 721px) and (hover: hover) and (pointer: fine)"
 
 
@@ -74,6 +77,33 @@ def _rule(block, selector):
         if selector in [s.strip() for s in m.group(1).split(",")]:
             return m.group(2)
     raise AssertionError(f"no rule whose selectors include {selector!r}")
+
+
+def _media_widths_styling(src, feature, selector, needle):
+    """Widths of every `@media (<feature>: Npx)` block whose `selector` rule
+    contains `needle`.
+
+    The width is READ OUT of the stylesheet rather than written down here,
+    which is the whole point: the tab bar's two inset breakpoints only work
+    as a pair, so a test that hardcodes both numbers still passes when one
+    of them moves. The canonical header is rebuilt and looked up with the
+    same exact match `_block` uses, so a reformatted header returns nothing
+    and the caller's own "no block does this any more" assertion fires --
+    loudly, rather than silently narrowing the search to nothing.
+    """
+    found = []
+    pattern = r"@media\s*\(" + feature + r":\s*(\d+)px\s*\)\s*\{"
+    for width in sorted({int(w) for w in re.findall(pattern, src)}):
+        header = "@media (" + feature + ": " + str(width) + "px) {"
+        if header not in src:
+            continue
+        try:
+            rule = _rule(_block(src, header), selector)
+        except AssertionError:
+            continue
+        if needle in rule:
+            found.append(width)
+    return found
 
 
 def _yaml_step(src, name):
@@ -213,21 +243,190 @@ def test_the_tablet_layout_is_the_default_not_the_exception():
 
 
 def test_the_tab_bar_does_not_stretch_with_the_column():
-    """Stretched to 720px the tab bar is five icons a thumb apart.
+    """Stretched wide the tab bar is five icons a thumb apart.
 
-    The inset expression has to hold in BOTH skins: `100%` resolves against
-    the transformed <body>, so it is (720-420)/2 in the tablet column, while
-    inside the 390px desk frame the calc goes negative and max() hands back
-    the phone's own 12px. Losing it makes the iPad tab bar sparse and blows
-    the active-tab bubble up to ~136px wide.
+    The inset expression has to hold in every skin: `100%` resolves against
+    the transformed <body> above 721px, so it is (720-420)/2 in the tablet
+    column, and against the viewport below it; inside the 390px desk frame
+    the calc goes negative and max() hands back the phone's own 12px. Losing
+    it makes the tab bar sparse and blows the active-tab bubble up to ~136px
+    wide.
     """
-    shared = _block(STYLE_CSS.read_text(encoding="utf-8"), SHARED)
-    tabbar = _rule(shared, ".mobile-tabbar")
+    tabbar = _rule(_block(STYLE_CSS.read_text(encoding="utf-8"), TABBAR_CAP),
+                   ".mobile-tabbar")
 
     assert "420px" in tabbar, "the tab bar must be capped, not full-width"
     assert tabbar.count("max(12px") == 2, (
         "both left and right insets must fall back to the phone's 12px when "
         "the box is narrower than the bar"
+    )
+
+
+def test_the_tab_bar_cap_also_covers_the_split_view_band():
+    """The cap must start ABOVE the phone breakpoint, not at 721px.
+
+    It used to live in the `min-width: 721px` block, which left 481-720px
+    uncovered -- and that band is exactly where an iPad sits in Split View.
+    Measured before this moved: a 720px viewport rendered a 696px-wide bar
+    that snapped to 420px at 721px, so dragging a split-view divider across
+    the boundary jumped the bar by 276px, and everywhere below it the five
+    destinations were spread across the full width of a tablet.
+
+    This test pins only where the cap STARTS. It deliberately does not claim
+    to catch a moved phone breakpoint -- an earlier version of this docstring
+    did, and that was wrong: widening `max-width: 480px` to 520px while
+    leaving the cap at 481 left every test here green while the cap silently
+    stripped the 8px gutters off real phones. Pinning the two breakpoints
+    against each other is test_the_tab_bar_inset_breakpoints_are_adjacent's
+    job, and the cascade is
+    test_the_tab_bar_cap_is_the_last_word_on_the_bar_insets'.
+    """
+    src = STYLE_CSS.read_text(encoding="utf-8")
+
+    headers = re.findall(
+        r"@media\s*\(min-width:\s*(\d+)px\s*\)\s*\{", src
+    )
+    caps = []
+    for width in sorted({int(w) for w in headers}):
+        header = "@media (min-width: " + str(width) + "px) {"
+        if header not in src:
+            continue
+        try:
+            rule = _rule(_block(src, header), ".mobile-tabbar")
+        except AssertionError:
+            continue
+        if "420px" in rule:
+            caps.append(width)
+
+    assert caps, "no min-width block caps .mobile-tabbar at 420px any more"
+
+    start = min(caps)
+    # Over integers these two bounds are exactly `start == 481`, which is the
+    # intent -- written as a pair so a failure says WHICH way it went wrong.
+    assert start <= 481, (
+        "the tab-bar cap starts at " + str(start) + "px, so the "
+        "481-" + str(start - 1) + "px split-view band still gets a bar "
+        "stretched to the full viewport width. That band is where a tablet "
+        "sits in Split View."
+    )
+    assert start > 480, (
+        "the cap starts at " + str(start) + "px, at or below the 480px phone "
+        "breakpoint -- that restyles the primary platform, which this "
+        "deliberately does not do. If the phone breakpoint itself moved, fix "
+        "that first: test_the_tab_bar_inset_breakpoints_are_adjacent is the "
+        "one that keeps the pair in step."
+    )
+
+
+def test_the_tab_bar_inset_breakpoints_are_adjacent():
+    """The phone gutters and the cap are a PAIR; neither may move alone.
+
+    `@media (max-width: 480px)` tightens the bar's insets to 8px on the
+    narrowest phones, and the cap block centres it from 481px up. Both
+    write `.mobile-tabbar`'s left/right at the same specificity, so they
+    are only correct while they are exactly adjacent.
+
+    "Adjacent" here means integer-adjacent (481 == 480 + 1), which is the
+    house convention -- the same `max-width: 480px` block already gates
+    `.app` padding and `.mt-fab` the same way. It is not strictly what CSS
+    considers gapless: (480, 481) is an open interval matched by neither
+    rule. That is unreachable in practice (Chromium rounds the layout
+    viewport to integer CSS px; page zoom is the only route, and the damage
+    is a 36px-too-wide bar across a sub-pixel band), but if anyone ever
+    writes the pedantically-correct pairing -- `min-width: 480.02px`, or
+    `not all and (max-width: 480px)` -- this test will fail them for being
+    right. Update it deliberately if that day comes; do not widen it to
+    paper over a real gap.
+
+    A GAP between them is the split-view bug this change fixes, one band
+    further down: those widths fall back to the base `left: 12px` and the
+    bar stretches to the whole window again.
+
+    An OVERLAP is worse and much quieter. The cap block is later in the
+    file, so in any overlapping band it wins on source order and takes the
+    8px gutters away from real phones -- the one thing the cap's own
+    comment promises it does not do, failing with no error anywhere.
+
+    The test above pins the cap at 481 against a hardcoded 480, so it
+    cannot see either case: widening the phone breakpoint to 520 and
+    leaving the cap at 481 passes it (checked -- it does). This one reads
+    BOTH numbers out of the stylesheet, so the pair has to move together.
+    """
+    src = STYLE_CSS.read_text(encoding="utf-8")
+
+    phones = _media_widths_styling(src, "max-width", ".mobile-tabbar",
+                                   "left: 8px")
+    caps = _media_widths_styling(src, "min-width", ".mobile-tabbar", "420px")
+
+    assert phones, (
+        "no max-width block tightens .mobile-tabbar's gutters to 8px any "
+        "more. That rule is half of a matched pair -- if it moved or went "
+        "away, re-check the cap block's lower bound against wherever the "
+        "phone gutters live now."
+    )
+    assert caps, "no min-width block caps .mobile-tabbar at 420px any more"
+
+    phone, cap = max(phones), min(caps)
+    assert cap == phone + 1, (
+        "the phone gutters stop at " + str(phone) + "px and the tab-bar cap "
+        "starts at " + str(cap) + "px. Those have to be adjacent: "
+        + ("a gap leaves " + str(phone + 1) + "-" + str(cap - 1) + "px on the "
+           "base `left: 12px`, so the bar stretches to the full window there "
+           "-- the same full-width bar in a narrower band"
+           if cap > phone + 1 else
+           "they overlap over " + str(cap) + "-" + str(phone) + "px, where the "
+           "cap is later in the file and silently overrides the 8px phone "
+           "gutters it is explicitly not supposed to touch")
+    )
+
+
+def test_the_tab_bar_cap_is_the_last_word_on_the_bar_insets():
+    """The cap beats the base rule on SOURCE ORDER and nothing else.
+
+    `.mobile-tabbar { left: 12px; right: 12px }` in the `@media all` block
+    and the cap's own `.mobile-tabbar` are the same selector at the same
+    specificity, and a media query adds none. So the only reason the cap
+    applies at all is that it is written later in the file.
+
+    That makes the cap block's POSITION load-bearing in a way nothing about
+    it looks: moved above the `@media all` block -- a plausible tidy-up,
+    since it reads like a companion to the breakpoint rules up there -- the
+    base 12px wins again and the cap is dead at every width, with the block
+    still present, still spelled correctly, and every other assertion in
+    this file still green (checked -- all 15 passed on exactly that move).
+
+    Pinned as "last", not "after the base rule", because a NEW inset rule
+    added below the cap would break it the same way and deserves the same
+    look.
+    """
+    src = re.sub(r"/\*.*?\*/", "", STYLE_CSS.read_text(encoding="utf-8"),
+                 flags=re.S)
+
+    # Only the rules that actually write an inset. `.mobile-tabbar`'s other
+    # rules (the sheet-open recede, the an-result hide) set no left/right
+    # and cannot override anything here.
+    insets = [
+        (m.start(), m.group(1))
+        for m in re.finditer(r"\.mobile-tabbar\s*\{([^{}]*)\}", src)
+        if re.search(r"\bleft\s*:", m.group(1))
+    ]
+    assert len(insets) >= 2, (
+        "expected at least the base inset and the 420px cap to write "
+        f".mobile-tabbar's insets, found {len(insets)}"
+    )
+
+    caps = [at for at, body in insets if "420px" in body]
+    assert len(caps) == 1, (
+        f"expected exactly one 420px tab-bar cap, found {len(caps)}. Two "
+        "would mean the later one silently decides the width."
+    )
+
+    assert caps[0] == max(at for at, _ in insets), (
+        "the 420px cap is not the last rule in style.css to set "
+        ".mobile-tabbar's left/right. Everything that writes those insets "
+        "is `.mobile-tabbar` at identical specificity, so whichever comes "
+        "last wins outright -- a cap written above the base `left: 12px` "
+        "is inert at every width and shows no error at all."
     )
 
 
