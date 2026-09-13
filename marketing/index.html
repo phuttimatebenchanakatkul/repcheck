@@ -91,7 +91,7 @@
       <button class="feature" type="button" data-feature="5" aria-pressed="false">
         <span class="feature-head"><span class="idx">06</span><span class="feature-title">Friends</span></span>
       </button>
-      <p class="hint">Tap a feature to watch it in the phone →</p>
+      <p class="hint">Tap a feature to try it in the phone →</p>
       <!--
         The handset shows made-up numbers, names and race times -- a product
         mockup, which is normal, but an unlabelled screenshot of "results" is
@@ -118,14 +118,104 @@
             </video>
           </div>
 
-          <div class="screen screen--video" data-screen="1">
-            <video id="foodlog-demo" muted playsinline loop
-                   preload="metadata" poster="assets/foodlog-demo-poster.jpg"
-                   aria-label="Screen recording of RepCheck logging a meal: a food is searched for, jasmine rice is picked, the portion is set to 252 g, and the day's calories and macros update.">
-              <source src="assets/foodlog-demo.webm" type="video/webm">
-              <source src="assets/foodlog-demo.mp4" type="video/mp4">
-            </video>
+          <!-- Feature 02 is not a recording: this food log actually works.
+               Search the real library (every per-100g value below is lifted
+               from food_library.py), set an amount in servings, grams or
+               ounces, and the day's ring, macro bars and entry list all move
+               with it -- the same three steps the app itself asks for.
+               app.js drives it through the data-nl hooks and writes only
+               numbers and list rows into elements that already exist; the
+               markup here is the empty day the app opens on, which is also
+               what a visitor with no JS sees. -->
+          <div class="screen screen--nl" data-screen="1" id="nl-screen">
+            <div class="scr-head"><b>Nutrition</b><span class="avatar">J</span></div>
+
+            <div class="card">
+              <div class="row"><span class="date">TODAY</span><span class="pill">1,802 kcal goal</span></div>
+              <div class="nl-ring">
+                <svg class="nl-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+                  <circle class="nl-ring-track" cx="60" cy="60" r="52"></circle>
+                  <circle class="nl-ring-fill" id="nl-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="0 326.73"></circle>
+                </svg>
+                <div class="nl-ring-center">
+                  <b id="nl-left">1,802</b>
+                  <span class="ring-label">KCAL LEFT</span>
+                  <span class="nl-ring-sub" id="nl-eaten">0 of 1,802</span>
+                </div>
+              </div>
+              <div class="macros">
+                <div class="mac"><span>PROTEIN</span><b id="nl-mac-p">0 / 135g</b><i><em class="nl-fill-p" id="nl-bar-p"></em></i></div>
+                <div class="mac"><span>FAT</span><b id="nl-mac-f">0 / 60g</b><i><em class="nl-fill-f" id="nl-bar-f"></em></i></div>
+                <div class="mac"><span>CARBS</span><b id="nl-mac-c">0 / 180g</b><i><em class="nl-fill-c" id="nl-bar-c"></em></i></div>
+              </div>
+            </div>
+
+            <button type="button" class="cta-blue" data-nl="open-search">+ Log a food</button>
+
+            <div class="nl-day">
+              <div class="row"><span class="section-label">Today</span><span class="sub" id="nl-count">Nothing logged</span></div>
+              <div class="nl-entries" id="nl-entries">
+                <div class="empty"><span class="blob"></span><b>Nothing logged yet</b><span class="sub">Search a food, set the amount — the ring moves with it.</span></div>
+              </div>
+            </div>
+
+            <p class="nl-toast" id="nl-toast" role="status" aria-live="polite"></p>
+
+            <!-- Both sheets live in the markup from the start and slide up on
+                 demand. Closed they are visibility:hidden, so they are out of
+                 the tab order and out of the accessibility tree rather than
+                 parked off-screen where a keyboard could still reach them. -->
+            <div class="nl-sheet nl-sheet--search" id="nl-search-sheet">
+              <span class="grab"></span>
+              <div class="nl-sheet-head">
+                <b class="card-title">Log a food</b>
+                <button type="button" class="nl-x" data-nl="close" aria-label="Close">&times;</button>
+              </div>
+              <input type="text" class="nl-input" id="nl-query" placeholder="Search foods" autocomplete="off" spellcheck="false" aria-label="Search foods">
+              <div class="nl-results" id="nl-results"></div>
+            </div>
+
+            <div class="nl-sheet nl-sheet--amount" id="nl-amount-sheet">
+              <span class="grab"></span>
+              <div class="nl-sheet-head">
+                <b class="card-title" id="nl-food-name">Food</b>
+                <button type="button" class="nl-x" data-nl="back" aria-label="Back to search">&times;</button>
+              </div>
+              <div class="nl-donut-row">
+                <div class="nl-donut-wrap">
+                  <!-- The ring shows the macro SPLIT (share of calories from
+                       each macro), exactly as the app draws it -- a gram of
+                       fat is 9 kcal against a carb or protein gram's 4, so
+                       plotting grams would misread the balance. -->
+                  <svg class="nl-donut" viewBox="0 0 120 120" aria-hidden="true">
+                    <circle class="nl-donut-track" cx="60" cy="60" r="46"></circle>
+                    <circle class="nl-donut-seg nl-seg-p" id="nl-seg-p" cx="60" cy="60" r="46" transform="rotate(-90 60 60)"></circle>
+                    <circle class="nl-donut-seg nl-seg-f" id="nl-seg-f" cx="60" cy="60" r="46" transform="rotate(-90 60 60)"></circle>
+                    <circle class="nl-donut-seg nl-seg-c" id="nl-seg-c" cx="60" cy="60" r="46" transform="rotate(-90 60 60)"></circle>
+                  </svg>
+                  <div class="nl-donut-center"><b id="nl-donut-kcal">0</b><span class="nl-donut-label">Calories</span></div>
+                </div>
+                <div class="nl-legend">
+                  <div class="nl-legend-row"><span class="nl-dot nl-fill-p"></span><b id="nl-pct-p">0%</b><span class="sub">Protein</span><em id="nl-g-p">0g</em></div>
+                  <div class="nl-legend-row"><span class="nl-dot nl-fill-f"></span><b id="nl-pct-f">0%</b><span class="sub">Fat</span><em id="nl-g-f">0g</em></div>
+                  <div class="nl-legend-row"><span class="nl-dot nl-fill-c"></span><b id="nl-pct-c">0%</b><span class="sub">Carbs</span><em id="nl-g-c">0g</em></div>
+                </div>
+              </div>
+              <div class="nl-amount">
+                <div class="row"><span class="card-title">Amount</span><span class="sub" id="nl-serving-hint">1 serving = 100g</span></div>
+                <div class="nl-amount-row">
+                  <input type="text" inputmode="decimal" id="nl-amount" value="1" aria-label="Amount">
+                  <div class="nl-unit-seg">
+                    <button type="button" data-nl="unit" data-unit="serving" class="is-active" aria-pressed="true">serving</button>
+                    <button type="button" data-nl="unit" data-unit="g" aria-pressed="false">g</button>
+                    <button type="button" data-nl="unit" data-unit="oz" aria-pressed="false">oz</button>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="cta-blue" data-nl="add">Add to log</button>
+            </div>
           </div>
+
 
           <div class="screen" data-screen="2">
             <div class="scr-head"><b>Hey James</b><span class="avatar">J</span></div>
