@@ -1327,6 +1327,10 @@ button.stchip:hover { background: #34343a; }
 .rc-pricing .rc-plan-line { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
 .rc-pricing .rc-plan-list { margin: 16px 0 0; }
 .rc-pricing .rc-plan-list li { font-size: 15.5px; }
+/* The one line in the Free column describing something it does NOT include.
+   Muted rather than struck through: there is no former price or former
+   feature here to cross out, and a strikethrough would imply one. */
+.rc-pricing .rc-plan-no { color: var(--muted); }
 
 .rc-annual {
   margin: 26px 0 0;

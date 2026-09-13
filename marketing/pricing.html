@@ -19,8 +19,18 @@
       workout_analysis  (1, 24h)     -> 1 form analysis a day
       food_analysis     (3, 24h)     -> 3 meal scans a day
       ai_chat           (3, 24h)     -> 3 coach messages a day
-      split_generation  (10, 24h)    -> 10 training plans a day
-      hyrox_analysis    (8, 5h)      -> 8 race analyses every 5 hours
+      split_generation  (2, 24h)     -> 2 training plans a day
+
+  The weekly check-in is in the Free column as uncapped because it genuinely
+  is: /api/coaching/weekly-adjustment never calls _rate_limit_blocked, so it
+  is counted against nothing.
+
+  HYROX IS THE ONE LINE HERE THAT DESCRIBES INTENT RATHER THAN BEHAVIOUR.
+  hyrox_analysis is still (8, 5h) for every account, because there is no tier
+  system to gate it with -- no is_pro column, no payment code, so every
+  account is Free and "Pro only" would mean "nobody". The scope note below
+  says this in as many words rather than letting the table imply otherwise.
+  When an entitlement flag exists, gate the route and delete that sentence.
 
   If those change, change them here in the same commit. A pricing page that
   overstates the free limits is selling Pro on a number that is not true, and
@@ -54,10 +64,13 @@
 
   <div class="legal-scope">
     <p><strong>Pro is not on sale yet.</strong> RepCheck has no payment system
-    today &mdash; there is nothing to buy, and nothing to cancel. The prices
-    below are what Pro will cost when it launches, published early so nobody
-    joins the waitlist expecting a different number. Everything described
-    under Free is live in the app right now.</p>
+    today &mdash; there is nothing to buy, and nothing to cancel. The split
+    below is how Free and Pro will work once Pro launches, with the prices
+    published early so nobody joins the waitlist expecting a different
+    number.</p>
+    <p>Every daily limit under Free is live in the app right now. The one
+    thing not yet split is the HYROX race simulator: today it is open to every
+    account, and it becomes a Pro feature at launch.</p>
   </div>
 
   <div class="rc-plans">
@@ -70,10 +83,12 @@
         <li><b>3</b> meal photo scans a day</li>
         <li><b>3</b> AI coach messages a day, shared across the coach, the
           analysis follow-ups and the workout-log chat</li>
-        <li><b>10</b> training plans a day</li>
-        <li><b>8</b> HYROX race analyses every 5 hours</li>
-        <li>Workout log, nutrition log, weekly check-in, HYROX simulator and
-          friends &mdash; all of it, uncapped</li>
+        <li><b>2</b> training plans a day</li>
+        <li><b>Weekly check-ins</b> &mdash; as many as you like, and never
+          counted against any of the above</li>
+        <li>Workout log, nutrition log and friends &mdash; all of it,
+          uncapped</li>
+        <li class="rc-plan-no">No HYROX race simulator</li>
       </ul>
     </section>
 
@@ -86,7 +101,8 @@
         <li><b>Unlimited</b> form analysis</li>
         <li><b>Unlimited</b> meal photo scans</li>
         <li><b>Unlimited</b> AI coach messages</li>
-        <li><b>Unlimited</b> training plans and HYROX race analyses</li>
+        <li><b>Unlimited</b> training plans</li>
+        <li>The <b>HYROX race simulator</b>, and race analysis</li>
         <li>Priority AI processing</li>
         <li>Everything in Free</li>
       </ul>

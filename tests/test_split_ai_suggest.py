@@ -313,7 +313,7 @@ def _logged_in_client():
     user_id = existing["id"] if existing else database.create_local_user(
         "split-endpoint@example.com", "irrelevant-password", "Split Endpoint Tester"
     )
-    # This account calls a rate-limited endpoint (split_generation: 10/day)
+    # This account calls a rate-limited endpoint (split_generation: 2/day)
     # and this test module runs it against the REAL repcheck.db, not an
     # isolated one -- there is no fixture here that gives it its own DB the
     # way test_account_deletion.py's `db` fixture does. Because the account
