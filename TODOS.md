@@ -1030,6 +1030,55 @@ of the App Review rejection. Not a live failure yet.
 **Priority:** P2
 **Depends on:** None
 
+## Marketing
+
+### The food log demo's two sheets have no dialog role or focus trap
+
+**What:** `#nl-search-sheet` and `#nl-amount-sheet` (`marketing/index.html`,
+driven by `marketing/app.js`) slide over the food-log screen but carry no
+`role="dialog"`/`aria-modal="true"`, and nothing traps Tab inside them while
+open. A keyboard user can Tab past the last field in an open sheet into the
+feature list and stats band behind it, which reads as still being "in" the
+sheet with no visual cue that focus left it.
+
+**Why:** This diff was otherwise careful about keyboard behaviour on this
+exact screen -- closing a sheet returns focus to the button that opened it,
+and a stray hover no longer swaps the screen away mid-interaction -- so the
+missing trap is the one keyboard gap left in an area that got real attention
+everywhere else.
+
+**Context:** Flagged (INVESTIGATE) by the Claude adversarial subagent during
+`/ship`'s review of the marketing interactive food log. Not fixed inline: a
+real focus trap for two different sheet shapes (a live-filtered list vs. a
+static form) is more than a mechanical fix, and this is a pre-launch demo
+page, not the app itself.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+### Macro-key table duplicated between nlRenderAmount and nlRenderDay
+
+**What:** `marketing/app.js`'s food-log donut (`nlRenderAmount`) and day
+totals (`nlRenderDay`) each spell out the protein/fat/carbs key-to-field
+mapping separately -- an array of `{key, frac, grams}` objects in one, a
+`[["p","protein"], ["f","fat"], ["c","carbs"]]` list in the other -- along
+with the bare 4/9/4 Atwater factors used only in the first.
+
+**Why:** Adding a fourth tracked macro, or renaming a key, means finding and
+updating both call sites; nothing enforces that they stay in sync today.
+
+**Context:** Flagged by the maintainability specialist during `/ship`'s
+review of the marketing interactive food log. Not fixed inline (confidence
+6/10, and the two renderers compute genuinely different things from the
+same three keys -- a shared table is a real simplification but touches
+both hot paths of a feature that had just been through several rounds of
+review).
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
 ## Completed
 
 ### Rapid double-tap on a sheet-opening button can leak a scroll-lock
