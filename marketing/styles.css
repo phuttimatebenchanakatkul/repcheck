@@ -1162,7 +1162,17 @@ button.stchip:hover { background: #34343a; }
   background: var(--paper);
   animation: rc-loader-out 0.62s cubic-bezier(0.65, 0, 0.35, 1) 1.9s forwards;
 }
-.rc-loader.is-done { animation: rc-loader-out 0.62s cubic-bezier(0.65, 0, 0.35, 1) forwards; }
+/* A DIFFERENT animation-name from the rule above, and that is the whole
+   point of it -- the two keyframe blocks are deliberately identical.
+   Changing any other animation property while the name stays the same does
+   not restart an animation, it just re-times the one already running. So
+   when this class landed at 1.5s, all it did was strip the 1.9s delay off an
+   animation whose 0.62s had "already elapsed", and the loader jumped to its
+   finished state in a single frame instead of lifting. A new name is a new
+   animation, which starts at nought.
+
+   Do not merge these two blocks back into one. */
+.rc-loader.is-done { animation: rc-loader-lift 0.62s cubic-bezier(0.65, 0, 0.35, 1) forwards; }
 /* Pulled up and off the top rather than dissolved, so the site is uncovered
    from the bottom edge of the screen upwards -- the loader behaves like a
    sheet being lifted off it. It stays fully opaque the whole way: fading it
@@ -1170,6 +1180,11 @@ button.stchip:hover { background: #34343a; }
    is the thing the movement is there to avoid. visibility at the end so a
    sheet parked off screen cannot take a click meant for the page. */
 @keyframes rc-loader-out {
+  to { transform: translateY(-100%); visibility: hidden; }
+}
+/* The same lift under a second name, for the reason given on .is-done above:
+   the name is what makes it a fresh animation rather than a re-timed one. */
+@keyframes rc-loader-lift {
   to { transform: translateY(-100%); visibility: hidden; }
 }
 .rc-loader-inner {
@@ -1249,7 +1264,13 @@ button.stchip:hover { background: #34343a; }
 @media (prefers-reduced-motion: reduce) {
   /* The screen still goes, and sooner -- what it must not do is run on the
      spot in front of someone who asked for no motion. */
-  .rc-loader { animation: rc-loader-out 0.01ms linear 0.4s forwards; }
+  /* .is-done has to be named here too. It is a two-class selector, so it
+     outweighs a bare .rc-loader no matter that this block sits in a media
+     query -- a media query adds no weight of its own. Without it, the moment
+     the script added that class the sheet went back to travelling for 0.62s
+     in front of someone who had asked for no motion. */
+  .rc-loader,
+  .rc-loader.is-done { animation: rc-loader-out 0.01ms linear 0.4s forwards; }
   .rc-ghost-run,
   .rc-ghost-speed line,
   .rc-scroll-cue::after { animation: none; }
