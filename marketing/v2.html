@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RepCheck &mdash; your form, your food, your training week checked</title>
+<meta name="description" content="RepCheck watches your lifts on a phone video, reads your meals from a photo, and rewrites next week from what actually happened. Join the early-access waitlist.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="favicon.png" type="image/png">
+<!-- Self-hosted, same as index.html: this page makes ZERO third-party
+     requests on load, which is what lets cookies.html say the site contacts
+     no other company and ship without a consent banner. Do not swap these
+     for a fonts.googleapis.com link. -->
+<link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="v2.css">
+</head>
+<body>
+
+<!-- ---------- loading screen ----------
+     Full-bleed brand blue, a kicker pill, the spinning badge, the wordmark.
+     It dismisses itself in CSS (see .loader's animation), so a JS failure or
+     a blocked script can never leave a visitor staring at a blank blue page
+     -- v2.js only ever makes it leave EARLIER, once the page has loaded. -->
+<div class="loader" id="loader" role="status" aria-live="polite" aria-label="Loading RepCheck">
+  <div class="loader-inner">
+    <span class="pill pill-gold loader-kicker">&#9733; Form &middot; Food &middot; Week &#9733;</span>
+    <div class="loader-badge" aria-hidden="true">
+      <svg class="loader-ring" viewBox="0 0 120 120">
+        <defs>
+          <path id="badge-arc" d="M60,60 m-44,0 a44,44 0 1,1 88,0 a44,44 0 1,1 -88,0"></path>
+        </defs>
+        <text class="loader-ring-text">
+          <!-- Sized to ONE loop: the arc's circumference is ~276 units and
+               each character costs ~8.6 at this size and tracking, so ~32
+               characters is the budget. Overrun it and the string laps
+               itself and reads as gibberish. -->
+          <textPath href="#badge-arc" startOffset="0">
+            REPCHECK &middot; FORM &middot; FOOD &middot; WEEK &middot;
+          </textPath>
+        </text>
+      </svg>
+      <span class="loader-monogram">RC</span>
+    </div>
+    <p class="loader-word">RepCheck</p>
+    <p class="loader-tagline">Trained on what you actually did</p>
+    <div class="loader-bar" aria-hidden="true"><i></i></div>
+  </div>
+</div>
+
+<a class="skip-link" href="#waitlist">Skip to the waitlist</a>
+
+<header class="nav" id="top">
+  <a class="nav-brand" href="#top">
+    <span class="nav-mark" aria-hidden="true">RC</span>
+    <span class="nav-word">RepCheck</span>
+  </a>
+  <nav class="nav-links" aria-label="Sections">
+    <a href="#what">What it does</a>
+    <a href="#proof">The method</a>
+    <a href="#numbers">Inside</a>
+  </nav>
+  <a class="pill-btn" href="#waitlist">Join the waitlist <span aria-hidden="true">&rarr;</span></a>
+</header>
+
+<!-- ---------- hero ---------- -->
+<section class="hero">
+  <p class="kicker">&#9733; Est. 2026 &middot; Built in Bangkok &#9733;</p>
+
+  <div class="hero-type">
+    <!-- The ghosted wordmark sitting behind the headline, same trick as the
+         reference: one word, tinted back into the cream, deliberately
+         oversized and clipped by the section. -->
+    <span class="hero-ghost" aria-hidden="true">RepCheck</span>
+    <h1 class="display">
+      <span class="display-line">Your form.</span>
+      <span class="display-line">Your food.</span>
+      <span class="display-line">Your week<span class="dot">.</span></span>
+    </h1>
+    <span class="sticker sticker-a" aria-hidden="true">Every rep scored</span>
+    <span class="sticker sticker-b" aria-hidden="true">Thai food too</span>
+  </div>
+
+  <p class="hero-lede">RepCheck watches your lifts on a phone video, reads your meals from a photo, and rewrites next week from what actually happened. One app instead of five.</p>
+
+  <div class="hero-actions">
+    <a class="pill-btn pill-btn-lg" href="#waitlist">Join the waitlist <span aria-hidden="true">&rarr;</span></a>
+    <p class="hero-availability">Not on the App Store yet &mdash; the waitlist is how you get in first.</p>
+  </div>
+</section>
+
+<!-- Wavy divider, cream -> blue. Decorative only. -->
+<div class="wave wave-to-blue" aria-hidden="true">
+  <svg viewBox="0 0 1440 90" preserveAspectRatio="none"><path d="M0,60 C160,90 300,10 480,26 C660,42 780,96 960,80 C1120,66 1300,14 1440,34 L1440,90 L0,90 Z"></path></svg>
+</div>
+
+<!-- ---------- the method (blue statement) ---------- -->
+<section class="band" id="proof">
+  <p class="pill pill-gold band-kicker">&#9733; The anatomy of a week &#9733;</p>
+  <h2 class="display display-invert">
+    <span class="display-line">Every rep scored</span>
+    <span class="display-line">against the real</span>
+    <span class="display-line">standard<span class="dot">.</span></span>
+  </h2>
+  <p class="band-lede">Not a vibe check. RepCheck grades depth, tempo and lockout against the movement&rsquo;s actual criteria, then ranks the fixes by what will move your numbers first.</p>
+
+  <ol class="steps">
+    <li class="step">
+      <span class="step-no">01</span>
+      <h3>Film the set</h3>
+      <p>One phone, any angle you can prop. No markers, no gym rig, no second person.</p>
+    </li>
+    <li class="step">
+      <span class="step-no">02</span>
+      <h3>Get the report</h3>
+      <p>Rep-by-rep scoring against the movement&rsquo;s standards, with the fixes ordered by impact.</p>
+    </li>
+    <li class="step">
+      <span class="step-no">03</span>
+      <h3>Next week changes</h3>
+      <p>The plan rewrites itself from what you actually lifted and ate, not what you planned to.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="wave wave-to-cream" aria-hidden="true">
+  <svg viewBox="0 0 1440 90" preserveAspectRatio="none"><path d="M0,40 C180,6 320,78 500,64 C680,50 800,0 980,16 C1140,30 1300,82 1440,52 L1440,0 L0,0 Z"></path></svg>
+</div>
+
+<!-- ---------- feature cards ---------- -->
+<section class="what" id="what">
+  <div class="section-head">
+    <p class="pill pill-blue">&#9733; Six parts, one week &#9733;</p>
+    <h2 class="display display-sm">What it does</h2>
+  </div>
+
+  <div class="cards">
+    <article class="card">
+      <span class="card-tag">Form</span>
+      <span class="card-num">01</span>
+      <div class="card-art card-art-analyze" aria-hidden="true">
+        <span class="art-bar" style="--h:38%"></span>
+        <span class="art-bar" style="--h:64%"></span>
+        <span class="art-bar" style="--h:52%"></span>
+        <span class="art-bar" style="--h:88%"></span>
+        <span class="art-score">A&minus;</span>
+      </div>
+      <h3>Analyze a workout</h3>
+      <p>Film a set, get every rep scored against the movement&rsquo;s real standards and the fixes ranked.</p>
+    </article>
+
+    <article class="card card-featured">
+      <span class="card-tag card-tag-gold">Most used</span>
+      <span class="card-num">02</span>
+      <div class="card-art card-art-food" aria-hidden="true">
+        <span class="art-ring"><i></i><b>1,802</b><em>kcal</em></span>
+      </div>
+      <h3>Nutrition log</h3>
+      <p>Search 744 foods &mdash; Thai dishes included &mdash; or shoot the plate. Macros land in the day either way.</p>
+    </article>
+
+    <article class="card">
+      <span class="card-tag">Week</span>
+      <span class="card-num">03</span>
+      <div class="card-art card-art-week" aria-hidden="true">
+        <span class="art-day is-done">M</span>
+        <span class="art-day is-done">T</span>
+        <span class="art-day">W</span>
+        <span class="art-day is-done">T</span>
+        <span class="art-day is-today">F</span>
+        <span class="art-day">S</span>
+        <span class="art-day">S</span>
+      </div>
+      <h3>Weekly check-in</h3>
+      <p>Sunday night, the week gets read back to you and next week&rsquo;s plan is rewritten from it.</p>
+    </article>
+  </div>
+
+  <p class="card-note">Example data, for illustration &mdash; not a real user&rsquo;s results.</p>
+</section>
+
+<!-- ---------- marquee ---------- -->
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track">
+    <span>Film the set &#9733; Read the plate &#9733; Rewrite the week &#9733; Every rep scored &#9733; Thai food included &#9733; HYROX ready &#9733;</span>
+    <span>Film the set &#9733; Read the plate &#9733; Rewrite the week &#9733; Every rep scored &#9733; Thai food included &#9733; HYROX ready &#9733;</span>
+  </div>
+</div>
+
+<!-- ---------- stats ---------- -->
+<section class="numbers" id="numbers">
+  <div class="stat"><b>735</b><span>exercises in the library</span></div>
+  <div class="stat"><b>744</b><span>foods, Thai included</span></div>
+  <div class="stat"><b>8</b><span>HYROX stations tracked</span></div>
+  <div class="stat"><b>2</b><span>languages, EN &amp; TH</span></div>
+</section>
+
+<!-- ---------- waitlist ---------- -->
+<section class="cta" id="waitlist">
+  <p class="pill pill-gold">&#9733; Early access &#9733;</p>
+  <h2 class="display display-invert">
+    <span class="display-line">Be in the</span>
+    <span class="display-line">first group in<span class="dot">.</span></span>
+  </h2>
+
+  <form class="waitlist-form" id="waitlist-form" novalidate="">
+    <label class="sr-only" for="email">Email address</label>
+    <input type="email" id="email" name="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required="" aria-describedby="waitlist-note">
+    <button type="submit">Join <span aria-hidden="true">&rarr;</span></button>
+  </form>
+  <p class="form-note" id="waitlist-note" data-note="" role="status" aria-live="polite">No spam, no drip sequence. One email when we open the doors.</p>
+  <p class="form-consent">
+    By joining you agree we may email you once about RepCheck&rsquo;s launch, and to our
+    <a href="privacy.html">Privacy Policy</a>. Your address is stored by our form provider
+    and nothing else &mdash; see <a href="cookies.html">Cookies</a>.
+  </p>
+</section>
+
+<!-- ---------- footer ---------- -->
+<footer class="footer">
+  <div class="footer-top">
+    <div class="footer-group">
+      <span class="footer-brand">RepCheck</span>
+      <span>Training guidance only &mdash; not medical advice</span>
+    </div>
+    <div class="footer-group">
+      <nav class="footer-legal" aria-label="Legal">
+        <a href="privacy.html">Privacy</a>
+        <a href="cookies.html">Cookies</a>
+        <a href="terms.html">Terms</a>
+      </nav>
+      <span class="footer-operator">Operated by Phuttimate Benchanakatkul, Thailand &middot; <a href="mailto:phuttimatebenchanakatkul@gmail.com">contact</a></span>
+      <span>&copy; <span id="year">2026</span></span>
+    </div>
+  </div>
+  <p class="footer-word" aria-hidden="true">RepCheck</p>
+</footer>
+
+<script src="v2.js"></script>
+</body>
+</html>

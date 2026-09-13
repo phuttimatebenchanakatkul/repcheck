@@ -1,0 +1,411 @@
+/* RepCheck marketing, v2 -- a loud, poster-typography treatment.
+
+   The reference is the JACKTENDER build-along: full-bleed colour blocks with
+   giant condensed caps, ★-flanked pill kickers, wavy dividers between the
+   cream and the colour, rotated sticker badges over the headline, a ghosted
+   wordmark behind it, raised product cards, a scrolling marquee, and a
+   footer wordmark bleeding off the bottom edge. Everything here is that
+   language rebuilt in RepCheck's own palette (DESIGN.md's --blue / --green)
+   rather than a chicken shop's red, so the site and the app still read as
+   one product.
+
+   Two properties this file inherits from index.html and must keep:
+     * ZERO third-party requests. Fonts come from assets/fonts.css, served
+       first-party. cookies.html's "we contact no other company" claim -- and
+       the absence of a consent banner -- rests on that.
+     * No `outline: none` anywhere. Every focusable thing keeps a real ring;
+       the dark grounds get a light one instead of suppressing it.
+
+   Archivo's variable font here carries weight only (400-900, no width axis),
+   so the condensed-poster look is weight 900 + tight tracking + a small
+   horizontal squeeze on .display. That keeps the font payload at what the
+   site already ships. */
+
+:root {
+  /* Brand, from DESIGN.md -- the same hexes the app's own screens use. */
+  --blue: #2f66e8;
+  --blue-deep: #1b3f9c;
+  --blue-ink: #0e1f4d;
+  --green: #1fa971;
+  --gold: #f2c14e;
+
+  --cream: #f4f0e6;
+  --cream-deep: #e8e2d2;
+  --paper: #ffffff;
+  --ink: #12121a;
+
+  /* Text tokens, measured on the ground they actually sit on.
+     --ink on --cream is 15.8:1; --ink-soft is 6.4:1; --blue on --cream is
+     5.2:1. On the blue band, white is 5.3:1 and --gold is 7.4:1. Nothing
+     here is a decorative-only colour used for body copy. */
+  --ink-soft: #4a4a55;
+  --on-blue-soft: #d5e0fb;
+
+  --shadow-card: 0 18px 40px rgba(18, 18, 26, .14);
+  --shadow-lift: 0 26px 60px rgba(18, 18, 26, .22);
+
+  --edge: 5vw;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: Archivo, "Helvetica Neue", Helvetica, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, ol, ul { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; }
+img, svg { max-width: 100%; }
+::selection { background: var(--blue); color: #fff; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus { left: 12px; top: 12px; z-index: 200; background: var(--ink); color: #fff; padding: 10px 14px; }
+
+/* One ring for everything keyboard-reachable, and a light variant wherever
+   the ground goes dark -- ink measures ~1.3:1 on the blue band. */
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+.band :focus-visible,
+.footer :focus-visible,
+.cta :focus-visible,
+.marquee :focus-visible,
+.pill-btn:focus-visible { outline-color: var(--paper); }
+
+/* ---------- shared bits ---------- */
+.mono, .kicker, .pill, .card-tag, .card-num, .step-no, .stat span, .footer-group span, .card-note {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+.pill {
+  display: inline-flex; align-items: center; gap: .5em;
+  padding: 9px 16px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.pill-gold { background: var(--gold); color: #3a2c05; }
+.pill-blue { background: var(--blue); color: #fff; }
+
+.pill-btn {
+  display: inline-flex; align-items: center; gap: .5em;
+  padding: 13px 22px 12px; border-radius: 999px;
+  background: var(--blue); color: #fff;
+  font-size: 13px; font-weight: 700; letter-spacing: -.01em;
+  box-shadow: 0 10px 24px rgba(47, 102, 232, .34);
+  transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease, background .18s ease;
+}
+.pill-btn:hover { transform: translateY(-2px); background: var(--blue-deep); box-shadow: 0 16px 32px rgba(47, 102, 232, .42); }
+.pill-btn-lg { padding: 17px 30px 16px; font-size: 15px; }
+
+/* The poster face. scaleX squeezes Archivo toward the condensed proportion
+   the reference uses; the transform-origin keeps lines left-aligned as they
+   compress. */
+.display {
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -.045em;
+  line-height: .84;
+  font-size: clamp(54px, 11.5vw, 178px);
+}
+.display-line {
+  display: block;
+  transform: scaleX(.94);
+  transform-origin: left center;
+}
+.display .dot { color: var(--blue); }
+.display-invert { color: var(--paper); }
+.display-invert .dot { color: var(--gold); }
+.display-sm { font-size: clamp(40px, 7vw, 92px); }
+
+.kicker {
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ---------- loading screen ----------
+   Dismissal lives in CSS, not JS: the animation fades the overlay out and
+   parks it at visibility:hidden / pointer-events:none, so a blocked or
+   broken v2.js can never leave a visitor looking at a blank blue rectangle.
+   v2.js only adds .is-done to end it sooner once the page has loaded. */
+.loader {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blue);
+  color: #fff;
+  animation: loader-out .5s ease 2.1s forwards;
+}
+.loader.is-done { animation: loader-out .45s ease forwards; }
+@keyframes loader-out {
+  to { opacity: 0; visibility: hidden; pointer-events: none; }
+}
+.loader-inner { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 24px; }
+.loader-kicker { animation: loader-rise .5s cubic-bezier(.2,.8,.2,1) both; }
+
+.loader-badge {
+  position: relative; width: 132px; height: 132px;
+  display: flex; align-items: center; justify-content: center;
+  animation: loader-rise .5s cubic-bezier(.2,.8,.2,1) .06s both;
+}
+/* The white disc has to clear the ring text orbiting it: the arc below
+   sits at r=44 in a 120-unit viewBox (73% of the radius), so the disc stops
+   at 62% and the two never overlap. */
+.loader-badge::before {
+  content: ""; position: absolute; inset: 25px;
+  border-radius: 50%; background: var(--paper);
+  box-shadow: 0 10px 30px rgba(14, 31, 77, .4);
+}
+.loader-ring { position: absolute; inset: 0; width: 100%; height: 100%; animation: loader-spin 9s linear infinite; }
+.loader-ring-text {
+  font-family: "JetBrains Mono", monospace; font-size: 10.5px; letter-spacing: .22em;
+  fill: rgba(255,255,255,.92);
+}
+.loader-monogram {
+  position: relative; font-weight: 900; font-size: 30px; letter-spacing: -.04em;
+  color: var(--blue);
+}
+@keyframes loader-spin { to { transform: rotate(360deg); } }
+
+.loader-word {
+  font-weight: 900; text-transform: uppercase; letter-spacing: -.035em;
+  font-size: clamp(38px, 9vw, 68px); line-height: 1;
+  transform: scaleX(.94);
+  animation: loader-rise .5s cubic-bezier(.2,.8,.2,1) .12s both;
+}
+.loader-tagline {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--on-blue-soft);
+  animation: loader-rise .5s cubic-bezier(.2,.8,.2,1) .18s both;
+}
+.loader-bar {
+  width: 168px; height: 4px; border-radius: 999px;
+  background: rgba(255,255,255,.24); overflow: hidden;
+  animation: loader-rise .5s cubic-bezier(.2,.8,.2,1) .24s both;
+}
+.loader-bar i { display: block; height: 100%; width: 40%; border-radius: 999px; background: var(--gold); animation: loader-fill 1.9s cubic-bezier(.4,0,.2,1) forwards; }
+@keyframes loader-fill { from { width: 6%; } to { width: 100%; } }
+@keyframes loader-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* ---------- nav ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: 14px var(--edge);
+  background: rgba(244, 240, 230, .86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(18,18,26,.08);
+}
+.nav-brand { display: inline-flex; align-items: center; gap: 10px; }
+.nav-mark {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--blue); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 900; letter-spacing: -.03em;
+}
+.nav-word { font-size: 19px; font-weight: 900; letter-spacing: -.035em; text-transform: uppercase; }
+.nav-links { display: flex; gap: 26px; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.nav-links a { padding-bottom: 2px; border-bottom: 2px solid transparent; transition: border-color .18s ease; }
+.nav-links a:hover { border-bottom-color: var(--blue); }
+
+/* ---------- hero ---------- */
+.hero { position: relative; padding: clamp(40px, 7vw, 84px) var(--edge) clamp(56px, 8vw, 104px); overflow: hidden; }
+.hero-type { position: relative; margin: 22px 0 0; }
+.hero-ghost {
+  position: absolute; left: -2%; top: 42%; z-index: 0;
+  font-size: clamp(120px, 26vw, 400px); font-weight: 900; text-transform: uppercase;
+  letter-spacing: -.06em; line-height: .8; white-space: nowrap;
+  color: rgba(47, 102, 232, .13);
+  pointer-events: none; user-select: none;
+}
+.hero h1 { position: relative; z-index: 1; }
+
+/* The rotated sticker badges that overlap the headline in the reference. */
+.sticker {
+  position: absolute; z-index: 2;
+  padding: 10px 15px 9px; border-radius: 12px;
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px; font-weight: 500; letter-spacing: .13em; text-transform: uppercase;
+  box-shadow: 5px 6px 0 var(--ink);
+  white-space: nowrap;
+}
+.sticker-a { top: 6%; right: 4%; transform: rotate(7deg); }
+.sticker-b { bottom: -4%; right: 8%; transform: rotate(-6deg); background: var(--gold); }
+
+.hero-lede { position: relative; z-index: 1; max-width: 46ch; margin-top: clamp(26px, 4vw, 44px); font-size: clamp(16px, 1.5vw, 19px); line-height: 1.55; color: var(--ink-soft); }
+.hero-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 18px 26px; margin-top: 30px; }
+.hero-availability { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); max-width: 34ch; margin: 0; }
+
+/* ---------- wavy dividers ---------- */
+.wave { line-height: 0; }
+.wave svg { display: block; width: 100%; height: clamp(44px, 6vw, 90px); }
+.wave-to-blue { background: var(--cream); }
+.wave-to-blue path { fill: var(--blue); }
+.wave-to-cream { background: var(--blue); }
+.wave-to-cream path { fill: var(--cream); }
+
+/* ---------- blue statement band ---------- */
+.band .display { font-size: clamp(42px, 7.2vw, 122px); }
+.band { background: var(--blue); color: #fff; padding: clamp(16px, 3vw, 34px) var(--edge) clamp(56px, 8vw, 96px); }
+.band-kicker { margin-bottom: 22px; }
+.band-lede { max-width: 52ch; margin-top: clamp(24px, 3vw, 36px); font-size: clamp(15px, 1.4vw, 18px); line-height: 1.6; color: var(--on-blue-soft); }
+
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 2px; margin-top: clamp(38px, 5vw, 60px); background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.22); }
+.step { background: var(--blue); padding: 26px 24px 30px; }
+.step-no { display: block; font-size: 11px; letter-spacing: .18em; color: var(--gold); margin-bottom: 14px; }
+.step h3 { font-size: clamp(20px, 2.2vw, 27px); font-weight: 900; text-transform: uppercase; letter-spacing: -.03em; margin-bottom: 10px; }
+.step p { font-size: 14px; line-height: 1.55; color: var(--on-blue-soft); }
+
+/* ---------- feature cards ---------- */
+.what { padding: clamp(40px, 6vw, 76px) var(--edge) clamp(30px, 4vw, 50px); }
+.section-head { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: clamp(34px, 4vw, 52px); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: clamp(18px, 2.4vw, 28px); align-items: end; }
+.card {
+  position: relative;
+  background: var(--paper); border-radius: 22px;
+  padding: 26px 24px 28px;
+  box-shadow: var(--shadow-card);
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease;
+}
+.card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lift); }
+/* The middle card rides higher than its neighbours, as in the reference. */
+.card-featured { box-shadow: var(--shadow-lift); }
+@media (min-width: 880px) { .card-featured { transform: translateY(-26px); } .card-featured:hover { transform: translateY(-32px); } }
+
+.card-tag {
+  position: absolute; top: 18px; left: 20px;
+  padding: 6px 11px 5px; border-radius: 999px;
+  background: var(--ink); color: #fff;
+  font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+}
+.card-tag-gold { background: var(--gold); color: #3a2c05; }
+.card-num { position: absolute; top: 20px; right: 22px; font-size: 11px; letter-spacing: .14em; color: rgba(18,18,26,.32); }
+.card h3 { margin: 20px 0 8px; font-size: clamp(21px, 2vw, 26px); font-weight: 900; text-transform: uppercase; letter-spacing: -.03em; }
+.card p { font-size: 14px; line-height: 1.55; color: var(--ink-soft); }
+
+.card-art { height: 148px; margin-top: 34px; border-radius: 16px; background: var(--cream); display: flex; align-items: center; justify-content: center; gap: 8px; }
+.card-art-analyze { align-items: flex-end; padding: 18px 20px; position: relative; }
+.art-bar { width: 15px; border-radius: 6px 6px 2px 2px; background: var(--blue); height: var(--h); opacity: .85; }
+.art-score { position: absolute; top: 16px; right: 18px; font-weight: 900; font-size: 26px; letter-spacing: -.04em; color: var(--green); }
+.art-ring {
+  position: relative; width: 112px; height: 112px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: conic-gradient(var(--blue) 0 62%, var(--cream-deep) 62% 100%);
+}
+.art-ring i { position: absolute; inset: 13px; border-radius: 50%; background: var(--paper); }
+.art-ring b { position: relative; font-size: 22px; font-weight: 900; letter-spacing: -.03em; }
+.art-ring em { position: relative; font-style: normal; font-family: "JetBrains Mono", monospace; font-size: 9.5px; letter-spacing: .16em; color: var(--ink-soft); }
+.card-art-week { gap: 6px; }
+.art-day {
+  width: 27px; height: 27px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--cream-deep); color: var(--ink-soft);
+  font-family: "JetBrains Mono", monospace; font-size: 10px;
+}
+.art-day.is-done { background: var(--green); color: #fff; }
+.art-day.is-today { background: transparent; border: 2px solid var(--blue); color: var(--blue); font-weight: 500; }
+
+.card-note { margin-top: 26px; font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* ---------- marquee ---------- */
+.marquee { margin-top: clamp(40px, 5vw, 70px); background: var(--blue); color: #fff; padding: 15px 0; overflow: hidden; }
+.marquee-track { display: flex; width: max-content; animation: marquee 28s linear infinite; }
+.marquee span {
+  padding-right: 2.5rem;
+  font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: .2em; text-transform: uppercase;
+  white-space: nowrap;
+}
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* ---------- stats ---------- */
+.numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); background: var(--cream); }
+.stat { padding: clamp(34px, 4.5vw, 58px) var(--edge); border-right: 1px solid rgba(18,18,26,.1); border-bottom: 1px solid rgba(18,18,26,.1); }
+.stat:last-child { border-right: none; }
+.stat b { display: block; font-size: clamp(46px, 6vw, 88px); font-weight: 900; letter-spacing: -.05em; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat span { display: block; margin-top: 12px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* ---------- waitlist ---------- */
+.cta { background: var(--blue); color: #fff; padding: clamp(56px, 8vw, 110px) var(--edge); }
+.cta .display { margin: 22px 0 clamp(30px, 4vw, 46px); }
+.waitlist-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; max-width: 640px; border-bottom: 3px solid rgba(255,255,255,.55); padding-bottom: 10px; }
+.waitlist-form input {
+  flex: 1 1 240px; border: none; background: transparent;
+  font-family: Archivo, sans-serif; font-size: clamp(19px, 2.4vw, 30px); font-weight: 600; letter-spacing: -.02em;
+  color: #fff; padding: 6px 0;
+}
+.waitlist-form input::placeholder { color: rgba(255,255,255,.62); }
+/* No `outline: none` anywhere on this site, not even paired with a
+   :focus-visible replacement -- tests/test_marketing_site_compliance.py
+   bans the declaration outright here (the app side allows the paired
+   pattern; this static site does not). The underline turning gold is an
+   addition to the ring, not a substitute for it. */
+.waitlist-form:focus-within { border-bottom-color: var(--gold); }
+.waitlist-form input:focus-visible { outline: 3px solid var(--paper); outline-offset: 6px; }
+.waitlist-form input[aria-invalid="true"] { color: var(--gold); }
+.waitlist-form button {
+  border: none; cursor: pointer; border-radius: 999px;
+  background: var(--paper); color: var(--blue-ink);
+  font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  padding: 15px 24px;
+  transition: transform .18s cubic-bezier(.2,.8,.2,1);
+}
+.waitlist-form button:hover { transform: translateY(-2px); }
+.waitlist-form button[disabled] { opacity: .65; cursor: default; transform: none; }
+.form-note { margin-top: 18px; font-size: 14px; color: var(--on-blue-soft); max-width: 52ch; }
+.form-note.is-error { color: var(--gold); }
+.form-note.is-ok { color: #bff0d8; }
+.form-consent { margin-top: 12px; font-size: 12.5px; line-height: 1.6; color: var(--on-blue-soft); max-width: 56ch; }
+.form-consent a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- footer ---------- */
+.footer { background: var(--ink); color: #fff; padding: clamp(40px, 5vw, 64px) var(--edge) 0; overflow: hidden; }
+.footer-top { display: flex; flex-wrap: wrap; gap: 26px 40px; justify-content: space-between; }
+.footer-group { display: flex; flex-direction: column; gap: 10px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.72); }
+.footer-brand { font-family: Archivo, sans-serif; font-size: 20px; font-weight: 900; letter-spacing: -.035em; color: #fff; text-transform: uppercase; }
+.footer-legal { display: flex; gap: 18px; }
+.footer-legal a { border-bottom: 1px solid rgba(255,255,255,.32); }
+.footer-legal a:hover { border-bottom-color: #fff; }
+.footer-operator a { border-bottom: 1px solid rgba(255,255,255,.32); }
+/* The wordmark bleeding off the bottom edge, as in the reference. */
+.footer-word {
+  margin: clamp(26px, 4vw, 48px) 0 -.18em;
+  font-size: clamp(74px, 20vw, 300px); font-weight: 900; text-transform: uppercase;
+  letter-spacing: -.055em; line-height: .8;
+  color: var(--blue);
+  transform: scaleX(.96); transform-origin: left bottom;
+  user-select: none;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 860px) {
+  :root { --edge: 22px; }
+  .nav-links { display: none; }
+  .sticker-a { top: -2%; right: 2%; }
+  .sticker-b { bottom: 2%; right: 4%; }
+  .hero-ghost { top: 48%; }
+}
+@media (max-width: 560px) {
+  .sticker { font-size: 9px; padding: 8px 11px 7px; box-shadow: 4px 5px 0 var(--ink); }
+  .waitlist-form input { font-size: 17px; } /* >=16px: stops iOS auto-zooming on focus */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .marquee-track, .loader-ring, .loader-bar i { animation: none; }
+  .loader-bar i { width: 100%; }
+  .loader-kicker, .loader-badge, .loader-word, .loader-tagline, .loader-bar { animation: none; opacity: 1; transform: none; }
+  /* The overlay still has to leave -- just without the motion around it. */
+  .loader { animation: loader-out .01ms linear .6s forwards; }
+  .card:hover, .pill-btn:hover, .waitlist-form button:hover { transform: none; }
+  * { transition-duration: .01ms !important; }
+}
