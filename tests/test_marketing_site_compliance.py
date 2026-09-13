@@ -37,7 +37,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 MARKETING = ROOT / "marketing"
 
-PAGES = ["index.html", "privacy.html", "cookies.html", "terms.html"]
+PAGES = ["index.html", "pricing.html", "privacy.html", "cookies.html", "terms.html"]
 
 
 def _read(name):
