@@ -2,6 +2,30 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.1.0] - 2026-09-13
+
+### Added
+
+- **A second marketing page to look at, at `/v2.html`.** Same words, same
+  claims, a much louder design: a full-bleed brand-blue loading screen with a
+  spinning badge, poster-scale headline type, wavy dividers between the cream
+  and the blue, rotated sticker badges over the hero, raised feature cards, a
+  scrolling marquee, and a footer wordmark bleeding off the bottom edge. The
+  live page at `/` is untouched — v2 is a preview to compare against it, and
+  it carries `noindex` so it cannot compete with the real page in search.
+- The preview keeps everything the live site is held to: zero third-party
+  requests (fonts stay self-hosted, so the cookie policy's "we contact no
+  other company" claim stays true), no suppressed focus rings, the
+  not-medical-advice line, the legal links, the operator identification, the
+  "example data" label on the mocked-up cards, and the honest availability
+  line under the waitlist CTA.
+- The loading screen dismisses itself in CSS rather than waiting on
+  JavaScript, so a blocked or broken script cannot leave a visitor staring at
+  a blank blue rectangle — `tests/test_marketing_v2_preview.py` pins that,
+  including the reduced-motion path, where a blanket `animation: none` would
+  otherwise black the site out for exactly the people the setting is meant to
+  help.
+
 ## [0.12.0.0] - 2026-09-13
 
 ### Added
