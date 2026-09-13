@@ -2,6 +2,26 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.3.0] - 2026-09-13
+
+### Fixed
+
+- **The pose overlay now uses MediaPipe's full landmarker instead of lite.**
+  The previous fix (v0.12.2.0) put the skeleton on the right clock; this
+  fixes the other half of "doesn't align" -- the model itself losing track
+  of limbs. Measured on a real clip from this repo, lite's worst-case
+  off-track jitter was 118.5px on a 284px-wide frame (a limb snapping nearly
+  half the frame away from the body); full's was 25.9px, with the average
+  case improving too (5.0px -> 3.5px). Costs ~3.6MB on first load (cached
+  after) and detects at roughly half the rate, which the v0.12.2.0 renderer
+  already absorbs by placing the body between detections rather than only on
+  arrival.
+
+  The gap tolerance that decides when to give up on a pair of samples moved
+  from 0.5s to 0.9s to match full's slower, less regular detection cadence --
+  at 0.5s an ordinary slow stretch was tripping it and falling back to the
+  old, worse placement on 42% of frames.
+
 ## [0.12.2.0] - 2026-09-13
 
 ### Fixed

@@ -607,7 +607,27 @@
   // -- so a dynamic import costs nothing and keeps this a classic script.
   const POSE_VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
   const POSE_WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
-  const POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
+  // The FULL landmarker, not lite. Measured on `shoulder press.mp4` (both
+  // wrists, ~4000 rendered frames each, jitter = how far a detection sits off
+  // the straight line through its two neighbours, so it isolates the model's
+  // own wobble from the body actually moving), on a 284px-wide frame:
+  //
+  //            jitter mean   p90    max     detections
+  //   lite        5.0px      9.9   118.5     every 98ms
+  //   full        3.5px      7.3    25.9     every 155ms
+  //
+  // The max column is the reason. Lite's outliers are single detections
+  // snapping a limb nearly half a frame away from the body -- rare, but that
+  // is exactly what "the skeleton doesn't line up with the video" looks like.
+  // Full costs 3.6MB more on the first analysis (9.4MB, then browser-cached)
+  // and roughly half the detection rate; the renderer below carries the body
+  // between detections at the display's rate, so the slower rate costs
+  // placement accuracy rather than smoothness.
+  //
+  // Do not shrink POSE_FRAME_MAX_SIDE to buy the rate back -- tried at 320px
+  // and jitter went to 31px mean, because the lifter gets too small in frame
+  // for the detector to hold on to.
+  const POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task";
   // Root-relative (asset_url), so it resolves the same under pagenav.js's
   // `new Function` execution as on a normal page load -- see POSE_VISION_URL.
   const POSE_WORKER_URL = "{{ asset_url('pose_worker.js') }}";
@@ -1083,7 +1103,14 @@
   // stall can leave an arbitrary gap; carrying the pair across either would
   // aim the extrapolation at nothing. Anything longer than this (or going
   // backwards) starts a fresh pair.
-  const POSE_SAMPLE_MAX_GAP_S = 0.5;
+  //
+  // 0.9s, not the 0.5s this started at, because the full landmarker detects
+  // every 155ms on average with a p90 of 266ms. At 0.5s an ordinary slow
+  // stretch tripped this and threw the pair away, which drops the renderer
+  // back to placing the newest sample verbatim: measured, it left only 58% of
+  // frames with a usable pair. At 0.9s that is 85%. A loop wrap is still
+  // caught, by `at > b.at` rather than by this.
+  const POSE_SAMPLE_MAX_GAP_S = 0.9;
 
   // How far past the newest sample the renderer may carry the motion,
   // measured in sample intervals. At 0 this is the old placement: draw the

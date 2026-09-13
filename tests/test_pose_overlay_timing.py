@@ -202,3 +202,65 @@ def test_both_landmarkers_still_return_a_single_pose(source):
         assert "numPoses: 1," in options.group(1), (
             name + " no longer builds its landmarker with numPoses: 1"
         )
+
+
+# ---------- Which model, and the settings that depend on it ----------
+
+def test_the_landmarker_is_the_full_model_not_lite(source):
+    """Measured, not a preference.
+
+    On `shoulder press.mp4` (both wrists, ~4000 rendered frames per model),
+    lite's off-track jitter peaked at 118.5px on a 284px-wide frame -- single
+    detections snapping a limb nearly half a frame off the body, which is
+    what "the skeleton doesn't line up with the video" looks like. Full's
+    peaked at 25.9px, with mean 5.0 -> 3.5 and p90 9.9 -> 7.3.
+
+    Dropping back to lite would take that back, and it is a one-word edit in
+    a URL.
+    """
+    urls = re.findall(r"pose_landmarker_(\w+)/float16", source)
+    assert urls, "POSE_MODEL_URL is gone or no longer points at a MediaPipe model"
+    assert urls == ["full"], (
+        "the pose model is " + repr(urls) + ", not the full landmarker"
+    )
+
+
+def test_the_worker_gets_its_model_from_the_page(source):
+    """One source of truth for the model. The worker cannot see the page, so
+    if it ever hardcoded its own URL the two backends could silently grade
+    with different models."""
+    worker = WORKER.read_text(encoding="utf-8")
+
+    assert "pose_landmarker" not in worker, (
+        "static/pose_worker.js names a model itself -- it must take modelUrl "
+        "from the init message so the page stays the only place it is chosen"
+    )
+    assert "modelUrl: POSE_MODEL_URL," in source
+
+
+def test_the_detector_input_is_not_shrunk_to_buy_back_detection_rate(source):
+    """Tried, and it backfires: at 320px the lifter gets too small in frame
+    for the detector to hold on to, and jitter went from 3.5px mean to 31px --
+    an overlay that wanders, in exchange for a faster wander."""
+    match = re.search(r"const POSE_FRAME_MAX_SIDE = (\d+);", source)
+    assert match, "POSE_FRAME_MAX_SIDE is gone"
+    assert int(match.group(1)) >= 480, (
+        "the frame handed to the detector is " + match.group(1) + "px, below "
+        "the 480px that was measured to keep the body big enough to track"
+    )
+
+
+def test_the_pair_survives_the_full_models_slower_cadence(source):
+    """The gap guard and the model are coupled.
+
+    Full detects every 155ms on average, p90 266ms. At the 0.5s this started
+    at, ordinary slow stretches tripped the guard and threw the pair away,
+    dropping the renderer back to placing the newest sample verbatim -- only
+    58% of frames kept a usable pair, against 85% at 0.9s.
+    """
+    match = re.search(r"const POSE_SAMPLE_MAX_GAP_S = ([\d.]+);", source)
+    assert match, "POSE_SAMPLE_MAX_GAP_S is gone"
+    assert float(match.group(1)) >= 0.8, (
+        "the pair is dropped after " + match.group(1) + "s, which the full "
+        "model's p90 detection gap trips routinely"
+    )
