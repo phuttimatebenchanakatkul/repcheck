@@ -167,7 +167,14 @@ workflows:
           # is an immediate App Store Connect rejection ("missing or invalid
           # app icon"), and the placeholder is a 1024 PNG *with* alpha, which
           # is separately rejected. native/AppIcon-1024.png is generated from
-          # static/logo-mark.png as RGB with no alpha channel.
+          # RepCheck.png (the 1254px master at the repo root) as RGB with no
+          # alpha channel.
+          #
+          # This used to say static/logo-mark.png, which was byte-identical to
+          # RepCheck.png at the time. static/logo-mark.png is now the 256px web
+          # favicon and is far too small to regenerate a 1024 icon from, so
+          # regenerate from RepCheck.png. Do not point this at anything under
+          # static/ again -- that directory is sized for the browser.
           ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
           if [ ! -d "$ICONSET" ]; then
             echo "No $ICONSET -- cap add ios layout changed; fix this step." >&2
