@@ -188,6 +188,15 @@ So the app ships Universal, `static/style.css` lays out a real tablet column
 at >=721px (see "Wide screens: the app in a box" there), and the screenshots
 are a hard prerequisite for every submission from now on.
 
+**Split View counts as an iPad layout too.** A reviewer can drag RepCheck into
+a split screen, and that gives the webview a 481-720px viewport -- below the
+tablet breakpoint, above a phone. Until v0.11.1.0 that band was uncapped and
+the bottom nav stretched the full width of the window, which is a milder
+version of exactly what got 0.7.1 rejected. Any new width-dependent layout
+rule has to say what it does in that band, not just on a phone and a
+full-screen tablet. `tests/test_ipad_layout.py` covers it; the ladder is in
+[DESIGN.md](DESIGN.md).
+
 ## Order of work
 
 1. ~~Flask-side blockers: account deletion, /privacy, /terms.~~ **Done, v0.4.0.0.**

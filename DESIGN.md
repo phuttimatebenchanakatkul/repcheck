@@ -194,6 +194,33 @@ Numeric values that line up in columns (calories, weights, times) should use
     viewport where it is used most.
 - Mobile breakpoint: `max-width: 380px` gets tighter padding and smaller icon/label sizes — see `.af-action-row` / `.af-action-title` in `templates/nutrition.html` for the pattern
 
+## Breakpoints
+
+Five bands, all in `static/style.css`. Width is the only signal except at the
+top of the ladder, so the same phone lands in a different band held sideways
+than it does held upright — that is intended, not an oversight.
+
+| Band | Reads as | What it changes |
+|---|---|---|
+| `max-width: 380px` | small phone | tighter padding, smaller icons and labels |
+| `max-width: 480px` | phone, portrait | `.app` drops to 8px side padding; `.mobile-tabbar` keeps 8px side gutters |
+| `min-width: 481px` | tablet in Split View, phone in landscape | `.mobile-tabbar` is capped at 420px and centred; everything else is still the phone layout |
+| `min-width: 721px` | tablet, full screen | the app becomes a centred column in a box — see "Wide screens: the app in a box" in `static/style.css` |
+| `min-width: 721px` + `hover: hover` + `pointer: fine` | desktop with a mouse | that box is re-skinned as a phone on a dark desk |
+
+The desk skin needs both media features to agree because a tablet reporting
+one of them wrongly must not get a drawn-on phone bezel; that is what
+Guideline 4 rejected 0.7.1 (33). See IOS_APP_STORE.md.
+
+**480 and 481 are a pair.** The tab-bar cap starts exactly one pixel above
+where the phone rule stops. Move one without the other and you get either a
+gap (481–720px uncapped, which is the whole Split View range — the bug fixed
+in v0.11.1.0, where a 720px window rendered a 696px bar that snapped to 420px
+at 721px) or an overlap (the cap stripping the phone's 8px gutters, since both
+rules are `.mobile-tabbar` at the same specificity). `tests/test_ipad_layout.py`
+holds the pairing, the 420px cap, its 12px `max()` floor, and the cap's
+position in the file.
+
 ## Focus: `:focus-visible`, and never a bare `outline: none`
 
 Every keyboard-reachable thing needs a visible focus indicator (WCAG 2.4.7),
