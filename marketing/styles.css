@@ -840,3 +840,196 @@ button.stchip:hover { background: #34343a; }
 @media (prefers-reduced-motion: reduce) {
   .nl-entry, .nl-amount.is-nudging { animation: none; }
 }
+
+/* ---------- scroll story: section 01, driven by scroll position ---------- */
+/* Every rule in this block is gated on .rc-story-on, which app.js puts on
+   <html> only once it has confirmed IntersectionObserver exists and has built
+   the scroll markers. Without JS -- or on a browser without IO -- none of this
+   applies and the two-column list further up is what renders, untouched. The
+   story is an enhancement layered on that layout, never a replacement for it.
+
+   Prefix: everything new here is .rc-*, so nothing collides with the rules
+   above even where it sits on the same elements. */
+
+.rc-hint-scroll { display: none; }
+.rc-story-on .rc-hint-tap { display: none; }
+.rc-story-on .rc-hint-scroll { display: block; }
+
+/* One stage per feature, plus one. --rc-stages is written by app.js from the
+   real button count, so adding a seventh feature lengthens the scroll on its
+   own rather than leaving the last one unreachable.
+
+   The + 1 is what keeps the panel still. A sticky element is only pinned for
+   its container's height MINUS its own, so at exactly six stages the pin ran
+   out one screen early and the last feature slid up and off while it was
+   still the one showing -- the one moment in the section that looked like
+   ordinary scrolling. The extra screen is the room the panel needs to leave
+   in, after the sixth feature has had its full turn. */
+.rc-story-on .rc-story {
+  position: relative;
+  height: calc((var(--rc-stages, 6) + 1) * 100vh);
+  height: calc((var(--rc-stages, 6) + 1) * 100svh);
+}
+
+/* The markers carry no content and no paint -- they exist to be observed.
+   Absolute, so they contribute no height of their own on top of the height
+   set above.
+
+   Dropped half a screen: the observer watches a line across the MIDDLE of
+   the viewport, so a marker starting at the top of the section would put its
+   own middle half a screen out of step with the scroll distance the panel is
+   actually pinned for. Offsetting the rail by the same half screen lines
+   each stage up with its share of the pin exactly -- the sixth ends on the
+   frame the panel starts to leave. */
+.rc-story-on .rc-story-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50vh;
+  top: 50svh;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.rc-story-on .rc-story-mark { flex: 0 0 100vh; flex-basis: 100svh; }
+
+/* svh, not vh: on mobile the URL bar collapsing mid-scroll changes vh, which
+   would resize the pinned panel underneath the visitor's finger. */
+/* No align-items here: the columns have to stretch the full height or the
+   hairline between them runs for the height of the title and stops. Each
+   column centres its own contents instead. */
+.rc-story-on .what-grid {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+}
+
+/* All six names stack into one grid cell and cross-fade, so the column reads
+   as a single title changing rather than a list with one row lit. The hints
+   are not given a cell, so auto-placement drops them into the rows below. */
+.rc-story-on .feature-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: center;
+  gap: 0;
+}
+/* Opacity only -- nothing travels. A title that slid into place read as the
+   page scrolling under a window, which is the one impression this section is
+   built to avoid: the panel is meant to sit still while its contents change.
+   So the outgoing title fades out where it stands and the next fades up in
+   the same spot. */
+.rc-story-on .feature {
+  grid-area: 1 / 1;
+  flex: none;
+  border-bottom: none;
+  background: transparent;
+  cursor: default;
+  opacity: 0;
+  /* visibility, not opacity alone: an opacity-0 button is still in the tab
+     order, so a keyboard user would land on five titles they cannot see.
+     Delayed to the end of the fade so it does not cut the transition off. */
+  visibility: hidden;
+  /* Out first, in after -- not a dissolve. All six titles share the one grid
+     cell, so fading them simultaneously drew two of them over each other at
+     half strength for a moment, and at this size that reads as doubled
+     letterforms rather than a soft change. The outgoing title clears the cell
+     before the next one starts, so only ever one is legible. */
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+}
+.rc-story-on .feature.is-active {
+  opacity: 1;
+  visibility: visible;
+  /* The list style fills the active row with ink. One title alone on white
+     does not want a black slab behind it. */
+  background: transparent;
+  color: var(--ink);
+  /* Held back by exactly the length of the fade above. */
+  transition: opacity 0.3s ease 0.2s, visibility 0s linear 0.2s;
+}
+.rc-story-on .feature-head { gap: 20px; }
+.rc-story-on .feature-title { font-size: clamp(34px, 4.6vw, 68px); }
+
+/* The handset swaps screens by display, which cannot be transitioned, so the
+   arriving screen fades itself up instead of cutting in hard against the
+   title fading beside it. The one leaving is simply gone -- with the panel
+   holding still, a plain fade-in is enough to read as the next feature
+   arriving rather than the page having moved. */
+@keyframes rc-screen-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* Delayed to match the title, so the handset and the name arrive together
+   rather than the screen cutting in while the old title is still fading. */
+.rc-story-on .what .screen.is-active { animation: rc-screen-in 0.3s ease 0.2s both; }
+
+.rc-story-on .phone-stage { height: 100%; }
+/* Scaled rather than resized: the handset's 640px screen is a fixed height
+   the six mock screens are laid out against, so shrinking it for a short
+   window has to happen after layout, not to it. */
+.rc-story-on .phone { transform: scale(var(--rc-phone-scale, 1)); }
+@media (max-height: 900px) { .rc-story-on .phone { --rc-phone-scale: 0.88; } }
+@media (max-height: 800px) { .rc-story-on .phone { --rc-phone-scale: 0.78; } }
+@media (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.66; } }
+
+@media (max-width: 720px) {
+  /* One column: the title rides above the handset instead of beside it.
+     minmax(0, 1fr), never plain 1fr: scale() shrinks what the handset DRAWS
+     and not what it occupies, so the row still asks for the full 662px of
+     unscaled phone. A 1fr row cannot go under its min-content height, so on
+     a short phone the two rows totalled more than the 100svh grid and the
+     overflow went upward -- the title ended up above the top of the screen
+     while the handset looked perfectly placed. Letting the row shrink costs
+     nothing visually, because what is on screen is the scaled phone. */
+  .rc-story-on .what-grid { grid-template-rows: auto minmax(0, 1fr); align-content: center; }
+  .rc-story-on .phone-stage { min-height: 0; }
+  .rc-story-on .feature-list { align-content: start; padding-top: 10px; }
+  .rc-story-on .feature { padding-top: 6px; padding-bottom: 6px; }
+  .rc-story-on .feature-title { font-size: clamp(28px, 7.5vw, 44px); }
+  .rc-story-on .hint { padding-top: 6px; padding-bottom: 0; }
+  .rc-story-on .phone-stage { padding-top: 10px; padding-bottom: 10px; }
+  /* No --rc-phone-scale here on purpose. A phone-width screen is not
+     necessarily a short one, and the height queries above already size the
+     handset against the space it actually has. Setting a width-based scale
+     here would win over them by source order and shrink a tall phone for no
+     reason -- while leaving a short one too big, which is the case that
+     actually matters. */
+}
+
+/* The waitlist fades back in on arrival and stays in. One-shot: app.js stops
+   observing it once it has landed, so it never fades back out. */
+.rc-story-on .cta {
+  opacity: 0;
+  transform: translate3d(0, 26px, 0);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.rc-story-on .cta.is-in { opacity: 1; transform: none; }
+
+/* The closing wordmark. Its own full-width row in the footer's flex wrap.
+   The word sets about 5.1x its own font-size wide in Archivo 900, so 16vw
+   leaves roughly 15% of the padded width spare at every size from 390px up.
+   That margin is deliberate rather than wasteful: if the self-hosted font
+   fails and the fallback sans is wider, the wordmark still has somewhere to
+   go instead of running off the right edge. line-height leaves room for the
+   p's descender, which at 0.82 sat on top of the mono line underneath it. */
+.footer .rc-wordmark {
+  flex: 1 0 100%;
+  font-size: clamp(52px, 16vw, 240px);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+  margin-bottom: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The layout stays -- it is what makes the six features reachable -- but
+     every cross-fade lands instantly and nothing travels. The hero's
+     scroll-linked fade is skipped in app.js rather than here. */
+  .rc-story-on .feature,
+  .rc-story-on .cta {
+    transition-duration: 0s;
+    transform: none;
+  }
+  .rc-story-on .feature { transition: visibility 0s linear 0s; }
+  .rc-story-on .what .screen.is-active { animation: none; }
+}

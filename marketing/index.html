@@ -64,6 +64,14 @@
 
 <section id="what" class="what">
   <div class="strip"><span>01 — What it does</span><span>Six parts, one week</span></div>
+  <!--
+    The scroll story wraps the grid and nothing else. It is empty markup on
+    purpose: app.js fills it with one scroll marker per feature and only then
+    sets .rc-story-on, so a visitor with no JS (or no IntersectionObserver)
+    gets the plain two-column list below, unchanged. Nothing here is styled
+    until that class lands.
+  -->
+  <div class="rc-story">
   <div class="what-grid">
     <div class="feature-list">
       <button class="feature is-active" type="button" data-feature="0" aria-pressed="true">
@@ -84,7 +92,15 @@
       <button class="feature" type="button" data-feature="5" aria-pressed="false">
         <span class="feature-head"><span class="idx">06</span><span class="feature-title">Friends</span></span>
       </button>
-      <p class="hint">Tap a feature to try it in the phone →</p>
+      <!--
+        Two hints, one per mode, because the interaction genuinely differs.
+        With the scroll story on, the other five names are not on screen to
+        tap, so "tap a feature" would be describing a control the visitor
+        cannot see; without it, the list is the only way through. CSS shows
+        exactly one -- see the .rc-hint rules.
+      -->
+      <p class="hint rc-hint-tap">Tap a feature to try it in the phone →</p>
+      <p class="hint rc-hint-scroll">Keep scrolling to move through the app ↓</p>
       <!--
         The handset shows made-up numbers, names and race times -- a product
         mockup, which is normal, but an unlabelled screenshot of "results" is
@@ -324,6 +340,7 @@
       <div class="watch-rig" id="rc-watch" hidden></div>
     </div>
   </div>
+  </div>
 </section>
 
 <!--
@@ -399,8 +416,14 @@
   groups wrap as two groups.
 -->
 <footer class="footer">
+  <!--
+    The wordmark sits on its own row rather than inside the first group. At
+    the size it is now it would have been a 200px word baseline-aligned
+    against 11px mono, which wrecks the two-group wrap the comment above
+    describes. Its own full-width row leaves that wrap exactly as it was.
+  -->
+  <span class="brand rc-wordmark">RepCheck</span>
   <div class="footer-group">
-    <span class="brand">RepCheck</span>
     <span>Training guidance only — not medical advice</span>
   </div>
   <div class="footer-group">
