@@ -818,6 +818,19 @@ changing, since it is three files for a cosmetic gain.
 
 ## Design
 
+### In Split View the nav is capped at 420px while the content is not
+
+**What:** From 481px up, `.mobile-tabbar` is a centred 420px pill, but the cards below it still fill the window. Measured at a 720px viewport: the card is 696px wide starting at x=12, the bar is 420px starting at x=150 -- a 138px disagreement about where the column is. At 480px they shared an edge exactly (both 464px at x=8).
+
+**Why:** The argument in the cap's own comment -- five destinations stretched across a tablet are no easier to reach -- applies to a 696px card just as well. The tablet skin above 721px already has this disagreement (680px content against a 420px bar), so extending it downward is consistent rather than new, but 481-720px is the range iPad Split View actually uses, so it is the range where someone will notice.
+
+**Context:** Raised by Claude's adversarial review during `/ship` on `viewport-split-view` (v0.11.1.0), which measured both boxes at every width 360-1180. Not changed there because capping the content column is a visual decision across every screen in the app, not a nav fix. If it is taken up, the cap value and the content max-width want to be one shared token rather than two numbers.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+
 ### Accent-on-tint text fails AA across the light theme, systemically
 
 **What:** The house `background: var(--X-bg); color: var(--X)` pill pairing fails AA in the LIGHT theme for three of the four accents. Measured: `--green #1fa971` on `--green-bg #e7f6ee` is **2.70:1**; `--amber #b9832a` on `--amber-bg #fbf1e2` is **2.96:1**; `--red #d1453b` on `--red-bg #fdeceb` is **3.97:1** (`--purple` passes at 4.53:1). Separately, `.pc-ck-day[data-status="logged"]` sets `background: var(--green); color: #fff`, which is **2.60:1** -- white on mid-green. The pairing is used in ~25 places across `coaching.css`, `hyrox.css` and `style.css`.
