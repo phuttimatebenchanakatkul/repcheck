@@ -1341,4 +1341,37 @@ button.stchip:hover { background: #34343a; }
 }
 .rc-pricing .rc-annual h2 { margin: 0; font-size: 19px; }
 .rc-pricing .rc-annual-note { margin: 8px 0 0; font-size: 15.5px; color: var(--muted); }
-.rc-pricing .btn { margin-top: 4px; }
+.rc-pricing .rc-plan-avg { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.rc-pricing .rc-pricing-note { margin: 4px 0 0; font-size: 15px; color: var(--muted); }
+
+/* The waitlist button on its own, centred, now the paragraph that used to
+   explain it is gone. */
+.rc-pricing-cta { margin: 30px 0 0; text-align: center; }
+
+/* Monthly / Yearly. Hidden until the script says it works -- an inert
+   segmented control is worse than no control. */
+.rc-billing { display: none; }
+.rc-billing-on .rc-billing {
+  display: inline-flex;
+  margin: 18px 0 0;
+  padding: 3px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+}
+.rc-billing-opt {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.rc-billing-opt.is-on { background: var(--ink); color: #fff; }
+/* With the toggle live the yearly card is a second copy of what the Pro card
+   is already showing, so it goes. */
+.rc-billing-on .rc-annual { display: none; }

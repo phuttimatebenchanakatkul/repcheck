@@ -17,20 +17,18 @@
   RATE_LIMITS, which apply to every account today:
 
       workout_analysis  (1, 24h)     -> 1 form analysis a day
-      food_analysis     (3, 24h)     -> 3 meal scans a day
+      food_analysis     (1, 24h)     -> 1 meal scan a day
       ai_chat           (3, 24h)     -> 3 coach messages a day
-      split_generation  (2, 24h)     -> 2 training plans a day
+      split_generation  (1, 24h)     -> 1 training plan a day
 
-  The weekly check-in is in the Free column as uncapped because it genuinely
-  is: /api/coaching/weekly-adjustment never calls _rate_limit_blocked, so it
-  is counted against nothing.
-
-  HYROX IS THE ONE LINE HERE THAT DESCRIBES INTENT RATHER THAN BEHAVIOUR.
-  hyrox_analysis is still (8, 5h) for every account, because there is no tier
-  system to gate it with -- no is_pro column, no payment code, so every
-  account is Free and "Pro only" would mean "nobody". The scope note below
-  says this in as many words rather than letting the table imply otherwise.
-  When an entitlement flag exists, gate the route and delete that sentence.
+  TWO LINES HERE DESCRIBE INTENT RATHER THAN BEHAVIOUR: the HYROX race
+  simulator and the weekly check-in. Both are Pro in the table and neither is
+  gated in the app, because there is no tier system to gate them with -- no
+  is_pro column, no payment code, so every account is Free and "Pro only"
+  would mean "nobody". hyrox_analysis is still (8, 5h) for everyone, and
+  /api/coaching/weekly-adjustment still calls no rate limit at all. The scope
+  note below names both in as many words rather than letting the table imply
+  otherwise. When an entitlement flag exists, gate both and delete it.
 
   If those change, change them here in the same commit. A pricing page that
   overstates the free limits is selling Pro on a number that is not true, and
@@ -62,32 +60,39 @@
 <main class="legal rc-pricing">
   <h1>Pricing</h1>
 
-  <div class="legal-scope">
-    <p><strong>Pro is not on sale yet.</strong> RepCheck has no payment system
-    today &mdash; there is nothing to buy, and nothing to cancel. The split
-    below is how Free and Pro will work once Pro launches, with the prices
-    published early so nobody joins the waitlist expecting a different
-    number.</p>
-    <p>Every daily limit under Free is live in the app right now. The one
-    thing not yet split is the HYROX race simulator: today it is open to every
-    account, and it becomes a Pro feature at launch.</p>
+  <!--
+    One line, not the panel that used to be here. It stays because the page
+    quotes prices for something that cannot be bought: there is no payment
+    code in RepCheck, the app's own /refunds says there are no subscriptions,
+    and this site links to it. Shorten it if you like; deleting it leaves the
+    page implying Pro is on sale.
+  -->
+  <p class="rc-pricing-note">Pro is not on sale yet &mdash; the waitlist is how
+  you get in.</p>
+
+  <!--
+    Hidden until the script marks the document, so with no JS the monthly card
+    and the yearly block below it both just render, which is the whole page
+    without a control that would do nothing.
+  -->
+  <div class="rc-billing" role="group" aria-label="Billing period">
+    <button type="button" class="rc-billing-opt is-on" data-billing="monthly" aria-pressed="true">Monthly</button>
+    <button type="button" class="rc-billing-opt" data-billing="yearly" aria-pressed="false">Yearly</button>
   </div>
 
   <div class="rc-plans">
     <section class="rc-plan" aria-labelledby="plan-free">
       <h2 class="rc-plan-name" id="plan-free">Free</h2>
       <p class="rc-plan-price">&#3647;0<span class="rc-plan-per"> / month</span></p>
-      <p class="rc-plan-line">The whole app, with the AI work metered.</p>
       <ul class="rc-plan-list">
         <li><b>1</b> form analysis a day</li>
-        <li><b>3</b> meal photo scans a day</li>
+        <li><b>1</b> meal photo scan a day</li>
         <li><b>3</b> AI coach messages a day, shared across the coach, the
           analysis follow-ups and the workout-log chat</li>
-        <li><b>2</b> training plans a day</li>
-        <li><b>Weekly check-ins</b> &mdash; as many as you like, and never
-          counted against any of the above</li>
+        <li><b>1</b> training plan a day</li>
         <li>Workout log, nutrition log and friends &mdash; all of it,
           uncapped</li>
+        <li class="rc-plan-no">No weekly check-ins</li>
         <li class="rc-plan-no">No HYROX race simulator</li>
       </ul>
     </section>
@@ -95,13 +100,14 @@
     <section class="rc-plan rc-plan--pro" aria-labelledby="plan-pro">
       <p class="rc-plan-badge">Pro</p>
       <h2 class="rc-plan-name" id="plan-pro">RepCheck Pro</h2>
-      <p class="rc-plan-price">&#3647;379<span class="rc-plan-per"> / month</span></p>
-      <p class="rc-plan-line">The same app with the meters off.</p>
+      <p class="rc-plan-price" id="pro-price">&#3647;379<span class="rc-plan-per" id="pro-per"> / month</span></p>
+      <p class="rc-plan-avg" id="pro-avg" hidden>An average of &#3647;316 a month.</p>
       <ul class="rc-plan-list">
         <li><b>Unlimited</b> form analysis</li>
         <li><b>Unlimited</b> meal photo scans</li>
         <li><b>Unlimited</b> AI coach messages</li>
         <li><b>Unlimited</b> training plans</li>
+        <li><b>Weekly check-ins</b>, as many as you like</li>
         <li>The <b>HYROX race simulator</b>, and race analysis</li>
         <li>Priority AI processing</li>
         <li>Everything in Free</li>
@@ -112,23 +118,65 @@
   <section class="rc-annual" aria-labelledby="plan-annual">
     <h2 id="plan-annual">Pro, paid yearly</h2>
     <p class="rc-plan-price">&#3647;3,790<span class="rc-plan-per"> / year</span></p>
-    <!--
-      Both numbers are arithmetic on the two prices above, not marketing:
-        3790 / 12      = 315.83  -> "about 316 baht a month"
-        379 * 12       = 4548
-        4548 - 3790    = 758     = exactly two months at the monthly price
-      Recompute both if either price moves.
-    -->
-    <p class="rc-annual-note">That works out at about <b>&#3647;316 a
-    month</b> &mdash; two months free against paying monthly.</p>
+    <!-- 3790 / 12 = 315.83. Recompute if the yearly price moves. -->
+    <p class="rc-annual-note">An average of <b>&#3647;316 a month</b>.</p>
   </section>
 
-  <div class="legal-scope">
-    <p>The waitlist is the only thing to join today. We will say what Pro
-    costs, and what it includes, before anyone is ever asked to pay for it.</p>
-    <p><a class="btn btn-dark" href="index.html#waitlist">Join the waitlist</a></p>
+  <div class="rc-pricing-cta">
+    <a class="btn btn-dark" href="index.html#waitlist">Join the waitlist</a>
   </div>
 </main>
+
+<!--
+  Inline rather than in app.js, which no other page but index.html loads: that
+  file is a 1,200-line IIFE for the home page's canvas, feature switcher and
+  race walkthrough, and pulling all of it in for a two-button toggle would run
+  a dozen guards to do nothing. Classic script, like the rest of this site.
+-->
+<script>
+(function () {
+  "use strict";
+  var group = document.querySelector(".rc-billing");
+  var price = document.getElementById("pro-price");
+  var per = document.getElementById("pro-per");
+  var avg = document.getElementById("pro-avg");
+  if (!group || !price || !per || !avg) return;
+
+  // Only now does the toggle appear, and only now does the standalone yearly
+  // block go away -- without this script both prices are simply on the page.
+  document.documentElement.className += " rc-billing-on";
+
+  var PLANS = {
+    monthly: { amount: "฿379", per: " / month", avg: false },
+    yearly: { amount: "฿3,790", per: " / year", avg: true }
+  };
+  var buttons = group.querySelectorAll(".rc-billing-opt");
+
+  function show(key) {
+    var plan = PLANS[key];
+    if (!plan) return;
+    // firstChild is the amount text node, ahead of the <span> carrying the
+    // period -- replacing the whole innerHTML would drop the span the period
+    // is read from on the next switch.
+    price.firstChild.nodeValue = plan.amount;
+    per.textContent = plan.per;
+    avg.hidden = !plan.avg;
+    for (var i = 0; i < buttons.length; i++) {
+      var on = buttons[i].getAttribute("data-billing") === key;
+      buttons[i].classList.toggle("is-on", on);
+      // The pressed state is what a screen reader reads: the colour swap
+      // below it says nothing on its own.
+      buttons[i].setAttribute("aria-pressed", on ? "true" : "false");
+    }
+  }
+
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener("click", function () {
+      show(this.getAttribute("data-billing"));
+    });
+  }
+})();
+</script>
 
 <footer class="footer">
   <span class="brand"><img class="brand-logo" src="assets/rc-logo.png" width="1290" height="248" alt="RepCheck"></span>
