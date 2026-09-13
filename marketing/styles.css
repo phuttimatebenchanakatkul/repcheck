@@ -22,10 +22,14 @@
   --blue: #2f66e8;
   --amber: #b9832a;
   --purple: #7c4fe0;
+  /* App-screen red, the app's own --red (see DESIGN.md). Used only on the
+     dark mockup screens -- the over-goal calorie ring, the protein dot and
+     bar, the .rc-* race screens -- never on --paper; the -on-paper tokens
+     below are the ones the contrast test covers. */
+  --red: #d1453b;
   /* The form status messages sit on white, not on an app screen. --green
      measures 3.01:1 there (an AA failure for 14px text), and the error red
-     was the literal #d1453b at 4.54:1 (still used at .rc-* for the dark
-     mockup screens, where it is on a dark ground and fine).
+     was #d1453b at 4.54:1 (fine on --app-* dark grounds, an AA failure here).
      These are the same hues darkened to 4.96:1 and 5.30:1. */
   --green-on-paper: #15804f;
   --red-on-paper: #c13c33;
@@ -515,7 +519,7 @@ button.stchip:hover { background: #34343a; }
 .rc-cancel {
   appearance: none; border: none; background: transparent; cursor: pointer;
   font-family: "JetBrains Mono", monospace; font-size: 9.5px; letter-spacing: .14em;
-  text-transform: uppercase; color: #d1453b; padding: 0;
+  text-transform: uppercase; color: var(--red); padding: 0;
 }
 .rc-splits { display: flex; flex-direction: column; }
 .rc-split { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--app-line); font-size: 11.5px; }
@@ -540,7 +544,7 @@ button.stchip:hover { background: #34343a; }
 .rc-bd-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .rc-bd-track { height: 5px; border-radius: 3px; background: var(--app-line); overflow: hidden; }
 .rc-bd-track > span { display: block; height: 100%; background: #4a4a4f; }
-.rc-bd-row.is-focus .rc-bd-track > span { background: #d1453b; }
+.rc-bd-row.is-focus .rc-bd-track > span { background: var(--red); }
 .rc-bd-row.is-strong .rc-bd-track > span { background: var(--green); }
 .rc-bd-row.is-solid .rc-bd-track > span { background: var(--blue); }
 
@@ -660,3 +664,190 @@ button.stchip:hover { background: #34343a; }
   margin: 0 0 30px;
 }
 .legal-scope p { margin: 0; font-size: 16px; }
+
+/* ---------- nutrition log (feature 02's phone screen) ----------
+   The one screen on this page you can actually use: search the food
+   library, set an amount, add it, and the day's ring, macro bars and entry
+   list all move. Built from the app-screen components already defined above
+   (.card, .row, .macros, .cta-blue, .empty, .grab, .sub) -- the rules here
+   only add what had no equivalent yet: the calorie ring, the macro-split
+   donut, the amount editor, and the two sheets that slide over the screen.
+
+   The palette and the geometry are the app's own: ring r=52 stroke 10,
+   donut r=46 stroke 12, protein red / fat amber / carbs green, matching
+   templates/nutrition.html so the demo and the product read as one thing. */
+.screen--nl { position: relative; }
+
+/* Sized down from the app's 168px ring: this handset is 322px wide and the
+   day's entry list has to stay visible underneath it, not scroll out of
+   sight the moment a second food goes in. */
+.nl-ring { position: relative; width: 104px; height: 104px; align-self: center; }
+.nl-ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.nl-ring-track { fill: none; stroke: var(--app-line); stroke-width: 10; }
+.nl-ring-fill {
+  fill: none; stroke: var(--blue); stroke-width: 10; stroke-linecap: round;
+  transition: stroke-dasharray .35s cubic-bezier(.2,.8,.2,1);
+}
+.nl-ring-fill.is-over { stroke: var(--red); }
+.nl-ring-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.nl-ring-center b { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.nl-ring-center .ring-label { margin-top: 3px; }
+.nl-ring-sub { margin-top: 4px; font-size: 10px; color: var(--app-dim); font-variant-numeric: tabular-nums; }
+
+/* The nutrition card carries the most in the least room, so it runs tighter
+   than the shared .card: less padding, smaller macro chips. */
+.screen--nl > .card { padding: 13px 14px; gap: 10px; }
+.screen--nl .mac { padding: 7px 8px; }
+.screen--nl .mac b { margin: 3px 0 5px; font-size: 11.5px; white-space: nowrap; }
+
+/* The macro row reuses .mac; the <em> is the filled part of its bar. Scoped
+   to .screen--nl like the two rules just above -- .mac is a shared
+   app-screen component, and the next screen to reuse .macros should not
+   silently inherit this one's bar-fill and number formatting. */
+.screen--nl .mac i { overflow: hidden; }
+.screen--nl .mac i em { display: block; width: 0; height: 100%; border-radius: 2px; transition: width .35s cubic-bezier(.2,.8,.2,1); }
+.screen--nl .mac b { font-variant-numeric: tabular-nums; }
+.nl-fill-p { background: var(--red); }
+.nl-fill-f { background: var(--amber); }
+.nl-fill-c { background: var(--green); }
+
+/* The day's list is the only part that scrolls: the ring card and the log
+   button stay put, so "+ Log a food" is always one tap away. */
+.nl-day { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.nl-entries { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 7px; }
+.nl-entries::-webkit-scrollbar { display: none; }
+.nl-entry {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 11px; border-radius: 14px; background: var(--app-card);
+  animation: nl-in .28s cubic-bezier(.2,.8,.2,1) both;
+}
+.nl-entry-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.nl-entry-id b { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nl-entry-id .sub { font-size: 10px; font-variant-numeric: tabular-nums; }
+.nl-entry-kcal { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+@keyframes nl-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+.nl-x {
+  width: 24px; height: 24px; flex: none; padding: 0; border: none; cursor: pointer;
+  border-radius: 50%; background: var(--app-line); color: var(--app-dim);
+  font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.nl-x:hover { color: var(--app-text); }
+
+/* The quiet "it is in" moment after Add to log, same as the app's. Sits
+   over the list rather than pushing it around. */
+.nl-toast {
+  position: absolute; left: 18px; right: 18px; bottom: 14px; z-index: 3;
+  padding: 10px 13px; border-radius: 13px; background: var(--green); color: #fff;
+  font-size: 12px; font-weight: 700; text-align: center;
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.nl-toast.is-on { opacity: 1; transform: none; }
+
+/* ---- the two sheets ----
+   Closed, they are visibility:hidden, not merely translated away: an
+   off-screen sheet with visible content still takes tab focus and still
+   reads out to a screen reader. The visibility change is delayed to the end
+   of the slide on the way out and instant on the way in, so the movement
+   stays visible in both directions. */
+.nl-sheet {
+  position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 4;
+  display: flex; flex-direction: column; gap: 11px;
+  padding: 11px 14px 15px; border-radius: 20px;
+  background: var(--app-card); box-shadow: 0 -14px 34px rgba(0,0,0,.45);
+  transform: translateY(112%); visibility: hidden;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), visibility 0s linear .3s;
+}
+.nl-sheet.is-open { transform: translateY(0); visibility: visible; transition: transform .3s cubic-bezier(.2,.8,.2,1), visibility 0s; }
+.nl-sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.nl-sheet-head .card-title { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; }
+
+.nl-input {
+  width: 100%; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--app-line); background: var(--app-bg); color: var(--app-text);
+  font-family: inherit; font-size: 12.5px;
+}
+.nl-input::placeholder { color: #6b6d78; }
+/* The ring itself comes from the global :focus-visible rule (and the
+   .phone-screen override that makes it visible on this dark ground) -- the
+   border change here is an extra affordance on top of it, never a
+   replacement. */
+.nl-input:focus { border-color: var(--blue); }
+
+.nl-results { max-height: 226px; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 4px; }
+.nl-results::-webkit-scrollbar { display: none; }
+.nl-result {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 8px 9px; border: none; border-radius: 12px; background: transparent;
+  color: inherit; text-align: left; cursor: pointer;
+  transition: background .14s ease;
+}
+.nl-result:hover, .nl-result:focus-visible { background: var(--app-line); }
+.nl-result-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.nl-result-id b { font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nl-result-id .sub { font-size: 10px; font-variant-numeric: tabular-nums; }
+.nl-result-id em { font-style: normal; color: #6b6d78; }
+.nl-plus { width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--blue); color: #fff; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.nl-none { padding: 16px 4px; text-align: center; font-size: 11.5px; color: var(--app-dim); }
+
+.nl-donut-row { display: flex; align-items: center; gap: 14px; }
+.nl-donut-wrap { position: relative; width: 96px; height: 96px; flex: none; }
+.nl-donut { width: 100%; height: 100%; }
+.nl-donut-track { fill: none; stroke: var(--app-bg); stroke-width: 12; }
+.nl-donut-seg { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dasharray .25s ease, stroke-dashoffset .25s ease; }
+.nl-seg-p { stroke: var(--red); }
+.nl-seg-f { stroke: var(--amber); }
+.nl-seg-c { stroke: var(--green); }
+.nl-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.nl-donut-center b { font-size: 20px; font-weight: 800; color: var(--blue); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.nl-donut-label { font-size: 9.5px; font-weight: 600; color: var(--app-dim); margin-top: 1px; }
+.nl-legend { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.nl-legend-row { display: flex; align-items: center; gap: 7px; font-size: 11.5px; }
+.nl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.nl-legend-row b { min-width: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.nl-legend-row .sub { flex: 1; }
+.nl-legend-row em { font-style: normal; font-weight: 600; color: var(--app-dim); font-variant-numeric: tabular-nums; }
+
+.nl-amount { display: flex; flex-direction: column; gap: 9px; padding: 11px; border-radius: 15px; background: var(--app-line); }
+/* Tapping Add on a blank/zero amount used to do nothing visible at all --
+   nudge the card that needs fixing, the same shake shape static/tour.css
+   uses for a blocked action (this page has no shared stylesheet with the
+   app, so it gets its own copy rather than a cross-file dependency). */
+.nl-amount.is-nudging { animation: nl-shake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes nl-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+.nl-amount-row { display: flex; align-items: center; gap: 8px; }
+#nl-amount {
+  width: 74px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid #3a3a3c; background: var(--app-bg); color: var(--app-text);
+  font-family: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+#nl-amount:focus { border-color: var(--blue); }
+.nl-unit-seg { flex: 1; display: flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--app-bg); }
+.nl-unit-seg button {
+  flex: 1; padding: 6px 4px; border: none; border-radius: 999px;
+  background: transparent; color: var(--app-dim); cursor: pointer;
+  font-size: 11px; font-weight: 700;
+  transition: background .16s ease, color .16s ease;
+}
+.nl-unit-seg button.is-active { background: var(--blue); color: #fff; }
+
+/* 16px on the two real inputs, the same trick templates/nutrition.html
+   uses: iOS Safari auto-zooms the whole page when a focused input is under
+   16px, which would yank a visitor out of the section mid-search. */
+@media (max-width: 720px) {
+  .nl-input, #nl-amount { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-entry, .nl-amount.is-nudging { animation: none; }
+}

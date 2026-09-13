@@ -2,6 +2,45 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.0.0] - 2026-09-13
+
+### Added
+
+- **The marketing site's nutrition-log demo is now something you can actually
+  use, not just watch.** Feature 02 used to be a screen recording; it now
+  searches a real food table, lets you pick a food, set an amount in
+  servings, grams or ounces, and add it to a day -- the calorie ring, the
+  three macro bars and the entry list all move the way the app's own does,
+  and entries can be removed again. Every number quoted is lifted from the
+  app's own food library, and a compliance test keeps it that way.
+
+### Fixed
+
+- The marketing feature switcher no longer swaps the phone's screen out from
+  under you on a stray hover while a sheet is open in the new food-log demo
+  -- a click still switches, since that one is deliberate.
+- Closing a sheet in the food log now hands keyboard focus back to the
+  button that opened it, instead of leaving it stranded on a field that just
+  went `visibility: hidden`.
+- Tapping "Add to log" with a blank or zero amount now nudges the amount
+  card and refocuses it, instead of silently doing nothing.
+- An absurdly large typed amount is capped instead of producing a
+  multi-billion-calorie number while the ring and macro bars stay correctly
+  clamped at a full circle -- the figures on screen can no longer disagree
+  with the picture.
+- Two hardcoded `#d1453b` reds on the marketing site's dark race-simulator
+  mockup now use the same `--red` token the rest of the palette does.
+- Fixed a pre-existing failure in `tests/test_split_ai_suggest.py`: the
+  test file's shared account had no reset for its daily AI-plan rate limit,
+  so repeated suite runs within the same day eventually exhausted it and
+  every test in the file -- including ones asserting a 400 for bad input --
+  got a 429 instead.
+
+### Removed
+
+- The unused `foodlog-demo.{mp4,webm}` video and its poster image, now that
+  the feature they illustrated is interactive instead.
+
 ## [0.11.2.0] - 2026-09-13
 
 ### Fixed

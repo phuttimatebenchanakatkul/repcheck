@@ -26,8 +26,9 @@
 //   arms, while the <div class="screen"> itself stays in the list -- feature
 //   indices, which showFeature depends on, are unchanged.
 //
-// The HYROX race block IS kept: it registers showFeature's onFeatureChange
-// hook, so leaving it out would skip a code path every click goes through. Its
+// The HYROX race block IS kept: it registers one of showFeature's feature
+// listeners, so leaving it out would skip a code path every click goes
+// through. Its
 // clock only starts on an in-handset action, and its IntersectionObserver is
 // behind a `if (window.IntersectionObserver)` guard that jsdom fails.
 

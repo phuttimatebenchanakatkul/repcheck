@@ -85,15 +85,23 @@
   var featureBtns = $$(".feature", whatSection);
   var screens = $$(".screen", whatSection);
   var tabs = $$(".tab", whatSection);
-  // Feature 05's screen is the live race simulator, and it owns a running
-  // clock. It has to know when it stops being the screen on show, so set by
-  // the race block below once it exists.
+  // Which feature is currently in the handset -- read by the hover guard
+  // below and by the race's rcShowing().
   var activeFeature = 0;
-  var onFeatureChange = null;
+  // Screens that need to know when they stop (or start) being the one on
+  // show: the race parks its clock, the food log drops any open sheet.
+  var featureListeners = [];
+  function onFeature(fn) { featureListeners.push(fn); }
+  // Screens that can be mid-interaction register here so a stray hover
+  // doesn't switch them away from under a visitor. An array, like the
+  // listeners above it -- a second screen adding its own hold must not
+  // silently clobber the first one's.
+  var featureHolds = [];
+  function onHold(fn) { featureHolds.push(fn); }
 
-  // Some screens are real screen recordings rather than mocked-up cards. Play
-  // whichever one is showing, and pause + rewind the rest so they don't keep
-  // running silently behind the screens you can't see.
+  // One screen (feature 01) is a real screen recording. Play it while it is
+  // showing and pause + rewind it otherwise, so it isn't running silently
+  // behind a screen you can't see.
   function showFeature(i) {
     // aria-pressed alongside the class: is-active is a colour change, which a
     // screen reader cannot see, so without this the switcher gives no clue
@@ -124,7 +132,7 @@
       else wlStop();
     }
     activeFeature = i;
-    if (onFeatureChange) onFeatureChange(i);
+    featureListeners.forEach(function (fn) { fn(i); });
   }
 
   // ---------- workout log: act out the add-exercise flow ----------
@@ -184,7 +192,16 @@
 
   featureBtns.forEach(function (b, i) {
     b.addEventListener("click", function () { showFeature(i); });
-    b.addEventListener("mouseenter", function () { showFeature(i); });
+    b.addEventListener("mouseenter", function () {
+      // Hover is a convenience, not a command. Once a screen holds something
+      // the visitor put there themselves -- a sheet open in the food log, a
+      // half-typed amount -- drifting the cursor across the list on the way
+      // to the handset must not swap it out from under them. A click still
+      // switches, because that one is deliberate. holdsFeature is set by the
+      // screens that can be mid-interaction; nothing sets it, nothing holds.
+      if (featureHolds.some(function (fn) { return fn(activeFeature); })) return;
+      showFeature(i);
+    });
   });
   showFeature(0);
 
@@ -696,12 +713,391 @@
     // Same rule for the switcher: hovering another feature parks the race
     // where it got to rather than running it out behind a screen you can't
     // see, and coming back picks it up again.
-    onFeatureChange = function () {
+    onFeature(function () {
       if (rc.screen !== "running") return;
       if (rcOnScreen && rcShowing()) rcStart(); else rcStop();
-    };
+    });
 
     rcRender();
+  }
+
+  // ---------- nutrition log: a food log you can actually add to ----------
+  // Feature 02 used to be a screen recording of someone logging jasmine rice.
+  // It is the real thing now: search the library, pick a food, set the amount
+  // in servings / grams / ounces, add it, and the day's ring, macro bars and
+  // entry list move -- the same three steps the app asks for, with the same
+  // arithmetic behind them.
+  //
+  // Everything factual is lifted from the app rather than written for this
+  // page:
+  //   * every food's per-100g calories/protein/fat/carbs  (food_library.py)
+  //   * a dish's "1 serving" = its recipe's total grams; a raw ingredient has
+  //     no inherent serving, so it falls back to the 100g its macros are
+  //     anchored to                                        (openLogAmountModal)
+  //   * unit switching converts the amount rather than resetting it, so
+  //     "2 servings" becomes "60 g", not "1"               (lq-unit-seg)
+  //   * the ring plots the macro SPLIT by calories, not by grams
+  //                                                        (donutChartHtml)
+  var nlScreen = $("#nl-screen", whatSection);
+  if (nlScreen) {
+    var NL_OZ = 28.3495;
+    // James's day, matching the weekly check-in screen next door: 1,802 kcal,
+    // and macro targets that add up to it (135*4 + 60*9 + 180*4 = 1,800).
+    var NL_GOAL = { kcal: 1802, protein: 135, fat: 60, carbs: 180 };
+    // per 100 g, exactly as food_library.py has them. serving is what "1
+    // serving" means in the amount editor: a dish's recipe total, or 100g
+    // for a raw ingredient.
+    var NL_FOODS = [
+      { name: "Jasmine Rice, cooked", calories: 129, protein: 2.7, fat: 0.3, carbs: 28, serving: 100 },
+      { name: "Chicken Breast, cooked", calories: 165, protein: 31, fat: 3.6, carbs: 0, serving: 100 },
+      { name: "Egg, whole", calories: 155, protein: 13, fat: 11, carbs: 1.1, serving: 100 },
+      { name: "Greek Yogurt, plain nonfat", calories: 59, protein: 10, fat: 0.4, carbs: 4, serving: 100 },
+      { name: "Oats, dry", calories: 389, protein: 17, fat: 7, carbs: 66, serving: 100 },
+      { name: "Banana", calories: 89, protein: 1.1, fat: 0.3, carbs: 23, serving: 100 },
+      { name: "Salmon, cooked", calories: 208, protein: 20, fat: 13, carbs: 0, serving: 100 },
+      { name: "Whey Protein Powder", calories: 400, protein: 80, fat: 5, carbs: 8, serving: 100 },
+      { name: "Sweet Potato, baked", calories: 90, protein: 2, fat: 0.2, carbs: 21, serving: 100 },
+      { name: "Avocado", calories: 160, protein: 2, fat: 15, carbs: 8.5, serving: 100 },
+      { name: "Almonds", calories: 579, protein: 21, fat: 50, carbs: 22, serving: 100 },
+      { name: "Tofu", calories: 76, protein: 8, fat: 4.8, carbs: 1.9, serving: 100 },
+      { name: "Pad Thai", calories: 126, protein: 9.3, fat: 3.9, carbs: 13.8, serving: 360 },
+      { name: "Green Curry, Chicken", calories: 171, protein: 12.4, fat: 12.3, carbs: 3, serving: 340 },
+      { name: "Som Tam, Papaya Salad", calories: 93, protein: 2.6, fat: 3.7, carbs: 14.2, serving: 203 },
+      { name: "Tom Yum Soup, Shrimp", calories: 76, protein: 15.8, fat: 0.3, carbs: 3.2, serving: 163 },
+      // The one name in this table with a character nlEsc() has to handle --
+      // every other entry is plain enough that an escaping bug would ship
+      // invisibly.
+      { name: "General Tso's Chicken", calories: 241, protein: 22.1, fat: 9.4, carbs: 15.5, serving: 225 }
+    ];
+
+    var nl = { sheet: null, food: null, serving: 100, unit: "serving", amount: 1, log: [] };
+
+    var nlQuery = $("#nl-query", nlScreen);
+    var nlResults = $("#nl-results", nlScreen);
+    var nlAmountInput = $("#nl-amount", nlScreen);
+    var nlToast = $("#nl-toast", nlScreen);
+    var nlSheets = { search: $("#nl-search-sheet", nlScreen), amount: $("#nl-amount-sheet", nlScreen) };
+    var nlOpenBtn = $('[data-nl="open-search"]', nlScreen);
+    var nlToastTimer = null;
+
+    function nlEsc(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function nlNum(n) { return Math.round(n).toLocaleString("en-US"); }
+    function nlText(id, value) { var el = $("#" + id, nlScreen); if (el) el.textContent = value; }
+
+    // ---- amount editor ----
+    function nlGramsPerUnit(unit) {
+      if (unit === "g") return 1;
+      if (unit === "oz") return NL_OZ;
+      return nl.serving;
+    }
+    // 20kg of one food is already absurd, but it is a real number the ring
+    // and macro bars can still plot -- 999999999 is not: the label would
+    // read in the billions of kcal while the ring and bars, correctly
+    // clamped at a full circle / 100%, stayed put a few pixels wide. Capping
+    // the grams keeps every number on screen honest about what it is
+    // actually showing.
+    var NL_MAX_GRAMS = 20000;
+    function nlGrams() { return Math.min(NL_MAX_GRAMS, Math.max(0, nl.amount * nlGramsPerUnit(nl.unit))); }
+    // A food's numbers are per 100g whether it is a raw ingredient or a
+    // composite dish (food_library.py derives a dish's per-100g values from
+    // its recipe), so one scale-by-grams covers both.
+    function nlMacros(food, grams) {
+      var scale = grams / 100;
+      return {
+        calories: food.calories * scale,
+        protein: food.protein * scale,
+        fat: food.fat * scale,
+        carbs: food.carbs * scale
+      };
+    }
+
+    var NL_DONUT_R = 46;
+    var NL_DONUT_C = 2 * Math.PI * NL_DONUT_R;
+
+    function nlRenderAmount() {
+      if (!nl.food) return;
+      var m = nlMacros(nl.food, nlGrams());
+      var pKcal = Math.max(0, m.protein) * 4;
+      var fKcal = Math.max(0, m.fat) * 9;
+      var cKcal = Math.max(0, m.carbs) * 4;
+      var total = pKcal + fKcal + cKcal;
+      var parts = [
+        { key: "p", frac: total > 0 ? pKcal / total : 0, grams: m.protein },
+        { key: "f", frac: total > 0 ? fKcal / total : 0, grams: m.fat },
+        { key: "c", frac: total > 0 ? cKcal / total : 0, grams: m.carbs }
+      ];
+      var offset = 0;
+      parts.forEach(function (part) {
+        var len = NL_DONUT_C * part.frac;
+        var seg = $("#nl-seg-" + part.key, nlScreen);
+        if (seg) {
+          seg.setAttribute("stroke-dasharray", len + " " + NL_DONUT_C);
+          seg.setAttribute("stroke-dashoffset", String(-offset));
+          seg.style.strokeLinecap = len > 0 ? "round" : "butt";
+        }
+        nlText("nl-pct-" + part.key, Math.round(part.frac * 100) + "%");
+        nlText("nl-g-" + part.key, Math.round(part.grams) + "g");
+        offset += len;
+      });
+      nlText("nl-donut-kcal", String(Math.round(m.calories)));
+      nlText("nl-food-name", nl.food.name);
+      nlText("nl-serving-hint", "1 serving = " + nl.serving + "g");
+      $$(".nl-unit-seg button", nlScreen).forEach(function (b) {
+        var on = b.getAttribute("data-unit") === nl.unit;
+        b.classList.toggle("is-active", on);
+        // The segment reads as colour alone otherwise: aria-pressed is what
+        // says "grams, selected" to a screen reader.
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    function nlPick(food) {
+      nl.food = food;
+      // A dish's recipe default total is its natural "1 serving"; a raw
+      // ingredient has none, so it falls back to the 100g reference its
+      // macros are already anchored to.
+      nl.serving = food.serving || 100;
+      nl.unit = "serving";
+      nl.amount = 1;
+      if (nlAmountInput) nlAmountInput.value = "1";
+      nlRenderAmount();
+      nlOpen("amount");
+    }
+
+    // ---- the day ----
+    function nlTotals() {
+      return nl.log.reduce(function (sum, e) {
+        sum.calories += e.calories; sum.protein += e.protein;
+        sum.fat += e.fat; sum.carbs += e.carbs;
+        return sum;
+      }, { calories: 0, protein: 0, fat: 0, carbs: 0 });
+    }
+
+    var NL_RING_R = 52; // matches .nl-ring-track/.nl-ring-fill's r="52" in index.html
+    var NL_RING_C = 2 * Math.PI * NL_RING_R;
+
+    function nlRenderDay() {
+      var t = nlTotals();
+      var left = NL_GOAL.kcal - t.calories;
+      nlText("nl-left", nlNum(Math.abs(left)));
+      nlText("nl-eaten", nlNum(t.calories) + " of " + nlNum(NL_GOAL.kcal));
+      var leftLabel = $(".nl-ring-center .ring-label", nlScreen);
+      if (leftLabel) leftLabel.textContent = left < 0 ? "KCAL OVER" : "KCAL LEFT";
+      var fill = $("#nl-ring-fill", nlScreen);
+      if (fill) {
+        var frac = Math.min(1, NL_GOAL.kcal > 0 ? t.calories / NL_GOAL.kcal : 0);
+        fill.setAttribute("stroke-dasharray", (NL_RING_C * frac) + " " + NL_RING_C);
+        // A round cap on a zero-length dash still paints a dot at 12 o'clock,
+        // so an untouched day looked like it already had something in it.
+        // Inline, not a presentation attribute: the stylesheet's own
+        // stroke-linecap would win over the attribute and keep the dot.
+        fill.style.strokeLinecap = frac > 0 ? "round" : "butt";
+        fill.classList.toggle("is-over", left < 0);
+      }
+      [["p", "protein"], ["f", "fat"], ["c", "carbs"]].forEach(function (pair) {
+        var got = t[pair[1]];
+        var goal = NL_GOAL[pair[1]];
+        nlText("nl-mac-" + pair[0], Math.round(got) + " / " + goal + "g");
+        var bar = $("#nl-bar-" + pair[0], nlScreen);
+        var pct = Math.min(100, goal > 0 ? (got / goal) * 100 : 0);
+        if (bar) bar.style.width = (Math.round(pct * 10) / 10) + "%";
+      });
+
+      nlText("nl-count", nl.log.length
+        ? nl.log.length + (nl.log.length === 1 ? " food · " : " foods · ") + nlNum(t.calories) + " kcal"
+        : "Nothing logged");
+
+      var list = $("#nl-entries", nlScreen);
+      if (!list) return;
+      if (!nl.log.length) {
+        list.innerHTML = '<div class="empty"><span class="blob"></span><b>Nothing logged yet</b>' +
+          '<span class="sub">Search a food, set the amount — the ring moves with it.</span></div>';
+        return;
+      }
+      list.innerHTML = nl.log.map(function (e, i) {
+        return '<div class="nl-entry">' +
+          '<span class="nl-entry-id"><b>' + nlEsc(e.name) + '</b>' +
+          '<span class="sub">' + e.label + ' · ' + Math.round(e.protein) + 'P / ' + Math.round(e.fat) + 'F / ' + Math.round(e.carbs) + 'C</span></span>' +
+          '<b class="nl-entry-kcal">' + nlNum(e.calories) + '</b>' +
+          '<button type="button" class="nl-x" data-nl="remove" data-i="' + i + '" aria-label="Remove ' + nlEsc(e.name) + '">&times;</button>' +
+          '</div>';
+      }).join("");
+    }
+
+    function nlAdd() {
+      var grams = nlGrams();
+      if (!nl.food || grams <= 0) {
+        // Tapping Add on a blank/zero amount used to do nothing at all --
+        // no toast, no shake, nothing -- which reads as a broken button
+        // rather than a rejected amount. Nudge the field that needs fixing,
+        // the same feedback shape the app's own onboarding tour uses for a
+        // blocked action.
+        var amountCard = $(".nl-amount", nlScreen);
+        if (amountCard) {
+          amountCard.classList.remove("is-nudging");
+          // Reflow forces the animation to restart on a second tap in a row,
+          // where merely re-adding the class would be a no-op.
+          void amountCard.offsetWidth;
+          amountCard.classList.add("is-nudging");
+        }
+        nlFocus(nlAmountInput);
+        return;
+      }
+      var m = nlMacros(nl.food, grams);
+      // The amount as it was typed, not re-derived: "1 serving" of pad thai
+      // should read back as a serving, with the grams it worked out to.
+      var label = nl.unit === "serving"
+        ? nl.amount + (nl.amount === 1 ? " serving" : " servings") + " · " + Math.round(grams) + " g"
+        : Math.round(grams) + " g";
+      nl.log.push({
+        name: nl.food.name, label: label,
+        calories: m.calories, protein: m.protein, fat: m.fat, carbs: m.carbs
+      });
+      nlRenderDay();
+      nlClose();
+      nlSay(nl.food.name + " added · " + nlNum(m.calories) + " kcal");
+    }
+
+    function nlSay(message) {
+      if (!nlToast) return;
+      nlToast.textContent = message;
+      nlToast.classList.add("is-on");
+      clearTimeout(nlToastTimer);
+      nlToastTimer = setTimeout(function () { nlToast.classList.remove("is-on"); }, 2200);
+    }
+
+    // ---- search ----
+    function nlRenderResults() {
+      if (!nlResults) return;
+      var q = (nlQuery ? nlQuery.value : "").trim().toLowerCase();
+      var matches = q
+        ? NL_FOODS.filter(function (f) { return f.name.toLowerCase().indexOf(q) !== -1; })
+        : NL_FOODS;
+      if (!matches.length) {
+        nlResults.innerHTML = '<p class="nl-none">No match here — the app itself searches the whole library.</p>';
+        return;
+      }
+      nlResults.innerHTML = matches.map(function (f) {
+        return '<button type="button" class="nl-result" data-nl="pick" data-food="' + nlEsc(f.name) + '">' +
+          '<span class="nl-result-id"><b>' + nlEsc(f.name) + '</b>' +
+          '<span class="sub">' + Math.round(f.calories) + ' kcal · ' + Math.round(f.protein) + 'P / ' +
+          Math.round(f.fat) + 'F / ' + Math.round(f.carbs) + 'C <em>per 100 g</em></span></span>' +
+          '<span class="nl-plus">+</span></button>';
+      }).join("");
+    }
+
+    // ---- sheets ----
+    // preventScroll: the sheet is already in view, so focusing it should not
+    // yank the page to the handset.
+    function nlFocus(el) {
+      if (!el) return;
+      try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    }
+
+    function nlOpen(which) {
+      nl.sheet = which;
+      Object.keys(nlSheets).forEach(function (key) {
+        if (nlSheets[key]) nlSheets[key].classList.toggle("is-open", key === which);
+      });
+      if (which === "search" && nlQuery) {
+        // Each visit starts clean. Carrying the last query over meant the
+        // second food you logged opened onto one stale result -- the search
+        // for the food you just added.
+        nlQuery.value = "";
+        nlRenderResults();
+        nlFocus(nlQuery);
+      }
+      // The keyboard has to follow the sheet. A closed sheet is
+      // visibility:hidden, so focus left on the search field lands on nothing
+      // and the amount editor is unreachable without tabbing the page again.
+      if (which === "amount") nlFocus(nlAmountInput);
+    }
+    function nlClose() {
+      nl.sheet = null;
+      Object.keys(nlSheets).forEach(function (key) {
+        if (nlSheets[key]) nlSheets[key].classList.remove("is-open");
+      });
+      // A closed sheet is visibility:hidden, so focus left behind inside one
+      // lands on nothing -- the same trap the CSS half of this already
+      // guards against. Hand it back to the button that opened the sheet.
+      nlFocus(nlOpenBtn);
+    }
+
+    nlScreen.addEventListener("click", function (evt) {
+      var el = evt.target.closest ? evt.target.closest("[data-nl]") : null;
+      if (!el) return;
+      var action = el.getAttribute("data-nl");
+      if (action === "open-search") { nlOpen("search"); return; }
+      if (action === "close") { nlClose(); return; }
+      if (action === "back") { nlOpen("search"); return; }
+      if (action === "pick") {
+        var name = el.getAttribute("data-food");
+        var food = NL_FOODS.filter(function (f) { return f.name === name; })[0];
+        if (food) nlPick(food);
+        return;
+      }
+      if (action === "unit") {
+        // Convert the current amount into the newly-picked unit, so switching
+        // units doesn't silently change how much is being logged.
+        var grams = nlGrams();
+        nl.unit = el.getAttribute("data-unit");
+        nl.amount = Math.round((grams / nlGramsPerUnit(nl.unit)) * 100) / 100;
+        if (nlAmountInput) nlAmountInput.value = String(nl.amount);
+        nlRenderAmount();
+        return;
+      }
+      if (action === "add") { nlAdd(); return; }
+      if (action === "remove") {
+        nl.log.splice(parseInt(el.getAttribute("data-i"), 10), 1);
+        nlRenderDay();
+      }
+    });
+
+    if (nlQuery) {
+      nlQuery.addEventListener("input", nlRenderResults);
+      nlQuery.addEventListener("keydown", function (evt) {
+        if (evt.key !== "Enter") return;
+        // Enter takes the top match, the way the app's search does.
+        evt.preventDefault();
+        var first = $(".nl-result", nlResults);
+        if (first) first.click();
+      });
+    }
+    if (nlAmountInput) {
+      nlAmountInput.addEventListener("input", function () {
+        var parsed = parseFloat(nlAmountInput.value);
+        nl.amount = isFinite(parsed) && parsed >= 0 ? parsed : 0;
+        // Snap the field itself when it implies more than NL_MAX_GRAMS --
+        // otherwise the box would keep showing the huge typed number while
+        // every macro below it is quietly computed off the capped grams.
+        if (nl.amount * nlGramsPerUnit(nl.unit) > NL_MAX_GRAMS) {
+          nl.amount = Math.round((NL_MAX_GRAMS / nlGramsPerUnit(nl.unit)) * 100) / 100;
+          nlAmountInput.value = String(nl.amount);
+        }
+        nlRenderAmount();
+      });
+    }
+    nlScreen.addEventListener("keydown", function (evt) {
+      if (evt.key === "Escape" && nl.sheet) { nlClose(); }
+    });
+
+    // An open sheet is an interaction in flight -- a half-typed search, an
+    // amount being set. Hold the screen against a cursor merely drifting
+    // over the feature list on its way to the handset.
+    onHold(function (current) {
+      return current === screens.indexOf(nlScreen) && !!nl.sheet;
+    });
+    // A click is deliberate, so it switches anyway -- and takes the sheet
+    // down with it, so the hold can never outlive the interaction that
+    // earned it. The day's log stays: that part is the visitor's own work.
+    onFeature(function (i) {
+      if (i !== screens.indexOf(nlScreen)) nlClose();
+    });
+
+    nlRenderResults();
+    nlRenderDay();
   }
 
   // ---------- waitlist ----------

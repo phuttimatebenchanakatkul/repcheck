@@ -338,6 +338,164 @@ def test_no_cta_promises_a_download_while_the_app_is_not_downloadable():
     )
 
 
+# ---------- The food log demo quotes the real library ----------
+
+_NL_FIELD = re.compile(r'(\w+): (?:"([^"]*)"|([\d.]+))')
+
+
+def _food_log_rows():
+    """The NL_FOODS table out of marketing/app.js, as dicts."""
+    js = (MARKETING / "app.js").read_text(encoding="utf-8")
+    block = re.search(r"var NL_FOODS = \[(.*?)\n    \];", js, re.DOTALL)
+    assert block, "NL_FOODS is gone from marketing/app.js -- the food log demo moved"
+
+    expected_keys = {"name", "calories", "protein", "fat", "carbs", "serving"}
+    rows = []
+    for line in re.findall(r"\{([^}]*)\}", block.group(1)):
+        row = {}
+        for key, text, number in _NL_FIELD.findall(line):
+            row[key] = text if number == "" else float(number)
+        rows.append(row)
+
+    assert rows, "parsed no rows out of NL_FOODS -- the table's shape changed"
+
+    # A field the regex can't parse (a negative number, a dropped key) is
+    # simply missing from the row, and the comparison below would then die
+    # with a bare KeyError instead of a message about the food log.
+    malformed = {
+        row.get("name", "<no name parsed>"): sorted(expected_keys - set(row))
+        for row in rows if set(row) != expected_keys
+    }
+    assert not malformed, (
+        "could not fully parse these NL_FOODS rows: " + repr(malformed)
+    )
+    return rows
+
+
+def test_the_food_log_demo_quotes_the_real_library():
+    """Feature 02 used to be a screen recording, guarded by
+    test_marketing_demo_video.py. It is a working food log now, and its numbers
+    are hand-copied constants in app.js -- a landing page quoting the wrong
+    calories for jasmine rice is the same class of untrue claim as a stats band
+    that says 527 exercises. Derive both from the app."""
+    from food_library import FOOD_LIBRARY
+
+    by_name = {food["name"]: food for food in FOOD_LIBRARY}
+    wrong = {}
+
+    for row in _food_log_rows():
+        name = row["name"]
+        real = by_name.get(name)
+        if real is None:
+            wrong[name] = "not in FOOD_LIBRARY at all"
+            continue
+
+        for key in ("calories", "protein", "fat", "carbs"):
+            if abs(row[key] - real[key]) > 0.05:
+                wrong[name + "." + key] = {"page": row[key], "library": real[key]}
+
+        # "1 serving" is a dish's recipe total, or the 100g a raw ingredient's
+        # macros are anchored to -- the rule openLogAmountModal() uses in
+        # templates/nutrition.html.
+        expected_serving = (
+            sum(ing["grams"] for ing in real["ingredients"])
+            if real.get("ingredients") else 100
+        )
+        if row["serving"] != expected_serving:
+            wrong[name + ".serving"] = {"page": row["serving"], "real": expected_serving}
+
+    assert wrong == {}, (
+        "the food log demo disagrees with food_library.py: " + repr(wrong)
+    )
+
+
+def test_the_food_log_day_goal_matches_the_pill_beside_it():
+    """The goal is a JS constant (NL_GOAL) and it is retyped as static markup
+    in several places: the pill above the ring, the no-JS/initial macro
+    targets in the food log card, and -- because the code comment claims it
+    matches -- the weekly check-in screen next door (feature 03). Those never
+    get overwritten by nlRenderDay(), so a NL_GOAL edit alone leaves them
+    quietly wrong while every other test stays green."""
+    js = (MARKETING / "app.js").read_text(encoding="utf-8")
+    goal_match = re.search(
+        r"var NL_GOAL = \{ kcal: (\d+), protein: (\d+), fat: (\d+), carbs: (\d+)", js
+    )
+    assert goal_match, "NL_GOAL is gone from marketing/app.js, or its shape changed"
+    kcal, protein, fat, carbs = (int(g) for g in goal_match.groups())
+
+    html = _strip_comments(_read("index.html"))
+
+    def _int(pattern, label):
+        m = re.search(pattern, html)
+        assert m, label + " is gone from index.html"
+        return int(m.group(1).replace(",", ""))
+
+    wrong = {}
+    checks = [
+        (r'<span class="pill">([\d,]+) kcal goal</span>', "the food log's kcal goal pill", kcal),
+        (r'<b id="nl-mac-p">0 / (\d+)g</b>', "the food log's protein target", protein),
+        (r'<b id="nl-mac-f">0 / (\d+)g</b>', "the food log's fat target", fat),
+        (r'<b id="nl-mac-c">0 / (\d+)g</b>', "the food log's carbs target", carbs),
+        # The weekly check-in screen (feature 03) is a separate, static mock
+        # -- app.js's own comment on NL_GOAL says it is meant to match.
+        (r'<b class="big">([\d,]+) <em>kcal left</em></b>', "the check-in screen's kcal-left figure", kcal),
+        (r'<span class="sub">of ([\d,]+) kcal today</span>', "the check-in screen's kcal-today figure", kcal),
+    ]
+    for pattern, label, expected in checks:
+        actual = _int(pattern, label)
+        if actual != expected:
+            wrong[label] = {"page": actual, "NL_GOAL": expected}
+
+    assert wrong == {}, (
+        "the food log's goal drifted from one of its own static copies: " + repr(wrong)
+    )
+
+
+def test_the_food_log_sheets_stay_out_of_reach_while_closed():
+    """A sheet merely translated off-screen still takes tab focus and still
+    reads out to a screen reader: a keyboard user tabs into an invisible search
+    field. visibility:hidden is what actually takes it out of both."""
+    css = _strip_css_comments((MARKETING / "styles.css").read_text(encoding="utf-8"))
+
+    closed = re.search(r"\.nl-sheet\s*\{([^}]*)\}", css)
+    assert closed, "the .nl-sheet rule is gone"
+    assert re.search(r"visibility:\s*hidden", closed.group(1)), (
+        "closed food-log sheets are not visibility:hidden -- an off-screen "
+        "sheet is still in the tab order and still in the accessibility tree"
+    )
+
+    opened = re.search(r"\.nl-sheet\.is-open\s*\{([^}]*)\}", css)
+    assert opened and re.search(r"visibility:\s*visible", opened.group(1)), (
+        "the open state does not restore visibility -- the sheet would never show"
+    )
+
+
+def test_the_food_log_inputs_do_not_trigger_ios_auto_zoom():
+    """iOS Safari zooms the whole page when a focused input is under 16px,
+    throwing the visitor out of the section mid-search. templates/nutrition.html
+    carries the same rule for the same reason."""
+    css = _strip_css_comments((MARKETING / "styles.css").read_text(encoding="utf-8"))
+
+    # The selector list and the font-size must be on the SAME rule -- both
+    # substrings present anywhere in the media block (the previous version of
+    # this assertion) is satisfied by an unrelated 16px declaration a few
+    # lines away, which does nothing to stop these two specific fields
+    # from zooming.
+    rule = re.search(r"\.nl-input,\s*#nl-amount\s*\{[^}]*\bfont-size:\s*(\d+)px", css)
+    assert rule, (
+        "no single rule sets .nl-input and #nl-amount's font-size together"
+    )
+    within_720 = any(
+        rule.group(0) in body
+        for body in re.findall(r"@media\s*\(max-width:\s*720px\)\s*\{(.*?)\n\}", css, re.DOTALL)
+    )
+    assert within_720 and int(rule.group(1)) >= 16, (
+        "the food log's .nl-input/#nl-amount rule is not bumped to >=16px "
+        "under a 720px breakpoint -- iOS Safari will auto-zoom the page when "
+        "one of them is focused"
+    )
+
+
 def test_the_stats_band_matches_the_real_library_sizes():
     """The exercise count said 527 for months after the library passed it.
     Derive both numbers from the app rather than trusting the page."""
