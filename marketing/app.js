@@ -205,6 +205,98 @@
   });
   showFeature(0);
 
+  // ---------- scroll story: the same six features, paced by scroll ----------
+  // This block decides WHEN to call showFeature, and nothing else. The
+  // switcher above still owns what a swap does -- which screen shows, which
+  // video plays, what is announced -- so click and hover keep working exactly
+  // as they did and there is only one code path for a feature change.
+  //
+  // Everything is behind `window.IntersectionObserver`, the same guard the
+  // race walkthrough below uses. jsdom has no IO, so the suites that run this
+  // file over the shipped markup skip the whole thing; a browser without it
+  // gets the plain two-column list. .rc-story-on is set from here rather than
+  // written into the HTML for that reason: the class IS the statement that
+  // the JS is alive, and every style in the story block hangs off it.
+  var story = $(".rc-story");
+  if (story && window.IntersectionObserver && featureBtns.length) {
+    // The markers are built rather than authored so their count can never
+    // drift from the number of features actually on the page.
+    var rail = document.createElement("div");
+    rail.className = "rc-story-rail";
+    rail.setAttribute("aria-hidden", "true");
+    var marks = featureBtns.map(function () {
+      var mark = document.createElement("div");
+      mark.className = "rc-story-mark";
+      rail.appendChild(mark);
+      return mark;
+    });
+    story.style.setProperty("--rc-stages", String(featureBtns.length));
+    story.insertBefore(rail, story.firstChild);
+    document.documentElement.classList.add("rc-story-on");
+
+    // The waitlist is observed first, and deliberately: .rc-story-on has just
+    // hidden it, so anything that threw between there and here would leave
+    // the one form on the page invisible.
+    var cta = $(".cta");
+    if (cta) {
+      new IntersectionObserver(function (entries, obs) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          // Once in, it stays in -- stop watching rather than fade it back
+          // out when it leaves.
+          entry.target.classList.add("is-in");
+          obs.unobserve(entry.target);
+        });
+      }, { threshold: 0.15 }).observe(cta);
+    }
+
+    // A rootMargin that pulls both edges to the middle leaves a root one line
+    // tall across the centre of the viewport, so exactly one full-height
+    // marker is ever intersecting: whichever stage the middle of the screen
+    // is currently in. That makes the swap a discrete trigger on entry, not
+    // a per-frame scrub of scroll position -- the cross-fade between two
+    // titles is CSS, and it runs at its own pace once the class flips.
+    var stages = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var i = marks.indexOf(entry.target);
+        if (i >= 0 && i !== activeFeature) showFeature(i);
+      });
+    }, { rootMargin: "-50% 0px -50% 0px", threshold: 0 });
+    marks.forEach(function (mark) { stages.observe(mark); });
+
+    // The hero copy thins out as the first stage comes up. This one IS tied
+    // to scroll position -- a fade that lands in one step is not what it is
+    // for -- so it touches opacity and transform only, off a passive listener
+    // throttled to one paint per frame. Skipped outright under reduced
+    // motion, where the hero simply scrolls away at full strength.
+    var heroFade = [$(".hero-mid"), $(".hero-foot")].filter(Boolean);
+    if (heroFade.length && !reduced) {
+      var queued = false;
+      var paintHero = function () {
+        queued = false;
+        var vh = window.innerHeight || 1;
+        var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+        // Gone by 60% of a viewport: the hero stands 100vh tall, so the copy
+        // has cleared well before the first feature reaches the middle.
+        var p = Math.min(1, Math.max(0, y / (vh * 0.6)));
+        heroFade.forEach(function (el) {
+          el.style.opacity = String(1 - p);
+          el.style.transform = "translate3d(0," + (p * -24).toFixed(1) + "px,0)";
+          // A button at zero opacity is still a button you can click.
+          el.style.pointerEvents = p >= 1 ? "none" : "";
+        });
+      };
+      window.addEventListener("scroll", function () {
+        if (queued) return;
+        queued = true;
+        window.requestAnimationFrame(paintHero);
+      }, { passive: true });
+      // Reloading half way down the page should not start from full opacity.
+      paintHero();
+    }
+  }
+
   // ---------- race walkthrough: the app's four HYROX screens, playable ----------
   // Feature 05's screen replays one athlete's 1:24:06 Men's Open Singles race
   // through the same four screens the app renders -- simulator, race setup,
