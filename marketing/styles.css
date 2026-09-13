@@ -1276,3 +1276,69 @@ button.stchip:hover { background: #34343a; }
   .rc-scroll-cue::after { animation: none; }
   .rc-ghost-run { transform: translate(30px, 4px) rotate(13deg); }
 }
+
+/* ---------- pricing ---------- */
+/* Built on .legal's column, so the page inherits the measure, the type sizes
+   and the footer the policy pages already use. Only the plan blocks are new. */
+.rc-pricing .rc-plans {
+  display: grid;
+  /* minmax(0, 1fr), not 1fr: a price is one unbreakable token, so a bare 1fr
+     track refuses to go below its content and the pair overflows the column
+     on a narrow screen instead of stacking. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 18px;
+  margin: 26px 0 0;
+}
+.rc-plan {
+  border: 1px solid var(--hair);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+/* The ink border is the only thing marking Pro out. No "most popular" flag
+   and no crossed-out price: there is no previous price, and nothing has been
+   sold yet for anything to be popular. */
+.rc-plan--pro { border-color: var(--ink); border-width: 2px; padding: 23px; }
+/* Qualified by .rc-pricing so it outweighs `.legal p`, which is what this
+   badge is. Unqualified it lost the colour and set near-black on black --
+   #2a2a2a on #0a0a0a, which is a badge you cannot read. */
+.rc-pricing .rc-plan-badge {
+  align-self: flex-start;
+  margin: 0 0 10px;
+  padding: 5px 10px 4px;
+  background: var(--ink);
+  color: #fff;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.rc-pricing .rc-plan-name { font-size: 21px; font-weight: 800; margin: 0; }
+.rc-pricing .rc-plan-price {
+  font-size: clamp(34px, 5vw, 46px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin: 6px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.rc-plan-per { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--muted); }
+.rc-pricing .rc-plan-line { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+.rc-pricing .rc-plan-list { margin: 16px 0 0; }
+.rc-pricing .rc-plan-list li { font-size: 15.5px; }
+/* The one line in the Free column describing something it does NOT include.
+   Muted rather than struck through: there is no former price or former
+   feature here to cross out, and a strikethrough would imply one. */
+.rc-pricing .rc-plan-no { color: var(--muted); }
+
+.rc-annual {
+  margin: 26px 0 0;
+  padding: 24px;
+  border: 1px solid var(--hair);
+  border-radius: 18px;
+  background: var(--soft);
+}
+.rc-pricing .rc-annual h2 { margin: 0; font-size: 19px; }
+.rc-pricing .rc-annual-note { margin: 8px 0 0; font-size: 15.5px; color: var(--muted); }
+.rc-pricing .btn { margin-top: 4px; }

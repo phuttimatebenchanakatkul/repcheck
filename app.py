@@ -506,7 +506,7 @@ RATE_LIMITS = {
     # in the SESSION, which resets the moment a caller drops their cookie.
     # A per-account window is the only one an attacker cannot reset for
     # free, and these two are the ones that spend money per call.
-    "split_generation": (10, 24 * 60 * 60),   # 10 plans per day
+    "split_generation": (2, 24 * 60 * 60),    # 2 plans per day
     "hyrox_analysis": (8, 5 * 60 * 60),       # matches the old session budget
 }
 
