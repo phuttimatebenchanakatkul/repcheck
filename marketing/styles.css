@@ -855,9 +855,42 @@ button.stchip:hover { background: #34343a; }
 .rc-story-on .rc-hint-tap { display: none; }
 .rc-story-on .rc-hint-scroll { display: block; }
 
-/* One stage per feature, plus one. --rc-stages is written by app.js from the
+/* The hero holds still and dissolves rather than scrolling off the top.
+   Fixed, not sticky: sticky is still laid out in the flow, so the section
+   under it starts a screen down the document and slides up into place as the
+   hero goes -- which is the movement this is meant to remove. Taken out of
+   flow, the features sit pinned at the top from the first frame and are
+   simply uncovered.
+
+   Hence the opaque --paper ground: for most of the fade this element is the
+   only thing standing between the reader and the feature panel already in
+   position behind it.
+
+   .rc-hero-pin is a second class, set by app.js only when it is going to
+   drive the fade. Nothing here may apply without something to fade it out:
+   a fixed hero at full opacity that never clears would cover the page.
+   Under reduced motion the class is never set and the hero scrolls. */
+.rc-story-on.rc-hero-pin .hero {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: 0;
+  height: 100vh;
+  height: 100svh;
+  z-index: 2;
+  background: var(--paper);
+}
+
+/* One stage per feature, plus two. --rc-stages is written by app.js from the
    real button count, so adding a seventh feature lengthens the scroll on its
    own rather than leaving the last one unreachable.
+
+   The second extra stage is the hero's. The panel is pinned and showing
+   feature 01 from the first frame, underneath the hero; that leading screen
+   of scroll is the hero dissolving off it. Without it the hero would spend
+   feature 01's turn sitting on top of it, and the first feature would get a
+   fraction of the time every other one gets.
 
    The + 1 is what keeps the panel still. A sticky element is only pinned for
    its container's height MINUS its own, so at exactly six stages the pin ran
@@ -867,8 +900,8 @@ button.stchip:hover { background: #34343a; }
    in, after the sixth feature has had its full turn. */
 .rc-story-on .rc-story {
   position: relative;
-  height: calc((var(--rc-stages, 6) + 1) * 100vh);
-  height: calc((var(--rc-stages, 6) + 1) * 100svh);
+  height: calc((var(--rc-stages, 6) + 2) * 100vh);
+  height: calc((var(--rc-stages, 6) + 2) * 100svh);
 }
 
 /* The markers carry no content and no paint -- they exist to be observed.
@@ -885,6 +918,10 @@ button.stchip:hover { background: #34343a; }
   position: absolute;
   left: 0;
   right: 0;
+  /* Half a screen, for the observer's middle line. The hero's screen has a
+     marker of its own at the head of the rail rather than being an offset
+     here, so that every scroll position in the section resolves to a
+     feature. */
   top: 50vh;
   top: 50svh;
   display: flex;
@@ -895,14 +932,25 @@ button.stchip:hover { background: #34343a; }
 
 /* svh, not vh: on mobile the URL bar collapsing mid-scroll changes vh, which
    would resize the pinned panel underneath the visitor's finger. */
-/* No align-items here: the columns have to stretch the full height or the
-   hairline between them runs for the height of the title and stops. Each
-   column centres its own contents instead. */
-.rc-story-on .what-grid {
+/* The pinned panel is the wrapper now, not the grid, so the strip rides
+   along as a fixed header above it instead of being left behind in the
+   scroll. */
+.rc-story-on .rc-story-view {
   position: sticky;
   top: 0;
   height: 100vh;
   height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+/* No align-items here: the columns have to stretch the full height or the
+   hairline between them runs for the height of the title and stops. Each
+   column centres its own contents instead. minmax-style min-height: 0 for
+   the same reason the mobile rows need it -- the handset's layout box is its
+   unscaled height, and the grid has to be allowed under it. */
+.rc-story-on .what-grid {
+  flex: 1;
+  min-height: 0;
 }
 
 /* All six names stack into one grid cell and cross-fade, so the column reads
