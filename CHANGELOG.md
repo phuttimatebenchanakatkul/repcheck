@@ -2,6 +2,27 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.1.0] - 2026-09-13
+
+### Added
+
+- **An upload button on the analyze screen**, so you can grade a lift you
+  already filmed instead of only one recorded in the app. The page could
+  always accept a video file, but the control for it was hidden inside the
+  "we can't reach your camera" fallback -- so if your camera worked, you had
+  no way to use a clip from your camera roll. The button sits opposite the
+  flip-camera button, in the space that was already empty.
+
+  **This is temporary, at the owner's request** -- it is meant for one clip
+  and is expected to be reverted. It is deliberately a single commit so
+  `git revert` takes it out cleanly.
+
+### Fixed
+
+- Picking a video while the camera preview was live left the camera running
+  behind the review screen, with the indicator light on. Every route to the
+  review screen now releases it.
+
 ## [0.12.0.0] - 2026-09-13
 
 ### Added
