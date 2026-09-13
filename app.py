@@ -499,14 +499,14 @@ ADMIN_EMAILS = {"phuttimatebenchanakatkul@gmail.com"}
 # per-user counter.
 RATE_LIMITS = {
     "workout_analysis": (1, 24 * 60 * 60),  # 1 per day
-    "food_analysis": (3, 24 * 60 * 60),     # 3 per day
+    "food_analysis": (1, 24 * 60 * 60),     # 1 per day
     "ai_chat": (3, 24 * 60 * 60),           # 3 messages per day
     # Both of these call Gemini and neither was capped per account. The
     # split wizard had no limit at all; the HYROX analyzer had one counted
     # in the SESSION, which resets the moment a caller drops their cookie.
     # A per-account window is the only one an attacker cannot reset for
     # free, and these two are the ones that spend money per call.
-    "split_generation": (2, 24 * 60 * 60),    # 2 plans per day
+    "split_generation": (1, 24 * 60 * 60),    # 1 plan per day
     "hyrox_analysis": (8, 5 * 60 * 60),       # matches the old session budget
 }
 
