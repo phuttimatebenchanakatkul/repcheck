@@ -855,21 +855,38 @@ button.stchip:hover { background: #34343a; }
 .rc-story-on .rc-hint-tap { display: none; }
 .rc-story-on .rc-hint-scroll { display: block; }
 
-/* The section becomes one stage per feature. --rc-stages is written by
-   app.js from the real button count, so adding a seventh feature lengthens
-   the scroll on its own rather than leaving the last one unreachable. */
+/* One stage per feature, plus one. --rc-stages is written by app.js from the
+   real button count, so adding a seventh feature lengthens the scroll on its
+   own rather than leaving the last one unreachable.
+
+   The + 1 is what keeps the panel still. A sticky element is only pinned for
+   its container's height MINUS its own, so at exactly six stages the pin ran
+   out one screen early and the last feature slid up and off while it was
+   still the one showing -- the one moment in the section that looked like
+   ordinary scrolling. The extra screen is the room the panel needs to leave
+   in, after the sixth feature has had its full turn. */
 .rc-story-on .rc-story {
   position: relative;
-  height: calc(var(--rc-stages, 6) * 100vh);
-  height: calc(var(--rc-stages, 6) * 100svh);
+  height: calc((var(--rc-stages, 6) + 1) * 100vh);
+  height: calc((var(--rc-stages, 6) + 1) * 100svh);
 }
 
 /* The markers carry no content and no paint -- they exist to be observed.
    Absolute, so they contribute no height of their own on top of the height
-   set above. */
+   set above.
+
+   Dropped half a screen: the observer watches a line across the MIDDLE of
+   the viewport, so a marker starting at the top of the section would put its
+   own middle half a screen out of step with the scroll distance the panel is
+   actually pinned for. Offsetting the rail by the same half screen lines
+   each stage up with its share of the pin exactly -- the sixth ends on the
+   frame the panel starts to leave. */
 .rc-story-on .rc-story-rail {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 50vh;
+  top: 50svh;
   display: flex;
   flex-direction: column;
   pointer-events: none;
@@ -897,6 +914,11 @@ button.stchip:hover { background: #34343a; }
   align-content: center;
   gap: 0;
 }
+/* Opacity only -- nothing travels. A title that slid into place read as the
+   page scrolling under a window, which is the one impression this section is
+   built to avoid: the panel is meant to sit still while its contents change.
+   So the outgoing title fades out where it stands and the next fades up in
+   the same spot. */
 .rc-story-on .feature {
   grid-area: 1 / 1;
   flex: none;
@@ -908,21 +930,38 @@ button.stchip:hover { background: #34343a; }
      order, so a keyboard user would land on five titles they cannot see.
      Delayed to the end of the fade so it does not cut the transition off. */
   visibility: hidden;
-  transform: translate3d(0, 22px, 0);
-  transition: opacity 0.5s ease, transform 0.5s ease, visibility 0s linear 0.5s;
+  /* Out first, in after -- not a dissolve. All six titles share the one grid
+     cell, so fading them simultaneously drew two of them over each other at
+     half strength for a moment, and at this size that reads as doubled
+     letterforms rather than a soft change. The outgoing title clears the cell
+     before the next one starts, so only ever one is legible. */
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
 }
 .rc-story-on .feature.is-active {
   opacity: 1;
   visibility: visible;
-  transform: none;
   /* The list style fills the active row with ink. One title alone on white
      does not want a black slab behind it. */
   background: transparent;
   color: var(--ink);
-  transition-delay: 0s;
+  /* Held back by exactly the length of the fade above. */
+  transition: opacity 0.3s ease 0.2s, visibility 0s linear 0.2s;
 }
 .rc-story-on .feature-head { gap: 20px; }
 .rc-story-on .feature-title { font-size: clamp(34px, 4.6vw, 68px); }
+
+/* The handset swaps screens by display, which cannot be transitioned, so the
+   arriving screen fades itself up instead of cutting in hard against the
+   title fading beside it. The one leaving is simply gone -- with the panel
+   holding still, a plain fade-in is enough to read as the next feature
+   arriving rather than the page having moved. */
+@keyframes rc-screen-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* Delayed to match the title, so the handset and the name arrive together
+   rather than the screen cutting in while the old title is still fading. */
+.rc-story-on .what .screen.is-active { animation: rc-screen-in 0.3s ease 0.2s both; }
 
 .rc-story-on .phone-stage { height: 100%; }
 /* Scaled rather than resized: the handset's 640px screen is a fixed height
@@ -992,4 +1031,5 @@ button.stchip:hover { background: #34343a; }
     transform: none;
   }
   .rc-story-on .feature { transition: visibility 0s linear 0s; }
+  .rc-story-on .what .screen.is-active { animation: none; }
 }
