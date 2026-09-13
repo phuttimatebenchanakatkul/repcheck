@@ -119,17 +119,6 @@ button { font: inherit; }
 .btn-store-icon { width: 18px; height: 18px; flex: none; }
 
 .hero-foot { position: relative; display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-end; justify-content: space-between; }
-/* Sits under .hero-actions, carrying the availability statement that used to
-   be crammed into the button label. */
-.hero-availability {
-  margin: 14px 0 0;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--meta);
-  max-width: 40ch;
-}
 
 .hero-foot p { max-width: 46ch; font-size: 16px; line-height: 1.55; color: var(--muted); }
 
