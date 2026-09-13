@@ -1089,18 +1089,24 @@ button.stchip:hover { background: #34343a; }
    the feature title. Only with the story on: without it the features are a
    list you click, and "scroll down" would be pointing at the wrong control. */
 .rc-scroll-cue { display: none; }
+/* Archivo, not the mono. The mono face is what this site uses for labels and
+   metadata -- 11px, uppercase, widely tracked, deliberately recessive -- and
+   the cue was reading as another caption instead of an instruction. Archivo
+   is the face the headlines are set in, so at a real size and in full ink it
+   reads as something addressed to the reader. */
 .rc-story-on .rc-scroll-cue {
   display: block;
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 26px;
+  bottom: 24px;
   text-align: center;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--meta);
+  font-family: Archivo, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--ink);
   /* Under the handset rather than over it: the panel's own children paint in
      order and the phone is interactive. */
   pointer-events: none;
@@ -1119,14 +1125,21 @@ button.stchip:hover { background: #34343a; }
   margin: 0;
 }
 
+/* The arrow travels further and faster than it did, and sits on its own line
+   under the words rather than trailing them, so the movement is the thing
+   that catches the eye rather than a character drifting at the end of a
+   sentence. */
 .rc-scroll-cue::after {
-  content: " ↓";
-  display: inline-block;
-  animation: rc-cue-nudge 1.8s ease-in-out infinite;
+  content: "↓";
+  display: block;
+  margin-top: 2px;
+  font-size: 20px;
+  line-height: 1;
+  animation: rc-cue-nudge 1.4s ease-in-out infinite;
 }
 @keyframes rc-cue-nudge {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(4px); }
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(8px); opacity: 0.45; }
 }
 
 /* ---------- loading screen ---------- */
@@ -1219,8 +1232,18 @@ button.stchip:hover { background: #34343a; }
 @media (max-width: 720px) {
   /* One column, so left-aligned and centred are the same column of space:
      the two lines are stacked instead of set side by side. */
-  .rc-story-on .hint-demo { bottom: 46px; right: 0; }
-  .rc-story-on .rc-scroll-cue { bottom: 16px; }
+  .rc-story-on .hint-demo { bottom: 48px; right: 0; }
+  .rc-story-on .rc-scroll-cue { bottom: 14px; font-size: 15px; }
+  /* Arrow back on the words' own line here. Stacked it makes the cue about
+     41px tall, and on a 667px screen there is only ~80px under the handset
+     for this and the example-data line together -- the two ran into each
+     other. Inline it is one line again and both fit. */
+  .rc-story-on .rc-scroll-cue::after {
+    content: " ↓";
+    display: inline-block;
+    margin-top: 0;
+    font-size: 16px;
+  }
 }
 
 /* On a short screen the two lines at the foot of the panel are sitting where
@@ -1331,9 +1354,13 @@ button.stchip:hover { background: #34343a; }
 /* Monthly / Yearly. Hidden until the script says it works -- an inert
    segmented control is worse than no control. */
 .rc-billing { display: none; }
+/* Centred in the column. flex with a fit-content width rather than
+   inline-flex in a centred parent, so the centring belongs to the control
+   and does not depend on the text-align of whatever it sits in. */
 .rc-billing-on .rc-billing {
-  display: inline-flex;
-  margin: 18px 0 0;
+  display: flex;
+  width: fit-content;
+  margin: 22px auto 0;
   padding: 3px;
   border: 1px solid var(--hair);
   border-radius: 999px;
