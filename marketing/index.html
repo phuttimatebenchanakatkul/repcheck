@@ -492,6 +492,17 @@
   </div>
 </footer>
 
+<!--
+  Self-hosted, never a CDN -- see assets/vendor/README.md. cookies.html tells
+  visitors this site makes no third-party requests and skips a consent banner
+  on the strength of it, and the compliance suite fails on any off-site URL.
+
+  Ahead of app.js because app.js looks for window.gsap at load: if these two
+  are missing or blocked, the story block skips itself and the page falls back
+  to the plain two-column feature list, the same way it does with no JS.
+-->
+<script src="assets/vendor/gsap.min.js"></script>
+<script src="assets/vendor/ScrollTrigger.min.js"></script>
 <script src="app.js"></script>
 
 

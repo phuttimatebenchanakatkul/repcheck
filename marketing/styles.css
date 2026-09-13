@@ -904,31 +904,11 @@ button.stchip:hover { background: #34343a; }
   height: calc((var(--rc-stages, 6) + 2) * 100svh);
 }
 
-/* The markers carry no content and no paint -- they exist to be observed.
-   Absolute, so they contribute no height of their own on top of the height
-   set above.
-
-   Dropped half a screen: the observer watches a line across the MIDDLE of
-   the viewport, so a marker starting at the top of the section would put its
-   own middle half a screen out of step with the scroll distance the panel is
-   actually pinned for. Offsetting the rail by the same half screen lines
-   each stage up with its share of the pin exactly -- the sixth ends on the
-   frame the panel starts to leave. */
-.rc-story-on .rc-story-rail {
-  position: absolute;
-  left: 0;
-  right: 0;
-  /* Half a screen, for the observer's middle line. The hero's screen has a
-     marker of its own at the head of the rail rather than being an offset
-     here, so that every scroll position in the section resolves to a
-     feature. */
-  top: 50vh;
-  top: 50svh;
-  display: flex;
-  flex-direction: column;
-  pointer-events: none;
-}
-.rc-story-on .rc-story-mark { flex: 0 0 100vh; flex-basis: 100svh; }
+/* The rail of marker elements that used to live here is gone. Stages were
+   decided by an IntersectionObserver watching a line across the middle of the
+   viewport, which needed a real element per stage to watch; ScrollTrigger
+   reads the section's own progress, so there is nothing left to observe and
+   nothing to keep in step with it. */
 
 /* svh, not vh: on mobile the URL bar collapsing mid-scroll changes vh, which
    would resize the pinned panel underneath the visitor's finger. */
