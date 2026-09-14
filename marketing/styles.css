@@ -260,13 +260,56 @@ button { font: inherit; }
 .stchip span { font-family: "JetBrains Mono", monospace; font-size: 9px; color: var(--app-dim); }
 .stchip b { font-size: 10.5px; text-align: center; line-height: 1.15; padding: 0 4px; }
 
-/* challenges screen (feature 06) */
+/* friends + challenges screen (feature 06) */
 .code-row { display: flex; gap: 14px; align-items: center; }
 .qr { width: 64px; height: 64px; border-radius: 10px; background: repeating-conic-gradient(#f5f5f7 0 25%, #0b0b0c 0 50%) 0 0/16px 16px; }
 .code { display: block; font-family: "JetBrains Mono", monospace; font-size: 16px; letter-spacing: 0.04em; margin-bottom: 9px; }
-/* Shared with the exercise picker on the workout-log screen. */
+.add-row { display: flex; gap: 7px; }
 .fake-input { flex: 1; padding: 10px 12px; border-radius: 12px; background: var(--app-line); font-size: 11.5px; color: #6b6d78; }
+.scan { padding: 10px; border-radius: 12px; background: var(--app-line); font-size: 11.5px; text-align: center; }
+.friend { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 600; }
+.friend em { margin-left: auto; font-style: normal; font-weight: 400; color: var(--app-dim); }
 .fav { width: 26px; height: 26px; border-radius: 50%; background: var(--app-line); color: var(--app-dim); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+
+/* The two panes are stacked in the same box and cross-faded, so the screen
+   keeps the height of one of them. inset matches .screen's own padding,
+   which the panes take over now that they, not the cards, are its children. */
+.rc-ch-screen { position: relative; }
+/* inset is .screen's own padding, which the panes take over now that they,
+   not the cards, are its children -- 12px rather than 14px at the top and
+   bottom because both panes are within a few pixels of the height they have
+   and .screen is overflow:hidden. */
+.rc-ch-pane {
+  position: absolute; inset: 12px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  animation: rc-ch-cycle 11s ease-in-out infinite;
+}
+/* Half a cycle apart: one pane holds while the other is faded out.
+   opacity 0 is the pane's own value, not just where its keyframes start, and
+   it has to be: an animation-delay does NOT fill backwards, so through the
+   first 5.5 seconds -- which is exactly when a reader first reaches feature
+   06 -- this pane had no animated value at all and sat at the CSS default of
+   1, drawing the friends list on top of the challenge screen. The declaration
+   below is what it holds during the delay. It also means the reduced-motion
+   block only has to stop the animation for the right pane to be left. */
+.rc-ch-pane--friends { opacity: 0; animation-delay: 5.5s; }
+/* The friends pane laid out 8px taller than the box the panes share, and
+   .screen is overflow:hidden, so the foot of the friends list was being cut.
+   Two paddings, not a smaller type size: the pane has to read as the same
+   screen the site shipped before, and 11px of leading is not visible where a
+   dropped line would be. Re-measure both if a row is added to it. */
+.rc-ch-pane--friends { gap: 10px; }
+.rc-ch-pane--friends .scan { padding: 7px; }
+.rc-ch-pane--friends .code { margin-bottom: 4px; }
+/* Out first, in after, the same hand-off the feature titles use above -- the
+   pane fades UP from 0 at the start of its own turn rather than cutting in.
+   Without the 0% the delayed pane snapped on at full strength the instant the
+   other finished fading, which read as a glitch rather than a change. */
+@keyframes rc-ch-cycle {
+  0% { opacity: 0; }
+  5%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
 
 /* The hero: today's exercise, its streak chip and the record button. The
    icon is drawn in currentColor (it is the app's own hero SVG), so it takes
@@ -278,15 +321,7 @@ button { font: inherit; }
 .rc-ch-ex { display: flex; align-items: center; gap: 14px; }
 .rc-ch-icon { display: flex; flex: none; color: var(--app-text); }
 .rc-ch-icon svg { display: block; }
-.rc-ch-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
-/* Three cards on a 640px screen, where every other mock gets away with two.
-   .screen is overflow:hidden, so anything past the tab bar is simply cut --
-   these two lines are what buy the third card its room. */
-.screen[data-screen="5"] .card { gap: 10px; padding: 14px; }
-/* The QR is a decorative stand-in, so it can be read at any size; 44px is
-   what the three cards on this screen leave for it. */
-.rc-ch-code .qr { width: 44px; height: 44px; }
-.rc-ch-code .code { font-size: 15px; margin-bottom: 3px; }
+.rc-ch-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
 
 /* The two leaderboard scopes. A pill pair, not buttons: nothing in the
    handset is interactive. */
@@ -1150,6 +1185,12 @@ button.stchip:hover { background: #34343a; }
   }
   .rc-story-on .feature { transition: visibility 0s linear 0s; }
   .rc-story-on .what .screen.is-active { animation: none; }
+  /* The one screen that animates on its own. With the cycle stopped each
+     pane falls back to its own opacity -- 1 for the challenge screen, 0 for
+     the friends pane -- so the handset simply holds the challenge screen,
+     which is the half of this feature that is worth looking at. Not gated on
+     .rc-story-on: the cycle runs in the plain list too. */
+  .rc-ch-pane { animation: none; }
 }
 
 /* ---------- the real wordmark ---------- */
