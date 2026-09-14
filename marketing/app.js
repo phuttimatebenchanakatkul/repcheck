@@ -279,23 +279,6 @@
       });
     }
 
-    // With all six names listed, the index is a control again -- and a name
-    // you can see and click has to go somewhere. Without this it would not:
-    // the switcher's own click handler swaps the handset, and then the very
-    // next scroll event puts back whatever the scroll position says, so the
-    // click would appear to do nothing at all.
-    //
-    // The middle of the stage, not its start: a stage boundary is where the
-    // handset and the name are at their smallest, so landing on one would
-    // show the feature at its least legible. Landing mid-stage lands on the
-    // held part of the arc, which is the feature at rest.
-    featureBtns.forEach(function (btn, i) {
-      btn.addEventListener("click", function () {
-        var top = story.getBoundingClientRect().top + window.pageYOffset;
-        window.scrollTo(0, Math.round(top + (i + 1.5) * window.innerHeight));
-      });
-    });
-
     // The waitlist first, and deliberately: .rc-story-on has just hidden it,
     // so anything that threw between there and here would leave the one form
     // on the page invisible.
@@ -441,12 +424,18 @@
         if (!ctx.conditions.motion) return;
 
         // Smaller travel in one column: the handset is already scaled down
-        // there and the title sits right on top of it, so the same 22px read
-        // as the two colliding rather than as depth.
+        // there and the title sits right on top of it, so the same distance
+        // read as the two colliding rather than as depth.
+        //
+        // All three were deeper -- 0.94, 22px, half strength -- and between
+        // them the handset dropped noticeably out of the page at every
+        // boundary. It was doing two jobs: moving, and covering for a title
+        // that changed on a timer it had nothing to do with. The title is on
+        // the same clock as this now, so the dip only has to be a dip.
         var narrow = ctx.conditions.narrow;
-        var SETTLE = narrow ? 0.96 : 0.94;
-        var LIFT = (narrow ? 12 : 22) + "px";
-        var DIM = narrow ? 0.6 : 0.5;
+        var SETTLE = narrow ? 0.98 : 0.97;
+        var LIFT = (narrow ? 6 : 10) + "px";
+        var DIM = narrow ? 0.82 : 0.75;
 
         // Built fresh per call rather than shared: fromTo() keeps a reference
         // to the vars it is handed, and three timelines editing one object is
@@ -470,52 +459,78 @@
           };
         };
 
-        // How far a name in the index grows when its stage is the one you are
-        // on. A factor and not a second font-size: type set twice at two
-        // sizes has to be cross-faded between, and a scale is one continuous
-        // value the scroll can hold at any point in between. Smaller in one
-        // column -- the rows are tighter there, and at 1.62 a grown name
-        // reached into the row above it.
-        var GROW = narrow ? 1.34 : 1.62;
-        var titles = $$(".feature-title", whatSection);
+        // The title's fade, moved off CSS and onto this timeline. It was a
+        // transition -- 0.2s out, then 0.3s in after a 0.2s delay -- and a
+        // half-second timer is the one thing in this section that was not
+        // answering to the scroll. Stop half way through a change and the
+        // timer finished the job without you; scroll quickly and the handset
+        // was already a feature ahead of the words beside it. Scrubbed, the
+        // words and the handset cannot come apart, because they are the same
+        // tween.
+        //
+        // Short windows at the two edges rather than a long dissolve. The six
+        // titles share one grid cell, so anything that has them both up at
+        // once draws them over each other -- at this size that reads as
+        // doubled letterforms, which is why the CSS had the delay. Out by the
+        // stage line and in from the stage line keeps one legible at a time,
+        // and because it is scroll-linked the gap between them is a boundary
+        // rather than a beat: it has no duration to sit through.
+        // A fifth of the stage to fade in and a fifth to fade out, so a title
+        // spends the middle three fifths held. Longer than it reads: a stage
+        // is a whole screen of scrolling, so a fifth of one is about 180px of
+        // travel at a laptop's height -- deliberate rather than quick, which
+        // is the whole complaint being answered.
+        var IN_AT = 0.2;
+        // sine, not power: it is the shallowest of the standard curves at
+        // both ends, so a title neither jumps off zero nor hangs at full
+        // strength before it goes. On a fade with nothing else to look at,
+        // that difference is the whole of how smooth it reads.
+        var EASE_IN = "sine.out";
+        var EASE_OUT = "sine.in";
 
-        // One timeline per stage driving BOTH, rather than two sets of
-        // triggers: the handset settling and the name growing are one beat,
-        // and two timelines at the same start and end are two chances for
-        // them to drift apart.
-        var stageTl = function (from, to, title) {
-          var tl = gsap.timeline({
-            scrollTrigger: {
-              trigger: story,
-              start: screenPx(from),
-              end: screenPx(to),
-              // A little smoothing, like the zoom's: scrubbed dead to the
-              // scroll, a trackpad flick makes the handset judder.
-              scrub: 0.35
-            }
-          })
-            // 0 -> 0.3 arriving, 0.3 -> 0.7 held, 0.7 -> 1 leaving. The hold
-            // is the point: the middle of a stage is where a reader is
-            // actually reading the thing, and a handset still drifting under
-            // them there is a distraction, not depth.
-            .fromTo(phone, away(), rest({ ease: "power2.out", duration: 0.3 }), 0)
-            .to(phone, away({ ease: "power2.in", duration: 0.3 }), 0.7);
-
-          // The name grows out of the list and settles back into it, on the
-          // same arc and to the same clock as the handset. Symmetric, so the
-          // stage hands over with every name at its resting size -- which is
-          // what makes the next one read as rising out of the list rather
-          // than replacing the one before it.
-          if (title) {
-            tl.fromTo(title, { scale: 1 },
-                { scale: GROW, ease: "power2.out", duration: 0.3 }, 0)
-              .to(title, { scale: 1, ease: "power2.in", duration: 0.3 }, 0.7);
+        // ONE timeline for the whole pinned run, not one per stage.
+        //
+        // Six separate scrubbed timelines cannot be relied on to hand over
+        // cleanly, and measuring caught them not doing it: each carries its
+        // own 0.35s of smoothing, so on a quick scroll the outgoing stage was
+        // still catching up while the incoming one had already arrived, and
+        // for a moment the cell held two titles at once -- 0.72 and 1.00 over
+        // each other, which at this size is the doubled letterforms the old
+        // CSS delay existed to prevent. On one timeline there is one playhead
+        // and one lag, so a title's fade-out ENDS where the next one's
+        // fade-in begins, by construction, at any scroll speed.
+        //
+        // Six units long, one per stage, so `s` is both the feature index and
+        // the position on the timeline.
+        var master = gsap.timeline({
+          scrollTrigger: {
+            trigger: story,
+            start: screenPx(1),
+            end: screenPx(1 + featureBtns.length),
+            // Smoothing, and more of it than the zoom uses. Scrubbed dead to
+            // the scroll a trackpad flick makes the handset judder; at 0.45
+            // the panel keeps moving for a beat after the wheel stops, which
+            // is what reads as weight rather than as lag.
+            scrub: 0.45
           }
-          return tl;
-        };
+        });
 
         for (var s = 0; s < featureBtns.length; s++) {
-          stageTl(s + 1, s + 2, titles[s]);
+          master
+            // The handset: 0 -> 0.3 arriving, 0.3 -> 0.7 held, 0.7 -> 1
+            // leaving. The hold is the point -- the middle of a stage is
+            // where a reader is actually reading the thing, and a handset
+            // still drifting under them there is a distraction, not depth.
+            .fromTo(phone, away(), rest({ ease: "power2.out", duration: 0.3 }), s)
+            .to(phone, away({ ease: "power2.in", duration: 0.3 }), s + 0.7)
+            // The title, on the same clock. autoAlpha, not opacity: it writes
+            // visibility alongside, which is what keeps five invisible titles
+            // out of the tab order -- the same pair the CSS was setting by
+            // hand.
+            .fromTo(featureBtns[s], { autoAlpha: 0 },
+              { autoAlpha: 1, ease: EASE_IN, duration: IN_AT }, s)
+            .to(featureBtns[s],
+              { autoAlpha: 0, ease: EASE_OUT, duration: IN_AT }, s + 1 - IN_AT);
         }
       });
     }
