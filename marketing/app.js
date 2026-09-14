@@ -385,6 +385,98 @@
         };
       });
     }
+
+    // ---------- the handset settles into each feature ----------
+    // Scroll position was only ever an on/off switch in here: cross a stage
+    // line and the title swaps. Between the lines nothing moved, so a screen
+    // of scrolling bought a reader nothing -- which is the opposite of what a
+    // pinned section is for.
+    //
+    // So each stage now scrubs the handset through an arc: it comes up from
+    // slightly under size and dimmed, settles, holds for the middle of the
+    // stage, and recedes again as the stage runs out. The arc is symmetric ON
+    // PURPOSE -- it ends where the next one begins, so the boundary is
+    // continuous rather than a snap back to the start of the next arc, and
+    // the trough lands exactly where showFeature() swaps the screen, so the
+    // swap happens at the handset's dimmest and smallest rather than in front
+    // of the reader.
+    //
+    // The TITLE is deliberately left out. It cross-fades and does not travel,
+    // which is a decision this section has already made twice (see the
+    // .rc-story-on .feature comment in styles.css): a title that slides reads
+    // as the page scrolling under a window, and the panel is meant to hold
+    // still while its contents change. Moving the handset is the one thing
+    // here that cannot be mistaken for the page moving, because it has the
+    // pinned panel around it as a fixed reference.
+    //
+    // Transform and opacity only, and the transform goes through the two
+    // custom properties styles.css composes -- never `transform` itself,
+    // which would clobber the height-driven layout scale beside it.
+    var phone = $(".phone", whatSection);
+    if (phone) {
+      gsap.matchMedia().add({
+        motion: "(prefers-reduced-motion: no-preference)",
+        narrow: "(max-width: 720px)"
+      }, function (ctx) {
+        // Reduced motion keeps the plain cross-fade it already had. No pin is
+        // added or removed here -- this branch only ever animates -- so
+        // unlike the zoom above there is nothing to leave broken.
+        if (!ctx.conditions.motion) return;
+
+        // Smaller travel in one column: the handset is already scaled down
+        // there and the title sits right on top of it, so the same 22px read
+        // as the two colliding rather than as depth.
+        var narrow = ctx.conditions.narrow;
+        var SETTLE = narrow ? 0.96 : 0.94;
+        var LIFT = (narrow ? 12 : 22) + "px";
+        var DIM = narrow ? 0.6 : 0.5;
+
+        // Built fresh per call rather than shared: fromTo() keeps a reference
+        // to the vars it is handed, and three timelines editing one object is
+        // the kind of thing that works until it doesn't.
+        var away = function (extra) {
+          return {
+            "--rc-phone-settle": SETTLE,
+            "--rc-phone-lift": LIFT,
+            opacity: DIM,
+            ease: extra && extra.ease,
+            duration: extra && extra.duration
+          };
+        };
+        var rest = function (extra) {
+          return {
+            "--rc-phone-settle": 1,
+            "--rc-phone-lift": "0px",
+            opacity: 1,
+            ease: extra && extra.ease,
+            duration: extra && extra.duration
+          };
+        };
+
+        var settleAt = function (from, to) {
+          gsap.timeline({
+            scrollTrigger: {
+              trigger: story,
+              start: screenPx(from),
+              end: screenPx(to),
+              // A little smoothing, like the zoom's: scrubbed dead to the
+              // scroll, a trackpad flick makes the handset judder.
+              scrub: 0.35
+            }
+          })
+            // 0 -> 0.3 arriving, 0.3 -> 0.7 held, 0.7 -> 1 leaving. The hold
+            // is the point: the middle of a stage is where a reader is
+            // actually reading the thing, and a handset still drifting under
+            // them there is a distraction, not depth.
+            .fromTo(phone, away(), rest({ ease: "power2.out", duration: 0.3 }), 0)
+            .to(phone, away({ ease: "power2.in", duration: 0.3 }), 0.7);
+        };
+
+        for (var s = 0; s < featureBtns.length; s++) {
+          settleAt(s + 1, s + 2);
+        }
+      });
+    }
   }
 
   // ---------- race walkthrough: the app's four HYROX screens, playable ----------

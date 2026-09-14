@@ -1119,8 +1119,18 @@ button.stchip:hover { background: #34343a; }
    stops using (662px is the handset: a 640px screen in 11px of bezel), so
    the box it occupies matches the box it paints. Anchored at the top so the
    two line up. */
+/* TWO scales, composed, and they must stay separate.
+   --rc-phone-scale is the LAYOUT one: it is set by the height queries below
+   and reconciled by the margin, and it must not move while a reader scrolls.
+   --rc-phone-settle is the per-feature one app.js scrubs, which is transient
+   and reconciled by nothing. Writing `transform` from GSAP instead would
+   overwrite the whole property and take the layout scale with it -- on a
+   short screen the handset would snap back to full size and run off the foot
+   of the panel. A multiplier and an offset it composes cannot do that: with
+   the defaults below this rule paints exactly what it painted before. */
 .rc-story-on .phone {
-  transform: scale(var(--rc-phone-scale, 1));
+  transform: translate3d(0, var(--rc-phone-lift, 0px), 0)
+             scale(calc(var(--rc-phone-scale, 1) * var(--rc-phone-settle, 1)));
   transform-origin: center top;
   margin-bottom: calc((var(--rc-phone-scale, 1) - 1) * 662px);
 }
