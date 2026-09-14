@@ -279,6 +279,23 @@
       });
     }
 
+    // With all six names listed, the index is a control again -- and a name
+    // you can see and click has to go somewhere. Without this it would not:
+    // the switcher's own click handler swaps the handset, and then the very
+    // next scroll event puts back whatever the scroll position says, so the
+    // click would appear to do nothing at all.
+    //
+    // The middle of the stage, not its start: a stage boundary is where the
+    // handset and the name are at their smallest, so landing on one would
+    // show the feature at its least legible. Landing mid-stage lands on the
+    // held part of the arc, which is the feature at rest.
+    featureBtns.forEach(function (btn, i) {
+      btn.addEventListener("click", function () {
+        var top = story.getBoundingClientRect().top + window.pageYOffset;
+        window.scrollTo(0, Math.round(top + (i + 1.5) * window.innerHeight));
+      });
+    });
+
     // The waitlist first, and deliberately: .rc-story-on has just hidden it,
     // so anything that threw between there and here would leave the one form
     // on the page invisible.
@@ -453,8 +470,21 @@
           };
         };
 
-        var settleAt = function (from, to) {
-          gsap.timeline({
+        // How far a name in the index grows when its stage is the one you are
+        // on. A factor and not a second font-size: type set twice at two
+        // sizes has to be cross-faded between, and a scale is one continuous
+        // value the scroll can hold at any point in between. Smaller in one
+        // column -- the rows are tighter there, and at 1.62 a grown name
+        // reached into the row above it.
+        var GROW = narrow ? 1.34 : 1.62;
+        var titles = $$(".feature-title", whatSection);
+
+        // One timeline per stage driving BOTH, rather than two sets of
+        // triggers: the handset settling and the name growing are one beat,
+        // and two timelines at the same start and end are two chances for
+        // them to drift apart.
+        var stageTl = function (from, to, title) {
+          var tl = gsap.timeline({
             scrollTrigger: {
               trigger: story,
               start: screenPx(from),
@@ -470,10 +500,22 @@
             // them there is a distraction, not depth.
             .fromTo(phone, away(), rest({ ease: "power2.out", duration: 0.3 }), 0)
             .to(phone, away({ ease: "power2.in", duration: 0.3 }), 0.7);
+
+          // The name grows out of the list and settles back into it, on the
+          // same arc and to the same clock as the handset. Symmetric, so the
+          // stage hands over with every name at its resting size -- which is
+          // what makes the next one read as rising out of the list rather
+          // than replacing the one before it.
+          if (title) {
+            tl.fromTo(title, { scale: 1 },
+                { scale: GROW, ease: "power2.out", duration: 0.3 }, 0)
+              .to(title, { scale: 1, ease: "power2.in", duration: 0.3 }, 0.7);
+          }
+          return tl;
         };
 
         for (var s = 0; s < featureBtns.length; s++) {
-          settleAt(s + 1, s + 2);
+          stageTl(s + 1, s + 2, titles[s]);
         }
       });
     }
