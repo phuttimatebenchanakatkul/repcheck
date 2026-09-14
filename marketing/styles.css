@@ -123,7 +123,14 @@ button { font: inherit; }
 .hero-foot p { max-width: 46ch; font-size: 16px; line-height: 1.55; color: var(--muted); }
 
 /* ---------- section chrome ---------- */
-.strip { display: flex; justify-content: space-between; align-items: baseline; padding: 22px 30px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); border-bottom: 1px solid var(--hair); }
+/* align-items was baseline, which was right while both halves were a line of
+   mono type. The left half is the wordmark now, and a flex item with no text
+   baseline of its own aligns by its bottom edge -- that sat the logo a few
+   pixels high against the label opposite it. */
+.strip { display: flex; justify-content: space-between; align-items: center; padding: 22px 30px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); border-bottom: 1px solid var(--hair); }
+/* Smaller than the 19px in the page header: this is a label in a hairline
+   row, not the masthead, and at 19px it read as a second, competing nav. */
+.strip-brand .brand-logo { height: 15px; }
 .kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); }
 
 /* ---------- features + phone ---------- */

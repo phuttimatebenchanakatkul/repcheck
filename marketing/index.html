@@ -114,7 +114,18 @@
     this still renders as the strip above the grid, exactly as before.
   -->
   <div class="rc-story-view">
-  <div class="strip"><span>01 — What it does</span><span>Six parts, one week</span></div>
+  <!--
+    The wordmark, where "01 — What it does" used to be. It is a link home for
+    the same reason the one on the legal pages is: with the story running the
+    hero is pinned and faded out, so for the whole of this section the header
+    that normally carries the mark is not on screen and there is nothing to
+    take a reader back to the top. #top is the hero's own id, so this is an
+    in-page jump rather than a reload.
+  -->
+  <div class="strip">
+    <a class="brand brand-home strip-brand" href="#top" aria-label="Back to the top of the page"><img class="brand-logo" src="assets/rc-logo.png" width="1290" height="248" alt="RepCheck"></a>
+    <span>Six parts, one week</span>
+  </div>
   <!--
     The scroll cue, pinned to the foot of the panel rather than stacked in
     the left column under the title. Only ever shown with the story running:

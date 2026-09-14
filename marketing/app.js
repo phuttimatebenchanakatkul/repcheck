@@ -258,6 +258,27 @@
     story.style.setProperty("--rc-stages", String(featureBtns.length));
     document.documentElement.classList.add("rc-story-on");
 
+    // The wordmark in the panel's header row points at #top, which is the
+    // hero -- and .rc-hero-pin makes the hero position:fixed. A fixed element
+    // is always already at the top of the viewport, so the browser's own
+    // anchor jump looks at it, decides there is nothing to scroll to, and
+    // does nothing at all: the hash changes and the page stays put. Send it
+    // to the top by hand instead. Only wired up in here on purpose -- with
+    // the story off the hero is in flow and the plain anchor works.
+    //
+    // A plain jump, not a smooth one: nothing else on this site sets
+    // scroll-behavior, so every other in-page link here lands instantly and a
+    // smooth one would be the odd control out -- and running four thousand
+    // pixels of a scroll-driven story backwards would play all six features
+    // in reverse on the way past.
+    var stripBrand = $(".strip-brand", whatSection);
+    if (stripBrand) {
+      stripBrand.addEventListener("click", function (evt) {
+        evt.preventDefault();
+        window.scrollTo(0, 0);
+      });
+    }
+
     // The waitlist first, and deliberately: .rc-story-on has just hidden it,
     // so anything that threw between there and here would leave the one form
     // on the page invisible.
@@ -417,7 +438,12 @@
       wallBalls:       { reps: 100, ballKg: 6, targetFt: 9 }
     };
     var RC_LANE_M = 12.5;   // hyrox.js DEFAULT_LANE_M
-    var RC_RATE = 60;       // 1 real second = 1 race minute
+    // Was 60 -- one real second per race minute, which walked the whole
+    // 1:24:06 in 84 seconds. Nobody watched 84 seconds of it. The race is a
+    // fast-forward now: the clock is the athlete's real one and every split
+    // it records is real, it just arrives in about five seconds. Read with
+    // RC_AUTO below -- the two together are the ten seconds this screen gets.
+    var RC_RATE = 1050;     // 5046 race-seconds in ~5 real seconds
 
     // 8 x 1km runs alternating with the 8 stations, with this athlete's
     // splits in seconds. Runs 49:02, stations 35:04, race 1:24:06.
@@ -784,10 +810,21 @@
       rcScreen.scrollTop = top;
 
       var showWatch = rc.screen === "running" || rc.screen === "finished";
-      rcWatch.hidden = !showWatch;
       rcWatch.innerHTML = showWatch
         ? rcWatchHtml() + '<p class="watch-note"><b>Apple Watch companion</b>In design, not shipped — the same race on your wrist, so logging a split is one tap instead of a pocket dive.</p>'
         : "";
+      rcSyncWatch();
+    }
+
+    // The watch is a second device standing BESIDE the handset, not a screen
+    // inside it, so nothing in the feature switcher hides it -- and the race
+    // leaves its finished screen up when you scroll on, which left an Apple
+    // Watch reading 1:24:06 parked next to the nutrition log. Its own race
+    // state is only half the question; the other half is whether the race is
+    // the feature on show at all.
+    function rcSyncWatch() {
+      var racing = rc.screen === "running" || rc.screen === "finished";
+      rcWatch.hidden = !(racing && rcShowing());
     }
 
     function rcStop() { if (rc.timer) { clearInterval(rc.timer); rc.timer = null; } }
@@ -815,7 +852,12 @@
       // replay of one race, not a stopwatch you can beat.
       rc.elapsed = RC_CUM[rc.index];
       rc.splits.push({ key: seg.key, title: rcSegTitle(seg), at: rc.elapsed });
-      if (rc.index >= RC_SEQ.length - 1) { rcStop(); rc.screen = "finished"; }
+      if (rc.index >= RC_SEQ.length - 1) {
+        rcStop();
+        rc.screen = "finished";
+        // The finish is the payoff, so it holds before the run starts over.
+        rcAutoAfter(RC_AUTO.finished, rcAutoRun);
+      }
       else rc.index += 1;
       rcRender();
     }
@@ -838,11 +880,65 @@
       rcRender();
     }
 
+    // ----- the race plays itself -----
+    // Every other screen in this section arrives already running: 01 is a
+    // recording, 02 fills its own food log, 04 acts out a set. This one sat
+    // on a start button and waited, then wanted sixteen more taps -- which
+    // is a fair ask of somebody who has installed the app and none at all of
+    // somebody deciding whether to. So it walks itself, in about ten seconds,
+    // and loops: 1s on the hero, 1.2s on the setup, ~5.4s of race (RC_RATE),
+    // 2.4s on the finish, then again.
+    //
+    // Every screen it lands on is the one a reader would have reached by
+    // hand, and rcGoto is the same function the buttons call -- the demo is
+    // pressing them, not taking a shortcut past them.
+    var RC_AUTO = { hero: 1000, setup: 1200, finished: 2400 };
+    var rcAutoTimer = null;
+    // A reader who touches a control has taken over, and an autoplay that
+    // carried on would fight them -- so the first [data-rc] click ends it for
+    // good, and nothing restarts it.
+    var rcAutoOff = reduced;
+
+    function rcAutoStop() {
+      if (rcAutoTimer) { window.clearTimeout(rcAutoTimer); rcAutoTimer = null; }
+    }
+    function rcAutoAfter(ms, fn) {
+      rcAutoStop();
+      if (rcAutoOff) return;
+      rcAutoTimer = window.setTimeout(fn, ms);
+    }
+    // Deliberately NOT also gated on rcOnScreen, the way rcStart() is. That
+    // flag is only ever written by the IntersectionObserver below, so until
+    // the observer has had its first callback the gate is whatever the
+    // initialiser happened to say -- and a feature can become the active one
+    // before that lands, in which case the walkthrough would silently never
+    // start and the screen would sit on its hero for good. Being off screen
+    // is handled where it is actually known instead: the observer calls
+    // rcAutoStop() on the way out and rcAutoRun() on the way back.
+    function rcAutoCan() { return !rcAutoOff && rcShowing(); }
+
+    function rcAutoRun() {
+      if (!rcAutoCan()) return;
+      rcGoto("hero");
+      rcAutoAfter(RC_AUTO.hero, function () {
+        if (!rcAutoCan()) return;
+        rcGoto("setup");
+        rcAutoAfter(RC_AUTO.setup, function () {
+          if (!rcAutoCan()) return;
+          // rcGoto("running") starts the clock, and the clock walks the
+          // sixteen segments through rcComplete() on its own from there.
+          rcGoto("running");
+        });
+      });
+    }
+
     // Delegated on the whole section: every [data-rc] lives either in the
     // handset or in the watch rig beside it, and both sit inside it.
     whatSection.addEventListener("click", function (evt) {
       var el = evt.target.closest ? evt.target.closest("[data-rc]") : null;
       if (!el) return;
+      rcAutoOff = true;
+      rcAutoStop();
       var action = el.getAttribute("data-rc");
       if (action === "info") { rc.info = el.getAttribute("data-key"); rcRender(true); return; }
       if (action === "close-info") {
@@ -865,6 +961,8 @@
       new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
           rcOnScreen = entry.isIntersecting;
+          if (!rcOnScreen) rcAutoStop();
+          else if (rcAutoCan() && rc.screen === "hero") rcAutoRun();
           if (rc.screen !== "running") return;
           if (rcOnScreen && rcShowing()) rcStart(); else rcStop();
         });
@@ -875,6 +973,17 @@
     // where it got to rather than running it out behind a screen you can't
     // see, and coming back picks it up again.
     onFeature(function () {
+      // Unconditional, and ahead of the clock: the watch has to leave on a
+      // FINISHED race too, which the running-only guard below would skip.
+      rcSyncWatch();
+      if (rcShowing()) {
+        // Arriving at the feature: start the walkthrough from the top, so a
+        // reader who reaches it always sees the race from its hero rather
+        // than joining whatever the last visit left behind.
+        if (rcAutoCan()) rcAutoRun();
+      } else {
+        rcAutoStop();
+      }
       if (rc.screen !== "running") return;
       if (rcOnScreen && rcShowing()) rcStart(); else rcStop();
     });
