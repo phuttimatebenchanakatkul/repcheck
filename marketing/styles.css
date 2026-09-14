@@ -1522,6 +1522,11 @@ button.stchip:hover { background: #34343a; }
 
 /* The waitlist button on its own, centred, now the paragraph that used to
    explain it is gone. */
+/* Quiet, and under the plans rather than beside a price: it is a unit, not
+   a caveat, and a reader only needs it once. Qualified with .rc-pricing for
+   the same reason every other rule in this block is -- .legal p would
+   otherwise win on specificity and set it back to body size. */
+.rc-pricing .rc-price-note { margin: 22px 0 0; text-align: center; font-size: 13.5px; color: var(--muted); }
 .rc-pricing-cta { margin: 30px 0 0; text-align: center; }
 
 /* Monthly / Yearly. Hidden until the script says it works -- an inert
