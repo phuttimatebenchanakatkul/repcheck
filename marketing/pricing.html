@@ -51,6 +51,24 @@
   sale yet, and the only button is the waitlist -- the one thing a visitor can
   actually do. When payments ship: rewrite /refunds FIRST, then take the
   "not on sale yet" note off this page.
+
+  THE PRICES ARE IN US DOLLARS, and the page says so once, under the plans.
+  "$" on its own is not a currency: it is also the Australian, Canadian,
+  Singapore and New Zealand dollar, and a price a reader converts wrongly is
+  a price we quoted wrongly. The operator is in Thailand, which makes the
+  guess less obvious still, so the line is not decoration -- leave it.
+
+  These were baht (379 / 3,790) until the owner asked for dollars. If they
+  move back, or to a second currency, the amounts live in FOUR places on this
+  page and all four have to agree: the Pro card, the yearly block, the
+  average under it, and the PLANS table in the script at the foot, which is
+  what the toggle swaps in. There is no single source for them here because
+  the page has to read correctly with no JS at all.
+
+  One thing outside this file to know about: templates/refunds.html carries a
+  note that an unmerged branch has a "RepCheck Pro" settings screen quoting
+  THB. That screen and this page would now contradict each other. Whichever
+  ships second is the one that has to change.
 -->
 <nav class="legal-nav">
   <a class="brand brand-home" href="index.html" aria-label="RepCheck home"><img class="brand-logo" src="assets/rc-logo.png" width="1290" height="248" alt="RepCheck"></a>
@@ -84,7 +102,7 @@
   <div class="rc-plans">
     <section class="rc-plan" aria-labelledby="plan-free">
       <h2 class="rc-plan-name" id="plan-free">Free</h2>
-      <p class="rc-plan-price">&#3647;0<span class="rc-plan-per"> / month</span></p>
+      <p class="rc-plan-price">$0<span class="rc-plan-per"> / month</span></p>
       <ul class="rc-plan-list">
         <li><b>1</b> form analysis a day</li>
         <li><b>1</b> meal photo scan a day</li>
@@ -101,8 +119,8 @@
     <section class="rc-plan rc-plan--pro" aria-labelledby="plan-pro">
       <p class="rc-plan-badge">Pro</p>
       <h2 class="rc-plan-name" id="plan-pro">RepCheck Pro</h2>
-      <p class="rc-plan-price" id="pro-price">&#3647;379<span class="rc-plan-per" id="pro-per"> / month</span></p>
-      <p class="rc-plan-avg" id="pro-avg" hidden>An average of &#3647;316 a month.</p>
+      <p class="rc-plan-price" id="pro-price">$12<span class="rc-plan-per" id="pro-per"> / month</span></p>
+      <p class="rc-plan-avg" id="pro-avg" hidden>An average of $10 a month.</p>
       <ul class="rc-plan-list">
         <li><b>Unlimited</b> form analysis</li>
         <li><b>Unlimited</b> meal photo scans</li>
@@ -118,10 +136,13 @@
 
   <section class="rc-annual" aria-labelledby="plan-annual">
     <h2 id="plan-annual">Pro, paid yearly</h2>
-    <p class="rc-plan-price">&#3647;3,790<span class="rc-plan-per"> / year</span></p>
-    <!-- 3790 / 12 = 315.83. Recompute if the yearly price moves. -->
-    <p class="rc-annual-note">An average of <b>&#3647;316 a month</b>.</p>
+    <p class="rc-plan-price">$120<span class="rc-plan-per"> / year</span></p>
+    <!-- 120 / 12 = 10, exactly. Recompute if the yearly price moves; if it
+         ever stops dividing evenly, say so rather than rounding silently. -->
+    <p class="rc-annual-note">An average of <b>$10 a month</b>.</p>
   </section>
+
+  <p class="rc-price-note">All prices in US dollars.</p>
 
   <div class="rc-pricing-cta">
     <a class="btn btn-dark" href="index.html#waitlist">Join the waitlist</a>
@@ -148,8 +169,8 @@
   document.documentElement.className += " rc-billing-on";
 
   var PLANS = {
-    monthly: { amount: "฿379", per: " / month", avg: false },
-    yearly: { amount: "฿3,790", per: " / year", avg: true }
+    monthly: { amount: "$12", per: " / month", avg: false },
+    yearly: { amount: "$120", per: " / year", avg: true }
   };
   var buttons = group.querySelectorAll(".rc-billing-opt");
 
