@@ -954,13 +954,6 @@ button.stchip:hover { background: #34343a; }
    above even where it sits on the same elements. */
 
 .rc-hint-scroll { display: none; }
-/* Hidden while the story runs. The reason used to be that five of the six
-   names were not on screen to tap; they all are now, and clicking one really
-   does take you to it (app.js). It stays hidden anyway: .rc-scroll-cue is
-   the instruction this section wants followed, and two instructions at the
-   foot of one panel is one more than a reader will read. The click is a
-   shortcut for somebody who has already understood the list, and the
-   pointer cursor is enough to offer it. */
 .rc-story-on .rc-hint-tap { display: none; }
 .rc-story-on .rc-hint-scroll { display: block; }
 
@@ -1042,104 +1035,77 @@ button.stchip:hover { background: #34343a; }
   min-height: 0;
 }
 
-/* THE INDEX.
-   All six names are listed, and the one you are on is grown out of the list
-   rather than swapped in over it -- so a reader can see at any moment what
-   this section contains, how far through it they are, and what is still
-   coming. The column used to hold exactly one name against a whole panel of
-   white: no sense of a list, and five of the six features invisible until
-   you happened to scroll past them.
-
-   This REPLACES the stacked single cell that was here. The note that stood
-   in its place said a title must not travel, because a title that slid into
-   position read as the page scrolling under a window. That still holds and
-   is still obeyed: nothing here slides. A name grows in place, anchored at
-   its own left edge, and its neighbours do not move at all -- growth about a
-   fixed point is the one kind of movement that cannot be mistaken for the
-   page having moved under it. */
+/* All six names stack into one grid cell and cross-fade, so the column reads
+   as a single title changing rather than a list with one row lit. The hints
+   are not given a cell, so auto-placement drops them into the rows below. */
 .rc-story-on .feature-list {
   display: grid;
   grid-template-columns: 1fr;
   align-content: center;
   gap: 0;
-  /* The descriptions are placed against this box rather than inside a row
-     (see below), and this is the room kept for them under the last name. */
-  position: relative;
-  /* Two things are stacked under the names, and neither may land on the
-     other: the description, and the foot of the panel, where .hint-demo's
-     "Example data" line is absolutely placed. --rc-foot is how much that
-     line is already claiming and --rc-desc-room is what the description
-     needs; the padding keeps both, and the description is lifted clear by
-     the first. Every width and height that moves either one re-declares the
-     variable rather than the padding, so the two can never drift apart. */
-  --rc-foot: 54px;
-  --rc-desc-room: clamp(86px, 12vh, 118px);
-  padding-bottom: calc(var(--rc-foot) + var(--rc-desc-room));
 }
+/* Opacity only -- nothing travels. A title that slid into place read as the
+   page scrolling under a window, which is the one impression this section is
+   built to avoid: the panel is meant to sit still while its contents change.
+   So the outgoing title fades out where it stands and the next fades up in
+   the same spot. */
 .rc-story-on .feature {
+  grid-area: 1 / 1;
   flex: none;
   border-bottom: none;
   background: transparent;
-  padding: 0 30px;
-  gap: 0;
-  /* Every row keeps the same height whatever is happening in it. The growing
-     is a transform, which changes what a name PAINTS and never what it
-     occupies, so the five names around the active one do not shift by a
-     pixel while it grows -- and the row is tall enough that the grown name
-     has somewhere to go. Viewport-relative because six of these plus the
-     description have to fit a pinned panel on a short screen. */
-  min-height: clamp(52px, 8.4vh, 92px);
-  justify-content: center;
-  /* A real control again: clicking a name takes you to its stage (app.js). */
-  cursor: pointer;
+  cursor: default;
+  /* visibility, not opacity alone: an opacity-0 button is still in the tab
+     order, so a keyboard user would land on five titles they cannot see.
+     GSAP's autoAlpha writes exactly this pair, which is why it drives them. */
+  opacity: 0;
+  visibility: hidden;
+  /* NO transition. These two declarations are the resting state and the
+     no-motion fallback, and nothing else: with motion on, app.js scrubs the
+     fade to the scroll instead.
+
+     They used to be a CSS transition -- out over 0.2s, in over 0.3s after a
+     0.2s delay -- and that was what made the change between features look
+     abrupt. The fade ran on a HALF-SECOND TIMER while everything around it
+     ran on the scroll, so the two never agreed: stop mid-change and the timer
+     carried on without you, scroll quickly and the handset had arrived at the
+     next feature while the title was still a fifth of a second behind. And
+     because the delay had to clear the outgoing title before the incoming one
+     started -- all six share this one grid cell, and fading them together
+     draws two at half strength, which at this size reads as doubled
+     letterforms -- there was a beat with nothing in the column at all,
+     however slowly you were moving.
+
+     Scrubbed, the same sequence has no timer in it. The column is empty only
+     at the exact boundary, which has no duration: the outgoing title reaches
+     zero where the incoming one starts from zero. */
+  transition: none;
+}
+.rc-story-on .feature.is-active {
   opacity: 1;
   visibility: visible;
+  /* The list style fills the active row with ink. One title alone on white
+     does not want a black slab behind it. */
+  background: transparent;
+  color: var(--ink);
   transition: none;
 }
 .rc-story-on .feature-head { gap: 20px; }
-/* The RESTING size -- what a name is while it is just an entry in the list.
-   GSAP scales the active one up from here and back down again, scrubbed to
-   the scroll, so this is also the size the grown one is measured from: do
-   not set a second font-size for the active state, or the two will fight. */
-.rc-story-on .feature-title {
-  font-size: clamp(21px, 2.2vw, 32px);
-  color: var(--meta);
-  /* Left edge, so a name grows to the right and stays flush with the column
-     rather than drifting out of it. */
-  transform-origin: left center;
-  transition: color 0.3s ease;
-}
-/* The list style fills the active row with ink and turns its text white.
-   The story never fills the row, so that white has to be undone or anything
-   in the row that is not the title -- the 01..06 numeral, which inherits --
-   renders white on white. It did: the active row was the one with no number
-   against it. */
-.rc-story-on .feature.is-active { background: transparent; color: var(--ink); }
-.rc-story-on .feature.is-active .feature-title { color: var(--ink); }
-.rc-story-on .idx { transition: opacity 0.3s ease; }
-.rc-story-on .feature.is-active .idx { opacity: 1; }
-
-/* Out of its row and against the foot of the list. All six sit in the same
-   place and only the active one is visible, which is what lets the rows stay
-   a fixed height: a description appearing inside a row would push every name
-   below it down the column, and the whole point of the index is that the
-   names hold still. */
+.rc-story-on .feature-title { font-size: clamp(34px, 4.6vw, 68px); }
+/* The story shows one feature at a time against a whole panel, so the line
+   can be a size the list has no room for. Narrower measure than the list's
+   52ch, not wider: the type is bigger here, and the column is the same
+   width. */
 .rc-story-on .feature-desc {
-  position: absolute;
-  left: 30px; right: 30px; bottom: var(--rc-foot);
   max-width: 44ch;
   font-size: clamp(15px, 1.2vw, 19px);
   line-height: 1.5;
-  margin-top: 0;
-  color: var(--muted);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  margin-top: 6px;
 }
-/* Four classes on purpose. The list style inverts this line to white for
-   the active row, because there the row is filled with ink -- and that
-   selector carries three classes, so the story's own colour has to carry
-   more or the description renders white on white. It did. */
-.rc-story-on .feature.is-active .feature-desc { color: var(--muted); opacity: 1; }
+/* The story's active row stays transparent rather than filling with ink, so
+   the inverted colour the list uses would be white on white here. Back to
+   the same grey the inactive rows carry. */
+.rc-story-on .feature.is-active .feature-desc { color: var(--muted); }
 
 /* The handset swaps screens by display, which cannot be transitioned, so the
    arriving screen fades itself up instead of cutting in hard against the
@@ -1196,26 +1162,13 @@ button.stchip:hover { background: #34343a; }
      nothing visually, because what is on screen is the scaled phone. */
   .rc-story-on .what-grid { grid-template-rows: auto minmax(0, 1fr); align-content: center; }
   .rc-story-on .phone-stage { min-height: 0; }
-  /* The index rides above the handset in one column, so every pixel it takes
-     comes straight out of the phone's height -- six names AND a description
-     where the wide layout has a whole column to itself. Hence the tighter
-     rows, the smaller resting size, and the smaller grow factor app.js uses
-     at this width: at the wide 1.62 a grown name reached the row above it. */
-  /* .hint-demo is a CHILD of the list, so giving the list a position moved
-     what it is offset from: on the wide layout the list is a full-height
-     grid column and its foot is the panel's foot, so nothing moved, but in
-     one column the list is only as tall as its contents and 48px off its
-     bottom is the middle of the screen. So here the line is placed directly
-     under the description instead -- still the last thing in the column,
-     still directly above the handset it is describing -- and --rc-foot is
-     cut to just the room it needs rather than the room the panel's foot
-     needed. */
-  .rc-story-on .feature-list { align-content: start; padding-top: 6px;
-    --rc-foot: 34px; --rc-desc-room: 58px; }
-  .rc-story-on .feature { padding: 0 20px; min-height: clamp(30px, 4.4vh, 40px); gap: 0; }
-  .rc-story-on .feature-head { gap: 12px; }
-  .rc-story-on .feature-title { font-size: clamp(17px, 4.6vw, 22px); }
-  .rc-story-on .feature-desc { left: 20px; right: 20px; font-size: 13.5px; line-height: 1.4; max-width: none; margin-top: 0; }
+  .rc-story-on .feature-list { align-content: start; padding-top: 10px; }
+  .rc-story-on .feature { padding-top: 6px; padding-bottom: 6px; gap: 6px; }
+  .rc-story-on .feature-title { font-size: clamp(28px, 7.5vw, 44px); }
+  /* The title rides above the handset in one column here, so every line the
+     description takes comes straight out of the phone's height. Held to the
+     list's size and given no measure cap -- the column is already narrow. */
+  .rc-story-on .feature-desc { font-size: 14px; line-height: 1.45; max-width: none; margin-top: 2px; }
   .rc-story-on .hint { padding-top: 6px; padding-bottom: 0; }
   .rc-story-on .phone-stage { padding-top: 10px; padding-bottom: 10px; }
   /* The scale itself is not set here -- see the narrow ladder below. */
@@ -1236,15 +1189,10 @@ button.stchip:hover { background: #34343a; }
    the one piece of copy on this panel that is not allowed to be covered.
    If a description here gets longer, re-measure these; the constraint is
    that the phone's bottom edge clears .hint-demo's top. */
-/* Each rung dropped again when the index arrived. In one column the six
-   names, the description and the example-data line all stack ABOVE the
-   handset, and that column grew from one name to six -- every pixel of it
-   comes out of the phone's height, and at the old rungs its foot ran over
-   the scroll cue. */
-@media (max-width: 720px) and (max-height: 1100px) { .rc-story-on .phone { --rc-phone-scale: 0.66; } }
-@media (max-width: 720px) and (max-height: 900px) { .rc-story-on .phone { --rc-phone-scale: 0.60; } }
-@media (max-width: 720px) and (max-height: 800px) { .rc-story-on .phone { --rc-phone-scale: 0.54; } }
-@media (max-width: 720px) and (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.42; } }
+@media (max-width: 720px) and (max-height: 1100px) { .rc-story-on .phone { --rc-phone-scale: 0.76; } }
+@media (max-width: 720px) and (max-height: 900px) { .rc-story-on .phone { --rc-phone-scale: 0.70; } }
+@media (max-width: 720px) and (max-height: 800px) { .rc-story-on .phone { --rc-phone-scale: 0.66; } }
+@media (max-width: 720px) and (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.52; } }
 
 /* The waitlist fades back in on arrival and stays in. One-shot: app.js stops
    observing it once it has landed, so it never fades back out. */
@@ -1265,13 +1213,11 @@ button.stchip:hover { background: #34343a; }
     transition-duration: 0s;
     transform: none;
   }
+  /* Nothing to cancel on .feature any more -- its transition is none, and
+     with motion off GSAP never runs, so the two declarations on it are
+     the whole of how a title shows and hides here. Kept as the record
+     that this block was asked about and found to need nothing. */
   .rc-story-on .what .screen.is-active { animation: none; }
-  /* The index still has to read as an index: with no motion the active name
-     would otherwise differ from the other five by colour alone. GSAP never
-     runs in this branch, so nothing inline competes with this -- it is a
-     plain state, arrived at instantly, which is the whole ask. */
-  .rc-story-on .feature-title { transition: none; }
-  .rc-story-on .feature.is-active .feature-title { transform: scale(1.45); }
   /* The one screen that animates on its own. With the cycle stopped each
      pane falls back to its own opacity -- 1 for the challenge screen, 0 for
      the friends pane -- so the handset simply holds the challenge screen,
@@ -1458,14 +1404,8 @@ button.stchip:hover { background: #34343a; }
 
 @media (max-width: 720px) {
   /* One column, so left-aligned and centred are the same column of space:
-     the two lines are stacked instead of set side by side.
-     bottom was 48px, which was the room the SCROLL CUE needs underneath --
-     correct while this line was offset from the foot of the panel. It is
-     offset from the foot of the feature list now (the list is positioned,
-     and this line is inside it), and 48px up from there put it straight
-     through the description. 0 sits it directly under that line, which is
-     where the foot of the list is and where --rc-foot keeps the room. */
-  .rc-story-on .hint-demo { bottom: 0; right: 0; }
+     the two lines are stacked instead of set side by side. */
+  .rc-story-on .hint-demo { bottom: 48px; right: 0; }
   .rc-story-on .rc-scroll-cue { bottom: 14px; font-size: 15px; }
   /* Arrow back on the words' own line here. Stacked it makes the cue about
      41px tall, and on a 667px screen there is only ~80px under the handset
@@ -1494,10 +1434,7 @@ button.stchip:hover { background: #34343a; }
     align-items: flex-start;
     padding-bottom: 74px;
   }
-  /* Not a padding of its own: the list already reserves room for the
-     description, and overwriting that would put the two on top of each
-     other. This is the foot clearance the whole column adds to it. */
-  .rc-story-on .feature-list { --rc-foot: 74px; }
+  .rc-story-on .feature-list { padding-bottom: 74px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
