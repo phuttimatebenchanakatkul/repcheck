@@ -123,24 +123,52 @@
   -->
   <p class="rc-scroll-cue" aria-hidden="true">Scroll down</p>
   <div class="what-grid">
+    <!--
+      Each name now carries a line of its own. They describe the app as it
+      actually behaves, not as it is planned to -- every claim below is
+      checkable in the code, and several are deliberately narrower than the
+      obvious phrasing would be:
+
+        01  "counts reps" and the 0-100 score are what result.html renders;
+            the 24h figure is LOCK_AFTER_MS in static/analyze_chat_widget.js.
+        02  "calculated from your body stats and activity" is the
+            Katch-McArdle path in coaching_engine.py -- goals are derived,
+            never typed in, which is the actual differentiator.
+        03  The photos really are optional, so the line says so.
+        04  The chat's reach ("your actual history with it") is the last 4
+            sessions of every exercise ever logged -- see workout_chat.py.
+            NOT "personal records": there is no PR tracking anywhere in
+            templates/workouts.html. Do not add that word back.
+        05  8 runs / 8 stations with per-category standards is static/hyrox.js.
+        06  Three exercises, because challenges.html rotates exactly three.
+
+      No line here mentions the AI coach, which is the one feature whose
+      chat sees NO user data. If it ever gets a row, say that plainly.
+    -->
     <div class="feature-list">
       <button class="feature is-active" type="button" data-feature="0" aria-pressed="true">
         <span class="feature-head"><span class="idx">01</span><span class="feature-title">Analyze a Workout</span></span>
+        <span class="feature-desc">AI form checking on a video of your set. Scores it 0&ndash;100, counts reps, and tells you what went wrong and how to fix it, with an injury-risk note and a progression path. Each analysis keeps a follow-up chat for 24 hours.</span>
       </button>
       <button class="feature" type="button" data-feature="1" aria-pressed="false">
         <span class="feature-head"><span class="idx">02</span><span class="feature-title">Nutrition Log</span></span>
+        <span class="feature-desc">Calorie and macro tracking, including scanning a meal from a photo. Your targets are calculated from your body stats and activity rather than guessed.</span>
       </button>
       <button class="feature" type="button" data-feature="2" aria-pressed="false">
         <span class="feature-head"><span class="idx">03</span><span class="feature-title">Weekly Check-in</span></span>
+        <span class="feature-desc">A weekly review of your weigh-ins and calories that adjusts your targets based on what actually happened. Optional progress photos.</span>
       </button>
       <button class="feature" type="button" data-feature="3" aria-pressed="false">
         <span class="feature-head"><span class="idx">04</span><span class="feature-title">Workout Log</span></span>
+        <span class="feature-desc">Your training record: exercises, sets, weight and reps, day by day. A coach builds you a training split around your schedule and goal, and its chat can answer questions about any lift using your actual history with it.</span>
       </button>
       <button class="feature" type="button" data-feature="4" id="feature-hyrox" aria-pressed="false">
         <span class="feature-head"><span class="idx">05</span><span class="feature-title">HYROX Race Simulator</span></span>
+        <span class="feature-desc">A full simulated HYROX: 8 runs, 8 stations, official weights and distances for your category, timed segment by segment. Finish and you get a global leaderboard placing, and an AI breakdown of where you lost time.</span>
       </button>
       <button class="feature" type="button" data-feature="5" aria-pressed="false">
-        <span class="feature-head"><span class="idx">06</span><span class="feature-title">Friends</span></span>
+        <span class="feature-head"><span class="idx">06</span><span class="feature-title">Friends &amp; Challenges</span></span>
+        <span class="feature-desc">Add friends by code or QR. Challenge each other through the Challenges feature &mdash; sit-ups, pull-ups and push-ups.</span>
       </button>
       <!--
         Only the no-JS hint lives here now. With the scroll story on, the
@@ -357,7 +385,73 @@
             </div>
           </div>
 
-          <div class="screen" data-screen="5">
+          <!-- Feature 06 is "Friends & Challenges", and the challenge half is
+               the part worth SHOWING: adding a friend by code is a text field,
+               while the daily challenge is a screen with an exercise, a
+               leaderboard and a streak on it. So this mirrors templates/
+               challenges.html rather than templates/friends.html, and keeps
+               the friend code as the last card because that is how you get
+               anyone onto the board with you.
+
+               Everything here matches the real page's structure:
+                 - the hero is date + streak chip, exercise + title, then the
+                   record button (challenges.html:33-45);
+                 - the two leaderboard scopes really are Friends and Global,
+                   and your own row really is pinned above the rest rather
+                   than listed in it (the .ch-lb-me-pin comment there);
+                 - the rows read "<n> reps", which is what lbRow writes.
+               The three hero icons are the app's own -- copied verbatim out
+               of EXERCISE_HERO_ICONS in challenges.html, currentColor and
+               all, so this is the same drawing a user sees rather than a
+               lookalike. Only push-ups is on screen, because only one
+               exercise is ever live: the caption underneath is how the other
+               two get named without inventing UI that does not exist. -->
+          <!-- The feature is two pages of the app, so the handset shows two
+               and alternates between them, the way screen 01 plays a
+               recording rather than holding one frame. Pure CSS on a loop:
+               the panes are stacked and cross-faded by rc-ch-cycle, with no
+               JS state to get out of step with the scroll story. It is the
+               only screen here that moves on its own, which is why the
+               reduced-motion block at the foot of this stylesheet stops it
+               and leaves the challenge pane standing. -->
+          <div class="screen rc-ch-screen" data-screen="5">
+            <div class="rc-ch-pane rc-ch-pane--challenge">
+            <div class="scr-head"><b>Challenges</b><span class="avatar">J</span></div>
+
+            <div class="card">
+              <div class="row">
+                <span class="date">MONDAY, MARCH 9</span>
+                <span class="pill rc-ch-streak"><svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill-rule="evenodd" fill="currentColor" d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z M12.4 12.4C12.4 14.6 14.6 15.4 14.6 17.6C14.6 19.6 13.2 20.9 11.5 20.9C9.8 20.9 8.6 19.6 8.6 17.9C8.6 15.8 11.3 15 12.4 12.4Z"/></svg>6 days</span>
+              </div>
+              <div class="rc-ch-ex">
+                <span class="rc-ch-icon"><svg width="48" height="48" viewBox="0 0 88 88" aria-hidden="true">
+                  <line x1="14" y1="60" x2="74" y2="60" stroke="currentColor" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>
+                  <g stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+                    <line x1="31" y1="40" x2="59" y2="42"/>
+                    <path d="M31 40 L28 50 L31 60"/>
+                    <line x1="59" y1="42" x2="71" y2="60"/>
+                  </g>
+                  <circle cx="24" cy="34" r="6" fill="currentColor"/>
+                </svg></span>
+                <b class="rc-ch-title">Push-ups</b>
+              </div>
+              <div class="cta-blue">Record an attempt</div>
+              <span class="centered sub">One exercise a day, the same for everyone &mdash; push-ups, then sit-ups, then pull-ups.</span>
+            </div>
+
+            <div class="card">
+              <div class="row">
+                <b class="card-title">Leaderboard</b>
+                <span class="rc-ch-tabs"><span class="rc-ch-tab is-on">Friends</span><span class="rc-ch-tab">Global</span></span>
+              </div>
+              <div class="rc-ch-row is-me"><span class="rc-ch-rank">#2</span><span class="fav">J</span><span class="rc-ch-who">You</span><em class="rc-ch-reps">132 reps</em></div>
+              <div class="rc-ch-row"><span class="rc-ch-rank">#1</span><span class="fav">M</span><span class="rc-ch-who">Mai</span><em class="rc-ch-reps">148 reps</em></div>
+              <div class="rc-ch-row"><span class="rc-ch-rank">#3</span><span class="fav">K</span><span class="rc-ch-who">Ken</span><em class="rc-ch-reps">96 reps</em></div>
+            </div>
+
+            </div>
+
+            <div class="rc-ch-pane rc-ch-pane--friends">
             <div class="scr-head"><b>Friends</b><span class="avatar">J</span></div>
             <div class="card">
               <b class="card-title">Your friend code</b>
@@ -374,6 +468,7 @@
               <div class="friend"><span class="fav">M</span><span>Mai</span><em>6 sessions</em></div>
               <div class="friend"><span class="fav">K</span><span>Ken</span><em>4 sessions</em></div>
               <div class="friend"><span class="fav">P</span><span>Ploy</span><em>2 sessions</em></div>
+            </div>
             </div>
           </div>
 

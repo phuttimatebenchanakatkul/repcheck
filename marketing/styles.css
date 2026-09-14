@@ -133,9 +133,15 @@ button { font: inherit; }
    phone beside them. Share the column's height between them rather than
    leave the hairline running down 200px of empty white at the bottom. */
 .feature-list { display: flex; flex-direction: column; border-right: 1px solid var(--hair); }
+/* Column, not row: the button holds a head and a description line now, and
+   the original centred row laid them out side by side. justify-content keeps
+   the pair centred in the row's shared height, which is what align-items was
+   doing before the second child existed. */
 .feature {
   flex: 1 0 auto;
-  display: flex; align-items: center; width: 100%; text-align: left; appearance: none;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 10px;
+  width: 100%; text-align: left; appearance: none;
   border: none; border-bottom: 1px solid var(--hair);
   background: #fff; color: var(--ink); cursor: pointer;
   padding: 24px 30px;
@@ -145,6 +151,15 @@ button { font: inherit; }
 .feature-head { display: flex; align-items: baseline; gap: 16px; }
 .idx { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.14em; opacity: 0.5; }
 .feature-title { font-size: clamp(21px, 2.4vw, 32px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+/* Measured, not full-bleed: the column is up to 1fr of a wide grid, and a
+   description running its whole width reads as a paragraph of body copy
+   rather than a caption under a name. */
+.feature-desc { max-width: 52ch; font-size: 14.5px; line-height: 1.55; color: var(--muted); }
+/* The active row in the list is filled with ink, so --muted on it would be
+   grey on near-black. This is the only place the pair inverts -- the scroll
+   story never fills the row (see .rc-story-on .feature.is-active), and its
+   own override lives with the rest of that block. */
+.feature.is-active .feature-desc { color: rgba(255, 255, 255, 0.78); }
 .hint { padding: 24px 30px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--meta); }
 /* Sits directly under .hint, so it drops the big top padding and keeps the
    pair reading as one block. */
@@ -245,7 +260,7 @@ button { font: inherit; }
 .stchip span { font-family: "JetBrains Mono", monospace; font-size: 9px; color: var(--app-dim); }
 .stchip b { font-size: 10.5px; text-align: center; line-height: 1.15; padding: 0 4px; }
 
-/* friends screen */
+/* friends + challenges screen (feature 06) */
 .code-row { display: flex; gap: 14px; align-items: center; }
 .qr { width: 64px; height: 64px; border-radius: 10px; background: repeating-conic-gradient(#f5f5f7 0 25%, #0b0b0c 0 50%) 0 0/16px 16px; }
 .code { display: block; font-family: "JetBrains Mono", monospace; font-size: 16px; letter-spacing: 0.04em; margin-bottom: 9px; }
@@ -255,6 +270,72 @@ button { font: inherit; }
 .friend { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 600; }
 .friend em { margin-left: auto; font-style: normal; font-weight: 400; color: var(--app-dim); }
 .fav { width: 26px; height: 26px; border-radius: 50%; background: var(--app-line); color: var(--app-dim); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+
+/* The two panes are stacked in the same box and cross-faded, so the screen
+   keeps the height of one of them. inset matches .screen's own padding,
+   which the panes take over now that they, not the cards, are its children. */
+.rc-ch-screen { position: relative; }
+/* inset is .screen's own padding, which the panes take over now that they,
+   not the cards, are its children -- 12px rather than 14px at the top and
+   bottom because both panes are within a few pixels of the height they have
+   and .screen is overflow:hidden. */
+.rc-ch-pane {
+  position: absolute; inset: 12px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  animation: rc-ch-cycle 11s ease-in-out infinite;
+}
+/* Half a cycle apart: one pane holds while the other is faded out.
+   opacity 0 is the pane's own value, not just where its keyframes start, and
+   it has to be: an animation-delay does NOT fill backwards, so through the
+   first 5.5 seconds -- which is exactly when a reader first reaches feature
+   06 -- this pane had no animated value at all and sat at the CSS default of
+   1, drawing the friends list on top of the challenge screen. The declaration
+   below is what it holds during the delay. It also means the reduced-motion
+   block only has to stop the animation for the right pane to be left. */
+.rc-ch-pane--friends { opacity: 0; animation-delay: 5.5s; }
+/* The friends pane laid out 8px taller than the box the panes share, and
+   .screen is overflow:hidden, so the foot of the friends list was being cut.
+   Two paddings, not a smaller type size: the pane has to read as the same
+   screen the site shipped before, and 11px of leading is not visible where a
+   dropped line would be. Re-measure both if a row is added to it. */
+.rc-ch-pane--friends { gap: 10px; }
+.rc-ch-pane--friends .scan { padding: 7px; }
+.rc-ch-pane--friends .code { margin-bottom: 4px; }
+/* Out first, in after, the same hand-off the feature titles use above -- the
+   pane fades UP from 0 at the start of its own turn rather than cutting in.
+   Without the 0% the delayed pane snapped on at full strength the instant the
+   other finished fading, which read as a glitch rather than a change. */
+@keyframes rc-ch-cycle {
+  0% { opacity: 0; }
+  5%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* The hero: today's exercise, its streak chip and the record button. The
+   icon is drawn in currentColor (it is the app's own hero SVG), so it takes
+   the card's text colour rather than carrying a fill of its own. */
+/* Not var(--amber): that tone is meant to be a BACKGROUND on these screens
+   (see .pill-amber), and as 11px text on the pill's own --app-line ground it
+   measures 4.14:1 -- under AA. This is the same hue lifted to 6.6:1 there. */
+.rc-ch-streak { display: inline-flex; align-items: center; gap: 5px; color: #f0a63a; }
+.rc-ch-ex { display: flex; align-items: center; gap: 14px; }
+.rc-ch-icon { display: flex; flex: none; color: var(--app-text); }
+.rc-ch-icon svg { display: block; }
+.rc-ch-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+
+/* The two leaderboard scopes. A pill pair, not buttons: nothing in the
+   handset is interactive. */
+.rc-ch-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--app-line); }
+.rc-ch-tab { padding: 4px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 700; color: var(--app-dim); }
+.rc-ch-tab.is-on { background: var(--app-card); color: var(--app-text); }
+
+.rc-ch-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 600; }
+/* Your own row is pinned above the board rather than listed inside it, which
+   is what the real page does -- so it is the one row that is tinted. */
+.rc-ch-row.is-me { padding: 7px 9px; margin: -7px -9px; border-radius: 12px; background: var(--app-line); }
+.rc-ch-rank { width: 22px; flex: none; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--app-dim); }
+.rc-ch-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-ch-reps { margin-left: auto; font-style: normal; font-weight: 400; color: var(--app-dim); }
 
 /* app tab bar */
 .tabbar { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 16px 18px; }
@@ -991,6 +1072,20 @@ button.stchip:hover { background: #34343a; }
 }
 .rc-story-on .feature-head { gap: 20px; }
 .rc-story-on .feature-title { font-size: clamp(34px, 4.6vw, 68px); }
+/* The story shows one feature at a time against a whole panel, so the line
+   can be a size the list has no room for. Narrower measure than the list's
+   52ch, not wider: the type is bigger here, and the column is the same
+   width. */
+.rc-story-on .feature-desc {
+  max-width: 44ch;
+  font-size: clamp(15px, 1.2vw, 19px);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+/* The story's active row stays transparent rather than filling with ink, so
+   the inverted colour the list uses would be white on white here. Back to
+   the same grey the inactive rows carry. */
+.rc-story-on .feature.is-active .feature-desc { color: var(--muted); }
 
 /* The handset swaps screens by display, which cannot be transitioned, so the
    arriving screen fades itself up instead of cutting in hard against the
@@ -1038,17 +1133,36 @@ button.stchip:hover { background: #34343a; }
   .rc-story-on .what-grid { grid-template-rows: auto minmax(0, 1fr); align-content: center; }
   .rc-story-on .phone-stage { min-height: 0; }
   .rc-story-on .feature-list { align-content: start; padding-top: 10px; }
-  .rc-story-on .feature { padding-top: 6px; padding-bottom: 6px; }
+  .rc-story-on .feature { padding-top: 6px; padding-bottom: 6px; gap: 6px; }
   .rc-story-on .feature-title { font-size: clamp(28px, 7.5vw, 44px); }
+  /* The title rides above the handset in one column here, so every line the
+     description takes comes straight out of the phone's height. Held to the
+     list's size and given no measure cap -- the column is already narrow. */
+  .rc-story-on .feature-desc { font-size: 14px; line-height: 1.45; max-width: none; margin-top: 2px; }
   .rc-story-on .hint { padding-top: 6px; padding-bottom: 0; }
   .rc-story-on .phone-stage { padding-top: 10px; padding-bottom: 10px; }
-  /* No --rc-phone-scale here on purpose. A phone-width screen is not
-     necessarily a short one, and the height queries above already size the
-     handset against the space it actually has. Setting a width-based scale
-     here would win over them by source order and shrink a tall phone for no
-     reason -- while leaving a short one too big, which is the case that
-     actually matters. */
+  /* The scale itself is not set here -- see the narrow ladder below. */
 }
+
+/* A SECOND full ladder, for the one-column story only.
+   Not a single width-only scale: the note this replaces was right that
+   `@media (max-width: 720px) { --rc-phone-scale: … }` would win over the
+   height queries by source order and shrink a TALL narrow screen while
+   leaving a SHORT one too big. Every step below still carries a height,
+   so the ladder above is extended rather than overridden -- each band is
+   simply one notch smaller when the title sits above the handset instead
+   of beside it.
+   Why it became necessary: in one column the description is stacked on top
+   of the phone rather than beside it, and every line of it comes out of the
+   handset's height. Without this, a 390x844 screen kept the 0.88 phone and
+   its foot ran down over `.hint-demo` -- the "Example data" line, which is
+   the one piece of copy on this panel that is not allowed to be covered.
+   If a description here gets longer, re-measure these; the constraint is
+   that the phone's bottom edge clears .hint-demo's top. */
+@media (max-width: 720px) and (max-height: 1100px) { .rc-story-on .phone { --rc-phone-scale: 0.76; } }
+@media (max-width: 720px) and (max-height: 900px) { .rc-story-on .phone { --rc-phone-scale: 0.70; } }
+@media (max-width: 720px) and (max-height: 800px) { .rc-story-on .phone { --rc-phone-scale: 0.66; } }
+@media (max-width: 720px) and (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.52; } }
 
 /* The waitlist fades back in on arrival and stays in. One-shot: app.js stops
    observing it once it has landed, so it never fades back out. */
@@ -1071,6 +1185,12 @@ button.stchip:hover { background: #34343a; }
   }
   .rc-story-on .feature { transition: visibility 0s linear 0s; }
   .rc-story-on .what .screen.is-active { animation: none; }
+  /* The one screen that animates on its own. With the cycle stopped each
+     pane falls back to its own opacity -- 1 for the challenge screen, 0 for
+     the friends pane -- so the handset simply holds the challenge screen,
+     which is the half of this feature that is worth looking at. Not gated on
+     .rc-story-on: the cycle runs in the plain list too. */
+  .rc-ch-pane { animation: none; }
 }
 
 /* ---------- the real wordmark ---------- */
