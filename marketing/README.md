@@ -38,14 +38,65 @@ config wired to the same command for the in-app browser preview.)
 
 ## Deploying to Render
 
-**Status: live** at https://repcheck-marketing.onrender.com
-(Render static site `repcheck-marketing`, id `srv-da6241gu01pc738uiv80`).
+**Status: live** at https://repcheckofficials.onrender.com
+(Render static site `repcheckofficials`, id `srv-dakis7lg1s2s73cfnrt0`),
+publishing `marketing` from `main` with auto-deploy on.
 
-It currently deploys from the **`marketing-analyze-demo`** branch, not
-`main`, because the analyze-showcase video only exists on that branch.
-**After merging that branch, switch the service's branch to `main`** in the
-Render dashboard (or via the API) — otherwise the live site keeps tracking a
-branch that may be deleted.
+A second, older service still serves the same content at
+https://repcheck-marketing.onrender.com (`repcheck-marketing`, id
+`srv-da6241gu01pc738uiv80`), also from `main`. It exists because **an
+onrender.com hostname is assigned when a service is created and cannot be
+changed afterwards** — renaming a service relabels it in the dashboard and
+leaves the URL alone (tested: the rename went through, the URL did not
+move). A new hostname means a new service. Retire the old one when nothing
+points at it any more; note that deleting it releases the hostname for good.
+
+That same rule is why the Flask app answers on `repcheck-q0m4` while its
+service is named plainly `repcheck` — the suffix is Render's, added because
+`repcheck` was taken, and it is not transferable to anything else.
+
+### Security headers
+
+Set on the `repcheckofficials` service as response headers (Render dashboard
+→ Headers, or `PUT /v1/services/{id}/headers`). They are NOT in this repo,
+because they are serving config rather than content — so they do not travel
+with a fork, a new service, or a restore from git. **If you create another
+service for this site, set them again there.**
+
+    Content-Security-Policy       default-src 'self'; script-src 'self';
+                                  style-src 'self' 'unsafe-inline';
+                                  img-src 'self'; font-src 'self';
+                                  media-src 'self';
+                                  connect-src 'self' https://formspree.io;
+                                  frame-src 'none'; frame-ancestors 'none';
+                                  object-src 'none'; base-uri 'none';
+                                  form-action 'none';
+                                  upgrade-insecure-requests
+    X-Frame-Options               DENY
+    Referrer-Policy               no-referrer
+    Permissions-Policy            camera=(), microphone=(), geolocation=(),
+                                  payment=(), usb=(), magnetometer=(),
+                                  gyroscope=(), accelerometer=()
+    Cross-Origin-Opener-Policy    same-origin
+    Cross-Origin-Resource-Policy  same-origin
+
+Render already sends `Strict-Transport-Security` (ten years, preload) and
+`X-Content-Type-Options: nosniff`, so those are not repeated above.
+
+Two directives are load-bearing and worth knowing before you change anything:
+
+- `script-src 'self'` is only possible because no page carries an inline
+  `<script>` — pricing.html's billing toggle lives in `assets/pricing.js` for
+  exactly this reason, and `test_no_page_carries_an_inline_script` keeps it
+  that way. Add an inline block and it will not run in production, silently.
+- `style-src` carries `'unsafe-inline'` and has to: `app.js` writes
+  `style="width:…"` into markup it builds (the race watch's progress bar).
+  Inline *style* cannot execute script, so this is a much smaller concession
+  than the script-src equivalent would be.
+
+`connect-src` names Formspree because that is where the waitlist POSTs. If
+the form provider changes, this header and `privacy.html` change together —
+the notice names the processor.
 
 The Flask service (`repcheck-q0m4`) does not serve `marketing/` — there are
 no references to it in `app.py`, and `/marketing` 404s there. The two are
