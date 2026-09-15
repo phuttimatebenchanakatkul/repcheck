@@ -8,6 +8,33 @@
   var yearEl = $("#year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
+  // ---------- a refresh starts at the top ----------
+  // Browsers put you back where you were when you reload, which is normally a
+  // kindness and here is not one. This page is a pinned, scroll-driven story:
+  // halfway down it, the hero is a fixed sheet faded to nothing, the panel is
+  // held in place by a pin whose measurements are taken at load, and a title
+  // is part-way through a fade. Restoring into the middle of that drops a
+  // reader into a frame of an animation with no way to tell what they are
+  // looking at -- and the loading screen plays over the top of it first.
+  //
+  // scrollRestoration is the supported way to decline it, and setting it here
+  // -- before the pin exists -- is deliberate: it has to be in place before
+  // the browser's own restore would run. The belt-and-braces scrollTo covers
+  // the browsers that ignore the property, and the `load` one covers the
+  // restore landing after this line does.
+  //
+  // A hash is the exception and must stay one: #waitlist from the nav, or
+  // #top from the panel's wordmark, is a reader asking for somewhere
+  // specific, and sending them to the top instead would break every in-page
+  // link on the site.
+  if ("scrollRestoration" in window.history) {
+    window.history.scrollRestoration = "manual";
+  }
+  if (!window.location.hash) {
+    window.scrollTo(0, 0);
+    window.addEventListener("load", function () { window.scrollTo(0, 0); });
+  }
+
   // ---------- loading screen ----------
   // The screen has a CSS animation that takes it away on its own, which is
   // what guarantees nobody is ever stuck behind it. This decides when it
@@ -254,6 +281,19 @@
     var gsap = window.gsap;
     var ScrollTrigger = window.ScrollTrigger;
     gsap.registerPlugin(ScrollTrigger);
+
+    // ScrollTrigger keeps its OWN record of where you were scrolled and puts
+    // you back there on a refresh -- which is a sensible default for a pinned
+    // layout and is the thing actually beating the scrollRestoration handling
+    // at the top of this file. Setting history.scrollRestoration alone looked
+    // like it did nothing: the page still came back at 3000px, because this
+    // restore runs later and wins.
+    //
+    // clearScrollMemory takes the value to hand to history.scrollRestoration,
+    // so this both throws away the saved position and re-states the decline.
+    // Before any trigger is created, so there is nothing recorded to restore.
+    if (ScrollTrigger.clearScrollMemory) ScrollTrigger.clearScrollMemory("manual");
+    if (!window.location.hash) window.scrollTo(0, 0);
 
     story.style.setProperty("--rc-stages", String(featureBtns.length));
     document.documentElement.classList.add("rc-story-on");
@@ -1477,6 +1517,11 @@
     nlScreen.addEventListener("click", function (evt) {
       var el = evt.target.closest ? evt.target.closest("[data-nl]") : null;
       if (!el) return;
+      // A real click -- the walkthrough calls these functions directly and
+      // never dispatches one, so reaching here means a visitor did it. The
+      // screen is theirs from now on.
+      nlDemoOff = true;
+      nlDemoStop();
       var action = el.getAttribute("data-nl");
       if (action === "open-search") { nlOpen("search"); return; }
       if (action === "close") { nlClose(); return; }
@@ -1505,7 +1550,13 @@
     });
 
     if (nlQuery) {
-      nlQuery.addEventListener("input", nlRenderResults);
+      nlQuery.addEventListener("input", function () {
+        // Same rule as the click handler: the walkthrough writes .value and
+        // calls nlRenderResults() itself, so an input event is a person.
+        nlDemoOff = true;
+        nlDemoStop();
+        nlRenderResults();
+      });
       nlQuery.addEventListener("keydown", function (evt) {
         if (evt.key !== "Enter") return;
         // Enter takes the top match, the way the app's search does.
@@ -1532,21 +1583,106 @@
       if (evt.key === "Escape" && nl.sheet) { nlClose(); }
     });
 
+    // ---- the screen logs a food by itself ----
+    // This screen really works -- search the library, pick, set an amount,
+    // add -- which is the whole point of it, and was also the whole problem:
+    // a working control nobody touches is an empty form. It opened on a day
+    // with nothing in it and stayed there, so the one feature whose screen
+    // could SHOW what the app does was the one showing least.
+    //
+    // So it does the four steps on a loop, through the same functions the
+    // buttons call: tap "+ Log a food", type into the search, pick the top
+    // result, confirm the amount. Nothing is faked -- the macros, the ring
+    // and the day's total are computed from the real per-100g figures the
+    // rest of this block uses, because it IS the rest of this block doing
+    // the work.
+    //
+    // Pad Thai rather than a raw ingredient: a dish carries a real recipe
+    // serving (360g), so the amount step has something to say -- "1 serving
+    // = 360 g" -- where 100g of chicken would just read 1.
+    var NL_DEMO_FOOD = "Pad Thai";
+    var NL_DEMO_QUERY = "pad";
+    var nlDemoTimers = [];
+    // The moment a visitor touches this screen it is theirs. Their search,
+    // their amount, their day's log -- a demo that carried on typing over
+    // the top of it would be taking the page back off them, so the first
+    // real click or keystroke ends the loop for good.
+    var nlDemoOff = false;
+
+    function nlDemoClear() {
+      nlDemoTimers.forEach(clearTimeout);
+      nlDemoTimers = [];
+    }
+    function nlDemoAt(ms, fn) { nlDemoTimers.push(setTimeout(fn, ms)); }
+    function nlDemoFood() {
+      return NL_FOODS.filter(function (f) { return f.name === NL_DEMO_FOOD; })[0];
+    }
+    function nlDemoStop() { nlDemoClear(); }
+
+    function nlDemoPlay() {
+      if (nlDemoOff || !nlDemoFood()) return;
+      nlDemoClear();
+      // Reduced motion gets the end state, held: the food logged, the ring
+      // round, the day's total on it. No typing, no loop.
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (!nl.log.length) { nlPick(nlDemoFood()); nlAdd(); }
+        return;
+      }
+
+      // An empty day to start from, so the ring filling is something the
+      // reader watches happen rather than something already true.
+      nl.log = [];
+      nlClose();
+      nlRenderDay();
+
+      nlDemoAt(700, function () { nlOpen("search"); });
+      // Typed a letter at a time, because the results narrowing under the
+      // query is half of what "search the library" means.
+      for (var c = 1; c <= NL_DEMO_QUERY.length; c++) {
+        (function (n) {
+          nlDemoAt(1150 + n * 170, function () {
+            if (!nlQuery) return;
+            nlQuery.value = NL_DEMO_QUERY.slice(0, n);
+            // Called, not dispatched: an input event here would look like a
+            // visitor typing and switch the loop off on its own first letter.
+            nlRenderResults();
+          });
+        })(c);
+      }
+      nlDemoAt(2200, function () { nlPick(nlDemoFood()); });
+      nlDemoAt(3500, function () { nlAdd(); });
+      // Long enough on the finished day to read the ring, the macro bars and
+      // the entry that arrived in the list.
+      nlDemoAt(9200, nlDemoPlay);
+    }
+
     // An open sheet is an interaction in flight -- a half-typed search, an
     // amount being set. Hold the screen against a cursor merely drifting
     // over the feature list on its way to the handset.
+    //
+    // nlDemoOff is half the condition, and has to be: the loop opens sheets
+    // too, and a hold that counted those would pin the handset for the two
+    // seconds of every nine that the demo has one open. The hold protects a
+    // VISITOR'S interaction, and there is only a visitor's interaction once
+    // the loop has stood down.
     onHold(function (current) {
-      return current === screens.indexOf(nlScreen) && !!nl.sheet;
+      return nlDemoOff && current === screens.indexOf(nlScreen) && !!nl.sheet;
     });
     // A click is deliberate, so it switches anyway -- and takes the sheet
     // down with it, so the hold can never outlive the interaction that
     // earned it. The day's log stays: that part is the visitor's own work.
     onFeature(function (i) {
-      if (i !== screens.indexOf(nlScreen)) nlClose();
+      if (i !== screens.indexOf(nlScreen)) { nlClose(); nlDemoStop(); return; }
+      // Arriving: start the walkthrough from the top, so a reader always
+      // sees it from the empty day rather than joining it half way.
+      nlDemoPlay();
     });
 
     nlRenderResults();
     nlRenderDay();
+    // Not started here. showFeature(0) has already run by this point and the
+    // food log is feature 02, so the loop is started by the listener above
+    // when the reader actually reaches it.
   }
 
   // ---------- waitlist ----------
