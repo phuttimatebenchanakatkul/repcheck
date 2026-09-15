@@ -1043,7 +1043,22 @@
     // the feature on show at all.
     function rcSyncWatch() {
       var racing = rc.screen === "running" || rc.screen === "finished";
-      rcWatch.hidden = !(racing && rcShowing());
+      var on = racing && rcShowing();
+      rcWatch.hidden = !on;
+      // A class on the root as well, because ONE COLUMN CANNOT HOLD BOTH
+      // DEVICES AT FULL SIZE and the stylesheet has no other way to know the
+      // watch is out. At 375px the phone is 194px wide with a 90px gutter
+      // each side -- too narrow for a legible watch, so the watch has to
+      // overlap the handset, and its note ("In design, not shipped") is grey
+      // body copy that becomes unreadable the moment it crosses onto a black
+      // screen. That note is a disclosure, not decoration: it is the only
+      // thing on the page saying the watch app does not exist yet, so it
+      // cannot be the thing that gets dropped to make room.
+      //
+      // So on a narrow screen the handset gives up some size while the watch
+      // is out, and the two stack. Nothing changes on a wide one, where they
+      // have always sat side by side. See the .rc-watch-on rules.
+      document.documentElement.classList.toggle("rc-watch-on", on);
     }
 
     function rcStop() { if (rc.timer) { clearInterval(rc.timer); rc.timer = null; } }

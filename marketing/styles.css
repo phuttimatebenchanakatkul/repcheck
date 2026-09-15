@@ -1169,20 +1169,32 @@ button.stchip:hover { background: #34343a; }
 @media (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.58; } }
 
 @media (max-width: 720px) {
-  /* NO ROOM FOR A SECOND DEVICE. The watch rig is a 186px flex sibling of a
-     322px handset, and at 375px wide the pair cannot sit side by side -- so
-     the watch stacked under the phone and the stage grew to 520px inside a
-     row with nothing like that to give. Measured at 375x812: the handset was
-     pushed up to y=148, straight through the title sitting at 110-243, and
-     the watch ran to y=864 -- past the bottom of an 812px screen, across the
-     example-data line and the scroll cue both.
+  /* THE WATCH NEEDS A COLUMN, AND A COLUMN NEEDS HEIGHT.
+     As a flex sibling the watch cannot work at this width: it is 186px next
+     to a 322px phone, and at 375px the pair do not fit on a line -- the
+     watch dropped underneath, the stage grew to 520px in a row with nothing
+     like that to give, and the handset was shoved up to y=148 through a
+     title sitting at 110-243 while the watch ran off the bottom of the
+     screen across the scroll cue.
 
-     Hidden rather than shrunk. The height here is already fully spent on a
-     title, a description and one handset, and the watch is a companion
-     concept: the second-most important thing on the one feature that has
-     two. Its note goes with it, which is right -- a caption for something
-     not on screen is just more to read. */
+     Overlapping the watch onto the phone was the first fix and it half
+     worked: the device read fine layered over the bezel, but .watch-note
+     went with it, and that note is grey body copy sized for a white page --
+     the moment it crossed onto a black screen it was unreadable. It is also
+     the only thing on this site that says the watch app is "In design, not
+     shipped", so it is a disclosure and not the part to sacrifice.
+
+     What works is stacking them and giving the handset less room, which is
+     what the min-height block below does. Hidden here, shown there: on a
+     667px screen the stack does not fit at any size worth reading -- the
+     phone came out at 189-440 through the title, and the watch 63px past the
+     scroll cue. That is not a tuning problem, it is a screen with a title, a
+     description and two devices to hold and room for three of them. */
   .watch-rig { display: none; }
+  /* 0.55 of these is ~11px and ~11.5px, which is the size they are on the
+     wide layout. Change one, change the other. */
+  .watch-note { font-size: 20px; line-height: 1.4; margin-top: 10px; }
+  .watch-note b { font-size: 21px; margin-bottom: 2px; }
 
   /* One column: the title rides above the handset instead of beside it.
      minmax(0, 1fr), never plain 1fr: scale() shrinks what the handset DRAWS
@@ -1204,6 +1216,53 @@ button.stchip:hover { background: #34343a; }
   .rc-story-on .hint { padding-top: 6px; padding-bottom: 0; }
   .rc-story-on .phone-stage { padding-top: 10px; padding-bottom: 10px; }
   /* The scale itself is not set here -- see the narrow ladder below. */
+}
+
+/* Tall enough for both. 780px, because at 812 the stack lands with 4px under
+   it and every rung below that was overlapping something. */
+@media (max-width: 720px) and (min-height: 780px) {
+  /* .rc-watch-on is set on the root by app.js exactly while the watch is on
+     screen, and taken off when the race ends or the reader moves on -- so
+     every other feature, and this one for most of its loop, keeps the
+     full-size handset.
+
+     COMPOUND, not descendant: .rc-watch-on and .rc-story-on are both set on
+     <html>, so `.rc-watch-on .rc-story-on` asks for one inside the other and
+     matches nothing at all. Written with a space it failed silently -- the
+     handset kept the ladder's scale and overflowed the panel exactly as
+     before. */
+  .rc-watch-on.rc-story-on .phone-stage {
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+  }
+  /* Smaller than the 0.60 the height ladder would give it -- the watch and
+     its note need about 220px of the column, and this is what is left. The
+     ladder's negative margin reconciles the layout box either way, so this
+     is the one value that has to change. */
+  .rc-watch-on.rc-story-on .phone { --rc-phone-scale: 0.44; }
+  .rc-watch-on .watch-rig {
+    display: block;
+    width: 186px;
+    transform: scale(0.54);
+    /* Top centre, so the watch hangs from where the phone ends rather than
+       growing away from it, and the negative margin takes back the height
+       the scale stops using -- the same reconciliation the handset needs,
+       for the same reason: scale() changes what is painted, never what is
+       occupied. */
+    transform-origin: top center;
+    margin-bottom: calc((0.54 - 1) * 410px);
+    /* rc-watch-in animates transform and ENDS on `none`, which would throw
+       the scale away the moment the entrance finished -- the watch would
+       appear correctly sized and then jump to full size. Same beat, opacity
+       only, so the transform is left alone. */
+    animation: rc-watch-fade .34s ease both;
+  }
+  @keyframes rc-watch-fade { from { opacity: 0; } to { opacity: 1; } }
+  /* 0.54 of these lands them at ~11px and ~11.5px, which is what they are on
+     the wide layout. Change the scale, change these. */
+  .rc-watch-on .watch-note { font-size: 20.4px; line-height: 1.4; margin-top: 8px; }
+  .rc-watch-on .watch-note b { font-size: 21.3px; margin-bottom: 2px; }
 }
 
 /* A SECOND full ladder, for the one-column story only.
