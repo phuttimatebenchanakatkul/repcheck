@@ -1080,6 +1080,14 @@ button.stchip:hover { background: #34343a; }
      at the exact boundary, which has no duration: the outgoing title reaches
      zero where the incoming one starts from zero. */
   transition: none;
+  /* Promote the block to its own compositor layer so a change of opacity is
+     the GPU blending a finished layer, not the browser re-rasterising a
+     60px headline and three lines of body copy on every frame. A repaint
+     that heavy cannot keep up, and what it cannot keep up with it drops --
+     which is the other half of why this fade looked like it was stepping.
+     Six elements, each one screen of the page: a cheap promotion, and the
+     only place on this site that needs one. */
+  will-change: opacity;
 }
 .rc-story-on .feature.is-active {
   opacity: 1;
