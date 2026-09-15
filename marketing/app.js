@@ -475,12 +475,21 @@
         // stage line and in from the stage line keeps one legible at a time,
         // and because it is scroll-linked the gap between them is a boundary
         // rather than a beat: it has no duration to sit through.
-        // A fifth of the stage to fade in and a fifth to fade out, so a title
-        // spends the middle three fifths held. Longer than it reads: a stage
-        // is a whole screen of scrolling, so a fifth of one is about 180px of
-        // travel at a laptop's height -- deliberate rather than quick, which
-        // is the whole complaint being answered.
-        var IN_AT = 0.2;
+        // HOW LONG A FADE IS, AS A FRACTION OF ITS STAGE, AND WHY IT IS THIS
+        // BIG. A stage is one screen of scrolling. At a fifth of that -- which
+        // is what this was -- a fade spanned about 180px at a laptop's height,
+        // and a mouse wheel moves 100px a notch. So the whole of a fade was
+        // under two notches: two samples of it, and the reader saw a title at
+        // full strength, then at something like half, then gone. That is not a
+        // fade, it is a three-frame flick-book, and no amount of easing fixes
+        // a curve you are only sampling twice.
+        //
+        // At 0.38 the same fade is ~340px, three or four notches, and the
+        // smoothing below carries the frames in between. The hold shrinks to a
+        // quarter of the stage, which is the trade and it is worth it: a title
+        // that is legible for a quarter of a screen and arrives gently beats
+        // one legible for three fifths that snaps in.
+        var IN_AT = 0.38;
         // sine, not power: it is the shallowest of the standard curves at
         // both ends, so a title neither jumps off zero nor hangs at full
         // strength before it goes. On a fade with nothing else to look at,
@@ -507,11 +516,28 @@
             trigger: story,
             start: screenPx(1),
             end: screenPx(1 + featureBtns.length),
-            // Smoothing, and more of it than the zoom uses. Scrubbed dead to
-            // the scroll a trackpad flick makes the handset judder; at 0.45
-            // the panel keeps moving for a beat after the wheel stops, which
-            // is what reads as weight rather than as lag.
-            scrub: 0.45
+            // THE SMOOTHING, and this number is doing most of the work.
+            //
+            // A scrub is not a per-frame read of the scroll position: GSAP
+            // tweens the playhead TOWARDS where the scroll says it should be,
+            // over this many seconds, on its own rAF. So the number is how
+            // much of the animation the browser draws that the scroll never
+            // asked for -- the in-between frames a wheel does not produce,
+            // because a wheel does not produce any: it jumps 100px at a time
+            // and then nothing.
+            //
+            // At 0.45 one notch resolved in a handful of frames, which is why
+            // the fade looked like it was stepping through the scroll rather
+            // than running under it. At 1.1 a single notch is most of a
+            // second of drawn animation, and a run of them reads as one
+            // continuous movement instead of a stack of jumps.
+            //
+            // The cost is that the panel keeps moving for about a second
+            // after the wheel stops. That is the intended feel -- weight, a
+            // heavy thing coming to rest -- and it is NOT the delay this
+            // section used to have: that one was a fixed half-second of
+            // nothing happening, regardless of whether you were moving.
+            scrub: 1.1
           }
         });
 
@@ -521,8 +547,12 @@
             // leaving. The hold is the point -- the middle of a stage is
             // where a reader is actually reading the thing, and a handset
             // still drifting under them there is a distraction, not depth.
-            .fromTo(phone, away(), rest({ ease: "power2.out", duration: 0.3 }), s)
-            .to(phone, away({ ease: "power2.in", duration: 0.3 }), s + 0.7)
+            // The handset, on the same windows as the title beside it. They
+            // were 0.3 while the title was 0.2; leaving them there while the
+            // title stretched to 0.38 would have had the phone settled and
+            // waiting through the second half of every arrival.
+            .fromTo(phone, away(), rest({ ease: "power2.out", duration: IN_AT }), s)
+            .to(phone, away({ ease: "power2.in", duration: IN_AT }), s + 1 - IN_AT)
             // The title, on the same clock. autoAlpha, not opacity: it writes
             // visibility alongside, which is what keeps five invisible titles
             // out of the tab order -- the same pair the CSS was setting by
