@@ -129,6 +129,35 @@ def test_no_page_loads_anything_from_another_company(name):
     )
 
 
+@pytest.mark.parametrize("name", PAGES)
+def test_no_page_carries_an_inline_script(name):
+    """The site is served with a Content-Security-Policy of script-src 'self'
+    (set on the Render static site, not in this repo -- it is response-header
+    config, not content). Under that policy an inline <script> does not run.
+    It does not warn, it does not throw where anyone will see it: the block is
+    refused and whatever it powered silently stops working.
+
+    pricing.html used to carry one -- the monthly/yearly toggle -- and moving
+    it to assets/pricing.js is what let the policy be strict rather than
+    carrying 'unsafe-inline', which switches off the half of CSP that stops
+    injected script. This test is what keeps it that way, because the failure
+    it guards against is invisible in local preview: without the header, an
+    inline block works perfectly right up until it is deployed.
+
+    If you need script on a page, give it a file.
+    """
+    html = _strip_comments(_read(name))
+
+    inline = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>", html, re.I)
+
+    assert inline == [], (
+        "marketing/" + name + " has an inline <script>: " + repr(inline) + "\n"
+        "The deployed Content-Security-Policy is script-src 'self', so this "
+        "block will not run in production -- silently. Move it to a file under "
+        "marketing/assets/ and load it with src, the way pricing.html does."
+    )
+
+
 def test_the_stylesheet_loads_no_remote_resources():
     offsite = _offsite_urls(_strip_css_comments((MARKETING / "styles.css").read_text(encoding="utf-8")))
 
