@@ -211,10 +211,22 @@
           <div class="screen is-active screen--video" data-screen="0">
             <!-- preload=auto, unlike the others: this screen is the one showing
                  on load, so it starts playing immediately. Left on metadata it
-                 streams while it plays and stalls through the first loop. -->
+                 streams while it plays and stalls through the first loop.
+
+                 The clip is cut, not recorded, in two pieces: two seconds of
+                 the app analysing ("Reviewing lockout and depth", then
+                 "Drafting your form report"), and then the finished report.
+                 What is cut out between them is three quarters of a second in
+                 which the report had rendered but the clip at the top of it
+                 had not -- a black rectangle under the header, which is what
+                 made the screen look like it was glitching rather than
+                 loading. Rebuilt from website.mp4 at crop=1170:2074:0:104,
+                 which is the framing this handset was aligned to; recover it
+                 by scoring candidates against a shipped frame if it is ever
+                 lost again, do not eyeball it. -->
             <video id="analyze-demo" muted playsinline loop
                    preload="auto" poster="assets/analyze-demo-poster.jpg"
-                   aria-label="Screen recording of RepCheck analysing a tricep pushdown set: the clip is uploaded, the exercise picked, the set analysed, and a form report returned.">
+                   aria-label="Screen recording of RepCheck analysing a tricep pushdown set: two seconds of the set being analysed, then the form report it returns.">
               <source src="assets/analyze-demo.webm" type="video/webm">
               <source src="assets/analyze-demo.mp4" type="video/mp4">
             </video>
