@@ -38,11 +38,23 @@
      it is covered by the palette contrast test like every other text colour
      (14.35:1 on --paper). */
   --ink-body: #2a2a2a;
+
+  /* THE SITE IS A FIXED CANVAS: 1080x566, Instagram landscape.
+     Every place that used to read 100vh / 100svh reads --rc-frame-h instead,
+     and app.js reads the same value rather than window.innerHeight, so the
+     scroll story's stage maths and the CSS agree. Change these two numbers
+     and the whole page follows. */
+  --rc-frame-w: 1080px;
+  --rc-frame-h: 566px;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--paper); }
+/* The canvas, centred, with the page's own white either side of it. */
 body {
+  width: var(--rc-frame-w);
+  max-width: 100%;
+  margin-inline: auto;
   font-family: Archivo, "Helvetica Neue", Helvetica, sans-serif;
   color: var(--ink);
   overflow-x: hidden;
@@ -95,7 +107,7 @@ button { font: inherit; }
 /* ---------- hero ---------- */
 .hero {
   position: relative;
-  min-height: 100vh;
+  min-height: var(--rc-frame-h);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -984,11 +996,17 @@ button.stchip:hover { background: #34343a; }
 .rc-story-on.rc-hero-pin .hero {
   position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
+  /* Centred on the canvas, not stretched across the viewport -- a fixed
+     element is positioned against the viewport and would otherwise ignore
+     the frame entirely. margin-left rather than a translate: GSAP owns this
+     element's transform (it scales the hero through the zoom) and would
+     overwrite a translateX the first frame it ran. */
+  left: 50%;
+  margin-left: calc(var(--rc-frame-w) / -2);
+  width: var(--rc-frame-w);
+  max-width: 100%;
   min-height: 0;
-  height: 100vh;
-  height: 100svh;
+  height: var(--rc-frame-h);
   z-index: 2;
   background: var(--paper);
 }
@@ -1011,8 +1029,7 @@ button.stchip:hover { background: #34343a; }
    in, after the sixth feature has had its full turn. */
 .rc-story-on .rc-story {
   position: relative;
-  height: calc((var(--rc-stages, 6) + 2) * 100vh);
-  height: calc((var(--rc-stages, 6) + 2) * 100svh);
+  height: calc((var(--rc-stages, 6) + 2) * var(--rc-frame-h));
 }
 
 /* The rail of marker elements that used to live here is gone. Stages were
@@ -1029,8 +1046,7 @@ button.stchip:hover { background: #34343a; }
 .rc-story-on .rc-story-view {
   position: sticky;
   top: 0;
-  height: 100vh;
-  height: 100svh;
+  height: var(--rc-frame-h);
   display: flex;
   flex-direction: column;
 }
@@ -1411,7 +1427,15 @@ button.stchip:hover { background: #34343a; }
    script that never runs cannot strand a visitor behind a white sheet. */
 .rc-loader {
   position: fixed;
-  inset: 0;
+  /* On the canvas, not the viewport. inset:0 covered the whole window and
+     left the white margins looking like part of the site while it was up. */
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  margin-left: calc(var(--rc-frame-w) / -2);
+  width: var(--rc-frame-w);
+  max-width: 100%;
+  height: var(--rc-frame-h);
   z-index: 50;
   display: flex;
   align-items: center;

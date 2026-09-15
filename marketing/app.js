@@ -5,6 +5,20 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // The site is a fixed canvas (--rc-frame-w x --rc-frame-h in styles.css),
+  // so a "screen" of the scroll story is the frame's height and NOT the
+  // viewport's. Read it from the stylesheet rather than repeating the number:
+  // the CSS sizes the pinned panel and the story's total height from the same
+  // variable, and if this disagreed with it by even a pixel the stage the
+  // reader is on and the panel they are looking at would drift apart over six
+  // features. Falls back to the viewport if the variable is ever removed.
+  function frameH() {
+    var v = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--rc-frame-h")
+    );
+    return v > 0 ? v : window.innerHeight;
+  }
+
   var yearEl = $("#year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
@@ -353,7 +367,7 @@
     // feature 01 too, so the top of the page always resolves to 01 however
     // the reader arrived there.
     var screenPx = function (n) {
-      return function () { return "top top-=" + (n * window.innerHeight); };
+      return function () { return "top top-=" + (n * frameH()); };
     };
     var stageAt = function (from, to, feature) {
       ScrollTrigger.create({
@@ -390,7 +404,7 @@
           scrollTrigger: {
             trigger: story,
             start: "top top",
-            end: function () { return "+=" + window.innerHeight; },
+            end: function () { return "+=" + frameH(); },
             scrub: 0.4,
             onUpdate: function (self) {
               // An invisible sheet is still a sheet: without this the hero
