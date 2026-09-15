@@ -191,16 +191,25 @@
       -->
       <p class="hint rc-hint-tap">Tap a feature to try it in the phone →</p>
       <!--
-        The handset shows made-up numbers, names and race times -- a product
-        mockup, which is normal, but an unlabelled screenshot of "results" is
-        the kind of thing that reads as a performance claim. It has to keep
-        saying so: nothing on this page is pretending to be evidence. Do not
-        drop this line -- move it if it is in the way. With the story running
-        it is lifted out of the title column to the foot of the panel, which
-        is what .rc-story-on .hint-demo does; without it, it sits here in the
-        column as it always has.
+        THERE WAS A LINE HERE: "Example data, for illustration -- not a real
+        user's results". Removed at the owner's instruction, asked twice.
+
+        Recording what it was for, because the reasoning has not changed even
+        though the decision has. The handset shows invented scores, invented
+        race times and invented friends. That is an ordinary product mockup
+        and every app on the App Store ships them -- but an unlabelled
+        screenshot of "results" is the shape of thing that can read as a
+        performance claim rather than as a picture of the interface, and this
+        page has form for that (see the "Download with Apple" button that
+        pointed at nothing, and the 527 exercises the stats band used to
+        claim).
+
+        What keeps that from being a problem now is that nothing on this page
+        states an outcome in words. The copy describes what the app DOES --
+        scores a set, counts reps, tracks a race -- and never what it got
+        anybody. Keep it that way. The moment any of these numbers is
+        repeated in prose, or a testimonial appears, this line comes back.
       -->
-      <p class="hint hint-demo">Example data, for illustration &mdash; not a real user's results</p>
     </div>
 
     <div class="phone-stage">
@@ -560,8 +569,17 @@
     role="status" (an implicit aria-live="polite") is the whole point: app.js
     swaps this text to report success and failure, and without a live region
     a screen-reader user submits the form and is told nothing at all.
+
+    EMPTY, AND STILL HERE. It used to read "No spam, no drip sequence. One
+    email when we open the doors.", which the owner asked to drop. Deleting
+    the ELEMENT with it would have taken the form's only feedback with it:
+    nothing would say "you're on the list", nothing would say the address was
+    rejected, and the input's aria-describedby would point at an id that no
+    longer exists. So the line goes and the region stays, holding its space
+    (see .form-note:empty) so the consent notice below does not jump when a
+    message arrives.
   -->
-  <p class="form-note" id="waitlist-note" data-note="" role="status" aria-live="polite">No spam, no drip sequence. One email when we open the doors.</p>
+  <p class="form-note" id="waitlist-note" data-note="" role="status" aria-live="polite"></p>
   <!--
     Collecting an email address is processing personal data, so the purpose,
     the operator and the policy have to be stated AT the point of collection
