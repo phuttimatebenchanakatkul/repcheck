@@ -12,11 +12,24 @@
   // variable, and if this disagreed with it by even a pixel the stage the
   // reader is on and the panel they are looking at would drift apart over six
   // features. Falls back to the viewport if the variable is ever removed.
+  //
+  // Computed from the WIDTH and the RATIO, not read from --rc-frame-h. That
+  // property is a calc() now, and getComputedStyle hands a custom property
+  // back as the tokens it was written with -- "calc(1080px / 1.91)", which
+  // parseFloat turns into NaN. The fallback would then have quietly swapped
+  // the viewport height back in and the stages would have gone out of step
+  // with the panel on any window that is not exactly 565px tall.
   function frameH() {
-    var v = parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--rc-frame-h")
+    // The width is MEASURED off <body> rather than read from --rc-frame-w:
+    // that property is a min() now, and a custom property comes back from
+    // getComputedStyle as the tokens it was written with, which parseFloat
+    // turns into NaN. body IS the canvas -- it carries the same variable as
+    // its width -- so measuring it is both simpler and always right.
+    var ratio = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--rc-frame-ratio")
     );
-    return v > 0 ? v : window.innerHeight;
+    var w = document.body.clientWidth;
+    return w > 0 && ratio > 0 ? w / ratio : window.innerHeight;
   }
 
   var yearEl = $("#year");
