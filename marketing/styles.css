@@ -376,6 +376,15 @@ button { font: inherit; }
 .waitlist-form button { border: none; background: var(--ink); color: #fff; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; padding: 16px 24px; cursor: pointer; }
 .waitlist-form button[disabled] { opacity: 0.6; cursor: default; }
 .form-note { font-size: 14px; color: var(--meta); max-width: 52ch; }
+/* The status line starts empty now, and an empty <p> is zero pixels tall --
+   so the consent notice under it would sit one line higher until someone
+   submitted, then jump as the result arrived. A non-breaking space is what
+   holds the space: it makes a real line box, with the same font metrics as
+   the message that will replace it, so the two are the same height by
+   construction. A min-height cannot promise that -- measured, 1.4em came out
+   at 19.6px against a real message line of 15px, and the block jumped 5px
+   the other way. */
+.form-note:empty::before { content: "\00a0"; }
 .form-note.is-error { color: var(--red-on-paper); }
 .form-note.is-ok { color: var(--green-on-paper); }
 
@@ -1160,6 +1169,21 @@ button.stchip:hover { background: #34343a; }
 @media (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.58; } }
 
 @media (max-width: 720px) {
+  /* NO ROOM FOR A SECOND DEVICE. The watch rig is a 186px flex sibling of a
+     322px handset, and at 375px wide the pair cannot sit side by side -- so
+     the watch stacked under the phone and the stage grew to 520px inside a
+     row with nothing like that to give. Measured at 375x812: the handset was
+     pushed up to y=148, straight through the title sitting at 110-243, and
+     the watch ran to y=864 -- past the bottom of an 812px screen, across the
+     example-data line and the scroll cue both.
+
+     Hidden rather than shrunk. The height here is already fully spent on a
+     title, a description and one handset, and the watch is a companion
+     concept: the second-most important thing on the one feature that has
+     two. Its note goes with it, which is right -- a caption for something
+     not on screen is just more to read. */
+  .watch-rig { display: none; }
+
   /* One column: the title rides above the handset instead of beside it.
      minmax(0, 1fr), never plain 1fr: scale() shrinks what the handset DRAWS
      and not what it occupies, so the row still asks for the full 662px of

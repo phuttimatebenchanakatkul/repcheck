@@ -594,13 +594,57 @@ def test_no_reviews_or_testimonials_are_fabricated():
         )
 
 
-def test_the_demo_screens_are_labelled_as_examples():
-    """The handset shows invented race times, calorie totals and friend names.
-    Unlabelled, that reads as a performance claim."""
-    html = _strip_comments(_read("index.html")).lower()
+def test_no_invented_figure_from_the_mockups_is_repeated_in_the_page_copy():
+    """This replaces a test that required the words "Example data, for
+    illustration" on the page. That line was removed at the owner's
+    instruction, and the reason it existed does not go away with it: the
+    handset shows an invented form score, an invented race time and invented
+    friend rep-counts, and an unlabelled screenshot of "results" is the shape
+    of thing that can read as a performance claim.
 
-    assert "example data" in html, (
-        "the phone mockup contains fabricated numbers and needs to say so"
+    What keeps it from being one is that those numbers never leave the
+    mockup. The page's own prose says what the app DOES -- scores a set,
+    counts reps, tracks a race -- and never what it got anybody. A number
+    inside a drawing of a phone screen is interface. The same number in a
+    sentence is a claim, and that is the line this test holds.
+
+    So: strip the handsets out, and assert none of their figures survive in
+    what is left."""
+    html = _strip_comments(_read("index.html"))
+
+    # Everything inside .phone-stage is the mockup -- the handsets, the watch
+    # and every screen in them. Cut it out by counting <div> depth rather than
+    # with a regex: the stage is nested a dozen levels deep, and a lazy
+    # .*?</div> stops at the FIRST close tag, which left the whole mockup in
+    # and failed this test on its own markup.
+    start = html.find('<div class="phone-stage">')
+    assert start != -1, "the handset markup moved -- this test no longer cuts it out"
+    depth, i = 0, start
+    while i < len(html):
+        if html.startswith("<div", i):
+            depth += 1
+            i += 4
+        elif html.startswith("</div>", i):
+            depth -= 1
+            i += 6
+            if depth == 0:
+                break
+        else:
+            i += 1
+    prose = re.sub(r"<[^>]+>", " ", html[:start] + " " + html[i:])
+
+    # The figures a reader could mistake for an outcome someone achieved.
+    claims = ["1:24:06", "132 reps", "148 reps", "96 reps", "9 reps counted"]
+    found = [c for c in claims if c.lower() in prose.lower()]
+
+    assert found == [], (
+        "these invented figures have escaped the phone mockup into the page's "
+        "own copy: " + repr(found) + "\n"
+        "Inside a drawing of a screen they are interface. In a sentence they "
+        "are a claim about what the app got somebody, and this page carries "
+        "no such claim -- it used to carry an 'Example data, for "
+        "illustration' line and no longer does. Either take the figure back "
+        "out of the prose, or put that line back."
     )
 
 
