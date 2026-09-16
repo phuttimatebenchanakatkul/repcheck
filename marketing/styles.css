@@ -44,8 +44,29 @@
      and app.js reads the same value rather than window.innerHeight, so the
      scroll story's stage maths and the CSS agree. Change these two numbers
      and the whole page follows. */
-  --rc-frame-w: 1080px;
-  --rc-frame-h: 566px;
+  /* min(), so a window narrower than the canvas shrinks it rather than
+     cropping it. Without this the width clamped to the viewport while the
+     height stayed put, and the ratio quietly went to 1.78:1 on any screen
+     under 1080px -- which is most laptops once a scrollbar is out.
+     vw and NOT %: this value is divided to make a HEIGHT below, and a
+     percentage inside a custom property is resolved where it is USED -- so
+     100% became a share of the container's height and the canvas came out
+     1080x471 at a ratio of 2.29. vw is absolute and means the same thing
+     wherever it lands. It does count the scrollbar, which can overflow a
+     narrow window by its width; body already carries overflow-x: hidden. */
+  /* No max-width anywhere alongside this. A cap of 100% measures the
+     CONTENT box -- viewport minus scrollbar -- while 100vw above counts the
+     scrollbar in, so the two disagreed by its width: at a 900px window the
+     canvas rendered 885 wide against a height worked out from 900, and the
+     ratio came out 1.878. The width has to be exactly what the height was
+     divided from. body's overflow-x: hidden absorbs the scrollbar. */
+  --rc-frame-w: min(1080px, 100vw);
+  /* 1.91:1, and the height is DERIVED from it rather than typed. 1080/1.91
+     is 565.45, so "566" was the ratio rounded to a whole pixel -- 1.908:1,
+     near enough to look right and not what was asked for. Deriving it means
+     the ratio is exact at any width, and changing the width alone keeps it. */
+  --rc-frame-ratio: 1.91;
+  --rc-frame-h: calc(var(--rc-frame-w) / var(--rc-frame-ratio));
 }
 
 * { box-sizing: border-box; }
@@ -53,7 +74,6 @@ html, body { margin: 0; padding: 0; background: var(--paper); }
 /* The canvas, centred, with the page's own white either side of it. */
 body {
   width: var(--rc-frame-w);
-  max-width: 100%;
   margin-inline: auto;
   font-family: Archivo, "Helvetica Neue", Helvetica, sans-serif;
   color: var(--ink);
@@ -1004,7 +1024,6 @@ button.stchip:hover { background: #34343a; }
   left: 50%;
   margin-left: calc(var(--rc-frame-w) / -2);
   width: var(--rc-frame-w);
-  max-width: 100%;
   min-height: 0;
   height: var(--rc-frame-h);
   z-index: 2;
@@ -1434,7 +1453,6 @@ button.stchip:hover { background: #34343a; }
   left: 50%;
   margin-left: calc(var(--rc-frame-w) / -2);
   width: var(--rc-frame-w);
-  max-width: 100%;
   height: var(--rc-frame-h);
   z-index: 50;
   display: flex;
