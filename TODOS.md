@@ -1032,26 +1032,35 @@ of the App Review rejection. Not a live failure yet.
 
 ## Marketing
 
-### The food log demo's two sheets have no dialog role or focus trap
+### The handset is out of the tab order but still in the accessibility tree
 
-**What:** `#nl-search-sheet` and `#nl-amount-sheet` (`marketing/index.html`,
-driven by `marketing/app.js`) slide over the food-log screen but carry no
-`role="dialog"`/`aria-modal="true"`, and nothing traps Tab inside them while
-open. A keyboard user can Tab past the last field in an open sheet into the
-feature list and stats band behind it, which reads as still being "in" the
-sheet with no visual cue that focus left it.
+**What:** Every mock control in `.phone-stage` (`marketing/index.html`) is now
+`tabindex="-1"`, but nothing is `aria-hidden` or `inert`, and they all keep
+their roles and names: `aria-label="Search foods"`, `aria-label="Amount"`,
+`aria-label="Remove <food>"`, `aria-pressed` on the serving/g/oz segment.
+So a screen reader still announces nine app controls that a keyboard cannot
+reach. Before v0.12.4.0 they were announced AND keyboard-operable; now they
+are announced and mouse-only, which is a WCAG 2.1.1 (Keyboard) failure where
+there was not one before. `#nl-results` and `#nl-entries` also have their
+`innerHTML` replaced every ~170ms during the walkthrough's typing beat,
+destroying an AT virtual cursor parked in them, with nothing to suppress it.
 
-**Why:** This diff was otherwise careful about keyboard behaviour on this
-exact screen -- closing a sheet returns focus to the button that opened it,
-and a stray hover no longer swaps the screen away mid-interaction -- so the
-missing trap is the one keyboard gap left in an area that got real attention
-everywhere else.
+**Why:** The two coherent positions are "it is a picture" (`aria-hidden="true"`
+on `.phone-screen` plus a text alternative describing what the demo shows, so
+it stops being offered to AT at all) and "it is a control" (put it back in the
+tab order and give the sheets a real dialog role and focus trap). What shipped
+is the tab-order half of the first position without the a11y-tree half. The
+page is not silent about the features either way -- each one has a written
+description beside the handset -- so "picture" is defensible; it just has not
+been stated in the markup.
 
-**Context:** Flagged (INVESTIGATE) by the Claude adversarial subagent during
-`/ship`'s review of the marketing interactive food log. Not fixed inline: a
-real focus trap for two different sheet shapes (a live-filtered list vs. a
-static form) is more than a mechanical fix, and this is a pre-launch demo
-page, not the app itself.
+**Context:** Raised (INVESTIGATE) by the Claude adversarial subagent during
+`/ship` on the focus fix in v0.12.4.0. Deliberately NOT fixed there: the ask
+was scoped to focus and tab order, and `aria-hidden` on a subtree whose
+children are still click-focusable trips axe's `aria-hidden-focus` rule, so
+doing it properly means deciding the text alternative too. Note `inert` is
+the wrong tool -- it would also block the mouse clicks the working food-log
+demo depends on.
 
 **Effort:** M
 **Priority:** P3
@@ -1080,6 +1089,38 @@ review).
 **Depends on:** None
 
 ## Completed
+
+### The food log demo's two sheets have no dialog role or focus trap
+
+**What:** `#nl-search-sheet` and `#nl-amount-sheet` (`marketing/index.html`,
+driven by `marketing/app.js`) slide over the food-log screen but carry no
+`role="dialog"`/`aria-modal="true"`, and nothing traps Tab inside them while
+open. A keyboard user can Tab past the last field in an open sheet into the
+feature list and stats band behind it, which reads as still being "in" the
+sheet with no visual cue that focus left it.
+
+**Why:** This diff was otherwise careful about keyboard behaviour on this
+exact screen -- closing a sheet returns focus to the button that opened it,
+and a stray hover no longer swaps the screen away mid-interaction -- so the
+missing trap is the one keyboard gap left in an area that got real attention
+everywhere else.
+
+**Context:** Flagged (INVESTIGATE) by the Claude adversarial subagent during
+`/ship`'s review of the marketing interactive food log. Not fixed inline: a
+real focus trap for two different sheet shapes (a live-filtered list vs. a
+static form) is more than a mechanical fix, and this is a pre-launch demo
+page, not the app itself.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
+**Completed:** v0.12.4.0 (2026-09-16) -- resolved by removing the premise
+rather than by adding a trap. The handset is a drawing of the app, so every
+control in it is now `tabindex="-1"` and the walkthrough draws its caret with
+a class instead of calling `.focus()`. There is no keyboard focus inside a
+sheet to trap, and none to Tab out of. (The trap would still be the right fix
+if these ever become controls the page genuinely offers.)
 
 ### Rapid double-tap on a sheet-opening button can leak a scroll-lock
 

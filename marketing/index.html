@@ -254,7 +254,20 @@
                app.js drives it through the data-nl hooks and writes only
                numbers and list rows into elements that already exist; the
                markup here is the empty day the app opens on, which is also
-               what a visitor with no JS sees. -->
+               what a visitor with no JS sees.
+
+               EVERY CONTROL IN HERE IS tabindex="-1", and the walkthrough
+               below never calls .focus(). This is a drawing of the app
+               inside a handset, not a form the page is offering: a reader
+               tabbing the page wants the nav, the waitlist and the footer,
+               not nine mock app controls in between -- and a walkthrough
+               that focused them moved focus on its own, mid-scroll, to
+               somewhere nobody had put it. The other panes make the same
+               point with plain <div>/<span> (the challenges and friends
+               screens further down); these have to stay real controls
+               because the food log actually computes, so they say it with
+               tabindex instead. The "focused" field is a class --
+               see nlFakeFocus in app.js. -->
           <div class="screen screen--nl" data-screen="1" id="nl-screen">
             <div class="scr-head"><b>Nutrition</b><span class="avatar">J</span></div>
 
@@ -278,7 +291,7 @@
               </div>
             </div>
 
-            <button type="button" class="cta-blue" data-nl="open-search">+ Log a food</button>
+            <button type="button" tabindex="-1" class="cta-blue" data-nl="open-search">+ Log a food</button>
 
             <div class="nl-day">
               <div class="row"><span class="section-label">Today</span><span class="sub" id="nl-count">Nothing logged</span></div>
@@ -297,9 +310,9 @@
               <span class="grab"></span>
               <div class="nl-sheet-head">
                 <b class="card-title">Log a food</b>
-                <button type="button" class="nl-x" data-nl="close" aria-label="Close">&times;</button>
+                <button type="button" tabindex="-1" class="nl-x" data-nl="close" aria-label="Close">&times;</button>
               </div>
-              <input type="text" class="nl-input" id="nl-query" placeholder="Search foods" autocomplete="off" spellcheck="false" aria-label="Search foods">
+              <input type="text" tabindex="-1" class="nl-input" id="nl-query" placeholder="Search foods" autocomplete="off" spellcheck="false" aria-label="Search foods">
               <div class="nl-results" id="nl-results"></div>
             </div>
 
@@ -307,7 +320,7 @@
               <span class="grab"></span>
               <div class="nl-sheet-head">
                 <b class="card-title" id="nl-food-name">Food</b>
-                <button type="button" class="nl-x" data-nl="back" aria-label="Back to search">&times;</button>
+                <button type="button" tabindex="-1" class="nl-x" data-nl="back" aria-label="Back to search">&times;</button>
               </div>
               <div class="nl-donut-row">
                 <div class="nl-donut-wrap">
@@ -332,15 +345,15 @@
               <div class="nl-amount">
                 <div class="row"><span class="card-title">Amount</span><span class="sub" id="nl-serving-hint">1 serving = 100g</span></div>
                 <div class="nl-amount-row">
-                  <input type="text" inputmode="decimal" id="nl-amount" value="1" aria-label="Amount">
+                  <input type="text" tabindex="-1" inputmode="decimal" id="nl-amount" value="1" aria-label="Amount">
                   <div class="nl-unit-seg">
-                    <button type="button" data-nl="unit" data-unit="serving" class="is-active" aria-pressed="true">serving</button>
-                    <button type="button" data-nl="unit" data-unit="g" aria-pressed="false">g</button>
-                    <button type="button" data-nl="unit" data-unit="oz" aria-pressed="false">oz</button>
+                    <button type="button" tabindex="-1" data-nl="unit" data-unit="serving" class="is-active" aria-pressed="true">serving</button>
+                    <button type="button" tabindex="-1" data-nl="unit" data-unit="g" aria-pressed="false">g</button>
+                    <button type="button" tabindex="-1" data-nl="unit" data-unit="oz" aria-pressed="false">oz</button>
                   </div>
                 </div>
               </div>
-              <button type="button" class="cta-blue" data-nl="add">Add to log</button>
+              <button type="button" tabindex="-1" class="cta-blue" data-nl="add">Add to log</button>
             </div>
           </div>
 

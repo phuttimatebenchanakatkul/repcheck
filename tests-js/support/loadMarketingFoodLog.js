@@ -13,8 +13,29 @@ import {
   readSource,
 } from "./loadMarketingFeatureSwitcher.js";
 
-export function loadMarketingFoodLog() {
+/**
+ * @param {{reducedMotion?: boolean}} [opts]
+ *   reducedMotion stubs window.matchMedia BEFORE the script runs, which is the
+ *   only moment that matters: app.js reads the query at load and again at the
+ *   top of every walkthrough. jsdom ships no matchMedia at all, so without the
+ *   stub the `window.matchMedia && ...` guards are simply falsy and the normal
+ *   animated path runs -- which is what every other test in this file wants.
+ */
+export function loadMarketingFoodLog(opts) {
+  const reducedMotion = !!(opts && opts.reducedMotion);
   document.body.innerHTML = readWhatSection();
+  if (reducedMotion) {
+    window.matchMedia = (query) => ({
+      matches: /prefers-reduced-motion:\s*reduce/.test(query),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+    });
+  } else {
+    delete window.matchMedia;
+  }
   // eslint-disable-next-line no-new-func
   new Function(readSource())();
 

@@ -2,6 +2,46 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.5.0] - 2026-09-16
+
+### Fixed
+
+- **The phone mockups on the pre-launch site no longer take your keyboard
+  focus.** Feature 02's food log walks through logging a meal on a loop, and
+  it used to do that by really focusing the mock search field and the "+ Log
+  a food" button. So a reader who was doing nothing but scrolling watched the
+  focus jump into a picture of the app, twice every nine seconds, with no way
+  to predict it and nothing they had done to cause it. On the 1080x566
+  canvas the cost was larger than it sounds: Page Down, Page Up, Home and End
+  are forwarded to the canvas by a handler that stands down as soon as
+  anything is focused, so for two seconds out of every nine the page keys
+  quietly stopped working.
+
+  The walkthrough now draws the focused field with a class instead of
+  focusing it, and every control inside the handset and the watch beside it
+  is out of the tab order. Tabbing the page goes nav, waitlist, footer --
+  not twenty mock app controls in between. Clicking into the food log still
+  works exactly as before, still shows a real focus ring, and closing a sheet
+  no longer leaves focus stranded on a panel that has just been hidden.
+
+- **And the demo no longer acts on you when you use it.** Two related faults
+  the same review turned up. One click on a mock button used to leave it
+  holding focus for good -- nothing re-renders that markup -- which on the
+  canvas meant the page keys stopped working until you clicked the white
+  margin; a button in the handset now hands focus straight back, while the
+  two text fields keep it, because someone typing owns the keys. And the
+  walkthrough only stood down for a click on one of its own controls, so
+  clicking *into* the search or amount field and typing left it running: nine
+  seconds later it took the caret out of the field mid-keystroke, logged
+  whatever amount was typed as if Add had been pressed, and wiped it on the
+  next cycle. Focus landing anywhere in that screen now ends the loop for
+  good, which also stops it reopening a sheet that was dismissed with Escape.
+
+- **"Add to log" with no amount now says so out loud.** The shake and the
+  highlighted field are both pictures; moving focus used to be the one part
+  a screen reader could follow, so the message goes to the status line
+  instead.
+
 ## [0.12.4.0] - 2026-09-16
 
 ### Fixed
