@@ -1032,6 +1032,40 @@ of the App Review rejection. Not a live failure yet.
 
 ## Marketing
 
+### The handset is out of the tab order but still in the accessibility tree
+
+**What:** Every mock control in `.phone-stage` (`marketing/index.html`) is now
+`tabindex="-1"`, but nothing is `aria-hidden` or `inert`, and they all keep
+their roles and names: `aria-label="Search foods"`, `aria-label="Amount"`,
+`aria-label="Remove <food>"`, `aria-pressed` on the serving/g/oz segment.
+So a screen reader still announces nine app controls that a keyboard cannot
+reach. Before v0.12.4.0 they were announced AND keyboard-operable; now they
+are announced and mouse-only, which is a WCAG 2.1.1 (Keyboard) failure where
+there was not one before. `#nl-results` and `#nl-entries` also have their
+`innerHTML` replaced every ~170ms during the walkthrough's typing beat,
+destroying an AT virtual cursor parked in them, with nothing to suppress it.
+
+**Why:** The two coherent positions are "it is a picture" (`aria-hidden="true"`
+on `.phone-screen` plus a text alternative describing what the demo shows, so
+it stops being offered to AT at all) and "it is a control" (put it back in the
+tab order and give the sheets a real dialog role and focus trap). What shipped
+is the tab-order half of the first position without the a11y-tree half. The
+page is not silent about the features either way -- each one has a written
+description beside the handset -- so "picture" is defensible; it just has not
+been stated in the markup.
+
+**Context:** Raised (INVESTIGATE) by the Claude adversarial subagent during
+`/ship` on the focus fix in v0.12.4.0. Deliberately NOT fixed there: the ask
+was scoped to focus and tab order, and `aria-hidden` on a subtree whose
+children are still click-focusable trips axe's `aria-hidden-focus` rule, so
+doing it properly means deciding the text alternative too. Note `inert` is
+the wrong tool -- it would also block the mouse clicks the working food-log
+demo depends on.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None
+
 ### Macro-key table duplicated between nlRenderAmount and nlRenderDay
 
 **What:** `marketing/app.js`'s food-log donut (`nlRenderAmount`) and day

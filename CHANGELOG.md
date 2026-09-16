@@ -24,6 +24,24 @@ All notable changes to RepCheck are recorded here, newest first.
   works exactly as before, still shows a real focus ring, and closing a sheet
   no longer leaves focus stranded on a panel that has just been hidden.
 
+- **And the demo no longer acts on you when you use it.** Two related faults
+  the same review turned up. One click on a mock button used to leave it
+  holding focus for good -- nothing re-renders that markup -- which on the
+  canvas meant the page keys stopped working until you clicked the white
+  margin; a button in the handset now hands focus straight back, while the
+  two text fields keep it, because someone typing owns the keys. And the
+  walkthrough only stood down for a click on one of its own controls, so
+  clicking *into* the search or amount field and typing left it running: nine
+  seconds later it took the caret out of the field mid-keystroke, logged
+  whatever amount was typed as if Add had been pressed, and wiped it on the
+  next cycle. Focus landing anywhere in that screen now ends the loop for
+  good, which also stops it reopening a sheet that was dismissed with Escape.
+
+- **"Add to log" with no amount now says so out loud.** The shake and the
+  highlighted field are both pictures; moving focus used to be the one part
+  a screen reader could follow, so the message goes to the status line
+  instead.
+
 ## [0.12.3.0] - 2026-09-13
 
 ### Fixed
