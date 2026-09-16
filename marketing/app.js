@@ -230,6 +230,31 @@
   var whatSection = $(".what");
   var featureBtns = $$(".feature", whatSection);
   var screens = $$(".screen", whatSection);
+
+  // ---------- a mock control never KEEPS focus ----------
+  // tabindex="-1" takes the handset out of the tab order. It does not stop a
+  // mouse click focusing what it hits: Chrome, Edge and Firefox-on-Windows
+  // all focus a <button> on mousedown whatever its tabindex. And the "+ Log a
+  // food" button is static markup that nothing re-renders, so one click left
+  // it as document.activeElement indefinitely -- which on the canvas host
+  // means the page-key handler at the top of this file stands down for good
+  // and Page Down, Home and End stop working until the reader clicks the
+  // white margin. One click, permanent.
+  //
+  // So a button in here hands focus straight back. The two text fields do
+  // NOT: a visitor who clicks into the search or the amount is typing, and
+  // the keys are theirs while they do, exactly as in the waitlist field.
+  // They give focus up when their sheet closes (nlClose).
+  var phoneStage = $(".phone-stage", whatSection);
+  if (phoneStage) {
+    phoneStage.addEventListener("click", function (evt) {
+      var at = document.activeElement;
+      if (!at || !phoneStage.contains(at)) return;
+      var tag = at.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (at.blur) at.blur();
+    });
+  }
   var tabs = $$(".tab", whatSection);
   // Which feature is currently in the handset -- read by the hover guard
   // below and by the race's rcShowing().
@@ -1585,6 +1610,11 @@
           amountCard.classList.add("is-nudging");
         }
         nlFakeFocus(nlAmountInput);
+        // The shake and the caret are both pictures. Moving focus to the
+        // field used to be the one part of this a screen reader could
+        // follow, and dropping the .focus() took it away -- so say it, into
+        // the toast that is already role="status" aria-live="polite".
+        nlSay("Set an amount first");
         return;
       }
       var m = nlMacros(nl.food, grams);
@@ -1653,11 +1683,43 @@
       $$(".is-faux-focus", nlScreen).forEach(function (n) {
         n.classList.remove("is-faux-focus");
       });
+      // No "a real caret wins" guard here, deliberately, though two
+      // blue-bordered fields with only one really focused would be exactly
+      // the lie this class exists to avoid. Two things already prevent it:
+      // focusin stands the walkthrough down, and nlReleaseHiddenFocus blurs
+      // real focus out of whichever sheet is being hidden -- which is the
+      // same moment the other field would get the look. A guard on
+      // "activeElement is inside nlScreen" is not only unreachable, it
+      // MISFIRES: clicking "+ Log a food" focuses that button in Chrome, the
+      // click handler opens the sheet before the blur listener on
+      // .phone-stage sees the event, and the search field would open with no
+      // caret at all. (jsdom's .click() does not focus, so no test here
+      // could have caught that -- the mutation check did.)
       if (el) el.classList.add("is-faux-focus");
+    }
+
+    // Both sheets are visibility:hidden while closed, so real focus left
+    // inside one that is on its way out is focus on nothing. tabindex="-1"
+    // does not prevent this -- it keeps these controls out of the TAB order,
+    // while a mouse click still focuses what it hits. Called by nlOpen as
+    // well as nlClose: opening the amount sheet hides the search sheet, and
+    // the "back to search" x hides the amount sheet out from under the very
+    // button the click just focused.
+    //
+    // Reads activeElement BEFORE the class comes off, and never fires for
+    // the walkthrough, which focuses nothing.
+    function nlReleaseHiddenFocus(keep) {
+      var at = document.activeElement;
+      if (!at || !at.blur) return;
+      var inDoomedSheet = Object.keys(nlSheets).some(function (key) {
+        return key !== keep && nlSheets[key] && nlSheets[key].contains(at);
+      });
+      if (inDoomedSheet) at.blur();
     }
 
     function nlOpen(which) {
       nl.sheet = which;
+      nlReleaseHiddenFocus(which);
       Object.keys(nlSheets).forEach(function (key) {
         if (nlSheets[key]) nlSheets[key].classList.toggle("is-open", key === which);
       });
@@ -1675,23 +1737,32 @@
     }
     function nlClose() {
       nl.sheet = null;
-      // tabindex="-1" keeps these out of the tab order; it does not stop a
-      // MOUSE click putting real focus in a field, and the sheet that field
-      // sits in is about to go visibility:hidden. Drop that focus rather
-      // than strand it on something no longer there. Only ever reached
-      // after a visitor clicked into a sheet: the walkthrough focuses
-      // nothing, so activeElement is wherever the reader left it and this
-      // leaves it there.
-      var at = document.activeElement;
-      var stranded = at && at.blur && Object.keys(nlSheets).some(function (key) {
-        return nlSheets[key] && nlSheets[key].contains(at);
-      });
+      nlReleaseHiddenFocus(null);
       Object.keys(nlSheets).forEach(function (key) {
         if (nlSheets[key]) nlSheets[key].classList.remove("is-open");
       });
-      if (stranded) at.blur();
       nlFakeFocus(null);
     }
+
+    // FOCUS ARRIVING IN HERE IS A VISITOR, AND THE SCREEN IS THEIRS.
+    // The click handler below only stands the walkthrough down for a click
+    // that resolves to a [data-nl] element, and neither text field has one --
+    // so clicking into the search or the amount and typing left the loop
+    // running. Nine seconds later it closed the sheet under them: it took the
+    // caret out of the field mid-keystroke, logged whatever amount they had
+    // typed as if they had pressed Add, and wiped it again on the next cycle.
+    // The amount field made it worse by having no `input` stand-down of its
+    // own, unlike the query field.
+    //
+    // focusin rather than click because it is the general statement -- the
+    // loop focuses nothing any more, so focus landing in this screen at all
+    // means a person put it there. It also closes Escape (reachable only with
+    // focus in here) and stops the walkthrough painting a second caret beside
+    // a real one.
+    nlScreen.addEventListener("focusin", function () {
+      nlDemoOff = true;
+      nlDemoStop();
+    });
 
     nlScreen.addEventListener("click", function (evt) {
       var el = evt.target.closest ? evt.target.closest("[data-nl]") : null;

@@ -464,7 +464,13 @@ describe("refusing to log nothing", () => {
 
     expect(page.entries()).toEqual([]);
     expect(page.sheetOpen()).toBe("amount");
-    expect(page.text("#nl-toast")).toBe("");
+    // The toast says why rather than staying empty. It used to be blank here
+    // because the shake and a .focus() carried the whole message, and both of
+    // those are pictures -- the .focus() is gone now (these are mock
+    // controls), so #nl-toast, which is already role="status" aria-live,
+    // is what is left to say it.
+    expect(page.text("#nl-toast")).toBe("Set an amount first");
+    expect(page.text("#nl-toast")).not.toContain("added");
   });
 
   it("nudges the amount card and marks the field, rather than doing nothing visible", () => {
@@ -665,5 +671,140 @@ describe("a reader who asked for reduced motion", () => {
     still.showFoodLog();
 
     expect(still.entries()).toHaveLength(1);
+  });
+});
+
+describe("a visitor who clicks into the screen", () => {
+  // Every finding here came from one gap: the walkthrough stood down for a
+  // click that resolved to a [data-nl] element, and NEITHER text field has
+  // one. So clicking into the search or the amount and typing left the loop
+  // running over the top of a person.
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function fresh() {
+    const p = loadMarketingFoodLog();
+    p.showFoodLog();
+    return p;
+  }
+
+  it("stands the walkthrough down on focus alone, with no click to go on", () => {
+    // ISOLATES focusin. Every other route into the screen already stops the
+    // loop by itself -- a [data-nl] click does, and typing in the query
+    // field does -- so a test that uses one of those passes with the focusin
+    // listener deleted. Here the WALKTHROUGH opens its own search sheet, the
+    // visitor only clicks into the field it opened, and nothing else happens.
+    const live = fresh();
+    vi.advanceTimersByTime(800);          // the loop opens the search sheet
+    expect(live.sheetOpen()).toBe("search");
+
+    const field = live.$("#nl-query");
+    field.focus();
+    field.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+
+    vi.advanceTimersByTime(20000);        // two full cycles
+
+    // Untouched: no typing on their behalf, no food logged, no sheet swap.
+    expect(document.activeElement).toBe(field);
+    expect(live.queryValue()).toBe("");
+    expect(live.sheetOpen()).toBe("search");
+    expect(live.entries()).toEqual([]);
+  });
+
+  it("leaves a half-typed amount alone instead of logging and wiping it", () => {
+    const live = fresh();
+    live.openSearch();
+    const field = live.$("#nl-query");
+    field.focus();
+    field.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+
+    // Type an amount and sit there for two full cycles of the loop.
+    live.search("banana");
+    live.pickFirstResult();
+    const amount = live.$("#nl-amount");
+    amount.focus();
+    amount.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    amount.value = "37";
+    amount.dispatchEvent(new Event("input"));
+
+    vi.advanceTimersByTime(20000);
+
+    // Their caret, their amount, their empty day. The loop logged nothing on
+    // their behalf and took nothing back.
+    expect(document.activeElement).toBe(amount);
+    expect(amount.value).toBe("37");
+    expect(live.sheetOpen()).toBe("amount");
+    expect(live.entries()).toEqual([]);
+  });
+
+  it("never paints a second caret beside a real one", () => {
+    const live = fresh();
+    live.openSearch();
+    const field = live.$("#nl-query");
+    field.focus();
+    field.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+
+    vi.advanceTimersByTime(20000);
+
+    // Two blue-bordered "focused" fields, only one of them focused, is the
+    // lie the class was introduced to avoid.
+    const faux = Array.from(live.screen.querySelectorAll(".is-faux-focus"));
+    expect(faux.filter((el) => el !== document.activeElement)).toEqual([]);
+  });
+
+  it("does not let the loop reopen a sheet the visitor pressed Escape on", () => {
+    const live = fresh();
+    live.openSearch();
+    const field = live.$("#nl-query");
+    field.focus();
+    field.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    live.pressEscape();
+
+    expect(live.sheetOpen()).toBe(null);
+    vi.advanceTimersByTime(20000);
+    expect(live.sheetOpen()).toBe(null);
+  });
+});
+
+describe("focus a click leaves in the handset", () => {
+  it("does not stay on a mock button, which would eat the canvas page keys", () => {
+    // On the canvas host the page-key handler stands down while anything is
+    // focused, and "+ Log a food" is static markup nothing re-renders -- so
+    // one click used to park activeElement there for good and Page Down,
+    // Home and End simply stopped working.
+    const trigger = page.$('[data-nl="open-search"]');
+    trigger.focus();
+    trigger.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.activeElement).toBe(document.body);
+
+    // Same for a generated one, inside the sheet the click just opened.
+    const result = page.screen.querySelector(".nl-result");
+    result.focus();
+    result.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("stays in a text field, because a visitor typing owns the keys", () => {
+    page.openSearch();
+    const field = page.$("#nl-query");
+    field.focus();
+    field.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("is released when the sheet holding it is swapped out, not just closed", () => {
+    // nlOpen hides the other sheet exactly as nlClose hides both. The "back
+    // to search" x is the sharp case: it hides the amount sheet out from
+    // under the very button the click just focused.
+    page.openSearch();
+    page.$("#nl-query").focus();
+    page.search("banana");
+    page.pickFirstResult();            // search sheet goes visibility:hidden
+    expect(page.$("#nl-search-sheet").contains(document.activeElement)).toBe(false);
+
+    const back = page.$('[data-nl="back"]');
+    back.focus();
+    back.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(page.$("#nl-amount-sheet").contains(document.activeElement)).toBe(false);
   });
 });
