@@ -2,6 +2,41 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.6.0] - 2026-09-16
+
+### Fixed
+
+- **The challenge recorder starts its preview instead of hoping it starts.**
+  It was the last camera in the app still trusting the `autoplay` attribute on
+  its own, and it asked at the worst possible moment: the stream was attached
+  while `#ch-preview-wrap` was still `display: none`, and the wrap was unhidden
+  on the next line. WebKit decides autoplay from what is rendered at attach
+  time, and a muted `playsinline` video is *allowed* to autoplay, not
+  guaranteed to. Now the wrap is shown first, the stream attached second, and
+  `play()` called explicitly -- the same order `templates/index.html`'s
+  viewfinder and the food-photo viewfinder (v0.12.4.0) already use. Recording
+  reads the stream rather than the element, so the symptom was a black preview
+  through the whole 10-second countdown, not a lost clip.
+
+- **Toasts and the tour's mini bar cap against the app, not the screen.**
+  Above 721px `<body>` is a fixed-size box carrying a `transform`, so a
+  `position: fixed` element's containing block is that box while `vw` is still
+  the whole display. Measured on an 1180px iPad in landscape: the nutrition,
+  coaching and HYROX save-error toasts capped at 1062px and the tour mini bar
+  at 1156px, against a 720px column -- the inset each one exists to keep had
+  simply stopped applying, so long copy could run the full width of the column.
+  All four now use `%`, which equals `vw` below 721px, so the phone is
+  untouched.
+
+### Added
+
+- `tests/test_camera_previews_are_started.py` pins the rule across every camera
+  in the app: a stream attached to a `<video>` must be followed by a `play()`.
+  It covers all five attachment sites and would have caught the food-photo
+  shutter bug fixed in v0.12.4.0.
+- `tests/test_overlays_measure_the_app_box.py` fails on any `vw` in the app's
+  own styles, allowing only the app box's own `min(100vw, 720px)` width.
+
 ## [0.12.5.0] - 2026-09-16
 
 ### Fixed

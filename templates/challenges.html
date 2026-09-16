@@ -877,9 +877,20 @@
         return;
       }
       await normalizeCameraZoom(recordingStream);
+      // Unhide BEFORE attaching the stream, then play() explicitly. This was
+      // the last camera in the app still trusting the autoplay attribute on
+      // its own -- templates/index.html's viewfinder and nutrition.html's
+      // both call play(), and nutrition.html's shipped broken for exactly
+      // this reason (v0.12.4.0). A muted playsinline video is ALLOWED to
+      // autoplay, not guaranteed to, and WebKit decides from what is
+      // rendered: the wrap was still `display: none` at the moment the
+      // stream was attached, which is the worst moment to ask. Recording
+      // itself reads the stream rather than the element, so the failure is
+      // a black preview for the whole countdown, not a failed recording.
       const video = document.getElementById("ch-record-preview");
-      video.srcObject = recordingStream;
       document.getElementById("ch-preview-wrap").style.display = "block";
+      video.srcObject = recordingStream;
+      video.play().catch(() => {}); // autoplay+muted should already play; be explicit
       document.getElementById("ch-record-start-btn").style.display = "none";
       runCountdown(10, beginRecording);
     });

@@ -1186,7 +1186,13 @@
     border-radius: 999px;
     box-shadow: var(--shadow);
     z-index: 400;
-    max-width: 90vw;
+    /* % of the app box, not vw. Above 721px <body> is the app -- a 720px
+       column on a tablet, a 390px phone on a desk -- and this fixed element's
+       containing block is that box, while vw is still the whole screen. A
+       1180px iPad made this cap 1062px against a 720px column, so the inset
+       it exists to keep simply stopped applying. Below 721px the containing
+       block IS the viewport, so % and vw agree and nothing changes. */
+    max-width: 90%;
     text-align: center;
     animation: nl-fade-in 0.15s ease;
   }
