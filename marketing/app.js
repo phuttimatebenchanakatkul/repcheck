@@ -13,19 +13,35 @@
   // reader is on and the panel they are looking at would drift apart over six
   // features. Falls back to the viewport if the variable is ever removed.
   //
-  // Computed from the WIDTH and the RATIO, not read from --rc-frame-h. That
-  // property is a calc() now, and getComputedStyle hands a custom property
-  // back as the tokens it was written with -- "calc(1080px / 1.91)", which
-  // parseFloat turns into NaN. The fallback would then have quietly swapped
-  // the viewport height back in and the stages would have gone out of step
-  // with the panel on any window that is not exactly 565px tall.
+  // IS THIS THE CANVAS HOST? assets/canvas-frame.js decides that from the
+  // hostname before the first paint and says so with a class; everything
+  // below only needs to know which shape it woke up in.
+  //   canvas  -- body IS a fixed 1080x566 box and scrolls inside itself
+  //   plain   -- the ordinary page, the window scrolls
+  // The two differ in what scrolls, so every scroll read and write in this
+  // file goes through scroller()/toTop() rather than naming one of them.
+  function onCanvas() {
+    return document.documentElement.classList.contains("rc-canvas");
+  }
+  // The element ScrollTrigger and this file scroll. undefined means the
+  // window, which is ScrollTrigger's own default.
+  function scroller() {
+    return onCanvas() ? document.body : undefined;
+  }
+  function toTop() {
+    if (onCanvas()) document.body.scrollTop = 0;
+    else window.scrollTo(0, 0);
+  }
+
   function frameH() {
-    // MEASURED, not computed. The canvas is the fixed 1.91:1 frame above
-    // 720px and the phone's whole screen below it, and body is the canvas in
-    // both cases -- so its own height is the answer without this having to
-    // know which rule won. Reading --rc-frame-h instead cannot work anyway:
-    // it is a calc(), and getComputedStyle hands a custom property back as
-    // the tokens it was written with, which parseFloat turns into NaN.
+    // MEASURED, not computed, and measured off whatever the frame actually
+    // is: body on the canvas host, the viewport everywhere else. Reading
+    // --rc-frame-h instead cannot work -- it is a calc(), and
+    // getComputedStyle hands a custom property back as the tokens it was
+    // written with, which parseFloat turns into NaN, and the fallback would
+    // then quietly swap a different height in and drift the stages out of
+    // step with the panel over six features.
+    if (!onCanvas()) return window.innerHeight;
     var h = document.body.offsetHeight;
     return h > 0 ? h : window.innerHeight;
   }
@@ -56,8 +72,8 @@
     window.history.scrollRestoration = "manual";
   }
   if (!window.location.hash) {
-    document.body.scrollTop = 0;
-    window.addEventListener("load", function () { document.body.scrollTop = 0; });
+    toTop();
+    window.addEventListener("load", toTop);
   }
 
   // ---------- loading screen ----------
@@ -307,12 +323,13 @@
     var ScrollTrigger = window.ScrollTrigger;
     gsap.registerPlugin(ScrollTrigger);
 
-    // THE SCROLLER IS BODY, NOT THE WINDOW. The canvas is a fixed-size box
-    // that scrolls internally (see the html/body rules in styles.css), so
-    // every trigger here has to measure against it. Without this ScrollTrigger
-    // watches window scroll, which never moves, and the whole story sits on
-    // its first frame for good.
-    ScrollTrigger.defaults({ scroller: document.body });
+    // ON THE CANVAS THE SCROLLER IS BODY, NOT THE WINDOW. The canvas is a
+    // fixed-size box that scrolls internally (see the html.rc-canvas rules in
+    // styles.css), so every trigger has to measure against it -- left on the
+    // window, which never moves there, the whole story sits on its first
+    // frame for good. Off the canvas host the window is the scroller and
+    // ScrollTrigger's own default is already right, so this sets nothing.
+    if (scroller()) ScrollTrigger.defaults({ scroller: scroller() });
 
     // THE HANDSET IS SIZED FROM THE FRAME, from here rather than from CSS.
     // The scale wants (frame height - the chrome around it) / 662, and CSS
@@ -332,7 +349,17 @@
       // canvas stops being a fixed frame -- the same line in both, so this
       // reads the viewport rather than the canvas deliberately.
       var narrow = window.innerWidth <= 720;
-      var spare = narrow ? 290 : 150;
+      // What the panel spends AROUND the handset, measured rather than
+      // derived: the strip, the stage's padding, and in one column the title
+      // and description stacked above it.
+      // The two-column figure differs by shape. In the 1.91:1 frame the panel
+      // is 565px and the scroll cue sits high in it, and 150 leaves the
+      // handset clear of it. On the full-bleed site the panel is the whole
+      // window, the cue sits lower, and 150 put the handset 12px over it at a
+      // 800px-tall window -- the one piece of copy on this panel that may not
+      // be covered. 190 clears it, and above 900px the scale clamps to 1
+      // either way so nothing visible changes there.
+      var spare = narrow ? 290 : (onCanvas() ? 150 : 190);
       // The watch takes its own room out of the column beneath the handset.
       if (narrow && document.documentElement.classList.contains("rc-watch-on")) {
         spare = 420;
@@ -358,7 +385,7 @@
     // so this both throws away the saved position and re-states the decline.
     // Before any trigger is created, so there is nothing recorded to restore.
     if (ScrollTrigger.clearScrollMemory) ScrollTrigger.clearScrollMemory("manual");
-    if (!window.location.hash) document.body.scrollTop = 0;
+    if (!window.location.hash) toTop();
 
     story.style.setProperty("--rc-stages", String(featureBtns.length));
     document.documentElement.classList.add("rc-story-on");
@@ -380,7 +407,7 @@
     if (stripBrand) {
       stripBrand.addEventListener("click", function (evt) {
         evt.preventDefault();
-        document.body.scrollTop = 0;
+        toTop();
       });
     }
 

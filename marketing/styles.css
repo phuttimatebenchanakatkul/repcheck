@@ -39,99 +39,109 @@
      (14.35:1 on --paper). */
   --ink-body: #2a2a2a;
 
-  /* THE SITE IS A FIXED CANVAS: 1080x566, Instagram landscape.
-     Every place that used to read 100vh / 100svh reads --rc-frame-h instead,
-     and app.js reads the same value rather than window.innerHeight, so the
-     scroll story's stage maths and the CSS agree. Change these two numbers
-     and the whole page follows. */
-  /* min(), so a window narrower than the canvas shrinks it rather than
-     cropping it. Without this the width clamped to the viewport while the
-     height stayed put, and the ratio quietly went to 1.78:1 on any screen
-     under 1080px -- which is most laptops once a scrollbar is out.
-     vw and NOT %: this value is divided to make a HEIGHT below, and a
-     percentage inside a custom property is resolved where it is USED -- so
-     100% became a share of the container's height and the canvas came out
-     1080x471 at a ratio of 2.29. vw is absolute and means the same thing
-     wherever it lands. It does count the scrollbar, which can overflow a
-     narrow window by its width; body already carries overflow-x: hidden. */
-  /* No max-width anywhere alongside this. A cap of 100% measures the
-     CONTENT box -- viewport minus scrollbar -- while 100vw above counts the
-     scrollbar in, so the two disagreed by its width: at a 900px window the
-     canvas rendered 885 wide against a height worked out from 900, and the
-     ratio came out 1.878. The width has to be exactly what the height was
-     divided from. body's overflow-x: hidden absorbs the scrollbar. */
-  --rc-frame-w: min(1080px, 100vw);
-  /* 1.91:1, and the height is DERIVED from it rather than typed. 1080/1.91
-     is 565.45, so "566" was the ratio rounded to a whole pixel -- 1.908:1,
-     near enough to look right and not what was asked for. Deriving it means
-     the ratio is exact at any width, and changing the width alone keeps it. */
+  /* THE FRAME, AND WHAT IT MEANS WHEN THERE ISN'T ONE.
+
+     repcheck-marketing.onrender.com shows this page as a fixed 1080x566
+     Instagram landscape canvas; repcheckofficials.onrender.com shows the
+     ordinary full-bleed site. Both publish this same directory from the same
+     branch, so the difference cannot be a build flag or a media query -- it
+     is the rc-canvas class, added by assets/canvas-frame.js from the
+     hostname.
+
+     Rather than write every rule twice, the two tokens below are defined
+     here as THE WINDOW and redefined under html.rc-canvas as THE FRAME. Every
+     use site then reads the same var() and is correct in both shapes, which
+     is why there is no `html.rc-canvas` prefix on most of this file.
+
+     100svh and not 100vh or 100dvh: vh ignores the mobile URL bar, so a
+     100vh panel hangs off the bottom of the screen behind it, and dvh
+     CHANGES as the bar collapses mid-scroll -- which resizes the story while
+     you are scrolling through it. svh is the small, stable one. */
+  --rc-frame-w: 100vw;
+  --rc-frame-h: 100svh;
+  /* 1.91:1, and the height is DERIVED from the width rather than typed.
+     1080/1.91 is 565.45, so "566" was the ratio rounded to a whole pixel --
+     1.908:1, near enough to look right and not what was asked for. Deriving
+     it means the ratio is exact at any width, and changing the width alone
+     keeps it. */
   --rc-frame-ratio: 1.91;
-  --rc-frame-h: calc(var(--rc-frame-w) / var(--rc-frame-ratio));
-  /* 1% of the CANVAS, for type and padding that used to be sized in vw.
-     vw is the browser window, and the canvas stopped being the same size as
-     the window when it became a fixed 1080px frame -- so `6.6vw` on the hero
-     title was 71px in a 1080 window and 95px in a 1440 one, on a headline
-     laid out in the same 1080px either way. The hero overflowed its 565px
-     frame on the wider screen and the bottom of it was clipped. Sized off the
-     frame, every one of these is a constant share of the picture.
-     Below 721px the frame IS the window, so --rc-frame-w is 100vw and this
-     resolves to exactly the 1vw these rules always meant. */
+  /* 1% of the frame, for type and padding that would otherwise be sized in
+     vw. vw is the browser WINDOW, which the canvas is not the same size as --
+     `6.6vw` on the hero title was 71px in a 1080 window and 95px in a 1440
+     one, on a headline laid out in the same 1080px either way, so the hero
+     overflowed its 565px frame and the bottom of it was clipped. Off the
+     frame it is a constant share of the picture; off the window, above,
+     --rc-frame-w is 100vw and this is exactly the 1vw it always meant. */
   --rc-vw: calc(var(--rc-frame-w) / 100);
+}
+
+/* THE CANVAS. Only above 720px -- on a phone a 1.91:1 box is 390x204 and
+   there is no putting a title, a description and a handset in 204px, so the
+   canvas host falls back to the full-bleed shape there too.
+   min(), so a window narrower than the canvas shrinks it rather than cropping
+   it: without it the width clamped to the viewport while the height stayed
+   put, and the ratio went quietly to 1.78:1 on any screen under 1080px, which
+   is most laptops once a scrollbar is out.
+   vw and NOT %: this value is divided to make a height, and a percentage
+   inside a custom property resolves where it is USED -- so 100% became a
+   share of the container's HEIGHT and the canvas came out 1080x471, a ratio
+   of 2.29. And no max-width alongside it: a cap of 100% measures the content
+   box, viewport minus scrollbar, while 100vw counts the scrollbar in, so the
+   two disagreed by its width and a 900px window rendered 885 wide against a
+   height worked out from 900 -- 1.878:1. The width has to be exactly what the
+   height was divided from; body's overflow-x: hidden absorbs the scrollbar. */
+@media (min-width: 721px) {
+  html.rc-canvas {
+    --rc-frame-w: min(1080px, 100vw);
+    --rc-frame-h: calc(var(--rc-frame-w) / var(--rc-frame-ratio));
+  }
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--paper); }
-/* THE CANVAS IS A WINDOW, AND THE PAGE SCROLLS INSIDE IT.
-   It was a 1080-wide block in a normally-scrolling document, which is not the
-   same thing: the frame was the right size and ratio, but on any window taller
-   than 565px you saw straight past its bottom edge to whatever the document
-   had there next. Scrolled to the features that meant 155px of the page
-   showing under the panel -- the canvas was a shape on the page rather than
-   the page itself.
-   So html holds the viewport and clips, body IS the canvas at exactly the
-   frame's size, and the scrolling happens within body. Everything outside is
-   the page's own white. app.js hands document.body to ScrollTrigger as its
-   scroller for the same reason -- see the note there.
-
-   Only on .rc-canvas, which is the home page. The legal pages share the
-   1080px measure below but are long documents nobody scroll-animated: giving
-   them a 565px window with no scrollbar would make a privacy notice something
-   you read six lines at a time. They keep the document's own scrolling. */
-html.rc-canvas {
-  height: 100%;
-  overflow: hidden;
-}
-html.rc-canvas > body {
-  height: 100%;
-  overflow-y: auto;
-  /* No scrollbar inside the frame: it is a 15px stripe down the right of a
-     picture, and the page already says to scroll (.rc-scroll-cue). It also
-     keeps body's content box equal to its border box, so the CSS and app.js
-     cannot disagree about how big the canvas is. */
-  scrollbar-width: none;
-}
-html.rc-canvas > body::-webkit-scrollbar { width: 0; height: 0; }
 body {
-  /* Full-bleed by default -- on a phone a 1.91:1 box is 390x204 and there is
-     no putting a title, a description and a handset in 204px -- and the fixed
-     frame only above 720px, where the shape is landscape anyway and there is
-     room for it. See the min-width block below. */
   width: 100%;
-  /* Top of the window, centred across it. NOT centred vertically: on the home
-     page body is the SCROLLER, and ScrollTrigger measures a trigger from the
-     viewport, so any vertical offset on the scroller is added to every start
-     it computes. Centred, the canvas sat 117px down and the hero zoom did not
-     begin until 117px of scrolling had already happened -- a dead zone at the
-     top that grew with the reader's screen. Flush to the top, that is zero. */
   margin: 0 auto;
   overflow-x: hidden;
   font-family: Archivo, "Helvetica Neue", Helvetica, sans-serif;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
+/* THE CANVAS IS A WINDOW, AND THE PAGE SCROLLS INSIDE IT.
+   The first cut of the frame was a 1080-wide block in a normally-scrolling
+   document, which is not the same thing: it was the right size and ratio, but
+   on any window taller than 565px you saw straight past its bottom edge to
+   whatever the document had there next -- scrolled to the features, 155px of
+   page showing under the panel. It was a shape on the page rather than the
+   page itself.
+   So html holds the viewport and clips, body IS the canvas at exactly the
+   frame's size, and the scrolling happens inside body. Everything outside is
+   the page's own white. app.js hands document.body to ScrollTrigger as its
+   scroller for the same reason -- see the note there.
+
+   Body is flush to the TOP of the window, centred only across it. That is not
+   an aesthetic choice: body is the scroller and ScrollTrigger measures a
+   trigger's position from the viewport, so any vertical offset on the
+   scroller is added to every start it computes. Centred, the canvas sat 117px
+   down the window and the hero zoom did not begin until 117px of scrolling
+   had already happened -- a dead zone at the top that grew with the reader's
+   screen. Flush to the top, that offset is zero. */
 @media (min-width: 721px) {
-  body { width: var(--rc-frame-w); }
-  html.rc-canvas > body { height: var(--rc-frame-h); }
+  html.rc-canvas {
+    height: 100%;
+    overflow: hidden;
+  }
+  html.rc-canvas > body {
+    width: var(--rc-frame-w);
+    height: var(--rc-frame-h);
+    overflow-y: auto;
+    /* No scrollbar inside the frame: it is a 15px stripe down the right of a
+       picture, and the page already says to scroll (.rc-scroll-cue). It also
+       keeps body's content box equal to its border box, so the CSS and app.js
+       cannot disagree about how big the canvas is. */
+    scrollbar-width: none;
+  }
+  html.rc-canvas > body::-webkit-scrollbar { width: 0; height: 0; }
 }
 a { color: var(--ink); text-decoration: none; }
 a:hover { color: var(--ink); }
@@ -214,14 +224,14 @@ button { font: inherit; }
    phone the canvas is the screen and 6vh is already the right answer.
    Placed after the base rule on purpose: a media query adds no specificity. */
 @media (min-width: 721px) {
-  .hero-mid { padding: calc(var(--rc-frame-h) * 0.045) 0; gap: 26px; }
+  html.rc-canvas .hero-mid { padding: calc(var(--rc-frame-h) * 0.045) 0; gap: 26px; }
   /* The hero's remaining fixed pixels, on the same leash. Between 721px and
      1080px the frame shrinks with the window -- at 760 it is 760x398 -- but
      the outer padding, the foot copy and the gaps did not, so the hero laid
      out 425px of content in a 398px frame and the foot was clipped again.
      The numbers below are the old constants expressed as a share of the
      frame, so they are unchanged at 1080 and come down with it under that. */
-  .hero { padding: calc(var(--rc-vw) * 2.4) calc(var(--rc-vw) * 2.8) calc(var(--rc-vw) * 2.8); }
+  html.rc-canvas .hero { padding: calc(var(--rc-vw) * 2.4) calc(var(--rc-vw) * 2.8) calc(var(--rc-vw) * 2.8); }
 }
 
 .hero-foot { position: relative; display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-end; justify-content: space-between; }
@@ -231,8 +241,8 @@ button { font: inherit; }
    it beats are the two lines above it, and a media query adds no specificity
    -- up in the block with .hero it lost to them at every width. */
 @media (min-width: 721px) {
-  .hero-foot { gap: calc(var(--rc-vw) * 3.7); }
-  .hero-foot p { font-size: clamp(13px, calc(var(--rc-vw) * 1.48), 16px); }
+  html.rc-canvas .hero-foot { gap: calc(var(--rc-vw) * 3.7); }
+  html.rc-canvas .hero-foot p { font-size: clamp(13px, calc(var(--rc-vw) * 1.48), 16px); }
 }
 
 /* ---------- section chrome ---------- */
@@ -1107,9 +1117,10 @@ button.stchip:hover { background: #34343a; }
   top: 0;
   width: 100%;
   min-height: 0;
-  /* 100% of the canvas, so this is right whether the canvas is the fixed
-     1.91:1 frame or a phone's full screen. */
-  height: 100%;
+  /* The frame token, not 100%: off the canvas host body has no height of its
+     own, so a percentage has nothing to resolve against and the hero
+     collapses to its content. */
+  height: var(--rc-frame-h);
   /* No negative margin pulling this back out of the flow. It took one, and a
      percentage margin resolves against the container's WIDTH -- so -100%
      here would have been -1080px, not -565px. The story gives up a frame
@@ -1148,26 +1159,14 @@ button.stchip:hover { background: #34343a; }
      has nothing to resolve against and collapses to the content -- written
      as 100% the whole story came out 571px instead of seven frames, and the
      six stages piled up on top of each other. */
-  height: calc((var(--rc-stages, 6) + 1) * 100dvh);
+  height: calc((var(--rc-stages, 6) + 1) * var(--rc-frame-h));
   /* Pulled up over the hero's frame. The hero is sticky and in the flow, so
      without this you scroll a whole frame past it before the story's top
      reaches the top of the canvas -- and because the hero is pinned and
      opaque for that frame, nothing moves. One dead screen at the very start.
      Overlapping them puts the zoom back on the first pixel of scroll, where
      it was when the hero was position:fixed. */
-  margin-top: -100dvh;
-}
-
-/* THE STORY IN CANVAS FRAMES, above the width where the canvas is a fixed
-   frame. This has to sit AFTER the two rules it overrides, not up beside the
-   body rule where it belongs by subject: both selectors are two classes, so
-   specificity is a tie and source order is what decides. Placed above them it
-   was silently inert and the story stayed measured in viewport heights. */
-@media (min-width: 721px) {
-  .rc-story-on .rc-story {
-    height: calc((var(--rc-stages, 6) + 1) * var(--rc-frame-h));
-    margin-top: calc(var(--rc-frame-h) * -1);
-  }
+  margin-top: calc(var(--rc-frame-h) * -1);
 }
 
 /* The rail of marker elements that used to live here is gone. Stages were
@@ -1186,16 +1185,10 @@ button.stchip:hover { background: #34343a; }
   top: 0;
   /* One frame. Not 100%, which here would be 100% of .rc-story -- seven of
      them. */
-  height: 100dvh;
+  height: var(--rc-frame-h);
   display: flex;
   flex-direction: column;
 }
-/* And the panel, for the same reason and with the same trap: its base rule
-   below is two classes, so this has to come after it, not before. */
-@media (min-width: 721px) {
-  .rc-story-on .rc-story-view { height: var(--rc-frame-h); }
-}
-
 /* No align-items here: the columns have to stretch the full height or the
    hairline between them runs for the height of the title and stops. Each
    column centres its own contents instead. minmax-style min-height: 0 for
@@ -1584,20 +1577,24 @@ button.stchip:hover { background: #34343a; }
    script that never runs cannot strand a visitor behind a white sheet. */
 .rc-loader {
   position: fixed;
-  /* On the canvas, not the viewport. inset:0 covered the whole window and
-     left the white margins looking like part of the site while it was up. */
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  margin-left: calc(var(--rc-frame-w) / -2);
-  width: var(--rc-frame-w);
-  height: var(--rc-frame-h);
+  inset: 0;
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--paper);
   animation: rc-loader-out 0.62s cubic-bezier(0.65, 0, 0.35, 1) 1.9s forwards;
+}
+
+/* On the canvas, the sheet is the canvas -- inset:0 covered the whole window
+   and made the white margins look like part of the site while it was up. */
+@media (min-width: 721px) {
+  html.rc-canvas .rc-loader {
+    inset: 0 auto auto 50%;
+    margin-left: calc(var(--rc-frame-w) / -2);
+    width: var(--rc-frame-w);
+    height: var(--rc-frame-h);
+  }
 }
 /* A DIFFERENT animation-name from the rule above, and that is the whole
    point of it -- the two keyframe blocks are deliberately identical.
