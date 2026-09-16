@@ -1032,6 +1032,30 @@ of the App Review rejection. Not a live failure yet.
 
 ## Marketing
 
+### Macro-key table duplicated between nlRenderAmount and nlRenderDay
+
+**What:** `marketing/app.js`'s food-log donut (`nlRenderAmount`) and day
+totals (`nlRenderDay`) each spell out the protein/fat/carbs key-to-field
+mapping separately -- an array of `{key, frac, grams}` objects in one, a
+`[["p","protein"], ["f","fat"], ["c","carbs"]]` list in the other -- along
+with the bare 4/9/4 Atwater factors used only in the first.
+
+**Why:** Adding a fourth tracked macro, or renaming a key, means finding and
+updating both call sites; nothing enforces that they stay in sync today.
+
+**Context:** Flagged by the maintainability specialist during `/ship`'s
+review of the marketing interactive food log. Not fixed inline (confidence
+6/10, and the two renderers compute genuinely different things from the
+same three keys -- a shared table is a real simplification but touches
+both hot paths of a feature that had just been through several rounds of
+review).
+
+**Effort:** S
+**Priority:** P4
+**Depends on:** None
+
+## Completed
+
 ### The food log demo's two sheets have no dialog role or focus trap
 
 **What:** `#nl-search-sheet` and `#nl-amount-sheet` (`marketing/index.html`,
@@ -1057,29 +1081,12 @@ page, not the app itself.
 **Priority:** P3
 **Depends on:** None
 
-### Macro-key table duplicated between nlRenderAmount and nlRenderDay
-
-**What:** `marketing/app.js`'s food-log donut (`nlRenderAmount`) and day
-totals (`nlRenderDay`) each spell out the protein/fat/carbs key-to-field
-mapping separately -- an array of `{key, frac, grams}` objects in one, a
-`[["p","protein"], ["f","fat"], ["c","carbs"]]` list in the other -- along
-with the bare 4/9/4 Atwater factors used only in the first.
-
-**Why:** Adding a fourth tracked macro, or renaming a key, means finding and
-updating both call sites; nothing enforces that they stay in sync today.
-
-**Context:** Flagged by the maintainability specialist during `/ship`'s
-review of the marketing interactive food log. Not fixed inline (confidence
-6/10, and the two renderers compute genuinely different things from the
-same three keys -- a shared table is a real simplification but touches
-both hot paths of a feature that had just been through several rounds of
-review).
-
-**Effort:** S
-**Priority:** P4
-**Depends on:** None
-
-## Completed
+**Completed:** v0.12.4.0 (2026-09-16) -- resolved by removing the premise
+rather than by adding a trap. The handset is a drawing of the app, so every
+control in it is now `tabindex="-1"` and the walkthrough draws its caret with
+a class instead of calling `.focus()`. There is no keyboard focus inside a
+sheet to trap, and none to Tab out of. (The trap would still be the right fix
+if these ever become controls the page genuinely offers.)
 
 ### Rapid double-tap on a sheet-opening button can leak a scroll-lock
 
