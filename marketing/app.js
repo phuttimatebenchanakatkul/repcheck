@@ -33,6 +33,53 @@
     else window.scrollTo(0, 0);
   }
 
+  // THE WHITE MARGIN HAS TO SCROLL THE CANVAS TOO.
+  // On the canvas host html clips and body is the scroller, and body is only
+  // 1080x565 of a much bigger window -- so the white around it belongs to
+  // <html>, which has overflow: hidden and nothing to scroll. Point at it and
+  // the wheel did nothing; click it and Page Down did nothing either. Most of
+  // a 1440x900 window is that margin, so most of the window was dead.
+  //
+  // Both are forwarded to body rather than made scrollable, because the
+  // margin must not move: it is the blank border of the picture.
+  if (onCanvas()) {
+    // The margin is the only place where <html> itself is the target -- over
+    // the canvas the target is whatever is under the pointer inside body.
+    window.addEventListener("wheel", function (evt) {
+      if (evt.target !== document.documentElement) return;
+      // deltaMode is not always pixels: Firefox reports lines, and a few
+      // setups report pages. Untranslated, a 3-line notch scrolls 3px.
+      var step = evt.deltaY;
+      if (evt.deltaMode === 1) step *= 16;
+      else if (evt.deltaMode === 2) step *= document.body.clientHeight;
+      document.body.scrollTop += step;
+      evt.preventDefault();
+    }, { passive: false });
+
+    var PAGE_KEYS = {
+      PageDown: 1, PageUp: -1, " ": 1, Spacebar: 1,
+      ArrowDown: 0.12, ArrowUp: -0.12, Down: 0.12, Up: -0.12
+    };
+    document.addEventListener("keydown", function (evt) {
+      // Only when nothing is focused -- clicking the margin leaves the body
+      // active. A key pressed in the waitlist field is the reader typing.
+      var at = document.activeElement;
+      if (at && at !== document.body && at !== document.documentElement) return;
+      if (evt.ctrlKey || evt.metaKey || evt.altKey) return;
+
+      var page = document.body.clientHeight;
+      if (evt.key === "Home") document.body.scrollTop = 0;
+      else if (evt.key === "End") document.body.scrollTop = document.body.scrollHeight;
+      else if (PAGE_KEYS.hasOwnProperty(evt.key)) {
+        var dir = PAGE_KEYS[evt.key];
+        // Shift+Space is Page Up, the same as it is in every browser.
+        if ((evt.key === " " || evt.key === "Spacebar") && evt.shiftKey) dir = -1;
+        document.body.scrollTop += dir * page;
+      } else return;
+      evt.preventDefault();
+    });
+  }
+
   function frameH() {
     // MEASURED, not computed, and measured off whatever the frame actually
     // is: body on the canvas host, the viewport everywhere else. Reading

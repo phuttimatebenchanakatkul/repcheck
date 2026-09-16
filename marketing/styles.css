@@ -126,22 +126,32 @@ body {
    down the window and the hero zoom did not begin until 117px of scrolling
    had already happened -- a dead zone at the top that grew with the reader's
    screen. Flush to the top, that offset is zero. */
+/* WHICH ELEMENT SCROLLS MUST NOT DEPEND ON THE WIDTH. These three rules were
+   inside the min-width: 721px block with the frame's dimensions, so below it
+   the canvas host went back to scrolling the WINDOW while app.js carried on
+   scrolling body and handing body to ScrollTrigger -- and body never moved.
+   On a phone, repcheck-marketing showed no feature at all: the page scrolled
+   and the story sat frozen on its first frame. Out here, body is the scroller
+   on that host at every width, and only its SIZE is a frame below. */
+html.rc-canvas {
+  height: 100%;
+  overflow: hidden;
+}
+html.rc-canvas > body {
+  height: 100%;
+  overflow-y: auto;
+  /* No scrollbar inside the frame: it is a 15px stripe down the right of a
+     picture, and the page already says to scroll (.rc-scroll-cue). It also
+     keeps body's content box equal to its border box, so the CSS and app.js
+     cannot disagree about how big the canvas is. */
+  scrollbar-width: none;
+}
+html.rc-canvas > body::-webkit-scrollbar { width: 0; height: 0; }
 @media (min-width: 721px) {
-  html.rc-canvas {
-    height: 100%;
-    overflow: hidden;
-  }
   html.rc-canvas > body {
     width: var(--rc-frame-w);
     height: var(--rc-frame-h);
-    overflow-y: auto;
-    /* No scrollbar inside the frame: it is a 15px stripe down the right of a
-       picture, and the page already says to scroll (.rc-scroll-cue). It also
-       keeps body's content box equal to its border box, so the CSS and app.js
-       cannot disagree about how big the canvas is. */
-    scrollbar-width: none;
   }
-  html.rc-canvas > body::-webkit-scrollbar { width: 0; height: 0; }
 }
 a { color: var(--ink); text-decoration: none; }
 a:hover { color: var(--ink); }
