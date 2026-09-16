@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Waitlist{% endblock %}
+{% block heading %}Waitlist{% endblock %}
+
+{% block content %}
+<!--
+  Admin-only waitlist (see app.py's admin_waitlist() -- gated to ADMIN_EMAILS,
+  404s for everyone else). These are addresses left on the pre-launch marketing
+  site by people with no account; they are NOT users, which is why they have
+  their own table and their own page rather than appearing under Signups.
+
+  The delete button is not decoration. marketing/privacy.html promises anyone
+  on this list that we will erase their address on request within one month,
+  and this is how that is carried out.
+
+  Deliberately plain, matching admin_users.html: no i18n (single owner), no
+  framework beyond the .card/.btn-* classes base.html already loads.
+-->
+<style>
+  .wl-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .wl-count { font-size: 13px; color: var(--text-secondary); }
+  .wl-count strong { color: var(--text); font-weight: 800; }
+  .wl-csv {
+    padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--card-bg); color: var(--text); font-size: 13px; font-weight: 700;
+    text-decoration: none; display: inline-block;
+  }
+  .wl-csv:hover { border-color: var(--text-secondary); }
+
+  .wl-list { display: flex; flex-direction: column; gap: 8px; }
+  .wl-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    padding: 14px 16px;
+  }
+  .wl-info { flex: 1; min-width: 0; }
+  .wl-email {
+    font-size: 14px; font-weight: 700;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .wl-meta { font-size: 12.5px; color: var(--text-secondary); }
+  .wl-del {
+    border: 1px solid var(--border); background: transparent; color: var(--text-secondary);
+    border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer; font-family: inherit; flex-shrink: 0;
+  }
+  .wl-del:hover { color: var(--red); border-color: var(--red); }
+  .wl-empty { font-size: 14px; color: var(--text-secondary); padding: 20px 0; }
+</style>
+
+<div class="wl-toolbar">
+  <span class="wl-count"><strong>{{ total }}</strong> on the list</span>
+  {% if total %}
+    <a class="wl-csv" href="{{ url_for('admin_waitlist', format='csv') }}">Download CSV</a>
+  {% endif %}
+</div>
+
+{% if entries %}
+  <div class="wl-list">
+    {% for entry in entries %}
+      <div class="wl-row">
+        <div class="wl-info">
+          <div class="wl-email">{{ entry.email }}</div>
+          <div class="wl-meta">
+            {{ entry.created_at_th }}{% if entry.source %} &middot; {{ entry.source }}{% endif %}
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('admin_waitlist_delete') }}"
+              onsubmit="return confirm('Delete {{ entry.email }} from the waitlist?');">
+          <input type="hidden" name="email" value="{{ entry.email }}">
+          <button type="submit" class="wl-del">Delete</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="wl-empty">Nobody has joined the waitlist yet.</p>
+{% endif %}
+{% endblock %}

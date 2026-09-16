@@ -111,9 +111,15 @@ Two directives are load-bearing and worth knowing before you change anything:
   Inline *style* cannot execute script, so this is a much smaller concession
   than the script-src equivalent would be.
 
-`connect-src` names Formspree because that is where the waitlist POSTs. If
-the form provider changes, this header and `privacy.html` change together —
-the notice names the processor.
+`connect-src` names `https://repcheck-q0m4.onrender.com` because that is where
+the waitlist POSTs — RepCheck's own API, not a form relay. Three things have to
+agree, and a change to any one of them breaks the form:
+
+1. `ENDPOINT` in `app.js` (where the page posts),
+2. `connect-src` in this header (whether the browser will let it),
+3. `WAITLIST_ORIGINS` in the app's `app.py` (whether the API will answer).
+
+And `privacy.html` names where the address ends up, so it changes with them.
 
 The Flask service (`repcheck-q0m4`) does not serve `marketing/` — there are
 no references to it in `app.py`, and `/marketing` 404s there. The two are
@@ -148,14 +154,15 @@ dashboard-configured Flask service alone. Render dashboard → **New** →
 
 ## Before this goes live
 
-- **`app.js`**: `ENDPOINT` is a placeholder (`https://formspree.io/f/YOUR_FORM_ID`).
-  Waitlist submissions will fail until this points at a real form endpoint.
-  Create a free form at https://formspree.io (or swap in Buttondown/another
-  provider) and paste the real endpoint in.
-  **If you pick a provider other than Formspree, update `privacy.html` in the
-  same commit** — its "Who else sees it" section names Formspree as the
-  processor and the country the address is transferred to. Naming the wrong
-  processor in a privacy notice is a compliance failure, not a stale comment.
+- ~~**`app.js`**: `ENDPOINT` is a Formspree placeholder~~ — **done.** The
+  waitlist posts to `https://repcheck-q0m4.onrender.com/api/waitlist`, the
+  Flask app's own route, and the addresses land in its `waitlist` table. The
+  owner reads them at `/admin/waitlist` (list, CSV download, per-address
+  delete), linked as **Waitlist** in the account menu.
+  **If the destination ever changes, update `privacy.html` in the same
+  commit** — its "Who else sees it" section names who receives the address
+  and which country it goes to. Naming the wrong one in a privacy notice is a
+  compliance failure, not a stale comment.
 - `robots.txt` points its sitemap at `https://repcheck.app/sitemap.xml`,
   which doesn't exist yet — either generate one or drop that line.
 - Content mirrors the real app (735 exercises, 744 foods, 8 HYROX stations,

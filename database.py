@@ -406,6 +406,23 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_blocked_users_blocked ON blocked_users(blocked_id)"
         )
+        # The pre-launch waitlist from the marketing site. NOT a users row:
+        # these people have no account, have consented only to one launch
+        # email, and most of them will never become users. Kept in its own
+        # table so it cannot be confused with a signup, and so deleting it
+        # wholesale after launch is one DROP rather than a careful filter.
+        #
+        # email is stored already lowercased by the caller and is UNIQUE, so
+        # submitting twice is idempotent rather than a duplicate row -- see
+        # add_waitlist_email.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS waitlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE,
+                source TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_content_reports_open ON content_reports(handled_at, created_at)"
         )
@@ -1149,6 +1166,57 @@ def auth_throttle_sweep(older_than_seconds, now):
             "DELETE FROM auth_throttle WHERE window_start < ?",
             (now - older_than_seconds,),
         )
+
+
+# ---------- Pre-launch waitlist ----------
+# The marketing site posts here (app.py's /api/waitlist). The privacy notice
+# at marketing/privacy.html tells the visitor this address is held by us, is
+# passed to nobody else, and is deleted on request -- delete_waitlist_email
+# is what makes that last promise actionable.
+
+def add_waitlist_email(email, source=None):
+    """Record an address, or do nothing if it is already on the list.
+
+    Returns True only when a new row was written, so the caller can tell a
+    first signup from someone submitting the form twice. Deliberately not an
+    error: to the visitor, "you are on the list" is true either way, and
+    saying anything different would leak whether an address is already held.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO waitlist (email, source) VALUES (?, ?) "
+            "ON CONFLICT(email) DO NOTHING",
+            (email, (source or None)),
+        )
+        return cur.rowcount > 0
+
+
+def list_waitlist():
+    """Every address, newest first. Owner-only -- see app.py's ADMIN_EMAILS."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, email, source, created_at FROM waitlist ORDER BY id DESC"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def waitlist_count():
+    with get_db() as conn:
+        return conn.execute("SELECT COUNT(*) AS n FROM waitlist").fetchone()["n"]
+
+
+def delete_waitlist_email(email):
+    """Erase one address. Returns True if a row went. Backs the erasure right
+    the privacy notice promises to honour within one month."""
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM waitlist WHERE email = ?", (email,))
+        return cur.rowcount > 0
 
 
 # ---------- Admin activity tracking ----------

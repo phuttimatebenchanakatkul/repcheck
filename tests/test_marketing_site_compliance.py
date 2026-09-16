@@ -883,8 +883,15 @@ def test_the_privacy_notice_names_the_processor_the_form_actually_posts_to():
     assert host, "ENDPOINT is not an absolute URL: " + endpoint.group(1)
     host = host.group(1).lower()
 
-    # host -> the name that must appear in the privacy notice
-    KNOWN = {"formspree.io": "Formspree"}
+    # host -> the name that must appear in the privacy notice.
+    # RepCheck's own API is on this list because the notice still has to tell
+    # the visitor where the address ENDS UP: the app is hosted by Render in
+    # the United States, so it is an international transfer whether or not a
+    # form-relay company sits in the middle.
+    KNOWN = {
+        "repcheck-q0m4.onrender.com": "Render",
+        "formspree.io": "Formspree",
+    }
 
     assert host in KNOWN, (
         "the waitlist now posts to " + host + ", which this test does not know. "

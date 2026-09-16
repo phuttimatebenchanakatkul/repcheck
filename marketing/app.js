@@ -1936,9 +1936,22 @@
   }
 
   // ---------- waitlist ----------
-  // Swap ENDPOINT for the real form ID before going live -- until then
-  // submissions fail closed with a clear error rather than pretending to work.
-  var ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID";
+  // RepCheck's own API, not a form relay. This was a Formspree placeholder
+  // ("YOUR_FORM_ID") that had never been filled in, so every signup posted to
+  // a URL that does not exist and failed silently into the catch below: the
+  // visitor saw "something went wrong", and nobody's address was ever stored
+  // anywhere.
+  //
+  // Posting here instead of to a relay means the address reaches us directly
+  // and no third company is involved, which is what marketing/privacy.html
+  // now says. The app is a paid Render service, so there is no cold start to
+  // stall the first submission of the day.
+  //
+  // Cross-origin on purpose: this page is a separate static deploy. The two
+  // marketing hostnames are allowlisted by name in app.py (WAITLIST_ORIGINS)
+  // and the Render CSP for this site allows exactly this origin in
+  // connect-src -- change one and the other has to change with it.
+  var ENDPOINT = "https://repcheck-q0m4.onrender.com/api/waitlist";
 
   function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 

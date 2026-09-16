@@ -249,10 +249,20 @@ who processes it has to land on both sides.
 `tests/test_marketing_site_compliance.py` checks the marketing copy against
 the real app.
 
-Before this is live: `marketing/app.js`'s `ENDPOINT` constant is a Formspree
-placeholder and needs swapping for a real form endpoint, or waitlist
-submissions will fail. **If you switch to a provider other than Formspree,
-update `marketing/privacy.html` in the same commit** -- it names Formspree as
-the processor and the country the address is transferred to, and naming the
-wrong processor in a privacy notice is a compliance failure, not a stale
-comment.
+The waitlist posts to the FLASK APP, not to a form relay: `ENDPOINT` in
+`marketing/app.js` is `https://repcheck-q0m4.onrender.com/api/waitlist`, and
+the addresses land in the `waitlist` table. It is the one cross-origin route
+in the app, so three separate things have to agree or the form silently
+stops collecting:
+
+- `ENDPOINT` in `marketing/app.js` -- where the page posts;
+- `connect-src` in the marketing sites' Render CSP header (serving config,
+  NOT in this repo -- see `marketing/README.md`) -- whether the browser lets
+  the request leave;
+- `WAITLIST_ORIGINS` in `app.py` -- whether the API answers it.
+
+A CSP refusal is invisible except in the console, so change them together.
+**If the destination ever changes, update `marketing/privacy.html` in the
+same commit** -- it names who receives the address and which country it goes
+to, and naming the wrong one in a privacy notice is a compliance failure, not
+a stale comment.
