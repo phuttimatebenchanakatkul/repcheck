@@ -791,3 +791,48 @@ def test_every_text_token_clears_wcag_aa_on_the_page_background(token, marketing
         + ":1 on --paper (" + palette["--paper"] + "), under the 4.5:1 AA floor "
         "for body text. Darken it; do not widen this test."
     )
+
+
+# --- the Instagram canvas is a HOST switch, not markup -----------------------
+#
+# Two Render static sites publish marketing/ from the same branch:
+# repcheck-marketing.onrender.com shows the page as a fixed 1080x566 Instagram
+# canvas, repcheckofficials.onrender.com shows the ordinary full-bleed site.
+# Nothing in a static deploy can vary per host except client-side code, so the
+# difference is the rc-canvas class, and assets/canvas-frame.js is the only
+# thing allowed to add it. Written back into the markup, BOTH sites would be
+# the canvas again -- silently, and looking correct in every local preview.
+def test_the_canvas_class_is_never_hardcoded_into_a_page():
+    for page in sorted(MARKETING.glob("*.html")):
+        html = page.read_text(encoding="utf-8")
+        # Comments talk about the class by name; the ban is on a real class
+        # attribute carrying it.
+        html = re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
+
+        for attr in re.findall(r"class\s*=\s*\"([^\"]*)\"", html):
+            assert "rc-canvas" not in attr.split(), (
+                page.name + " hardcodes the rc-canvas class. That class is set "
+                "by assets/canvas-frame.js from the hostname -- in the markup "
+                "it turns BOTH deployed sites into the 1080x566 canvas."
+            )
+
+
+def test_the_home_page_loads_the_script_that_decides_the_canvas():
+    html = (MARKETING / "index.html").read_text(encoding="utf-8")
+    head = html[: html.index("</head>")]
+
+    assert 'src="assets/canvas-frame.js"' in head, (
+        "index.html no longer loads assets/canvas-frame.js from <head>. "
+        "Without it no host gets the canvas; loaded after </head> the page "
+        "paints full-bleed first and jumps into the frame."
+    )
+
+    js = (MARKETING / "assets" / "canvas-frame.js").read_text(encoding="utf-8")
+    code = re.sub(r"/\*.*?\*/|//[^\n]*", "", js, flags=re.DOTALL)
+
+    assert "repcheck-marketing.onrender.com" in code, (
+        "canvas-frame.js no longer names the host that shows the canvas."
+    )
+    assert "repcheckofficials.onrender.com" not in code, (
+        "repcheckofficials is the plain site -- it must not be in CANVAS_HOSTS."
+    )

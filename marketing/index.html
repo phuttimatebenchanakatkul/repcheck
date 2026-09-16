@@ -1,8 +1,5 @@
 <!DOCTYPE html>
-<!-- rc-canvas: this page IS the 1080x566 frame -- it clips to it and
-     scrolls inside it. See the html.rc-canvas rules in styles.css.
-     The legal pages deliberately do not carry it. -->
-<html lang="en" class="rc-canvas">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,6 +20,11 @@
 <link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="styles.css">
+<!-- Adds the rc-canvas class on the host that shows the 1080x566 Instagram
+     frame, and on no other. In <head> and blocking on purpose: it has to run
+     before the first paint or the page renders full-bleed and jumps into the
+     frame. See the file for which hosts, and styles.css for what it does. -->
+<script src="assets/canvas-frame.js"></script>
 </head>
 <body>
 <!-- ---------- loading screen ----------

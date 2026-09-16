@@ -42,10 +42,21 @@ config wired to the same command for the in-app browser preview.)
 (Render static site `repcheckofficials`, id `srv-dakis7lg1s2s73cfnrt0`),
 publishing `marketing` from `main` with auto-deploy on.
 
-A second, older service serves the same content at
+A second service serves the same files at
 https://repcheck-marketing.onrender.com (`repcheck-marketing`, id
 `srv-da6241gu01pc738uiv80`), also from `main`. Both are live on purpose and
-both are kept headered — one merge to `main` deploys to both. It exists
+both are kept headered — one merge to `main` deploys to both.
+
+**The two show different shapes of the same page.** `repcheck-marketing` is
+the 1080x566 Instagram landscape canvas; `repcheckofficials` is the ordinary
+full-bleed site. A static deploy has no per-host build step, so the switch is
+`marketing/assets/canvas-frame.js`, which adds an `rc-canvas` class from
+`location.hostname` before the first paint; `styles.css` defines
+`--rc-frame-w` / `--rc-frame-h` as the WINDOW by default and redefines them
+under `html.rc-canvas` as the FRAME, so nearly every rule is written once and
+is right in both. Add `?canvas=1` or `?canvas=0` to any URL to preview either
+shape. Moving a host between the two means editing `CANVAS_HOSTS` in that
+file and nothing else. It exists
 because **an onrender.com hostname is assigned when a service is created and
 cannot be changed afterwards** — renaming a service relabels it in the
 dashboard and leaves the URL alone (tested: the rename went through, the URL
