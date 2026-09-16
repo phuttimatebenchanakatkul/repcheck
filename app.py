@@ -36,7 +36,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import markdown as markdown_lib
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, abort, jsonify, make_response, redirect, render_template, request, send_file, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 import posixpath
 
@@ -72,8 +72,12 @@ from coaching_engine import (
     weekly_adjustment,
 )
 from database import (
+    add_waitlist_email,
     auth_throttle_check,
     auth_throttle_record,
+    delete_waitlist_email,
+    list_waitlist,
+    waitlist_count,
     count_user_rows,
     auth_throttle_sweep,
     ACCOUNT_DELETION_GRACE_DAYS,
@@ -1058,6 +1062,75 @@ def is_synced_data_key(key):
     analyze_results row id and so can't be listed by name (see
     database.is_analyze_chat_key)."""
     return key in SYNCED_DATA_KEYS or is_analyze_chat_key(key)
+
+
+# ---------- Pre-launch waitlist (posted to by the marketing site) ----------
+# The marketing site is a separate STATIC deploy on its own hostnames, so this
+# is the one route in the app that answers a cross-origin request. It used to
+# post to Formspree, a US form-relay service, which meant every address went
+# through a third party before reaching us; it now comes straight here, and
+# marketing/privacy.html says so.
+#
+# Only these two origins, echoed back one at a time rather than "*": with a
+# wildcard any page on the internet could submit through this endpoint, and
+# a browser refuses to send credentials to a wildcard anyway.
+WAITLIST_ORIGINS = frozenset({
+    "https://repcheck-marketing.onrender.com",
+    "https://repcheckofficials.onrender.com",
+})
+
+# Generous for a person, useless for a script: nobody joins a waitlist five
+# times an hour, and the address is the only thing this route stores.
+WAITLIST_LIMIT = 5
+WAITLIST_WINDOW = 3600
+
+# Same shape as auth.py's, and the same reasoning -- request.remote_addr and
+# nothing else, because ProxyFix(x_for=1) has already resolved it from the
+# entry Render itself appended. Reading X-Forwarded-For here by hand would
+# take a value the CALLER controls and let one machine mint unlimited keys.
+def _waitlist_throttle_key():
+    return "waitlist:" + (request.remote_addr or "unknown")[:64]
+
+
+def _waitlist_cors(response):
+    origin = request.headers.get("Origin", "")
+    if origin in WAITLIST_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        # The allowed origin varies by request, so a cache must not hand one
+        # origin's response to another.
+        response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Max-Age"] = "86400"
+    return response
+
+
+@app.route("/api/waitlist", methods=["POST", "OPTIONS"])
+def api_waitlist():
+    if request.method == "OPTIONS":
+        return _waitlist_cors(make_response("", 204))
+
+    payload = request.get_json(silent=True) or {}
+    email = (payload.get("email") or "").strip().lower()
+    source = (payload.get("source") or "")[:64] or None
+
+    # Length first: the pattern below is fine on a short string and there is
+    # no reason to run it over a megabyte of submitted text.
+    if len(email) > 254 or not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
+        return _waitlist_cors(jsonify({"error": "invalid-email"})), 400
+
+    key = _waitlist_throttle_key()
+    allowed, retry = auth_throttle_check(key, WAITLIST_LIMIT, WAITLIST_WINDOW, int(time.time()))
+    if not allowed:
+        return _waitlist_cors(jsonify({"error": "rate-limited", "retry_after_seconds": retry})), 429
+    auth_throttle_record(key, WAITLIST_WINDOW, int(time.time()))
+
+    added = add_waitlist_email(email, source)
+    # "already" is reported to the page but the page does not show it
+    # differently, and neither does the status code: a route that answered
+    # differently for a known address would let anyone test whether a given
+    # person had signed up.
+    return _waitlist_cors(jsonify({"ok": True, "already": not added}))
 
 
 @app.route("/api/sync", methods=["GET"])
@@ -2179,6 +2252,52 @@ def admin_user_detail(user_id):
         latest_weight=latest_weight,
         analyses=analyses,
     )
+
+
+@app.route("/admin/waitlist", methods=["GET"])
+def admin_waitlist():
+    # Same ADMIN_EMAILS / 404 gate as the other admin routes.
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+
+    entries = list_waitlist()
+    for entry in entries:
+        created_utc = datetime.strptime(
+            entry["created_at"], "%Y-%m-%d %H:%M:%S"
+        ).replace(tzinfo=timezone.utc)
+        entry["created_at_th"] = (
+            created_utc.astimezone(THAILAND_TZ).strftime("%Y-%m-%d %H:%M") + " ICT"
+        )
+
+    if request.args.get("format") == "csv":
+        lines = ["email,source,joined_utc"]
+        for entry in entries:
+            # Quote every field and double any embedded quote. An address that
+            # cannot contain a comma today is still not worth hand-waving in a
+            # file the owner may open in a spreadsheet.
+            lines.append(",".join(
+                '"' + str(entry[col] or "").replace('"', '""') + '"'
+                for col in ("email", "source", "created_at")
+            ))
+        response = make_response("\r\n".join(lines) + "\r\n")
+        response.headers["Content-Type"] = "text/csv; charset=utf-8"
+        response.headers["Content-Disposition"] = 'attachment; filename="repcheck_waitlist.csv"'
+        return response
+
+    return render_template("admin_waitlist.html", entries=entries, total=len(entries))
+
+
+@app.route("/admin/waitlist/delete", methods=["POST"])
+def admin_waitlist_delete():
+    # The privacy notice promises erasure on request within one month. This is
+    # how that is actually carried out.
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+
+    delete_waitlist_email(request.form.get("email", ""))
+    return redirect(url_for("admin_waitlist"))
 
 
 @app.route("/admin/export-db", methods=["GET"])
