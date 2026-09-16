@@ -42,14 +42,15 @@ config wired to the same command for the in-app browser preview.)
 (Render static site `repcheckofficials`, id `srv-dakis7lg1s2s73cfnrt0`),
 publishing `marketing` from `main` with auto-deploy on.
 
-A second, older service still serves the same content at
+A second, older service serves the same content at
 https://repcheck-marketing.onrender.com (`repcheck-marketing`, id
-`srv-da6241gu01pc738uiv80`), also from `main`. It exists because **an
-onrender.com hostname is assigned when a service is created and cannot be
-changed afterwards** — renaming a service relabels it in the dashboard and
-leaves the URL alone (tested: the rename went through, the URL did not
-move). A new hostname means a new service. Retire the old one when nothing
-points at it any more; note that deleting it releases the hostname for good.
+`srv-da6241gu01pc738uiv80`), also from `main`. Both are live on purpose and
+both are kept headered — one merge to `main` deploys to both. It exists
+because **an onrender.com hostname is assigned when a service is created and
+cannot be changed afterwards** — renaming a service relabels it in the
+dashboard and leaves the URL alone (tested: the rename went through, the URL
+did not move). A new hostname means a new service, and deleting a service
+releases its hostname for good.
 
 That same rule is why the Flask app answers on `repcheck-q0m4` while its
 service is named plainly `repcheck` — the suffix is Render's, added because
@@ -57,11 +58,16 @@ service is named plainly `repcheck` — the suffix is Render's, added because
 
 ### Security headers
 
-Set on the `repcheckofficials` service as response headers (Render dashboard
-→ Headers, or `PUT /v1/services/{id}/headers`). They are NOT in this repo,
-because they are serving config rather than content — so they do not travel
-with a fork, a new service, or a restore from git. **If you create another
-service for this site, set them again there.**
+Set on **both** services as response headers (Render dashboard → Headers, or
+`PUT /v1/services/{id}/headers`). They are NOT in this repo, because they are
+serving config rather than content — so they do not travel with a fork, a new
+service, or a restore from git. **If you create another service for this
+site, set them again there**; a service with none of these is a weaker copy
+of the same site on a URL people can still reach.
+
+Note that `PUT /headers` REPLACES the whole rule set rather than adding to
+it, so mirroring one service onto another means reading the source's rules
+and sending them entire.
 
     Content-Security-Policy       default-src 'self'; script-src 'self';
                                   style-src 'self' 'unsafe-inline';
