@@ -920,7 +920,7 @@
     // ----- screens -----
     function rcHeroHtml() {
       var chips = RC_KEYS.map(function (key, i) {
-        return '<button type="button" class="stchip" data-rc="info" data-key="' + key + '">' +
+        return '<button type="button" tabindex="-1" class="stchip" data-rc="info" data-key="' + key + '">' +
           '<span>' + (i + 1) + '</span><b>' + RC_SHORT[key] + '</b></button>';
       }).join("");
       return '<div class="scr-head"><b>HYROX</b><span class="avatar">J</span></div>' +
@@ -930,13 +930,13 @@
           '<span class="sub">Men\'s Open Singles</span>' +
           '<div class="stchips">' + chips + '</div>' +
           '<span class="centered sub">Tap a station to see how it\'s done</span>' +
-          '<button type="button" class="cta-blue" data-rc="to-setup">Start race</button>' +
+          '<button type="button" tabindex="-1" class="cta-blue" data-rc="to-setup">Start race</button>' +
           '<span class="centered link">View history</span>' +
         '</div>';
     }
 
     function rcChoice(group, value, title, sub, selected) {
-      return '<button type="button" class="rc-choice' + (selected ? " is-on" : "") + '" data-rc="set" data-group="' + group + '" data-value="' + value + '">' +
+      return '<button type="button" tabindex="-1" class="rc-choice' + (selected ? " is-on" : "") + '" data-rc="set" data-group="' + group + '" data-value="' + value + '">' +
         '<b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : "") + '</button>';
     }
 
@@ -986,7 +986,7 @@
           ? '<div class="card rc-pb"><span class="date">YOUR PERSONAL BEST · ' + rcCombo().toUpperCase() + '</span>' +
             '<b class="clock rc-pb-clock">1:24:06</b><span class="sub">set 3 Aug 2026</span></div>'
           : "") +
-        '<button type="button" class="cta-blue" data-rc="start">Start race</button>';
+        '<button type="button" tabindex="-1" class="cta-blue" data-rc="start">Start race</button>';
     }
 
     function rcNowDetail(seg) {
@@ -1040,12 +1040,12 @@
           '<b class="rc-now-title">' + rcSegTitle(seg) + '</b>' +
           rcNowDetail(seg) +
           (seg.type === "station"
-            ? '<button type="button" class="rc-how" data-rc="info" data-key="' + seg.key + '">How to do it</button>'
+            ? '<button type="button" tabindex="-1" class="rc-how" data-rc="info" data-key="' + seg.key + '">How to do it</button>'
             : "") +
         '</div>' +
         '<div class="rc-dots">' + dots + '</div>' +
-        '<button type="button" class="rc-complete" data-rc="complete">' + (isLast ? "Finish race" : "Complete") + '</button>' +
-        '<button type="button" class="rc-cancel" data-rc="to-hero">Cancel this race</button>' +
+        '<button type="button" tabindex="-1" class="rc-complete" data-rc="complete">' + (isLast ? "Finish race" : "Complete") + '</button>' +
+        '<button type="button" tabindex="-1" class="rc-cancel" data-rc="to-hero">Cancel this race</button>' +
         (rc.splits.length ? '<span class="date">COMPLETED · ' + rc.splits.length + '</span><div class="rc-splits">' + splits + '</div>' : "");
     }
 
@@ -1097,7 +1097,7 @@
           '<ul class="rc-coach-bullets">' + RC_COACH.detail.map(function (b) { return "<li>" + b + "</li>"; }).join("") + '</ul>' +
           groups +
         '</div>' +
-        '<button type="button" class="cta-blue" data-rc="to-hero">Log another race</button>';
+        '<button type="button" tabindex="-1" class="cta-blue" data-rc="to-hero">Log another race</button>';
     }
 
     function rcInfoHtml() {
@@ -1113,7 +1113,7 @@
       return '<div class="rc-sheet" data-rc="close-info"><div class="rc-sheet-card">' +
         '<span class="grab"></span>' +
         '<div class="row"><b class="rc-sheet-title">' + rcIcon(key, 18) + RC_TITLES[key] + '</b>' +
-        '<button type="button" class="rc-sheet-close" data-rc="close-info" aria-label="Close">&times;</button></div>' +
+        '<button type="button" tabindex="-1" class="rc-sheet-close" data-rc="close-info" aria-label="Close">&times;</button></div>' +
         '<div class="rc-now-chips">' + chips.map(function (c) {
           return '<div class="rc-now-chip"><b>' + c[0] + '</b><span>' + c[1] + '</span></div>';
         }).join("") + '</div>' +
@@ -1153,7 +1153,7 @@
         '<div class="watch-now">' + rcIcon(seg.type === "run" ? "run" : seg.key, 14) + rcSegTitle(seg) + '</div>' +
         '<span class="watch-meta">' + meta + '</span>' +
         '<div class="watch-bar"><span style="width:' + pct + '%"></span></div>' +
-        '<button type="button" class="watch-btn" data-rc="complete">' + (isLast ? "Finish" : "Done") + '</button>' +
+        '<button type="button" tabindex="-1" class="watch-btn" data-rc="complete">' + (isLast ? "Finish" : "Done") + '</button>' +
         '<span class="watch-next">' + (next ? "Next · " + rcSegTitle(next) : "Last one") + '</span>' +
         '</div></div>';
     }
@@ -1420,7 +1420,6 @@
     var nlAmountInput = $("#nl-amount", nlScreen);
     var nlToast = $("#nl-toast", nlScreen);
     var nlSheets = { search: $("#nl-search-sheet", nlScreen), amount: $("#nl-amount-sheet", nlScreen) };
-    var nlOpenBtn = $('[data-nl="open-search"]', nlScreen);
     var nlToastTimer = null;
 
     function nlEsc(s) {
@@ -1564,7 +1563,7 @@
           '<span class="nl-entry-id"><b>' + nlEsc(e.name) + '</b>' +
           '<span class="sub">' + e.label + ' · ' + Math.round(e.protein) + 'P / ' + Math.round(e.fat) + 'F / ' + Math.round(e.carbs) + 'C</span></span>' +
           '<b class="nl-entry-kcal">' + nlNum(e.calories) + '</b>' +
-          '<button type="button" class="nl-x" data-nl="remove" data-i="' + i + '" aria-label="Remove ' + nlEsc(e.name) + '">&times;</button>' +
+          '<button type="button" tabindex="-1" class="nl-x" data-nl="remove" data-i="' + i + '" aria-label="Remove ' + nlEsc(e.name) + '">&times;</button>' +
           '</div>';
       }).join("");
     }
@@ -1585,7 +1584,7 @@
           void amountCard.offsetWidth;
           amountCard.classList.add("is-nudging");
         }
-        nlFocus(nlAmountInput);
+        nlFakeFocus(nlAmountInput);
         return;
       }
       var m = nlMacros(nl.food, grams);
@@ -1623,7 +1622,7 @@
         return;
       }
       nlResults.innerHTML = matches.map(function (f) {
-        return '<button type="button" class="nl-result" data-nl="pick" data-food="' + nlEsc(f.name) + '">' +
+        return '<button type="button" tabindex="-1" class="nl-result" data-nl="pick" data-food="' + nlEsc(f.name) + '">' +
           '<span class="nl-result-id"><b>' + nlEsc(f.name) + '</b>' +
           '<span class="sub">' + Math.round(f.calories) + ' kcal · ' + Math.round(f.protein) + 'P / ' +
           Math.round(f.fat) + 'F / ' + Math.round(f.carbs) + 'C <em>per 100 g</em></span></span>' +
@@ -1632,11 +1631,29 @@
     }
 
     // ---- sheets ----
-    // preventScroll: the sheet is already in view, so focusing it should not
-    // yank the page to the handset.
-    function nlFocus(el) {
-      if (!el) return;
-      try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    // NOTHING IN HERE MOVES FOCUS. This used to call el.focus() so the
+    // keyboard followed the open sheet, which read fine on paper and was
+    // wrong in practice: the walkthrough below opens and closes those same
+    // sheets by itself, on a nine-second loop, so a reader merely scrolling
+    // past the handset watched document.activeElement travel from BODY to
+    // the "+ Log a food" button to the search field with nothing in their
+    // hands touching it. Two separate faults, and the second is the one that
+    // bites hardest:
+    //   * focus lands somewhere the reader did not put it and cannot
+    //     predict, which is the whole thing focus is for; and
+    //   * a focused text input changes what Page Down, Page Up, Home and End
+    //     do. On the canvas host they are ours -- the keydown handler at the
+    //     top of this file forwards them to the body scroller, and it stands
+    //     down the moment anything is focused -- so the loop was quietly
+    //     taking the page keys away mid-scroll.
+    // The controls are all tabindex="-1" now (see index.html), so the
+    // "focused" field is a look, not a state: one class, on at most one
+    // element, cleared by the same call that sets the next one.
+    function nlFakeFocus(el) {
+      $$(".is-faux-focus", nlScreen).forEach(function (n) {
+        n.classList.remove("is-faux-focus");
+      });
+      if (el) el.classList.add("is-faux-focus");
     }
 
     function nlOpen(which) {
@@ -1650,22 +1667,30 @@
         // for the food you just added.
         nlQuery.value = "";
         nlRenderResults();
-        nlFocus(nlQuery);
+        nlFakeFocus(nlQuery);
       }
-      // The keyboard has to follow the sheet. A closed sheet is
-      // visibility:hidden, so focus left on the search field lands on nothing
-      // and the amount editor is unreachable without tabbing the page again.
-      if (which === "amount") nlFocus(nlAmountInput);
+      // The caret follows the sheet, because that is what the app looks like
+      // at this step -- a look, drawn by a class, not real focus.
+      if (which === "amount") nlFakeFocus(nlAmountInput);
     }
     function nlClose() {
       nl.sheet = null;
+      // tabindex="-1" keeps these out of the tab order; it does not stop a
+      // MOUSE click putting real focus in a field, and the sheet that field
+      // sits in is about to go visibility:hidden. Drop that focus rather
+      // than strand it on something no longer there. Only ever reached
+      // after a visitor clicked into a sheet: the walkthrough focuses
+      // nothing, so activeElement is wherever the reader left it and this
+      // leaves it there.
+      var at = document.activeElement;
+      var stranded = at && at.blur && Object.keys(nlSheets).some(function (key) {
+        return nlSheets[key] && nlSheets[key].contains(at);
+      });
       Object.keys(nlSheets).forEach(function (key) {
         if (nlSheets[key]) nlSheets[key].classList.remove("is-open");
       });
-      // A closed sheet is visibility:hidden, so focus left behind inside one
-      // lands on nothing -- the same trap the CSS half of this already
-      // guards against. Hand it back to the button that opened the sheet.
-      nlFocus(nlOpenBtn);
+      if (stranded) at.blur();
+      nlFakeFocus(null);
     }
 
     nlScreen.addEventListener("click", function (evt) {

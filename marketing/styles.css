@@ -178,13 +178,14 @@ button { font: inherit; }
   outline-color: var(--paper);
   outline-offset: -6px;
 }
-/* The handset is the third dark ground, and the only one whose buttons are
-   generated rather than written in index.html -- app.js renders .stchip and
-   .cta-blue inside .phone-screen, both of which ARE keyboard reachable. An
-   ink ring measures ~1.4:1 against --app-line, so without this a keyboard
-   user tabbing the HYROX station chips sees nothing at all, which is worse
-   than the browser default this rule replaced. Scoped to the screen so it
-   covers whatever app.js renders in there next. */
+/* The handset is the third dark ground. Everything in it is tabindex="-1"
+   now -- it is a picture of the app, not a form the page is offering -- but
+   that is not the same as unfocusable: clicking into the food log's search
+   or amount field still focuses it, and a text field matches :focus-visible
+   on a mouse click. An ink ring measures ~1.4:1 against --app-line, i.e.
+   invisible, so anything that does get focus in here needs this. Scoped to
+   the screen rather than to those two fields so it keeps covering whatever
+   app.js renders in there next. */
 .phone-screen :focus-visible {
   outline-color: var(--paper);
   outline-offset: 1px;
@@ -1005,11 +1006,17 @@ button.stchip:hover { background: #34343a; }
   font-family: inherit; font-size: 12.5px;
 }
 .nl-input::placeholder { color: #6b6d78; }
-/* The ring itself comes from the global :focus-visible rule (and the
-   .phone-screen override that makes it visible on this dark ground) -- the
-   border change here is an extra affordance on top of it, never a
-   replacement. */
-.nl-input:focus { border-color: var(--blue); }
+/* Two selectors, two different jobs, same look.
+   :focus is a visitor who clicked into the field -- the ring itself comes
+   from the global :focus-visible rule (and the .phone-screen override that
+   makes it visible on this dark ground); the border change here is an extra
+   affordance on top of it, never a replacement.
+   .is-faux-focus is the walkthrough, which draws the step WITHOUT focusing
+   anything: these are mock controls in a picture of the app, and a loop that
+   focused them moved the reader's focus for them every nine seconds. See
+   nlFakeFocus in app.js. No ring on this one, deliberately -- a focus ring
+   on an element that is not focused is a lie to anyone reading it. */
+.nl-input:focus, .nl-input.is-faux-focus { border-color: var(--blue); }
 
 .nl-results { max-height: 226px; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 4px; }
 .nl-results::-webkit-scrollbar { display: none; }
@@ -1064,7 +1071,7 @@ button.stchip:hover { background: #34343a; }
   border: 1px solid #3a3a3c; background: var(--app-bg); color: var(--app-text);
   font-family: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-#nl-amount:focus { border-color: var(--blue); }
+#nl-amount:focus, #nl-amount.is-faux-focus { border-color: var(--blue); }
 .nl-unit-seg { flex: 1; display: flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--app-bg); }
 .nl-unit-seg button {
   flex: 1; padding: 6px 4px; border: none; border-radius: 999px;
