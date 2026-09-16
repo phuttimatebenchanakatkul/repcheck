@@ -292,37 +292,113 @@ describe("getting out of a sheet", () => {
 });
 
 describe("the keyboard", () => {
-  it("follows the sheet that is open", () => {
-    // A closed sheet is visibility:hidden, so focus left behind in one lands
-    // on nothing: the amount editor would be unreachable without tabbing the
-    // whole page again.
+  // This screen used to call .focus() to keep the keyboard on the open sheet.
+  // The walkthrough opens those same sheets on a loop, so on the live site
+  // document.activeElement travelled BODY -> BUTTON.cta-blue -> INPUT.nl-input
+  // while the reader was doing nothing but scrolling: focus somewhere nobody
+  // put it, and -- because a focused text input changes what Page Down, Home
+  // and End do, and the canvas host's own page-key handler stands down as
+  // soon as anything is focused -- the page keys taken away with it.
+  //
+  // So: the caret is a class, and the mock controls are out of the tab order.
+  it("draws the caret on the field the open sheet is asking about", () => {
     page.openSearch();
-    expect(document.activeElement.id).toBe("nl-query");
+    expect(page.$("#nl-query").classList.contains("is-faux-focus")).toBe(true);
 
     page.search("banana");
     page.pickFirstResult();
-    expect(page.$("#nl-amount-sheet").contains(document.activeElement)).toBe(true);
+    expect(page.$("#nl-query").classList.contains("is-faux-focus")).toBe(false);
+    expect(page.$("#nl-amount").classList.contains("is-faux-focus")).toBe(true);
   });
 
-  it("hands focus back to the trigger once every sheet is closed", () => {
-    // Each closed sheet is visibility:hidden -- focus left inside one is
-    // focus left on nothing, exactly the trap the CSS half of this is
-    // guarded against separately.
-    const trigger = page.$('[data-nl="open-search"]');
-
+  it("clears the caret when every sheet is closed", () => {
     page.openSearch();
     page.close();
-    expect(document.activeElement).toBe(trigger);
+    expect(page.screen.querySelectorAll(".is-faux-focus")).toHaveLength(0);
 
     page.openSearch();
     page.pressEscape();
-    expect(document.activeElement).toBe(trigger);
+    expect(page.screen.querySelectorAll(".is-faux-focus")).toHaveLength(0);
 
     page.openSearch();
     page.search("banana");
     page.pickFirstResult();
     page.add();
-    expect(document.activeElement).toBe(trigger);
+    expect(page.screen.querySelectorAll(".is-faux-focus")).toHaveLength(0);
+  });
+
+  it("leaves focus exactly where the reader left it, through the whole flow", () => {
+    // The regression this file exists to stop coming back. Park focus on a
+    // real page control -- the waitlist field is the one a reader actually
+    // has -- and walk the food log end to end without it budging.
+    const outside = document.createElement("input");
+    outside.type = "email";
+    document.body.appendChild(outside);
+    outside.focus();
+    expect(document.activeElement).toBe(outside);
+
+    page.openSearch();
+    page.search("banana");
+    page.pickFirstResult();
+    page.setUnit("g");
+    page.setAmount("");
+    page.add(); // the rejected-amount path, which also used to focus
+    page.setAmount(120);
+    page.add();
+    page.close();
+    page.removeEntry(0);
+
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("drops focus a click left inside a sheet, rather than stranding it on nothing", () => {
+    // tabindex="-1" keeps these out of the TAB order; it does not stop a mouse
+    // click focusing a text field. Close that sheet and it goes
+    // visibility:hidden with focus still inside it, which is focus on nothing.
+    // The other half of the pair -- focus OUTSIDE the sheets is never touched
+    // -- is the test above; this is the branch that acts.
+    page.openSearch();
+    page.$("#nl-query").focus();           // what a click does
+    expect(document.activeElement.id).toBe("nl-query");
+
+    page.close();
+    expect(document.activeElement).toBe(document.body);
+
+    // Same through the amount sheet, which closes via Add rather than the ×.
+    page.openSearch();
+    page.search("banana");
+    page.pickFirstResult();
+    page.$("#nl-amount").focus();
+    page.add();
+    expect(document.activeElement).toBe(document.body);
+
+    // And via Escape.
+    page.openSearch();
+    page.$("#nl-query").focus();
+    page.pressEscape();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("keeps every mock control out of the tab order", () => {
+    // A drawing of the app, not a form the page is offering: a reader tabbing
+    // the page should reach the nav, the waitlist and the footer, not nine
+    // fake app controls in between. tabindex="-1" leaves them clickable and
+    // programmatically focusable, which is all the demo needs.
+    page.openSearch();
+    page.search("banana");
+    page.pickFirstResult();
+    page.add();
+
+    const focusable = Array.from(
+      page.screen.querySelectorAll("a[href], button, input, select, textarea, [tabindex]")
+    );
+    expect(focusable.length).toBeGreaterThan(8);
+
+    const inOrder = focusable
+      .filter((el) => el.getAttribute("tabindex") !== "-1")
+      .map((el) => el.id || el.className || el.tagName);
+    expect(inOrder).toEqual([]);
   });
 
   it("announces which unit is selected, from the first paint", () => {
@@ -391,10 +467,11 @@ describe("refusing to log nothing", () => {
     expect(page.text("#nl-toast")).toBe("");
   });
 
-  it("nudges the amount card and refocuses it, rather than doing nothing visible", () => {
+  it("nudges the amount card and marks the field, rather than doing nothing visible", () => {
     // A bare `return` on a bad amount used to look exactly like a broken
     // button: no toast, no shake, nothing. Tapping Add now points at what
-    // needs fixing.
+    // needs fixing -- with the caret class, not with .focus(), because the
+    // walkthrough takes this path too.
     page.openSearch();
     page.search("banana");
     page.pickFirstResult();
@@ -402,7 +479,7 @@ describe("refusing to log nothing", () => {
     page.add();
 
     expect(page.$(".nl-amount").classList.contains("is-nudging")).toBe(true);
-    expect(document.activeElement.id).toBe("nl-amount");
+    expect(page.$("#nl-amount").classList.contains("is-faux-focus")).toBe(true);
   });
 
   it("treats a negative amount as nothing", () => {
@@ -501,5 +578,92 @@ describe("the feature switcher", () => {
     document.querySelector('.feature[data-feature="1"]').click();
     expect(page.entries()).toHaveLength(1);
     expect(page.text("#nl-eaten")).toBe("89 of 1,802");
+  });
+});
+
+describe("the walkthrough that drives this screen", () => {
+  // The regression that put the focus rules in this file came from the LOOP,
+  // not from a visitor: nlDemoPlay opens and closes the same sheets on a
+  // nine-second cycle, and it used to focus them. Testing the functions it
+  // calls is not the same as testing the loop, so drive the real thing.
+  let looping;
+
+  beforeEach(() => {
+    // Fake timers FIRST, then mount: the outer beforeEach already started a
+    // walkthrough on real timers, and those callbacks never fire once the
+    // clock is swapped. Re-mounting under the fake clock is what puts the
+    // loop's own setTimeouts where advanceTimersByTime can reach them.
+    vi.useFakeTimers();
+    looping = loadMarketingFoodLog();
+    looping.showFoodLog();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("walks the whole flow without ever moving focus", () => {
+    page = looping;
+    const outside = document.createElement("input");
+    document.body.appendChild(outside);
+    outside.focus();
+
+    const caretAt = () => {
+      const el = page.screen.querySelector(".is-faux-focus");
+      return el ? el.id : null;
+    };
+    const seen = [];
+    let everLogged = 0;
+    const note = () => {
+      const state = page.sheetOpen() + "/" + caretAt();
+      if (seen[seen.length - 1] !== state) seen.push(state);
+      everLogged = Math.max(everLogged, page.entries().length);
+      expect(document.activeElement).toBe(outside);
+    };
+
+    // showFoodLog() in the outer beforeEach already started the loop.
+    note();
+    for (let t = 0; t < 10000; t += 100) {
+      vi.advanceTimersByTime(100);
+      note();
+    }
+
+    // The loop really ran: search sheet with the caret on the query, then the
+    // amount sheet with it on the amount, then a logged day with neither.
+    expect(seen).toContain("search/nl-query");
+    expect(seen).toContain("amount/nl-amount");
+    expect(seen).toContain("null/null");
+    // Checked across the walk, not at the end: the cycle empties the day again
+    // at 9.2s so the reader always joins it on an empty ring.
+    expect(everLogged).toBeGreaterThan(0);
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+});
+
+describe("a reader who asked for reduced motion", () => {
+  // The branch nothing else in tests-js reaches: no typing, no loop, just the
+  // finished day held. It still runs nlPick -> nlOpen("amount") -> nlAdd ->
+  // nlClose, so it is a path where a stray caret class could be left behind on
+  // a sheet that is now visibility:hidden.
+  let still;
+
+  beforeEach(() => {
+    still = loadMarketingFoodLog({ reducedMotion: true });
+    still.showFoodLog();
+  });
+
+  it("holds the finished day, with no sheet, no caret and no focus taken", () => {
+    expect(still.entries()).toHaveLength(1);
+    expect(still.text("#nl-left")).not.toBe("1,802");
+    expect(still.sheetOpen()).toBe(null);
+    expect(still.screen.querySelectorAll(".is-faux-focus")).toHaveLength(0);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("does not log the same food again every time the screen is reached", () => {
+    document.querySelector('.feature[data-feature="3"]').click();
+    still.showFoodLog();
+    document.querySelector('.feature[data-feature="3"]').click();
+    still.showFoodLog();
+
+    expect(still.entries()).toHaveLength(1);
   });
 });
