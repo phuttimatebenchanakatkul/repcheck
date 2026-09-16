@@ -2,7 +2,7 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
-## [0.12.4.0] - 2026-09-16
+## [0.12.5.0] - 2026-09-16
 
 ### Fixed
 
@@ -41,6 +41,39 @@ All notable changes to RepCheck are recorded here, newest first.
   highlighted field are both pictures; moving focus used to be the one part
   a screen reader could follow, so the message goes to the status line
   instead.
+
+## [0.12.4.0] - 2026-09-16
+
+### Fixed
+
+- **"Analyze a food photo" no longer opens a viewfinder whose shutter does
+  nothing.** The camera screen attached the live stream to its `<video>` and
+  stopped there: it never called `play()`, and it never waited for the frame
+  size. A MediaStream goes live *before* the element reports a `videoWidth` --
+  that number only arrives with `loadedmetadata` -- and the shutter handler
+  opens with `if (!video.videoWidth) return`. Every tap inside that window was
+  swallowed silently: no photo, no error, no sign the button was wired to
+  anything. A stream that never produced a frame at all left that dead screen
+  permanently.
+
+  `startLiveBarcodeScan()`, three hundred lines further down the same file,
+  already had all of this. The photo path now shares it: an explicit `play()`,
+  a `loadedmetadata` wait with the same 4s ceiling, and the real "Camera
+  unavailable" screen (camera released) when no frame lands, instead of a
+  viewfinder that cannot take a picture. Flipping to the other lens goes
+  through the same start, and the shutter now reports a feed that died rather
+  than returning quietly.
+
+- **The scan sheet is sized to the app box rather than the browser window.**
+  Every skin above 721px makes `<body>` a fixed-size box carrying a
+  `transform`, which makes it the containing block for the sheet -- but `vh`
+  still means the window. In the desk skin (a desktop with a mouse) the box is
+  a 390x844 phone, so `.af-modal.is-camera`'s `height: 92vh` measured against
+  the desktop instead: at 1440x1080 the camera sheet came out 994px inside an
+  844px box with `overflow: hidden`, clipping the drag handle and the entire
+  header -- title and close button -- off the top. The three rules that size
+  the sheet now derive from `--app-h`, the token that exists for this, which
+  keeps the dynamic-viewport behaviour on a phone for free.
 
 ## [0.12.3.0] - 2026-09-13
 

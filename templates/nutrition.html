@@ -505,7 +505,14 @@
     pointer-events: auto;
     width: 100%;
     max-width: 560px;
-    max-height: 92vh;
+    /* --app-h, not vh. Every skin above 721px makes <body> a fixed-size box
+       that carries a transform, so this fixed-position sheet is contained by
+       THAT box and not by the window -- and in the desk skin the box is a
+       390x844 phone while vh is still the desktop window. Measured at
+       1440x1080: a 92vh sheet came out 994px inside an 844px phone, with the
+       drag handle and the whole header (title, close button) clipped off the
+       top. --app-h is the app box in all three skins. */
+    max-height: calc(var(--app-h) * 0.92);
     display: flex;
     flex-direction: column;
     background: var(--card-bg);
@@ -539,8 +546,9 @@
      WKWebView's :has() support is not something to make a layout depend
      on. See the afBodyObserver below, which owns the class. */
   .af-modal.is-camera {
-    height: 92vh;
-    height: 92dvh;
+    /* --app-h is declared twice at :root (100vh, then 100dvh), so this keeps
+       the dynamic-viewport behaviour on a phone for free. */
+    height: calc(var(--app-h) * 0.92);
   }
   .af-modal-handle {
     width: 38px; height: 5px; border-radius: 999px;
@@ -838,7 +846,7 @@
        makes the preview big there rather than collapsing to the video's
        own minimum. */
     height: 100%;
-    min-height: 62vh;
+    min-height: calc(var(--app-h) * 0.62);
     /* Cancels .af-modal-body's padding so the feed goes edge to edge; the
        controls below re-add their own. */
     margin: -4px -22px -22px;
@@ -3093,7 +3101,42 @@
       renderAfPhotoCameraUnavailable();
       return;
     }
-    renderAfPhotoCameraScreen();
+    await renderAfPhotoCameraScreen();
+  }
+
+  /**
+   * Bring a just-attached stream up to the point where it can be captured,
+   * and say whether it got there. Lifted from startLiveBarcodeScan below,
+   * which already learned all of this the hard way -- this path never did,
+   * and it is why "Take photo" could sit on a viewfinder whose shutter did
+   * nothing at all:
+   *
+   *  - play() explicitly, rather than trusting the autoplay attribute. A
+   *    muted playsinline video is ALLOWED to autoplay, not guaranteed to;
+   *    an element that never starts never produces a frame.
+   *  - Then wait for the frame size, because a stream can be live while the
+   *    element still reports 0x0 -- videoWidth only lands with the metadata
+   *    event. captureAfPhoto() bails on `!video.videoWidth`, so every tap
+   *    before that moment was silently swallowed: no photo, no error, no
+   *    sign the button did anything.
+   *
+   * The 4s ceiling is the barcode scanner's, for its reason: a stream that
+   * never produces a frame has to end somewhere other than a dead spin.
+   */
+  async function startAfPhotoPreview(video) {
+    video.srcObject = afPhotoStream;
+    try { await video.play(); } catch (err) { /* autoplay attr covers this */ }
+    if (!video.videoWidth) {
+      await new Promise((done) => {
+        let settled = false;
+        const finish = () => { if (!settled) { settled = true; done(); } };
+        video.addEventListener("loadedmetadata", finish, { once: true });
+        setTimeout(finish, 4000);
+      });
+    }
+    // Cancelled while the camera was starting -- the screen is already gone.
+    if (!afPhotoStream) return false;
+    return !!video.videoWidth;
   }
 
   function renderAfPhotoCameraUnavailable() {
@@ -3112,7 +3155,7 @@
     afPretextRelayout();
   }
 
-  function renderAfPhotoCameraScreen() {
+  async function renderAfPhotoCameraScreen() {
     afModalBody.innerHTML = `
       <div class="af-scanner-screen">
         <div class="af-scanner-wrap">
@@ -3135,13 +3178,19 @@
       </div>
     `;
     const video = document.getElementById("af-photo-video");
-    video.srcObject = afPhotoStream;
     document.getElementById("af-photo-shutter").addEventListener("click", captureAfPhoto);
     document.getElementById("af-photo-flip").addEventListener("click", flipAfPhotoCamera);
     document.getElementById("af-photo-cancel-btn").addEventListener("click", () => {
       stopAfPhotoCamera();
       renderAfChoice();
     });
+    // Listeners first, so Cancel works while the preview is still starting.
+    if (await startAfPhotoPreview(video)) return;
+    if (!afPhotoStream) return; // cancelled -- renderAfChoice() already ran
+    // A viewfinder with no frame can only ever be a dead screen with a
+    // shutter that does nothing. Say so instead of showing it.
+    stopAfPhotoCamera();
+    renderAfPhotoCameraUnavailable();
   }
 
   async function flipAfPhotoCamera() {
@@ -3163,12 +3212,25 @@
       }
     }
     const video = document.getElementById("af-photo-video");
-    if (video) video.srcObject = afPhotoStream;
+    if (!video) return;
+    if (await startAfPhotoPreview(video)) return;
+    if (!afPhotoStream) return;
+    stopAfPhotoCamera();
+    renderAfPhotoCameraUnavailable();
   }
 
   function captureAfPhoto() {
     const video = document.getElementById("af-photo-video");
-    if (!video || !video.videoWidth) return;
+    // Reachable again only if the feed DIED after starting -- the lens was
+    // taken by something else, the stream ended. Before startAfPhotoPreview
+    // this also caught "metadata hasn't landed yet", and returning quietly
+    // made the shutter look like a broken button. Whatever the cause, the
+    // camera is gone, so end on the screen that says so.
+    if (!video || !video.videoWidth) {
+      stopAfPhotoCamera();
+      renderAfPhotoCameraUnavailable();
+      return;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
