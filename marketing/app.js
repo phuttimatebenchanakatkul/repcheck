@@ -20,16 +20,14 @@
   // the viewport height back in and the stages would have gone out of step
   // with the panel on any window that is not exactly 565px tall.
   function frameH() {
-    // The width is MEASURED off <body> rather than read from --rc-frame-w:
-    // that property is a min() now, and a custom property comes back from
-    // getComputedStyle as the tokens it was written with, which parseFloat
-    // turns into NaN. body IS the canvas -- it carries the same variable as
-    // its width -- so measuring it is both simpler and always right.
-    var ratio = parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--rc-frame-ratio")
-    );
-    var w = document.body.clientWidth;
-    return w > 0 && ratio > 0 ? w / ratio : window.innerHeight;
+    // MEASURED, not computed. The canvas is the fixed 1.91:1 frame above
+    // 720px and the phone's whole screen below it, and body is the canvas in
+    // both cases -- so its own height is the answer without this having to
+    // know which rule won. Reading --rc-frame-h instead cannot work anyway:
+    // it is a calc(), and getComputedStyle hands a custom property back as
+    // the tokens it was written with, which parseFloat turns into NaN.
+    var h = document.body.offsetHeight;
+    return h > 0 ? h : window.innerHeight;
   }
 
   var yearEl = $("#year");
@@ -58,8 +56,8 @@
     window.history.scrollRestoration = "manual";
   }
   if (!window.location.hash) {
-    window.scrollTo(0, 0);
-    window.addEventListener("load", function () { window.scrollTo(0, 0); });
+    document.body.scrollTop = 0;
+    window.addEventListener("load", function () { document.body.scrollTop = 0; });
   }
 
   // ---------- loading screen ----------
@@ -309,6 +307,46 @@
     var ScrollTrigger = window.ScrollTrigger;
     gsap.registerPlugin(ScrollTrigger);
 
+    // THE SCROLLER IS BODY, NOT THE WINDOW. The canvas is a fixed-size box
+    // that scrolls internally (see the html/body rules in styles.css), so
+    // every trigger here has to measure against it. Without this ScrollTrigger
+    // watches window scroll, which never moves, and the whole story sits on
+    // its first frame for good.
+    ScrollTrigger.defaults({ scroller: document.body });
+
+    // THE HANDSET IS SIZED FROM THE FRAME, from here rather than from CSS.
+    // The scale wants (frame height - the chrome around it) / 662, and CSS
+    // calc cannot divide a length by a length to get the unitless number
+    // scale() needs -- written that way it produces a LENGTH, scale() refuses
+    // it, and the handset renders unscaled and runs out of the bottom of the
+    // canvas. Which is exactly what it did.
+    //
+    // 662 is the handset: a 640px screen in 11px of bezel top and bottom.
+    // The subtrahend is what the panel spends around it -- the strip and the
+    // stage's padding in two columns, and the title and description as well
+    // when they stack above it in one.
+    var phoneEl = $(".phone", whatSection);
+    function sizePhone() {
+      if (!phoneEl) return;
+      // 720 is the one-column breakpoint AND the point below which the
+      // canvas stops being a fixed frame -- the same line in both, so this
+      // reads the viewport rather than the canvas deliberately.
+      var narrow = window.innerWidth <= 720;
+      var spare = narrow ? 290 : 150;
+      // The watch takes its own room out of the column beneath the handset.
+      if (narrow && document.documentElement.classList.contains("rc-watch-on")) {
+        spare = 420;
+      }
+      var scale = (frameH() - spare) / 662;
+      scale = Math.max(0.25, Math.min(1, scale));
+      phoneEl.style.setProperty("--rc-phone-scale", String(Math.round(scale * 1000) / 1000));
+    }
+    sizePhone();
+    window.addEventListener("resize", sizePhone);
+    // The watch coming and going changes what is left for the handset, and it
+    // is app.js that knows when that happens.
+    onFeature(sizePhone);
+
     // ScrollTrigger keeps its OWN record of where you were scrolled and puts
     // you back there on a refresh -- which is a sensible default for a pinned
     // layout and is the thing actually beating the scrollRestoration handling
@@ -320,7 +358,7 @@
     // so this both throws away the saved position and re-states the decline.
     // Before any trigger is created, so there is nothing recorded to restore.
     if (ScrollTrigger.clearScrollMemory) ScrollTrigger.clearScrollMemory("manual");
-    if (!window.location.hash) window.scrollTo(0, 0);
+    if (!window.location.hash) document.body.scrollTop = 0;
 
     story.style.setProperty("--rc-stages", String(featureBtns.length));
     document.documentElement.classList.add("rc-story-on");
@@ -342,7 +380,7 @@
     if (stripBrand) {
       stripBrand.addEventListener("click", function (evt) {
         evt.preventDefault();
-        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
       });
     }
 

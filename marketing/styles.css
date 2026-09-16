@@ -67,18 +67,71 @@
      the ratio is exact at any width, and changing the width alone keeps it. */
   --rc-frame-ratio: 1.91;
   --rc-frame-h: calc(var(--rc-frame-w) / var(--rc-frame-ratio));
+  /* 1% of the CANVAS, for type and padding that used to be sized in vw.
+     vw is the browser window, and the canvas stopped being the same size as
+     the window when it became a fixed 1080px frame -- so `6.6vw` on the hero
+     title was 71px in a 1080 window and 95px in a 1440 one, on a headline
+     laid out in the same 1080px either way. The hero overflowed its 565px
+     frame on the wider screen and the bottom of it was clipped. Sized off the
+     frame, every one of these is a constant share of the picture.
+     Below 721px the frame IS the window, so --rc-frame-w is 100vw and this
+     resolves to exactly the 1vw these rules always meant. */
+  --rc-vw: calc(var(--rc-frame-w) / 100);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--paper); }
-/* The canvas, centred, with the page's own white either side of it. */
+/* THE CANVAS IS A WINDOW, AND THE PAGE SCROLLS INSIDE IT.
+   It was a 1080-wide block in a normally-scrolling document, which is not the
+   same thing: the frame was the right size and ratio, but on any window taller
+   than 565px you saw straight past its bottom edge to whatever the document
+   had there next. Scrolled to the features that meant 155px of the page
+   showing under the panel -- the canvas was a shape on the page rather than
+   the page itself.
+   So html holds the viewport and clips, body IS the canvas at exactly the
+   frame's size, and the scrolling happens within body. Everything outside is
+   the page's own white. app.js hands document.body to ScrollTrigger as its
+   scroller for the same reason -- see the note there.
+
+   Only on .rc-canvas, which is the home page. The legal pages share the
+   1080px measure below but are long documents nobody scroll-animated: giving
+   them a 565px window with no scrollbar would make a privacy notice something
+   you read six lines at a time. They keep the document's own scrolling. */
+html.rc-canvas {
+  height: 100%;
+  overflow: hidden;
+}
+html.rc-canvas > body {
+  height: 100%;
+  overflow-y: auto;
+  /* No scrollbar inside the frame: it is a 15px stripe down the right of a
+     picture, and the page already says to scroll (.rc-scroll-cue). It also
+     keeps body's content box equal to its border box, so the CSS and app.js
+     cannot disagree about how big the canvas is. */
+  scrollbar-width: none;
+}
+html.rc-canvas > body::-webkit-scrollbar { width: 0; height: 0; }
 body {
-  width: var(--rc-frame-w);
-  margin-inline: auto;
+  /* Full-bleed by default -- on a phone a 1.91:1 box is 390x204 and there is
+     no putting a title, a description and a handset in 204px -- and the fixed
+     frame only above 720px, where the shape is landscape anyway and there is
+     room for it. See the min-width block below. */
+  width: 100%;
+  /* Top of the window, centred across it. NOT centred vertically: on the home
+     page body is the SCROLLER, and ScrollTrigger measures a trigger from the
+     viewport, so any vertical offset on the scroller is added to every start
+     it computes. Centred, the canvas sat 117px down and the hero zoom did not
+     begin until 117px of scrolling had already happened -- a dead zone at the
+     top that grew with the reader's screen. Flush to the top, that is zero. */
+  margin: 0 auto;
+  overflow-x: hidden;
   font-family: Archivo, "Helvetica Neue", Helvetica, sans-serif;
   color: var(--ink);
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+}
+@media (min-width: 721px) {
+  body { width: var(--rc-frame-w); }
+  html.rc-canvas > body { height: var(--rc-frame-h); }
 }
 a { color: var(--ink); text-decoration: none; }
 a:hover { color: var(--ink); }
@@ -142,7 +195,7 @@ button { font: inherit; }
 .nav-cta { background: var(--ink); color: #fff !important; padding: 9px 15px 8px; }
 
 .hero-mid { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 36px; padding: 6vh 0; }
-.hero-mid h1 { max-width: 15ch; font-size: clamp(40px, 6.6vw, 104px); line-height: 1.02; font-weight: 600; letter-spacing: -0.035em; text-wrap: balance; }
+.hero-mid h1 { max-width: 15ch; font-size: clamp(40px, calc(var(--rc-vw) * 6.6), 104px); line-height: 1.02; font-weight: 600; letter-spacing: -0.035em; text-wrap: balance; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 .btn { display: inline-block; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; padding: 15px 26px; border-radius: 999px; }
 .btn-dark { background: var(--ink); color: #fff !important; }
@@ -150,9 +203,37 @@ button { font: inherit; }
 .btn-store { display: inline-flex; align-items: center; gap: 9px; }
 .btn-store-icon { width: 18px; height: 18px; flex: none; }
 
+/* The hero's breathing room, measured against the CANVAS and not the window.
+   The base rule above is 6vh, and vh is the browser window -- which the canvas
+   is no longer the same size as. In a 800px-tall window that came to 96px of
+   padding inside a 565px frame, so the hero laid out 600px of content in it
+   and `overflow: hidden` quietly ate the bottom of .hero-foot. Worse, it grew
+   with the window: the taller the reader's screen, the more of the hero was
+   cut off. Scaled off --rc-frame-h it is a fixed share of the frame at every
+   window size. Only above 721px, where the fixed frame applies at all -- on a
+   phone the canvas is the screen and 6vh is already the right answer.
+   Placed after the base rule on purpose: a media query adds no specificity. */
+@media (min-width: 721px) {
+  .hero-mid { padding: calc(var(--rc-frame-h) * 0.045) 0; gap: 26px; }
+  /* The hero's remaining fixed pixels, on the same leash. Between 721px and
+     1080px the frame shrinks with the window -- at 760 it is 760x398 -- but
+     the outer padding, the foot copy and the gaps did not, so the hero laid
+     out 425px of content in a 398px frame and the foot was clipped again.
+     The numbers below are the old constants expressed as a share of the
+     frame, so they are unchanged at 1080 and come down with it under that. */
+  .hero { padding: calc(var(--rc-vw) * 2.4) calc(var(--rc-vw) * 2.8) calc(var(--rc-vw) * 2.8); }
+}
+
 .hero-foot { position: relative; display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-end; justify-content: space-between; }
 
 .hero-foot p { max-width: 46ch; font-size: 16px; line-height: 1.55; color: var(--muted); }
+/* Second half of the same override, and it has to live down here: the rules
+   it beats are the two lines above it, and a media query adds no specificity
+   -- up in the block with .hero it lost to them at every width. */
+@media (min-width: 721px) {
+  .hero-foot { gap: calc(var(--rc-vw) * 3.7); }
+  .hero-foot p { font-size: clamp(13px, calc(var(--rc-vw) * 1.48), 16px); }
+}
 
 /* ---------- section chrome ---------- */
 /* align-items was baseline, which was right while both halves were a line of
@@ -189,7 +270,7 @@ button { font: inherit; }
 .feature.is-active { background: var(--ink); color: #fff; }
 .feature-head { display: flex; align-items: baseline; gap: 16px; }
 .idx { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.14em; opacity: 0.5; }
-.feature-title { font-size: clamp(21px, 2.4vw, 32px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+.feature-title { font-size: clamp(21px, calc(var(--rc-vw) * 2.4), 32px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
 /* Measured, not full-bleed: the column is up to 1fr of a wide grid, and a
    description running its whole width reads as a paragraph of body copy
    rather than a caption under a name. */
@@ -387,14 +468,14 @@ button { font: inherit; }
 /* ---------- stats ---------- */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); border-bottom: 1px solid var(--hair); }
 .stats > div { padding: 44px 30px; border-right: 1px solid var(--hair); }
-.stats b { display: block; font-size: clamp(44px, 5vw, 76px); font-weight: 900; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
+.stats b { display: block; font-size: clamp(44px, calc(var(--rc-vw) * 5), 76px); font-weight: 900; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
 .stats span { display: block; margin-top: 10px; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--meta); }
 
 /* ---------- waitlist ---------- */
-.cta { padding: clamp(56px, 9vw, 140px) 30px; display: flex; flex-direction: column; align-items: flex-start; gap: 28px; }
-.cta h2 { font-size: clamp(36px, 7vw, 116px); font-weight: 900; letter-spacing: -0.05em; line-height: 0.94; max-width: 14ch; }
+.cta { padding: clamp(56px, calc(var(--rc-vw) * 9), 140px) 30px; display: flex; flex-direction: column; align-items: flex-start; gap: 28px; }
+.cta h2 { font-size: clamp(36px, calc(var(--rc-vw) * 7), 116px); font-weight: 900; letter-spacing: -0.05em; line-height: 0.94; max-width: 14ch; }
 .waitlist-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; width: 100%; max-width: 620px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
-.waitlist-form input { flex: 1 1 240px; border: none; background: transparent; font-family: Archivo, sans-serif; font-size: clamp(20px, 2.6vw, 32px); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); padding: 6px 0; }
+.waitlist-form input { flex: 1 1 240px; border: none; background: transparent; font-family: Archivo, sans-serif; font-size: clamp(20px, calc(var(--rc-vw) * 2.6), 32px); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); padding: 6px 0; }
 /* The email field had `outline: none` and no replacement, so a keyboard
    user got NO indication of where they were -- the underline belongs to
    .waitlist-form, not to the input, so nothing moved on focus. WCAG 2.4.7.
@@ -775,7 +856,7 @@ button.stchip:hover { background: #34343a; }
   flex-wrap: wrap;
 }
 .legal-nav a { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); text-decoration: underline; }
-.legal h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; margin: 0 0 10px; }
+.legal h1 { font-size: clamp(30px, calc(var(--rc-vw) * 5), 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; margin: 0 0 10px; }
 .legal h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 38px 0 10px; }
 .legal p, .legal li { font-size: 17px; line-height: 1.65; color: var(--ink-body); }
 .legal ul { list-style: disc; padding-left: 22px; margin: 10px 0 0; }
@@ -1014,18 +1095,30 @@ button.stchip:hover { background: #34343a; }
    a fixed hero at full opacity that never clears would cover the page.
    Under reduced motion the class is never set and the hero scrolls. */
 .rc-story-on.rc-hero-pin .hero {
-  position: fixed;
+  /* STICKY, not fixed. `fixed` positions against the VIEWPORT, and the
+     viewport is no longer the canvas -- body is, and body scrolls inside a
+     taller window. A fixed hero would hold still against the browser window
+     while the page moved underneath it inside the frame. Sticky pins it to
+     the top of the scroller, which is body, which is the canvas.
+     It stays stuck for the whole run rather than releasing, which is what
+     `fixed` did too: the zoom takes it to opacity 0 and pointer-events none
+     over the first frame, so what it does afterwards is not visible. */
+  position: sticky;
   top: 0;
-  /* Centred on the canvas, not stretched across the viewport -- a fixed
-     element is positioned against the viewport and would otherwise ignore
-     the frame entirely. margin-left rather than a translate: GSAP owns this
-     element's transform (it scales the hero through the zoom) and would
-     overwrite a translateX the first frame it ran. */
-  left: 50%;
-  margin-left: calc(var(--rc-frame-w) / -2);
-  width: var(--rc-frame-w);
+  width: 100%;
   min-height: 0;
-  height: var(--rc-frame-h);
+  /* 100% of the canvas, so this is right whether the canvas is the fixed
+     1.91:1 frame or a phone's full screen. */
+  height: 100%;
+  /* No negative margin pulling this back out of the flow. It took one, and a
+     percentage margin resolves against the container's WIDTH -- so -100%
+     here would have been -1080px, not -565px. The story gives up a frame
+     instead (see its height), which comes to the same total and needs no
+     unit that does not exist. */
+  /* Its content is laid out to a full screen and overflows 565px -- the foot
+     paragraph was bleeding out of the bottom of the canvas and over the
+     feature panel. The frame is a frame. */
+  overflow: hidden;
   z-index: 2;
   background: var(--paper);
 }
@@ -1048,7 +1141,33 @@ button.stchip:hover { background: #34343a; }
    in, after the sixth feature has had its full turn. */
 .rc-story-on .rc-story {
   position: relative;
-  height: calc((var(--rc-stages, 6) + 2) * var(--rc-frame-h));
+  /* +1, not +2. The hero is sticky and in the flow now, so it occupies the
+     first frame itself and this holds the rest.
+     An explicit length and NOT a percentage: this element's parent is the
+     .what section, which has no height of its own, so a percentage height
+     has nothing to resolve against and collapses to the content -- written
+     as 100% the whole story came out 571px instead of seven frames, and the
+     six stages piled up on top of each other. */
+  height: calc((var(--rc-stages, 6) + 1) * 100dvh);
+  /* Pulled up over the hero's frame. The hero is sticky and in the flow, so
+     without this you scroll a whole frame past it before the story's top
+     reaches the top of the canvas -- and because the hero is pinned and
+     opaque for that frame, nothing moves. One dead screen at the very start.
+     Overlapping them puts the zoom back on the first pixel of scroll, where
+     it was when the hero was position:fixed. */
+  margin-top: -100dvh;
+}
+
+/* THE STORY IN CANVAS FRAMES, above the width where the canvas is a fixed
+   frame. This has to sit AFTER the two rules it overrides, not up beside the
+   body rule where it belongs by subject: both selectors are two classes, so
+   specificity is a tie and source order is what decides. Placed above them it
+   was silently inert and the story stayed measured in viewport heights. */
+@media (min-width: 721px) {
+  .rc-story-on .rc-story {
+    height: calc((var(--rc-stages, 6) + 1) * var(--rc-frame-h));
+    margin-top: calc(var(--rc-frame-h) * -1);
+  }
 }
 
 /* The rail of marker elements that used to live here is gone. Stages were
@@ -1065,10 +1184,18 @@ button.stchip:hover { background: #34343a; }
 .rc-story-on .rc-story-view {
   position: sticky;
   top: 0;
-  height: var(--rc-frame-h);
+  /* One frame. Not 100%, which here would be 100% of .rc-story -- seven of
+     them. */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
 }
+/* And the panel, for the same reason and with the same trap: its base rule
+   below is two classes, so this has to come after it, not before. */
+@media (min-width: 721px) {
+  .rc-story-on .rc-story-view { height: var(--rc-frame-h); }
+}
+
 /* No align-items here: the columns have to stretch the full height or the
    hairline between them runs for the height of the title and stops. Each
    column centres its own contents instead. minmax-style min-height: 0 for
@@ -1143,14 +1270,14 @@ button.stchip:hover { background: #34343a; }
   transition: none;
 }
 .rc-story-on .feature-head { gap: 20px; }
-.rc-story-on .feature-title { font-size: clamp(34px, 4.6vw, 68px); }
+.rc-story-on .feature-title { font-size: clamp(34px, calc(var(--rc-vw) * 4.6), 68px); }
 /* The story shows one feature at a time against a whole panel, so the line
    can be a size the list has no room for. Narrower measure than the list's
    52ch, not wider: the type is bigger here, and the column is the same
    width. */
 .rc-story-on .feature-desc {
   max-width: 44ch;
-  font-size: clamp(15px, 1.2vw, 19px);
+  font-size: clamp(15px, calc(var(--rc-vw) * 1.2), 19px);
   line-height: 1.5;
   margin-top: 6px;
 }
@@ -1199,9 +1326,18 @@ button.stchip:hover { background: #34343a; }
   transform-origin: center top;
   margin-bottom: calc((var(--rc-phone-scale, 1) - 1) * 662px);
 }
-@media (max-height: 900px) { .rc-story-on .phone { --rc-phone-scale: 0.88; } }
-@media (max-height: 800px) { .rc-story-on .phone { --rc-phone-scale: 0.78; } }
-@media (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.58; } }
+/* SIZED FROM THE FRAME, AND SET BY app.js -- see sizePhone() there.
+   This was a ladder of @media (max-height: ...) rungs, and those read the
+   VIEWPORT, which stopped being the thing the handset lives in the moment
+   the canvas became a fixed 1.91:1 window: an 800px-tall browser was handed
+   the full-size 0.88 phone for a frame only 565px tall and the handset ran
+   out of the bottom of the canvas.
+   It cannot be done here. The scale wants (frame height - chrome) / 662,
+   and CSS calc cannot divide a length by a length to get the unitless number
+   scale() needs -- written that way it yields a LENGTH, scale() rejects it,
+   and the phone silently renders unscaled. Which it did.
+   The value below is only the starting point app.js overwrites. */
+.rc-story-on .phone { --rc-phone-scale: 0.62; }
 
 @media (max-width: 720px) {
   /* THE WATCH NEEDS A COLUMN, AND A COLUMN NEEDS HEIGHT.
@@ -1243,7 +1379,7 @@ button.stchip:hover { background: #34343a; }
   .rc-story-on .phone-stage { min-height: 0; }
   .rc-story-on .feature-list { align-content: start; padding-top: 10px; }
   .rc-story-on .feature { padding-top: 6px; padding-bottom: 6px; gap: 6px; }
-  .rc-story-on .feature-title { font-size: clamp(28px, 7.5vw, 44px); }
+  .rc-story-on .feature-title { font-size: clamp(28px, calc(var(--rc-vw) * 7.5), 44px); }
   /* The title rides above the handset in one column here, so every line the
      description takes comes straight out of the phone's height. Held to the
      list's size and given no measure cap -- the column is already narrow. */
@@ -1315,10 +1451,12 @@ button.stchip:hover { background: #34343a; }
    the one piece of copy on this panel that is not allowed to be covered.
    If a description here gets longer, re-measure these; the constraint is
    that the phone's bottom edge clears .hint-demo's top. */
-@media (max-width: 720px) and (max-height: 1100px) { .rc-story-on .phone { --rc-phone-scale: 0.76; } }
-@media (max-width: 720px) and (max-height: 900px) { .rc-story-on .phone { --rc-phone-scale: 0.70; } }
-@media (max-width: 720px) and (max-height: 800px) { .rc-story-on .phone { --rc-phone-scale: 0.66; } }
-@media (max-width: 720px) and (max-height: 700px) { .rc-story-on .phone { --rc-phone-scale: 0.52; } }
+/* The one-column starting point, likewise overwritten by app.js: the title
+   and description stack ABOVE the handset at this width rather than sitting
+   beside it, so the phone gets what is left after them. */
+@media (max-width: 720px) {
+  .rc-story-on .phone { --rc-phone-scale: 0.42; }
+}
 
 /* The waitlist fades back in on arrival and stays in. One-shot: app.js stops
    observing it once it has landed, so it never fades back out. */
@@ -1493,9 +1631,9 @@ button.stchip:hover { background: #34343a; }
   gap: 26px;
   padding: 24px;
 }
-.rc-loader-logo { width: min(260px, 54vw); height: auto; }
+.rc-loader-logo { width: min(260px, calc(var(--rc-vw) * 54)); height: auto; }
 
-.rc-ghost { width: min(190px, 42vw); height: auto; overflow: visible; }
+.rc-ghost { width: min(190px, calc(var(--rc-vw) * 42)); height: auto; overflow: visible; }
 .rc-ghost-body { fill: var(--ink); }
 .rc-ghost-face { fill: var(--paper); }
 .rc-ghost-brow { stroke: var(--paper); }
@@ -1625,7 +1763,7 @@ button.stchip:hover { background: #34343a; }
 }
 .rc-pricing .rc-plan-name { font-size: 21px; font-weight: 800; margin: 0; }
 .rc-pricing .rc-plan-price {
-  font-size: clamp(34px, 5vw, 46px);
+  font-size: clamp(34px, calc(var(--rc-vw) * 5), 46px);
   font-weight: 900;
   letter-spacing: -0.04em;
   line-height: 1.1;
