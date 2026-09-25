@@ -58,7 +58,7 @@ export function fakeStream(tracks) {
 // instrument it. A MutationObserver is a microtask; it is already too late.
 const VIDEO_STATE = new WeakMap();
 let videoProtoPatched = null;
-let videoDefaults = { width: 0, height: 0, autoLand: false };
+let videoDefaults = { width: 0, height: 0, autoLand: false, playNeverSettles: false };
 
 function videoState(video) {
   let state = VIDEO_STATE.get(video);
@@ -112,6 +112,9 @@ function patchVideoPrototype(defaults) {
       // listener by the time it arrives.
       setTimeout(() => land(this), 0);
     }
+    // WebKit, on a track that never delivers a frame: play() neither
+    // resolves nor rejects. Anything that awaits it waits forever.
+    if (state.playNeverSettles) return new Promise(() => {});
     // jsdom's own play() rejects with "Not implemented"; a real muted
     // playsinline element may also reject when autoplay is refused. Either
     // way the code under test must survive it, so keep the rejection.
@@ -139,6 +142,10 @@ function patchVideoPrototype(defaults) {
  * @param {boolean} [options.noMediaDevices] hide navigator.mediaDevices, so the
  *        RepCheckNative fallback route is taken
  * @param {Error} [options.getUserMediaError] make getUserMedia reject
+ * @param {boolean} [options.playNeverSettles] play() returns a promise that
+ *        never settles, as WebKit's does on a frameless track
+ * @param {string} [options.nativeFailure] make the RepCheckNative pickers
+ *        report this failure reason through their onFail callback
  */
 export function loadPhotoCamera(options = {}) {
   const {
@@ -146,12 +153,14 @@ export function loadPhotoCamera(options = {}) {
     autoLandMetadata = true,
     noMediaDevices = false,
     getUserMediaError = null,
+    playNeverSettles = false,
+    nativeFailure = null,
   } = options;
 
   document.body.innerHTML = '<div id="af-modal-body"></div>';
   const afModalBody = document.getElementById("af-modal-body");
 
-  const calls = { getUserMedia: [], nativeOpenCamera: 0, renderAfChoice: 0, useAfImage: [] };
+  const calls = { getUserMedia: [], nativeOpenCamera: 0, nativeOpenLibrary: 0, renderAfChoice: 0, useAfImage: [] };
   const streams = [];
 
   const mediaDevices = {
@@ -181,16 +190,25 @@ export function loadPhotoCamera(options = {}) {
     width: frameWidth,
     height: frameWidth ? Math.round((frameWidth * 9) / 16) : 0,
     autoLand: autoLandMetadata && !!frameWidth,
+    playNeverSettles,
   });
 
   const RepCheckNative = {
-    openCamera: () => { calls.nativeOpenCamera += 1; },
+    openCamera: (input, onFile, onFail) => {
+      calls.nativeOpenCamera += 1;
+      if (nativeFailure && onFail) onFail(nativeFailure);
+    },
+    openLibrary: (input, onFile, onFail) => {
+      calls.nativeOpenLibrary += 1;
+      if (nativeFailure && onFail) onFail(nativeFailure);
+    },
   };
 
   const factory = new Function(
     "afModalBody",
     "RepCheckNative",
     "afCameraInput",
+    "afUploadInput",
     "useAfImage",
     "renderAfChoice",
     "afPretextRelayout",
@@ -211,6 +229,7 @@ export function loadPhotoCamera(options = {}) {
     afModalBody,
     RepCheckNative,
     null,
+    null,
     (file) => calls.useAfImage.push(file),
     () => { calls.renderAfChoice += 1; afModalBody.innerHTML = '<div id="af-choice"></div>'; },
     () => {}
@@ -228,6 +247,11 @@ export function loadPhotoCamera(options = {}) {
     onCameraScreen: () => !!afModalBody.querySelector("#af-photo-shutter"),
     /** True when the screen on show is the "Camera unavailable" fallback. */
     onUnavailableScreen: () => !!afModalBody.querySelector("#af-photo-fallback-btn"),
+    /** The fallback screen's failure line, or null while it is hidden. */
+    fallbackError: () => {
+      const el = afModalBody.querySelector("#af-photo-fallback-error");
+      return el && !el.hidden ? el.textContent : null;
+    },
     restore: restoreVideoProto,
   };
 }

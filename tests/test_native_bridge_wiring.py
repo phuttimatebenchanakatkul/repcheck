@@ -61,7 +61,9 @@ def test_food_photo_buttons_go_through_the_bridge():
         "openAfPhotoCamera must still fall back to the native camera when "
         "getUserMedia is unavailable"
     )
-    assert nutrition.count("RepCheckNative.openLibrary(afUploadInput") == 1
+    # The quick-choice "Upload photo" row, and the camera-unavailable
+    # screen's "Upload photo" row (the way in when the camera is dead).
+    assert nutrition.count("RepCheckNative.openLibrary(afUploadInput") == 2
     # The old direct routes must be gone from those handlers.
     assert not re.search(
         r'af-take-photo-btn"\)\.addEventListener\("click", \(\) => afCameraInput\.click\(\)\)',

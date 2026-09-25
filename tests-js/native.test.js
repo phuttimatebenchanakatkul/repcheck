@@ -171,6 +171,43 @@ describe("RepCheckNative when things go wrong in the shell", () => {
     warn.mockRestore();
   });
 
+  it("a real camera failure reaches onFail, so the call site can say so", async () => {
+    // A picker that fails silently is a button that "does not respond" --
+    // App Review's words for the iPad food camera.
+    const getPhoto = vi.fn().mockRejectedValue(new Error("User denied access to camera"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { native } = loadNative({
+      capacitor: fakeCapacitor({ plugins: { Camera: { getPhoto } } }),
+    });
+    const onFail = vi.fn();
+
+    await native.openCamera(null, vi.fn(), onFail);
+
+    expect(onFail).toHaveBeenCalledWith("User denied access to camera");
+    warn.mockRestore();
+  });
+
+  it("a cancel never reaches onFail", async () => {
+    const getPhoto = vi.fn().mockRejectedValue(new Error("User cancelled photos app"));
+    const { native } = loadNative({
+      capacitor: fakeCapacitor({ plugins: { Camera: { getPhoto } } }),
+    });
+    const onFail = vi.fn();
+
+    await native.openLibrary(null, vi.fn(), onFail);
+
+    expect(onFail).not.toHaveBeenCalled();
+  });
+
+  it("a shell with no Camera plugin reports it through onFail", async () => {
+    const { native } = loadNative({ capacitor: fakeCapacitor({ plugins: {} }) });
+    const onFail = vi.fn();
+
+    await expect(native.openCamera(null, vi.fn(), onFail)).resolves.toBeNull();
+
+    expect(onFail).toHaveBeenCalledTimes(1);
+  });
+
   it("a shell with the plugin missing falls back instead of throwing", async () => {
     // package.json can list a plugin that was never synced into the Xcode
     // project. That must degrade, not crash the food logger.

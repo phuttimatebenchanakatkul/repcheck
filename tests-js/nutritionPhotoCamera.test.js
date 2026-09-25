@@ -88,6 +88,33 @@ describe("the in-app food-photo viewfinder", () => {
       expect(harness.onCameraScreen()).toBe(false);
     });
 
+    it("still gives up at the ceiling when play() never settles", async () => {
+      // WebKit, on a frameless track: play() neither resolves nor rejects.
+      // Awaiting it before starting the 4s timer (v0.12.4.0) meant the timer
+      // never started, and the viewfinder stayed up for good with a shutter
+      // that could not work -- reproduced in a real browser with a track that
+      // never delivers a frame.
+      vi.useFakeTimers();
+      harness = loadPhotoCamera({ frameWidth: 0, playNeverSettles: true });
+
+      const opening = harness.openAfPhotoCamera();
+      await vi.advanceTimersByTimeAsync(4000);
+      await opening;
+
+      expect(harness.onCameraScreen()).toBe(false);
+      expect(harness.onUnavailableScreen()).toBe(true);
+      expect(harness.streams[0].tracks.every((t) => t.stopped)).toBe(true);
+    });
+
+    it("does not wait on play() when the frame does arrive", async () => {
+      harness = loadPhotoCamera({ playNeverSettles: true });
+      await harness.openAfPhotoCamera();
+
+      expect(harness.onCameraScreen()).toBe(true);
+      harness.captureAfPhoto();
+      expect(harness.calls.useAfImage).toHaveLength(1);
+    });
+
     it("releases the camera on the way out, so the light goes off", async () => {
       vi.useFakeTimers();
       harness = loadPhotoCamera({ frameWidth: 0 });
@@ -117,6 +144,55 @@ describe("the in-app food-photo viewfinder", () => {
       expect(harness.calls.useAfImage).toHaveLength(0);
       expect(harness.onUnavailableScreen()).toBe(true);
       expect(harness.streams[0].tracks.every((t) => t.stopped)).toBe(true);
+    });
+
+    it("says so when the frame cannot be encoded, instead of returning quietly", async () => {
+      harness = loadPhotoCamera();
+      await harness.openAfPhotoCamera();
+      HTMLCanvasElement.prototype.toBlob = function (callback) { callback(null); };
+
+      harness.captureAfPhoto();
+
+      expect(harness.calls.useAfImage).toHaveLength(0);
+      expect(harness.onUnavailableScreen()).toBe(true);
+      expect(harness.streams[0].tracks.every((t) => t.stopped)).toBe(true);
+    });
+  });
+
+  describe("the camera-unavailable screen", () => {
+    async function openUnavailable(options) {
+      harness = loadPhotoCamera({ getUserMediaError: new Error("NotAllowedError"), ...options });
+      await harness.openAfPhotoCamera();
+      expect(harness.onUnavailableScreen()).toBe(true);
+    }
+
+    it("offers the library as well as the camera", async () => {
+      await openUnavailable();
+      harness.afModalBody.querySelector("#af-photo-fallback-upload-btn").click();
+
+      expect(harness.calls.nativeOpenLibrary).toBe(1);
+      expect(harness.fallbackError()).toBe(null);
+    });
+
+    it("says why when the native camera is refused, rather than doing nothing", async () => {
+      await openUnavailable({ nativeFailure: "User denied access to camera" });
+      harness.afModalBody.querySelector("#af-photo-fallback-btn").click();
+
+      expect(harness.calls.nativeOpenCamera).toBe(1);
+      expect(harness.fallbackError()).toMatch(/access to your camera/);
+      expect(harness.fallbackError()).toMatch(/Settings/);
+    });
+
+    it("reports any other native failure too", async () => {
+      await openUnavailable({ nativeFailure: "Camera plugin unavailable" });
+      harness.afModalBody.querySelector("#af-photo-fallback-upload-btn").click();
+
+      expect(harness.fallbackError()).toMatch(/Couldn't open your photos/);
+    });
+
+    it("shows no error line until something actually fails", async () => {
+      await openUnavailable();
+      expect(harness.fallbackError()).toBe(null);
     });
   });
 

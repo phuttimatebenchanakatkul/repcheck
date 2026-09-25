@@ -3111,52 +3111,94 @@
   }
 
   /**
-   * Bring a just-attached stream up to the point where it can be captured,
-   * and say whether it got there. Lifted from startLiveBarcodeScan below,
-   * which already learned all of this the hard way -- this path never did,
-   * and it is why "Take photo" could sit on a viewfinder whose shutter did
-   * nothing at all:
+   * Start a camera <video> and wait, at most `ms`, for it to know its frame
+   * size. Resolves true once videoWidth is set, false at the ceiling. Shared
+   * by the food-photo viewfinder and the live barcode scanner.
    *
    *  - play() explicitly, rather than trusting the autoplay attribute. A
    *    muted playsinline video is ALLOWED to autoplay, not guaranteed to;
    *    an element that never starts never produces a frame.
-   *  - Then wait for the frame size, because a stream can be live while the
-   *    element still reports 0x0 -- videoWidth only lands with the metadata
-   *    event. captureAfPhoto() bails on `!video.videoWidth`, so every tap
-   *    before that moment was silently swallowed: no photo, no error, no
-   *    sign the button did anything.
-   *
-   * The 4s ceiling is the barcode scanner's, for its reason: a stream that
-   * never produces a frame has to end somewhere other than a dead spin.
+   *  - But do NOT await it. On a track that never delivers a frame -- what
+   *    WebKit hands back when the capture session is interrupted -- the
+   *    play() promise never settles either way. Awaiting it parked the
+   *    caller before its own ceiling had even started, so the viewfinder sat
+   *    there indefinitely with a shutter that could never take a photo.
+   *  - A stream can be live while the element still reports 0x0: videoWidth
+   *    only lands with loadedmetadata (or resize), so wait for that.
+   */
+  function waitForCameraFrame(video, ms) {
+    const attempt = video.play();
+    if (attempt && typeof attempt.catch === "function") attempt.catch(() => { /* autoplay attr covers this */ });
+    if (video.videoWidth) return Promise.resolve(true);
+    return new Promise((done) => {
+      let timer = null;
+      const finish = () => {
+        clearTimeout(timer);
+        video.removeEventListener("loadedmetadata", onFrameInfo);
+        video.removeEventListener("resize", onFrameInfo);
+        done(!!video.videoWidth);
+      };
+      const onFrameInfo = () => { if (video.videoWidth) finish(); };
+      video.addEventListener("loadedmetadata", onFrameInfo);
+      video.addEventListener("resize", onFrameInfo);
+      timer = setTimeout(finish, ms);
+    });
+  }
+
+  /**
+   * Bring a just-attached stream up to the point where it can be captured,
+   * and say whether it got there. captureAfPhoto() cannot draw a frame the
+   * element does not have, so a viewfinder shown before this resolves true
+   * is a viewfinder whose shutter can only fail. The 4s ceiling is the
+   * barcode scanner's: a stream that never produces a frame has to end
+   * somewhere other than a dead spin.
    */
   async function startAfPhotoPreview(video) {
     video.srcObject = afPhotoStream;
-    try { await video.play(); } catch (err) { /* autoplay attr covers this */ }
-    if (!video.videoWidth) {
-      await new Promise((done) => {
-        let settled = false;
-        const finish = () => { if (!settled) { settled = true; done(); } };
-        video.addEventListener("loadedmetadata", finish, { once: true });
-        setTimeout(finish, 4000);
-      });
-    }
+    await waitForCameraFrame(video, 4000);
     // Cancelled while the camera was starting -- the screen is already gone.
     if (!afPhotoStream) return false;
     return !!video.videoWidth;
   }
 
+  // What to tell the user when the native camera/library genuinely failed.
+  // Every string here is our own copy; the plugin's message only picks one.
+  function afPickerFailureText(reason, what) {
+    if (/denied|permission|not authori[sz]ed/i.test(String(reason || ""))) {
+      return `RepCheck doesn't have access to your ${what}. Turn it on in Settings › RepCheck, or try the other option.`;
+    }
+    return `Couldn't open your ${what}. Try the other option.`;
+  }
+
+  // Reached when the in-app viewfinder cannot produce a photo (no camera,
+  // camera refused, or a feed that never delivered a frame). Both rows go
+  // through the native pickers inside the iOS shell, and a picker that fails
+  // says so here -- a row that silently does nothing is the dead button App
+  // Review rejected the iPad build for.
   function renderAfPhotoCameraUnavailable() {
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Camera unavailable — take a photo instead.</div>
+      <div class="af-error" id="af-photo-fallback-error" role="alert" hidden></div>
       <div class="af-action-list">
         <button type="button" class="af-action-row" id="af-photo-fallback-btn">
           <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span class="af-action-title" data-pretext>Take photo</span></span>
           <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
+        <button type="button" class="af-action-row" id="af-photo-fallback-upload-btn">
+          <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="af-action-title" data-pretext>Upload photo</span></span>
+          <span class="af-action-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
       </div>
     `;
+    const errorEl = document.getElementById("af-photo-fallback-error");
+    const showFailure = (text) => { errorEl.textContent = text; errorEl.hidden = false; };
     document.getElementById("af-photo-fallback-btn").addEventListener("click", () => {
-      RepCheckNative.openCamera(afCameraInput, useAfImage);
+      errorEl.hidden = true;
+      RepCheckNative.openCamera(afCameraInput, useAfImage, (reason) => showFailure(afPickerFailureText(reason, "camera")));
+    });
+    document.getElementById("af-photo-fallback-upload-btn").addEventListener("click", () => {
+      errorEl.hidden = true;
+      RepCheckNative.openLibrary(afUploadInput, useAfImage, (reason) => showFailure(afPickerFailureText(reason, "photos")));
     });
     afPretextRelayout();
   }
@@ -3242,8 +3284,11 @@
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
     canvas.toBlob((blob) => {
-      if (!blob) return;
       stopAfPhotoCamera();
+      // The frame could not be encoded. Returning quietly here would be one
+      // more shutter that does nothing; the fallback screen still gets a
+      // photo in through the native camera or the library.
+      if (!blob) { renderAfPhotoCameraUnavailable(); return; }
       useAfImage(new File([blob], "photo.jpg", { type: "image/jpeg" }));
     }, "image/jpeg", 0.92);
   }
@@ -3592,19 +3637,10 @@
     const nativeDetect = "BarcodeDetector" in window;
     const video = renderBarcodeScannerUI("Point the camera at a barcode");
     video.srcObject = barcodeLiveStream;
-    try { await video.play(); } catch (err) { /* autoplay attr covers this */ }
-    // A stream can be live while the video element still reports 0x0 -- the
-    // frame size only lands with the metadata event. Drawing before then
-    // silently yields nothing, so wait for it (with a ceiling, so a stream
-    // that never produces a frame ends up somewhere other than a dead spin).
-    if (!video.videoWidth) {
-      await new Promise((done) => {
-        let settled = false;
-        const finish = () => { if (!settled) { settled = true; done(); } };
-        video.addEventListener("loadedmetadata", finish, { once: true });
-        setTimeout(finish, 4000);
-      });
-    }
+    // Drawing before the frame size lands silently yields nothing, so wait
+    // for it -- with a ceiling that holds even when play() never settles.
+    // See waitForCameraFrame.
+    await waitForCameraFrame(video, 4000);
     if (!barcodeLiveStream) return; // cancelled while the camera was starting
     if (!video.videoWidth) {
       stopLiveBarcodeScan();
