@@ -60,7 +60,9 @@ def test_every_attached_stream_is_played(path):
         "was reshaped and this test has stopped looking at anything."
     )
     for lineno, target, window in attachments:
-        played = any(re.search(r"\.play\s*\(", following) for following in window[1:])
+        # nutrition.html starts its previews through waitForCameraFrame(),
+        # which calls play() itself (pinned by the test below).
+        played = any(re.search(r"\.play\s*\(|waitForCameraFrame\(", following) for following in window[1:])
         assert played, (
             f"{path}:{lineno} attaches a stream to `{target}` but nothing calls "
             f".play() within {WINDOW_LINES} lines. A muted playsinline video is "
@@ -86,4 +88,22 @@ def test_the_challenge_recorder_shows_its_preview_before_attaching():
         "the challenge recorder attaches the camera stream while #ch-preview-wrap is "
         "still display:none, then unhides it. Unhide first -- WebKit decides autoplay "
         "from what is rendered at attach time."
+    )
+
+
+def test_wait_for_camera_frame_plays_without_awaiting_play():
+    """nutrition.html's shared preview start must call play() -- and must NOT
+    await it. On a track that never delivers a frame, WebKit's play() promise
+    never settles, and awaiting it kept the 4s ceiling from ever starting: the
+    food-photo viewfinder sat there with a shutter that could not work.
+    """
+    source = (ROOT / "templates/nutrition.html").read_text(encoding="utf-8")
+    match = re.search(r"function waitForCameraFrame\(video, ms\) \{(.*?)\n  \}\n", source, re.S)
+    assert match, "waitForCameraFrame() is gone from templates/nutrition.html"
+    body = match.group(1)
+    assert re.search(r"video\.play\s*\(", body)
+    assert not re.search(r"await\s+video\.play", body)
+    assert "setTimeout(finish, ms)" in body
+    assert not re.search(r"await\s+video\.play", source), (
+        "a camera preview in nutrition.html awaits play() again"
     )

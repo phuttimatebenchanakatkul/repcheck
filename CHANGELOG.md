@@ -2,6 +2,41 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.7.0] - 2026-09-25
+
+### Fixed
+
+- **"Scan a meal" on iPad: a camera that never delivers a frame can no longer
+  leave a dead shutter on screen.** App Review rejected 0.10.2 (34) on an
+  iPad Air 11-inch (iPadOS 26.6.2): *Home -> + -> Scan a meal -> Take photo ->
+  Take photo, "the take a photo button does not respond"*. Reproduced by
+  following those exact steps on an emulated iPad Air with a camera track
+  that is live but never delivers a frame (what WebKit hands back when its
+  capture session is interrupted): on the code Apple reviewed, the shutter
+  receives the tap and nothing happens -- no photo, no message.
+  v0.12.4.0 fixed the silent return but kept `await video.play()` before its
+  4-second ceiling, and on a frameless track `play()` never settles, so the
+  ceiling never started and the dead viewfinder stayed up for good.
+  `waitForCameraFrame()` now calls `play()` without awaiting it and times the
+  frame wait from the start; the barcode scanner shares it (it had the same
+  hang). After 4s with no frame the sheet moves to "Camera unavailable".
+- **The camera-unavailable screen always gives you a way in.** It now offers
+  *Upload photo* next to *Take photo*, and when the native camera or library
+  genuinely fails inside the iOS app -- camera permission refused, no camera,
+  plugin missing -- it says so (with a pointer to Settings for a refused
+  permission) instead of silently doing nothing. `RepCheckNative.openCamera`
+  / `openLibrary` take an optional `onFail(reason)` for this; cancels and
+  browsers never call it.
+- A shutter tap whose frame could not be encoded (`canvas.toBlob` -> `null`)
+  now lands on the same fallback screen instead of returning quietly.
+
+### Added
+
+- Harness support for a `play()` that never settles, plus tests for the hang,
+  the `toBlob` failure, the fallback screen's error line and upload row, and
+  `onFail` in `native.test.js`. `tests/test_camera_previews_are_started.py`
+  pins that no nutrition camera preview awaits `play()` again.
+
 ## [0.12.6.0] - 2026-09-16
 
 ### Fixed

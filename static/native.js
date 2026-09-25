@@ -96,9 +96,22 @@
    * as a failure to report.
    */
   async function pickImage(options) {
+    return (await pickImageResult(options)).file;
+  }
+
+  /**
+   * pickImage, but saying WHY there is no file: `error` is null for the
+   * ordinary outcomes (a browser, a cancel) and a message for a genuine
+   * failure -- camera permission refused, no camera, a shell whose Camera
+   * plugin never got synced. A call site that shows nothing on a genuine
+   * failure leaves the user tapping a button that "does not respond", which
+   * is word for word how App Review described the food camera on iPad.
+   */
+  async function pickImageResult(options) {
     var settings = options || {};
+    if (!isNative()) return { file: null, error: null };
     var Camera = plugin("Camera");
-    if (!Camera || !isNative()) return null;
+    if (!Camera) return { file: null, error: "Camera plugin unavailable" };
 
     var photo;
     try {
@@ -114,19 +127,20 @@
         correctOrientation: true,
       });
     } catch (error) {
-      if (!isCancellation(error)) {
-        // Genuine failure (no camera, plugin misconfigured). The caller still
-        // gets null and carries on -- a broken camera must not break logging.
-        console.warn("RepCheckNative: camera failed", error);
-      }
-      return null;
+      if (isCancellation(error)) return { file: null, error: null };
+      // Genuine failure (no camera, permission refused, plugin misconfigured).
+      // Nothing throws -- a broken camera must not break logging -- but the
+      // reason goes back to the caller so it can say so.
+      console.warn("RepCheckNative: camera failed", error);
+      return { file: null, error: String((error && error.message) || error || "Camera failed") };
     }
 
     try {
-      return await photoToFile(photo);
+      var file = await photoToFile(photo);
+      return { file: file, error: file ? null : "The camera returned no photo" };
     } catch (error) {
       console.warn("RepCheckNative: could not read the captured photo", error);
-      return null;
+      return { file: null, error: "Could not read the captured photo" };
     }
   }
 
@@ -136,21 +150,25 @@
    * let its own change listener deliver the File. Same outcome either way,
    * so no call site needs to know which shell it is running in.
    */
-  function openCamera(fallbackInput, onFile) {
-    return openWith("camera", fallbackInput, onFile);
+  function openCamera(fallbackInput, onFile, onFail) {
+    return openWith("camera", fallbackInput, onFile, onFail);
   }
 
-  function openLibrary(fallbackInput, onFile) {
-    return openWith("library", fallbackInput, onFile);
+  function openLibrary(fallbackInput, onFile, onFail) {
+    return openWith("library", fallbackInput, onFile, onFail);
   }
 
-  function openWith(source, fallbackInput, onFile) {
+  // onFail (optional) gets the reason when the native picker genuinely
+  // failed -- never for a cancel, and never in a browser.
+  function openWith(source, fallbackInput, onFile, onFail) {
     if (!isNative()) {
       if (fallbackInput) fallbackInput.click();
       return Promise.resolve(null);
     }
-    return pickImage({ source: source }).then(function (file) {
+    return pickImageResult({ source: source }).then(function (result) {
+      var file = result.file;
       if (file && typeof onFile === "function") onFile(file);
+      if (!file && result.error && typeof onFail === "function") onFail(result.error);
       // A native cancel must NOT fall through to clicking the hidden input --
       // that would reopen a second, web-style picker over the one the user
       // just dismissed.
