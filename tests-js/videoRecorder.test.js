@@ -12,7 +12,7 @@
 //   3. Releasing the camera. A missed track.stop() leaves the camera light on
 //      over a page the user thinks is idle.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { loadVideoRecorder, fakeStream, fakeTrack } from "./support/loadVideoRecorder.js";
 
 const IOS_TYPES = ["video/mp4"];
@@ -242,6 +242,42 @@ describe("recording", () => {
     session.cancel();
 
     expect(await capture).toBeNull();
+  });
+});
+
+describe("a camera that never starts", () => {
+  it("rejects open() at the ceiling instead of hanging with it", async () => {
+    // iOS hangs, rather than rejects, a second concurrent camera request.
+    vi.useFakeTimers();
+    try {
+      const { recorder } = loadVideoRecorder({ getUserMedia: () => new Promise(() => {}) });
+      const opening = recorder.createSession().open();
+      const settled = expect(opening).rejects.toThrow("did not start in time");
+      await vi.advanceTimersByTimeAsync(recorder.OPEN_TIMEOUT_MS);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releases a camera that turns up after the ceiling", async () => {
+    vi.useFakeTimers();
+    try {
+      const track = fakeTrack();
+      let arrive;
+      const { recorder } = loadVideoRecorder({
+        getUserMedia: () => new Promise((resolve) => { arrive = () => resolve(fakeStream([track])); }),
+      });
+      const opening = recorder.createSession().open().catch(() => null);
+      await vi.advanceTimersByTimeAsync(recorder.OPEN_TIMEOUT_MS);
+      await opening;
+      arrive();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(track.stopped).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

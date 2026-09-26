@@ -157,6 +157,40 @@
    * MediaStream, and "who is allowed to turn the camera off" is the bug
    * class this shape exists to prevent.
    */
+  // How long the camera gets to start. iOS answers a second concurrent camera
+  // request by hanging rather than rejecting, and a hung open() left the
+  // analyze page on "Starting camera" for good. Generous on purpose: the
+  // first request also waits behind iOS's own "Allow camera" alert.
+  var OPEN_TIMEOUT_MS = 15000;
+
+  /**
+   * Settle with `request`, or reject after `ms`. A stream that arrives after
+   * the ceiling is stopped on arrival, so a late camera cannot keep its
+   * indicator light on behind the upload fallback.
+   */
+  function withinCeiling(request, ms) {
+    return new Promise(function (resolve, reject) {
+      var timedOut = false;
+      var timer = setTimeout(function () {
+        timedOut = true;
+        reject(new Error("the camera did not start in time"));
+      }, ms);
+      request.then(function (result) {
+        clearTimeout(timer);
+        if (timedOut) {
+          if (result && typeof result.getTracks === "function") {
+            result.getTracks().forEach(function (track) { track.stop(); });
+          }
+          return;
+        }
+        resolve(result);
+      }, function (error) {
+        clearTimeout(timer);
+        if (!timedOut) reject(error);
+      });
+    });
+  }
+
   function createSession() {
     var stream = null;
     var recorder = null;
@@ -177,10 +211,10 @@
      */
     async function open(facingMode) {
       facing = facingMode || facing;
-      stream = await window.navigator.mediaDevices.getUserMedia({
+      stream = await withinCeiling(window.navigator.mediaDevices.getUserMedia({
         video: videoConstraints(facing),
         audio: AUDIO,
-      });
+      }), OPEN_TIMEOUT_MS);
       await normalizeZoom(stream);
       return stream;
     }
@@ -307,5 +341,6 @@
     videoConstraints: videoConstraints,
     recorderOptions: recorderOptions,
     createSession: createSession,
+    OPEN_TIMEOUT_MS: OPEN_TIMEOUT_MS,
   };
 })(window, document);

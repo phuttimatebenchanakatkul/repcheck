@@ -132,3 +132,19 @@ def test_the_other_cameras_wait_for_a_frame_without_awaiting_play(path, helper):
     assert "setTimeout(finish, ms)" in body
     assert not re.search(r"await\s+[\w.]*\.play\s*\(", source), f"{path} awaits play() again"
     assert source.count(helper + "(") >= 2, f"{helper}() is defined in {path} but never used"
+
+
+@pytest.mark.parametrize("loop", ["runWasmBarcodeLoop", "runNativeBarcodeLoop", "runServerBarcodeLoop"])
+def test_every_barcode_loop_ends_on_a_frozen_feed(loop):
+    """A feed that stops delivering frames mid-scan still has a frame size, so
+    nothing else notices: the loop decoded (or uploaded) the same frozen frame
+    forever behind a live-looking viewfinder. Reproduced in a browser with a
+    feed that stops after 2s. Every loop has to watch the feed and bail.
+    """
+    source = (ROOT / "templates/nutrition.html").read_text(encoding="utf-8")
+    start = source.find(f"function {loop}(video")
+    assert start != -1, f"{loop}() is gone from templates/nutrition.html"
+    end = source.find("\n  function ", start + 1)
+    body = source[start:end]
+    assert "watchBarcodeFeed(video, barcodeLiveStream)" in body
+    assert re.search(r"if \(feedStalled\(\)\) \{ endStalledBarcodeScan\(\); return; \}", body)
