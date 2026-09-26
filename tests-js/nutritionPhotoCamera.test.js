@@ -159,6 +159,73 @@ describe("the in-app food-photo viewfinder", () => {
     });
   });
 
+  describe("a camera that is slow, or never starts", () => {
+    // iOS answers a second concurrent camera request by hanging, not by
+    // rejecting (templates/nutrition.html's page-will-swap listener). Before
+    // the ceiling, "Take photo" then looked like a tap that did nothing.
+    it("shows that the camera is starting the moment the row is tapped", async () => {
+      harness = loadPhotoCamera({ getUserMediaDeferred: true });
+      harness.openAfPhotoCamera();
+      await Promise.resolve();
+
+      expect(harness.onStartingScreen()).toBe(true);
+    });
+
+    it("gives up after the ceiling and says the camera is unavailable", async () => {
+      vi.useFakeTimers();
+      harness = loadPhotoCamera({ getUserMediaDeferred: true });
+
+      const opening = harness.openAfPhotoCamera();
+      await vi.advanceTimersByTimeAsync(15000);
+      await opening;
+
+      expect(harness.onUnavailableScreen()).toBe(true);
+    });
+
+    it("does NOT give up while the camera is merely slow (the iOS permission alert)", async () => {
+      vi.useFakeTimers();
+      harness = loadPhotoCamera({ getUserMediaDeferred: true });
+
+      const opening = harness.openAfPhotoCamera();
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(harness.onStartingScreen()).toBe(true);
+      harness.resolveCamera();
+      await vi.advanceTimersByTimeAsync(0);
+      await opening;
+
+      expect(harness.onCameraScreen()).toBe(true);
+    });
+
+    it("releases a camera that turns up after the ceiling", async () => {
+      vi.useFakeTimers();
+      harness = loadPhotoCamera({ getUserMediaDeferred: true });
+
+      const opening = harness.openAfPhotoCamera();
+      await vi.advanceTimersByTimeAsync(15000);
+      await opening;
+      harness.resolveCamera();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(harness.streams[0].tracks.every((t) => t.stopped)).toBe(true);
+      expect(harness.onUnavailableScreen()).toBe(true);
+    });
+
+    it("Cancel while starting goes back, and the late camera is released", async () => {
+      harness = loadPhotoCamera({ getUserMediaDeferred: true });
+      const opening = harness.openAfPhotoCamera();
+      await Promise.resolve();
+
+      harness.tapStartingCancel();
+      expect(harness.calls.renderAfChoice).toBe(1);
+      harness.resolveCamera();
+      await opening;
+
+      expect(harness.streams[0].tracks.every((t) => t.stopped)).toBe(true);
+      expect(harness.onCameraScreen()).toBe(false);
+      expect(harness.currentStream()).toBe(null);
+    });
+  });
+
   describe("the camera-unavailable screen", () => {
     async function openUnavailable(options) {
       harness = loadPhotoCamera({ getUserMediaError: new Error("NotAllowedError"), ...options });

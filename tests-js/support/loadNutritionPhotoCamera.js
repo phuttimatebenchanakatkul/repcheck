@@ -146,6 +146,8 @@ function patchVideoPrototype(defaults) {
  *        never settles, as WebKit's does on a frameless track
  * @param {string} [options.nativeFailure] make the RepCheckNative pickers
  *        report this failure reason through their onFail callback
+ * @param {boolean} [options.getUserMediaDeferred] getUserMedia stays pending
+ *        until the test settles it through `pendingCameras` -- the iOS hang
  */
 export function loadPhotoCamera(options = {}) {
   const {
@@ -155,7 +157,9 @@ export function loadPhotoCamera(options = {}) {
     getUserMediaError = null,
     playNeverSettles = false,
     nativeFailure = null,
+    getUserMediaDeferred = false,
   } = options;
+  const pendingCameras = [];
 
   document.body.innerHTML = '<div id="af-modal-body"></div>';
   const afModalBody = document.getElementById("af-modal-body");
@@ -169,6 +173,9 @@ export function loadPhotoCamera(options = {}) {
       if (getUserMediaError) return Promise.reject(getUserMediaError);
       const stream = fakeStream();
       streams.push(stream);
+      if (getUserMediaDeferred) {
+        return new Promise((resolve) => pendingCameras.push(() => resolve(stream)));
+      }
       return Promise.resolve(stream);
     },
   };
@@ -240,6 +247,8 @@ export function loadPhotoCamera(options = {}) {
     afModalBody,
     calls,
     streams,
+    /** Settle the oldest still-pending getUserMedia (getUserMediaDeferred). */
+    resolveCamera: () => pendingCameras.shift()(),
     canvasUse,
     video: () => afModalBody.querySelector("#af-photo-video"),
     playCallsFor: (video) => videoState(video).playCalls,
@@ -247,6 +256,9 @@ export function loadPhotoCamera(options = {}) {
     onCameraScreen: () => !!afModalBody.querySelector("#af-photo-shutter"),
     /** True when the screen on show is the "Camera unavailable" fallback. */
     onUnavailableScreen: () => !!afModalBody.querySelector("#af-photo-fallback-btn"),
+    /** True while the "Starting camera..." screen is up. */
+    onStartingScreen: () => !!afModalBody.querySelector("#af-photo-starting"),
+    tapStartingCancel: () => afModalBody.querySelector("#af-photo-starting-cancel").click(),
     /** The fallback screen's failure line, or null while it is hidden. */
     fallbackError: () => {
       const el = afModalBody.querySelector("#af-photo-fallback-error");

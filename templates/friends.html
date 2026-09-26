@@ -184,12 +184,30 @@
     }
 
     document.getElementById("fr-copy-btn").addEventListener("click", async () => {
-      const code = document.getElementById("fr-my-code").textContent;
+      const btn = document.getElementById("fr-copy-btn");
+      const codeEl = document.getElementById("fr-my-code");
+      const code = codeEl.textContent;
+      let copied = false;
       try {
-        await navigator.clipboard.writeText(code);
-        document.getElementById("fr-copy-btn").textContent = t("friends.copied");
-        setTimeout(() => { document.getElementById("fr-copy-btn").textContent = t("friends.copyCode"); }, 1500);
-      } catch (err) { /* clipboard permission denied — the code is already visible to copy by hand */ }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+          copied = true;
+        }
+      } catch (err) { /* refused -- try the selection route below */ }
+      // The async clipboard can be missing or refused (older WebKit, a lost
+      // user activation). Select the code instead: execCommand("copy") still
+      // works there, and even when it does not, the selection leaves the code
+      // one tap from the system Copy menu. Before, the button did nothing.
+      const selection = window.getSelection();
+      if (!copied && selection) {
+        const range = document.createRange();
+        range.selectNodeContents(codeEl);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        try { copied = document.execCommand("copy"); } catch (err) { copied = false; }
+      }
+      btn.textContent = t(copied ? "friends.copied" : "friends.copyManual");
+      setTimeout(() => { btn.textContent = t("friends.copyCode"); }, copied ? 1500 : 4000);
     });
 
     function renderFriendList() {

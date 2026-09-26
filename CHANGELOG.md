@@ -2,6 +2,56 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.9.0] - 2026-09-26
+
+### Fixed
+
+The last three silent failures from the iPad audit. Each was reproduced on an
+emulated iPad and verified fixed.
+
+- **A camera that never starts no longer leaves a tap that did nothing.**
+  iOS answers a second concurrent camera request by hanging rather than
+  rejecting, and nothing in the app put a limit on getUserMedia. Every camera
+  now does two things:
+  - It shows "Starting camera..." the moment it's tapped (with Cancel on the
+    food photo and barcode sheets).
+  - It gives up after 15 seconds and moves to its fallback: "Camera
+    unavailable" with Take photo / Upload photo, the upload route on Analyze,
+    or "Your camera isn't sending a picture" on Challenges.
+
+  The 15-second limit is generous on purpose: the first request also waits
+  behind iOS's own "Allow camera" alert. A camera that turns up late, or after
+  Cancel, is stopped as soon as it arrives, so its indicator light can't stay
+  on behind the fallback. This covers the food photo, the flip, the barcode
+  scanner, Analyze a lift and the challenge recorder. The challenge Start
+  button is also disabled while the camera starts, so a double-tap can't ask
+  for two streams.
+- **The barcode scanner stops when its feed freezes.** A frozen frame still
+  has a size, so none of the three scan loops noticed: they decoded (or
+  uploaded) the same frame forever behind a live-looking viewfinder. Each
+  loop now watches the feed and moves to "Camera unavailable" once it goes
+  4s without a new frame, or the track ends or stays muted.
+  `requestVideoFrameCallback` is trusted only after it has fired on the
+  element, so a WebKit that never calls it for camera streams can't make
+  every scan look stalled.
+- **"Copy code" on Friends always does something.** With the async clipboard
+  missing or refused, it now selects the code and falls back to
+  `execCommand("copy")`. If that also fails, it says "Code selected — tap it
+  to copy". Before, the button stayed silent.
+- **The Analyze camera hint stops snapping back.** The hint element kept its
+  markup `data-i18n` key, so the i18n pass overwrote "Starting camera..." or a
+  warning with the idle recording hint. `setHint` now updates the key along
+  with the text.
+
+### Added
+
+- Tests: a pending getUserMedia shows the starting screen, gives up only at
+  the 15s limit (not at 10s), releases a late stream, and lets Cancel win the
+  race. The recorder's `open()` is covered the same way.
+- `tests/test_camera_previews_are_started.py` requires every barcode loop to
+  end on a frozen feed.
+- All new guards are mutation-checked.
+
 ## [0.12.8.0] - 2026-09-26
 
 ### Fixed

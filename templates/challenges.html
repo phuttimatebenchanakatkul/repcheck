@@ -815,6 +815,7 @@
       // would still fire off a submission (and very likely the same ffmpeg
       // failure the cooldown above exists to avoid) after the modal is
       // already gone from view.
+      recordModalGeneration += 1;
       if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
       document.getElementById("ch-countdown").style.display = "none";
       if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -877,14 +878,31 @@
     // warning start it used to have.
     document.getElementById("ch-record-start-btn").addEventListener("click", async () => {
       const statusEl = document.getElementById("ch-record-status");
-      statusEl.textContent = "";
+      const startBtn = document.getElementById("ch-record-start-btn");
+      if (startBtn.disabled) return; // already starting
+      startBtn.disabled = true;
+      statusEl.textContent = t("challenges.startingCamera");
+      statusEl.style.color = "var(--text-secondary)";
+      const modalGeneration = recordModalGeneration;
+      let stream;
       try {
-        recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        stream = await getCameraWithin({ video: true, audio: false }, CAMERA_START_MS);
       } catch (err) {
-        statusEl.textContent = t("challenges.cameraAccessDenied");
+        startBtn.disabled = false;
+        if (modalGeneration !== recordModalGeneration) return; // closed while starting
+        // A refusal is a NotAllowedError; anything else (no camera, or one
+        // that never started) is not the user's permission to fix.
+        statusEl.textContent = t(err && err.name === "NotAllowedError" ? "challenges.cameraAccessDenied" : "challenges.cameraNoPicture");
         statusEl.style.color = "var(--red)";
         return;
       }
+      startBtn.disabled = false;
+      if (modalGeneration !== recordModalGeneration) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      statusEl.textContent = "";
+      recordingStream = stream;
       await normalizeCameraZoom(recordingStream);
       // Unhide BEFORE attaching the stream, then play() explicitly. This was
       // the last camera in the app still trusting the autoplay attribute on
@@ -904,7 +922,6 @@
       // element itself, without awaiting play() -- see its comment.
       video.srcObject = recordingStream;
       document.getElementById("ch-record-start-btn").style.display = "none";
-      const stream = recordingStream;
       const gotFrame = await waitForPreviewFrame(video, 4000);
       if (recordingStream !== stream) return; // closed while starting
       if (!gotFrame) {
@@ -915,6 +932,34 @@
       }
       runCountdown(10, beginRecording);
     });
+
+    // Bumped by closeRecordModal(); a camera that starts after the modal was
+    // closed sees the change and releases itself.
+    let recordModalGeneration = 0;
+    // How long the camera gets to start. iOS answers a second concurrent
+    // camera request by hanging rather than rejecting; generous because the
+    // first request also waits behind iOS's own "Allow camera" alert.
+    const CAMERA_START_MS = 15000;
+
+    // getUserMedia with a ceiling. A stream that arrives after it is stopped
+    // on arrival, so a late camera cannot keep its indicator light on.
+    function getCameraWithin(constraints, ms) {
+      return new Promise((resolve, reject) => {
+        let timedOut = false;
+        const timer = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("the camera did not start in time"));
+        }, ms);
+        navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+          clearTimeout(timer);
+          if (timedOut) { stream.getTracks().forEach((track) => track.stop()); return; }
+          resolve(stream);
+        }, (err) => {
+          clearTimeout(timer);
+          if (!timedOut) reject(err);
+        });
+      });
+    }
 
     // Start a preview <video> and wait, at most `ms`, for it to know its
     // frame size; resolves true once it does. play() is fired, NOT awaited:

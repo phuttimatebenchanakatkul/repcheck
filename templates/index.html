@@ -1880,6 +1880,11 @@
   }
 
   function setHint(key, isWarning) {
+    // Keep data-i18n in step with the text: the i18n pass re-applies that
+    // attribute (on load, on a language change), and with the markup's
+    // original key still on it, "Starting camera..." or a warning was
+    // overwritten with the idle recording hint moments after being shown.
+    camHint.setAttribute("data-i18n", key);
     camHint.textContent = RepCheckI18n.t(key);
     camHint.classList.toggle("is-warning", Boolean(isWarning));
   }
@@ -1935,6 +1940,7 @@
     if (camFallback.style.display === "block") return Promise.resolve(null);
     const session = RepCheckRecorder.createSession();
     const generation = camGeneration;
+    setHint("analyze.startingCamera", false);
     camOpening = session.open("environment").then(
       async (stream) => {
         // Closed while getUserMedia was in flight: release this stream and
@@ -2123,7 +2129,11 @@
   }
 
   shutter.addEventListener("click", () => {
-    if (!camSession) return;
+    if (!camSession) {
+      // Still starting: say so rather than swallowing the tap.
+      if (camOpening) setHint("analyze.startingCamera", false);
+      return;
+    }
     if (camSession.isRecording()) stopRecording();
     else startRecording();
   });

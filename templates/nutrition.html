@@ -3093,9 +3093,64 @@
   // one less thing that can silently fail to hand a photo back. Falls back
   // to the old RepCheckNative.openCamera route (native camera / hidden
   // <input capture>) wherever getUserMedia itself isn't available.
+  // Bumped every time the photo camera is stopped or cancelled, so a
+  // getUserMedia that settles afterwards can tell it lost the race and let
+  // go of its stream instead of lighting up a screen that has moved on.
+  let afCameraAttempt = 0;
+
+  // How long a camera gets to start. iOS answers a second concurrent camera
+  // request by hanging rather than rejecting (see the page-will-swap listener
+  // below), and a hung getUserMedia left "Take photo" looking like a tap that
+  // did nothing. Generous on purpose: the very first request also sits
+  // behind iOS's own "Allow camera" alert, which the user has to read.
+  const CAMERA_START_MS = 15000;
+
+  /**
+   * getUserMedia with a ceiling. Rejects after `ms` if the camera has not
+   * started; a stream that turns up after that is stopped on arrival, so a
+   * late camera never keeps its indicator light on behind the fallback.
+   */
+  function getCameraWithin(constraints, ms) {
+    return new Promise((resolve, reject) => {
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        reject(new Error("the camera did not start in time"));
+      }, ms);
+      navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+        clearTimeout(timer);
+        if (timedOut) { stream.getTracks().forEach((track) => track.stop()); return; }
+        resolve(stream);
+      }, (err) => {
+        clearTimeout(timer);
+        if (!timedOut) reject(err);
+      });
+    });
+  }
+
   function stopAfPhotoCamera() {
+    afCameraAttempt += 1;
     if (afPhotoStream) afPhotoStream.getTracks().forEach((track) => track.stop());
     afPhotoStream = null;
+  }
+
+  // Shown the instant "Take photo" is tapped, while the camera starts --
+  // so the tap visibly did something even when the camera is slow, and
+  // Cancel works the whole time.
+  function renderAfPhotoCameraStarting() {
+    afModalBody.innerHTML = `
+      <div class="af-loading" id="af-photo-starting">
+        <div class="af-loading-spinner"></div>
+        Starting camera...
+      </div>
+      <div class="af-actions">
+        <button type="button" class="af-secondary-btn" id="af-photo-starting-cancel" style="flex:1;">Cancel</button>
+      </div>
+    `;
+    document.getElementById("af-photo-starting-cancel").addEventListener("click", () => {
+      stopAfPhotoCamera();
+      renderAfChoice();
+    });
   }
 
   async function openAfPhotoCamera() {
@@ -3104,17 +3159,28 @@
       return;
     }
     afPhotoFacing = "environment";
+    stopAfPhotoCamera();
+    const attempt = afCameraAttempt;
+    renderAfPhotoCameraStarting();
+    let stream;
     try {
-      afPhotoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: afPhotoFacing } } });
+      stream = await getCameraWithin({ video: { facingMode: { ideal: afPhotoFacing } } }, CAMERA_START_MS);
     } catch (err) {
-      // Denied, or no camera. By this point the click's user-activation is
-      // gone (see renderBarcodeCameraUnavailable above for the same call),
-      // so a fresh tap is required rather than falling straight into
-      // RepCheckNative.openCamera -- a silent no-op there would look like
-      // this button is broken too.
+      if (attempt !== afCameraAttempt) return; // cancelled while starting
+      // Denied, no camera, or it never started. By this point the click's
+      // user-activation is gone (see renderBarcodeCameraUnavailable above
+      // for the same call), so a fresh tap is required rather than falling
+      // straight into RepCheckNative.openCamera -- a silent no-op there
+      // would look like this button is broken too.
       renderAfPhotoCameraUnavailable();
       return;
     }
+    if (attempt !== afCameraAttempt) {
+      // Cancelled, or the sheet closed, while the camera was starting.
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    afPhotoStream = stream;
     await renderAfPhotoCameraScreen();
   }
 
@@ -3254,19 +3320,25 @@
     // Release the current lens FIRST -- iOS refuses a second camera stream
     // while the first is still live (same ordering as video_recorder.js).
     stopAfPhotoCamera();
+    const attempt = afCameraAttempt;
+    let stream;
     try {
-      afPhotoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: next } } });
+      stream = await getCameraWithin({ video: { facingMode: { ideal: next } } }, CAMERA_START_MS);
       afPhotoFacing = next;
     } catch (err) {
       // Couldn't get the other lens -- go back to the one that was working
       // rather than leaving the screen with a dead preview.
       try {
-        afPhotoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: afPhotoFacing } } });
+        if (attempt !== afCameraAttempt) return;
+        stream = await getCameraWithin({ video: { facingMode: { ideal: afPhotoFacing } } }, CAMERA_START_MS);
       } catch (err2) {
+        if (attempt !== afCameraAttempt) return;
         renderAfPhotoCameraUnavailable();
         return;
       }
     }
+    if (attempt !== afCameraAttempt) { stream.getTracks().forEach((track) => track.stop()); return; }
+    afPhotoStream = stream;
     const video = document.getElementById("af-photo-video");
     if (!video) return;
     if (await startAfPhotoPreview(video)) return;
@@ -3437,6 +3509,13 @@
   let barcodeLiveStream = null;
   let barcodeLiveRafId = null;
   let barcodeLoopTimer = null;
+  // Bumped by stopLiveBarcodeScan(); a camera that starts after the scan was
+  // cancelled sees the change and releases itself. Same as afCameraAttempt.
+  let barcodeAttempt = 0;
+  // A feed that has delivered no new frame for this long has frozen (iPadOS
+  // interrupted the camera, another app took it). Decoding the last frame
+  // over and over would scan forever behind a live-looking viewfinder.
+  const BARCODE_STALL_MS = 4000;
 
   // Widest frame we upload per live tick. Big enough that the bars survive
   // JPEG, small enough (~60-120KB) to keep the round-trip under a camera
@@ -3632,18 +3711,28 @@
       else openBarcodePhotoInput();
       return;
     }
+    // Put the scanner (and its Cancel) up before asking for the camera, so
+    // the tap visibly lands even while the camera is slow to start.
+    stopLiveBarcodeScan();
+    const attempt = barcodeAttempt;
+    const video = renderBarcodeScannerUI("Starting camera...");
+    let stream;
     try {
-      barcodeLiveStream = await navigator.mediaDevices.getUserMedia({
+      stream = await getCameraWithin({
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
-      });
+      }, CAMERA_START_MS);
     } catch (err) {
+      if (attempt !== barcodeAttempt) return; // cancelled while starting
       if (barcodeScanHandlers) { cancelBarcodeScan(); return; }
       renderBarcodeCameraUnavailable();
       return;
     }
+    if (attempt !== barcodeAttempt) { stream.getTracks().forEach((track) => track.stop()); return; }
+    barcodeLiveStream = stream;
+    const hintEl = document.getElementById("af-scanner-hint");
+    if (hintEl) hintEl.textContent = "Point the camera at a barcode";
 
     const nativeDetect = "BarcodeDetector" in window;
-    const video = renderBarcodeScannerUI("Point the camera at a barcode");
     video.srcObject = barcodeLiveStream;
     // Drawing before the frame size lands silently yields nothing, so wait
     // for it -- with a ceiling that holds even when play() never settles.
@@ -3801,11 +3890,13 @@
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const hintEl = document.getElementById("af-scanner-hint");
+    const feedStalled = watchBarcodeFeed(video, barcodeLiveStream);
     let attempts = 0;
     let busy = false;
 
     const tick = async () => {
       if (!barcodeLiveStream) return;
+      if (feedStalled()) { endStalledBarcodeScan(); return; }
       if (!busy && video.videoWidth) {
         busy = true;
         try {
@@ -3851,8 +3942,10 @@
   // network. Timer-driven for the same reason as the WASM loop above.
   function runNativeBarcodeLoop(video) {
     const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+    const feedStalled = watchBarcodeFeed(video, barcodeLiveStream);
     const tick = async () => {
       if (!barcodeLiveStream) return;
+      if (feedStalled()) { endStalledBarcodeScan(); return; }
       try {
         const codes = await detector.detect(video);
         if (codes.length && deliverScannedBarcode(codes[0].rawValue)) return;
@@ -3877,6 +3970,7 @@
     const hintEl = document.getElementById("af-scanner-hint");
     let attempts = 0;
     let blankFrames = 0;
+    const feedStalled = watchBarcodeFeed(video, barcodeLiveStream);
 
     const grabFrame = () => new Promise((resolve) => {
       if (!video.videoWidth || !video.videoHeight) { resolve(null); return; }
@@ -3889,6 +3983,9 @@
 
     const tick = async () => {
       if (!barcodeLiveStream) return;
+      // A frozen frame still has a size, so blankFrames below never trips
+      // on it -- the same frame would be uploaded forever.
+      if (feedStalled()) { endStalledBarcodeScan(); return; }
       let handled = false;
       try {
         const blob = await grabFrame();
@@ -3954,7 +4051,49 @@
     tick();
   }
 
+  // Stop the scan because the feed froze, and say so.
+  function endStalledBarcodeScan() {
+    stopLiveBarcodeScan();
+    if (barcodeScanHandlers) cancelBarcodeScan();
+    else renderBarcodeCameraUnavailable();
+  }
+
+  /**
+   * Returns a function answering "has this feed stopped delivering frames?".
+   *
+   * requestVideoFrameCallback fires once per NEW frame, so it is the direct
+   * signal -- but it is only trusted once it has actually fired on this
+   * element. A WebKit build that never calls it for camera streams would
+   * otherwise read as permanently stalled and kill every scan. Without that
+   * proof, it falls back to the track itself: ended, or muted for longer than
+   * the stall window (WebKit mutes a track whose capture is interrupted).
+   */
+  function watchBarcodeFeed(video, stream) {
+    const track = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+    let lastFrameAt = 0;
+    let mutedSince = 0;
+    if (typeof video.requestVideoFrameCallback === "function") {
+      const onFrame = () => {
+        lastFrameAt = performance.now();
+        if (barcodeLiveStream === stream) video.requestVideoFrameCallback(onFrame);
+      };
+      video.requestVideoFrameCallback(onFrame);
+    }
+    return () => {
+      const now = performance.now();
+      if (track && track.readyState === "ended") return true;
+      if (track && track.muted) {
+        if (!mutedSince) mutedSince = now;
+        if (now - mutedSince > BARCODE_STALL_MS) return true;
+      } else {
+        mutedSince = 0;
+      }
+      return lastFrameAt > 0 && now - lastFrameAt > BARCODE_STALL_MS;
+    };
+  }
+
   function stopLiveBarcodeScan() {
+    barcodeAttempt += 1;
     if (barcodeLiveRafId) cancelAnimationFrame(barcodeLiveRafId);
     barcodeLiveRafId = null;
     if (barcodeLoopTimer) clearTimeout(barcodeLoopTimer);
