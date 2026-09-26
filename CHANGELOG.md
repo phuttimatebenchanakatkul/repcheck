@@ -2,6 +2,53 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.8.0] - 2026-09-26
+
+### Fixed
+
+The same failure App Review hit on the food camera (a camera that hands back
+a live stream but never delivers a picture) existed in every other camera in
+the app. Each case below was reproduced on an emulated iPad before being
+fixed, except where noted.
+
+- **Analyze a lift no longer records an empty clip behind a black preview.**
+  The shutter was armed as soon as getUserMedia resolved. On a frameless
+  stream it recorded, stopped, and put a zero-byte clip on the review screen
+  (the browser could not even load it), and tapping Analyze would have sent
+  that empty clip to the server. The viewfinder now waits up to 4s for a
+  real frame before arming the shutter, and falls back to "Upload a video"
+  otherwise. A take that still comes back empty says so and reopens the
+  camera.
+- **A failed lens flip no longer locks the Analyze shutter.** If neither lens
+  reopened, `start()` returned a rejected promise that slipped past its
+  try/catch. The shutter jumped to "Recording" with the timer stuck at 0:00,
+  every later tap threw "camera is not open" and leaked another timer, and
+  the button stayed dead until reload. `start()` now throws, and a flip that
+  leaves no picture ends the camera and offers the upload route.
+- **The challenge recorder won't count down over a dead camera.** It now
+  waits for a frame first and says "Your camera isn't sending a picture"
+  instead of recording nothing. A MediaRecorder that throws, or a take with
+  no data, now reports the failure; before, the modal was left with neither
+  a Start nor a Stop button.
+- **"Record an attempt" says when it fails.** A login redirect, server error
+  or dropped connection used to throw inside the click handler and do
+  nothing. It now shows "Couldn't process that video." (Found by reading the
+  code, not reproduced.)
+- **Native picker failures are reported in two more places.** The check-in
+  photo slots and the quick-choice "Upload photo" row now say so when the iOS
+  camera or photo library fails (permission refused, plugin missing), using
+  v0.12.7.0's `onFail`. (Found by reading the code, not reproduced.)
+
+### Added
+
+- `videoRecorder.test.js`: `start()` throws without a camera, an empty take
+  rejects, and an empty take that was cancelled still resolves null. The fake
+  MediaRecorder now flushes a chunk on stop the way a real one does, and has
+  an `emptyRecording` mode.
+- `tests/test_camera_previews_are_started.py` now also requires the analyze
+  and challenge cameras to wait for a frame through their helper, and fails
+  if any camera file awaits `play()` again (mutation-checked).
+
 ## [0.12.7.0] - 2026-09-25
 
 ### Fixed

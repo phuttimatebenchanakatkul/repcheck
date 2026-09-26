@@ -835,6 +835,7 @@
       if (this.checkin[urlKey]) URL.revokeObjectURL(this.checkin[urlKey]);
       this.checkin[fileKey] = file;
       this.checkin[urlKey] = file ? URL.createObjectURL(file) : null;
+      this.checkin.photoError = null;
       this.render();
     }
 
@@ -2471,6 +2472,7 @@
                 ${this.renderCheckinPhotoSlot("front")}
                 ${this.renderCheckinPhotoSlot("back")}
               </div>
+              ${c.photoError ? `<div class="pc-checkin-error">${c.photoError}</div>` : ""}
             </div>
 
             ${c.error ? `<div class="pc-checkin-error">${c.error}</div>` : ""}
@@ -2500,8 +2502,14 @@
         slot.addEventListener("click", (e) => {
           if (!window.RepCheckNative || !window.RepCheckNative.isNative()) return;
           e.preventDefault();
+          this.checkin.photoError = null;
           window.RepCheckNative.openCamera(null, (file) => {
             this.setCheckinPhoto(input.dataset.photoInput, file);
+          }, () => {
+            // Permission refused, no camera, or the plugin missing: without
+            // this the slot tap did nothing at all.
+            this.checkin.photoError = t("coaching.checkin.photoCameraFailed");
+            this.render();
           });
         });
       });

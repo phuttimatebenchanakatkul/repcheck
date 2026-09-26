@@ -1860,6 +1860,10 @@
   // Set while getUserMedia is in flight, so a second open (a retake racing
   // the visibility handler) cannot leave two live streams behind.
   let camOpening = null;
+  // Bumped by closeCamera(). An open still waiting for its first frame when
+  // the camera is closed (a tab swap, the page hidden) sees the change and
+  // releases its stream instead of arming a camera nobody is looking at.
+  let camGeneration = 0;
 
   function formatFileSize(bytes) {
     const mb = bytes / (1024 * 1024);
@@ -1926,18 +1930,40 @@
     }
     if (camSession) return Promise.resolve(camPreview.srcObject);
     if (camOpening) return camOpening;
+    // The fallback is not reversible within a page load (see
+    // showCameraFallback), so never reopen a camera hidden behind it.
+    if (camFallback.style.display === "block") return Promise.resolve(null);
     const session = RepCheckRecorder.createSession();
+    const generation = camGeneration;
     camOpening = session.open("environment").then(
-      (stream) => {
-        camOpening = null;
-        camSession = session;
+      async (stream) => {
+        // Closed while getUserMedia was in flight: release this stream and
+        // leave camOpening alone -- closeCamera() already cleared it, and a
+        // newer open may own it by now.
+        if (generation !== camGeneration) { session.cancel(); return null; }
+        // The shutter is armed only once a frame has actually arrived. A
+        // camera can hand back a stream that is live but never delivers a
+        // picture (what WebKit gives when iPadOS interrupts the capture
+        // session); arming on that recorded an empty clip behind a black
+        // preview -- the same class of dead control App Review rejected the
+        // food camera for.
         camPreview.srcObject = stream;
-        camPreview.play().catch(() => {});
+        const gotFrame = await waitForPreviewFrame(camPreview, 4000);
+        if (generation !== camGeneration) { session.cancel(); return null; }
+        camOpening = null;
+        if (!gotFrame) {
+          session.cancel();
+          camPreview.srcObject = null;
+          showCameraFallback("analyze.cameraDenied");
+          return null;
+        }
+        camSession = session;
         camWrap.classList.toggle("is-front", session.facingMode() === "user");
         setHint("analyze.recordHint", false);
         return stream;
       },
       () => {
+        if (generation !== camGeneration) return null;
         camOpening = null;
         // Denied, or no camera at all. Both leave uploading as a working way
         // to get a set analyzed, so this offers that rather than dead-ending.
@@ -1948,8 +1974,34 @@
     return camOpening;
   }
 
+  // Start a preview <video> and wait, at most `ms`, for it to know its frame
+  // size; resolves true once it does. play() is fired, NOT awaited: on a
+  // track that never delivers a frame WebKit's play() never settles, and an
+  // awaited one would stall the ceiling along with it. Same helper as
+  // templates/nutrition.html's waitForCameraFrame.
+  function waitForPreviewFrame(video, ms) {
+    const attempt = video.play();
+    if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
+    if (video.videoWidth) return Promise.resolve(true);
+    return new Promise((done) => {
+      let timer = null;
+      const finish = () => {
+        clearTimeout(timer);
+        video.removeEventListener("loadedmetadata", onFrameInfo);
+        video.removeEventListener("resize", onFrameInfo);
+        done(!!video.videoWidth);
+      };
+      const onFrameInfo = () => { if (video.videoWidth) finish(); };
+      video.addEventListener("loadedmetadata", onFrameInfo);
+      video.addEventListener("resize", onFrameInfo);
+      timer = setTimeout(finish, ms);
+    });
+  }
+
   // Turn the viewfinder off and drop any half-finished recording.
   function closeCamera() {
+    camGeneration += 1;
+    camOpening = null;
     clearCamTimers();
     if (camSession) camSession.cancel();
     camSession = null;
@@ -2006,6 +2058,16 @@
       camPreview.srcObject = null;
       resetShutter();
       if (file) showReview(file);
+    }, () => {
+      // The take came back empty (the camera delivered no frames). Say so
+      // and bring the viewfinder back, rather than reviewing an empty clip.
+      if (camSession !== session) return;
+      clearCamTimers();
+      camSession = null;
+      camPreview.srcObject = null;
+      resetShutter();
+      setHint("analyze.recordFailed", true);
+      openCamera();
     });
   }
 
@@ -2069,14 +2131,22 @@
   flipBtn.addEventListener("click", async () => {
     if (!camSession || camSession.isRecording()) return;
     flipBtn.disabled = true;
+    const session = camSession;
+    let ok = false;
     try {
-      camPreview.srcObject = await camSession.flip();
-      camPreview.play().catch(() => {});
-      camWrap.classList.toggle("is-front", camSession.facingMode() === "user");
+      camPreview.srcObject = await session.flip();
+      ok = await waitForPreviewFrame(camPreview, 4000);
+      if (ok) camWrap.classList.toggle("is-front", session.facingMode() === "user");
     } catch (error) {
-      setHint("analyze.cameraDenied", true);
+      ok = false;
     }
     flipBtn.disabled = false;
+    if (ok || camSession !== session) return;
+    // Neither lens came back (or the one that did shows no picture). The
+    // session has no stream left, so a shutter still wired to it could only
+    // ever pretend to record. End it and offer the upload route instead.
+    closeCamera();
+    showCameraFallback("analyze.cameraDenied");
   });
 
   retakeBtn.addEventListener("click", backToCapture);

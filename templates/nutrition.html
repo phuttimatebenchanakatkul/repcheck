@@ -2982,6 +2982,7 @@
     const recentScans = getRecentScans(3);
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Snap or upload a photo of your meal.</div>
+      <div class="af-error" id="af-quick-error" role="alert" hidden></div>
       <div class="af-action-list">
         <button type="button" class="af-action-row" id="af-take-photo-btn">
           <span class="af-action-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span class="af-action-title" data-pretext>Take photo</span></span>
@@ -2997,7 +2998,14 @@
     // "Take photo" opens the in-app live viewfinder; see openAfPhotoCamera.
     document.getElementById("af-take-photo-btn").addEventListener("click", openAfPhotoCamera);
     document.getElementById("af-upload-photo-btn").addEventListener("click", () => {
-      RepCheckNative.openLibrary(afUploadInput, useAfImage);
+      const errorEl = document.getElementById("af-quick-error");
+      errorEl.hidden = true;
+      // A native library failure (photo access refused) must say so; this
+      // is the same sheet App Review used, and a silent row reads as broken.
+      RepCheckNative.openLibrary(afUploadInput, useAfImage, (reason) => {
+        errorEl.textContent = afPickerFailureText(reason, "photos");
+        errorEl.hidden = false;
+      });
     });
     wireAfRecentSection(recentScans);
     afPretextRelayout();

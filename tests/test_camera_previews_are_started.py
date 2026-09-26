@@ -60,9 +60,10 @@ def test_every_attached_stream_is_played(path):
         "was reshaped and this test has stopped looking at anything."
     )
     for lineno, target, window in attachments:
-        # nutrition.html starts its previews through waitForCameraFrame(),
-        # which calls play() itself (pinned by the test below).
-        played = any(re.search(r"\.play\s*\(|waitForCameraFrame\(", following) for following in window[1:])
+        # Previews started through waitForCameraFrame() (nutrition.html) or
+        # waitForPreviewFrame() (index.html, challenges.html) are played by
+        # the helper itself -- pinned by the tests below.
+        played = any(re.search(r"\.play\s*\(|waitFor(?:Camera|Preview)Frame\(", following) for following in window[1:])
         assert played, (
             f"{path}:{lineno} attaches a stream to `{target}` but nothing calls "
             f".play() within {WINDOW_LINES} lines. A muted playsinline video is "
@@ -107,3 +108,27 @@ def test_wait_for_camera_frame_plays_without_awaiting_play():
     assert not re.search(r"await\s+video\.play", source), (
         "a camera preview in nutrition.html awaits play() again"
     )
+
+
+@pytest.mark.parametrize(
+    "path,helper",
+    [
+        (Path("templates/index.html"), "waitForPreviewFrame"),
+        (Path("templates/challenges.html"), "waitForPreviewFrame"),
+    ],
+    ids=lambda v: getattr(v, "name", v),
+)
+def test_the_other_cameras_wait_for_a_frame_without_awaiting_play(path, helper):
+    """The analyze and challenge cameras armed their shutters on a stream that
+    might never deliver a frame, recording empty clips behind a black preview.
+    Each now waits for a frame first, with a ceiling that does not depend on
+    play() settling -- and nothing in the file awaits play() any more.
+    """
+    source = (ROOT / path).read_text(encoding="utf-8")
+    match = re.search(r"function " + helper + r"\(video, ms\) \{(.*?)\n\s*\}\n", source, re.S)
+    assert match, f"{helper}() is gone from {path}"
+    body = match.group(1)
+    assert re.search(r"video\.play\s*\(", body)
+    assert "setTimeout(finish, ms)" in body
+    assert not re.search(r"await\s+[\w.]*\.play\s*\(", source), f"{path} awaits play() again"
+    assert source.count(helper + "(") >= 2, f"{helper}() is defined in {path} but never used"

@@ -232,12 +232,17 @@
      * choke on.
      */
     function start() {
-      if (!stream) return Promise.reject(new Error("camera is not open"));
+      // Thrown, not returned as a rejected promise: callers guard start() with
+      // try/catch, and a rejection slipped past it -- the shutter went into
+      // "recording" with the timer stuck at 0:00 and never came back (after
+      // a flip that could not reopen either lens left no stream).
+      if (!stream) throw new Error("camera is not open");
       chunks = [];
       cancelled = false;
       mime = pickMime();
       recorder = new window.MediaRecorder(stream, recorderOptions(mime));
-      var done = new Promise(function (resolve) { settle = resolve; });
+      var fail = null;
+      var done = new Promise(function (resolve, reject) { settle = resolve; fail = reject; });
       recorder.ondataavailable = function (event) {
         if (event.data && event.data.size) chunks.push(event.data);
       };
@@ -246,6 +251,10 @@
         settle = null;
         if (!resolve) return;
         if (cancelled) return resolve(null);
+        // A camera that never delivered a frame records nothing at all.
+        // Handing that on as a File sends an empty clip to the review pane
+        // and then to the server; reject so the caller can say so.
+        if (!chunks.length) return fail(new Error("the recording is empty"));
         // MediaRecorder reports the container it actually used, which can
         // differ from what was asked for; trust it over our request so the
         // File's type and its extension can't disagree.
