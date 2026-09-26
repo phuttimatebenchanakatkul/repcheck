@@ -215,10 +215,33 @@ describe("recording", () => {
     await capture;
   });
 
-  it("refuses to start without an open camera rather than throwing on null", async () => {
+  it("refuses to start without an open camera by THROWING, not rejecting", () => {
+    // The analyze page guards start() with try/catch. A returned rejection
+    // slipped past it after a flip that reopened neither lens: the shutter
+    // went into "recording" at 0:00 for good, reproduced in a browser.
     const { recorder } = loadVideoRecorder();
 
-    await expect(recorder.createSession().start()).rejects.toThrow("camera is not open");
+    expect(() => recorder.createSession().start()).toThrow("camera is not open");
+  });
+
+  it("rejects a take that recorded nothing, instead of handing on an empty clip", async () => {
+    // A camera that never delivered a frame. Resolving a File here sent a
+    // zero-byte clip to the review pane and then to the server.
+    const { session } = await recordingSession({ emptyRecording: true });
+
+    const capture = session.start();
+    session.stop();
+
+    await expect(capture).rejects.toThrow("the recording is empty");
+  });
+
+  it("an empty take that was cancelled still resolves null, not an error", async () => {
+    const { session } = await recordingSession({ emptyRecording: true });
+
+    const capture = session.start();
+    session.cancel();
+
+    expect(await capture).toBeNull();
   });
 });
 

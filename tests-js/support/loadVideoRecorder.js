@@ -61,12 +61,17 @@ export function fakeStream(tracks) {
  * @param {Function|null} options.performanceNow  stands in for
  *   performance.now(). Omit for a window with no performance object at all,
  *   which is the wall-clock fallback path.
+ * @param {boolean} options.emptyRecording  the recorder delivers no data at
+ *   all on stop -- a camera track that never produced a frame. Otherwise a
+ *   stop with nothing emitted delivers one small chunk, as a real recorder
+ *   flushes whatever it captured before firing onstop.
  */
 export function loadVideoRecorder({
   supportedTypes = ["video/webm;codecs=vp9", "video/webm"],
   getUserMedia,
   hasMediaRecorder = true,
   performanceNow,
+  emptyRecording = false,
 } = {}) {
   const requests = [];
   const recorders = [];
@@ -82,13 +87,15 @@ export function loadVideoRecorder({
       this.onstop = null;
       recorders.push(this);
     }
-    start() { this.state = "recording"; }
+    start() { this.state = "recording"; this.emitted = 0; }
     stop() {
       this.state = "inactive";
+      if (!emptyRecording && !this.emitted) this.emit(new Blob([new Uint8Array([0])]));
       if (this.onstop) this.onstop();
     }
     /** Test hook: feed the recorder a chunk the way a real one would. */
     emit(data) {
+      this.emitted = (this.emitted || 0) + 1;
       if (this.ondataavailable) this.ondataavailable({ data });
     }
     static isTypeSupported(type) { return supportedTypes.includes(type); }

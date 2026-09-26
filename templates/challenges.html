@@ -787,8 +787,17 @@
       // anything, it just gives this attempt somewhere to submit to.
       // The exercise itself isn't sent — the server decides it from
       // today's rotation, same as refreshTodaysChallenge() above.
-      const res = await fetch("/api/challenges", { method: "POST" });
-      const data = await res.json();
+      // A 302 to /login, a 5xx HTML page or a dropped connection all throw
+      // here. Uncaught, that rejection vanished inside the click handler and
+      // "Record attempt" simply did nothing.
+      let data;
+      try {
+        const res = await fetch("/api/challenges", { method: "POST" });
+        data = await res.json();
+      } catch (err) {
+        alert(t("challenges.couldntProcess"));
+        return;
+      }
       if (!data.ok) {
         if (data.limitReached) await refreshTodaysChallenge();
         else alert(data.error || t("challenges.couldntProcess"));
@@ -889,11 +898,46 @@
       // a black preview for the whole countdown, not a failed recording.
       const video = document.getElementById("ch-record-preview");
       document.getElementById("ch-preview-wrap").style.display = "block";
+      // Don't count down over a camera that is sending nothing: a live track
+      // with no frames (what WebKit gives when iPadOS interrupts the capture
+      // session) would record an empty clip. waitForPreviewFrame plays the
+      // element itself, without awaiting play() -- see its comment.
       video.srcObject = recordingStream;
-      video.play().catch(() => {}); // autoplay+muted should already play; be explicit
       document.getElementById("ch-record-start-btn").style.display = "none";
+      const stream = recordingStream;
+      const gotFrame = await waitForPreviewFrame(video, 4000);
+      if (recordingStream !== stream) return; // closed while starting
+      if (!gotFrame) {
+        stopRecordingStream();
+        statusEl.textContent = t("challenges.cameraNoPicture");
+        statusEl.style.color = "var(--red)";
+        return;
+      }
       runCountdown(10, beginRecording);
     });
+
+    // Start a preview <video> and wait, at most `ms`, for it to know its
+    // frame size; resolves true once it does. play() is fired, NOT awaited:
+    // on a track that never delivers a frame WebKit's play() never settles.
+    // Same helper as templates/nutrition.html's waitForCameraFrame.
+    function waitForPreviewFrame(video, ms) {
+      const attempt = video.play();
+      if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
+      if (video.videoWidth) return Promise.resolve(true);
+      return new Promise((done) => {
+        let timer = null;
+        const finish = () => {
+          clearTimeout(timer);
+          video.removeEventListener("loadedmetadata", onFrameInfo);
+          video.removeEventListener("resize", onFrameInfo);
+          done(!!video.videoWidth);
+        };
+        const onFrameInfo = () => { if (video.videoWidth) finish(); };
+        video.addEventListener("loadedmetadata", onFrameInfo);
+        video.addEventListener("resize", onFrameInfo);
+        timer = setTimeout(finish, ms);
+      });
+    }
 
     // Some phones (notably iPhones with multiple rear lenses) hand back the
     // 0.5x ultra-wide camera by default, which frames the lifter far too wide
@@ -940,15 +984,36 @@
       recordedChunks = [];
       recordCancelled = false;
       const mime = pickRecorderMime();
-      mediaRecorder = new MediaRecorder(recordingStream, mime ? { mimeType: mime } : {});
+      const statusEl = document.getElementById("ch-record-status");
+      const recordFailed = () => {
+        stopRecordingStream();
+        statusEl.textContent = t("challenges.recordFailed");
+        statusEl.style.color = "var(--red)";
+      };
+      try {
+        mediaRecorder = new MediaRecorder(recordingStream, mime ? { mimeType: mime } : {});
+      } catch (err) {
+        // Thrown from inside the countdown's setInterval, this used to leave
+        // Start hidden and no Stop button: a modal with nothing to press.
+        recordFailed();
+        return;
+      }
       mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
       mediaRecorder.onstop = () => {
         if (recordCancelled) return; // discarded via closeRecordModal(), not a real attempt
+        // No frames ever arrived: uploading this would only come back as
+        // "couldn't process". Say what actually happened instead.
+        if (!recordedChunks.length) { recordFailed(); return; }
         const type = (mediaRecorder && mediaRecorder.mimeType) || mime || "video/webm";
         const blob = new Blob(recordedChunks, { type });
         submitAttempt(blob, "attempt." + (type.indexOf("mp4") !== -1 ? "mp4" : "webm"));
       };
-      mediaRecorder.start();
+      try {
+        mediaRecorder.start();
+      } catch (err) {
+        recordFailed();
+        return;
+      }
       const stopBtn = document.getElementById("ch-record-stop-btn");
       stopBtn.style.display = "inline-block";
       // Briefly disabled: stopping within the first couple of seconds tends
