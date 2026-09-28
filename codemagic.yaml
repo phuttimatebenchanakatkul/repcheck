@@ -160,6 +160,44 @@ workflows:
             || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'RepCheck uses the camera to record your lifts for form analysis, to photograph your meals for calorie estimates, to scan barcodes, and to take your weekly progress photos.'" "$PLIST"
           /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'RepCheck lets you pick an existing photo of a meal, or an existing video of a lift, instead of capturing a new one.'" "$PLIST" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'RepCheck lets you pick an existing photo of a meal, or an existing video of a lift, instead of capturing a new one.'" "$PLIST"
+          # The Camera plugin refuses EVERY call -- camera and library alike,
+          # before showing any UI -- unless all of its keys are present, and
+          # this one was missing from every build up to and including 34
+          # (verified in build 34's App.ipa). That is why "Take photo" did
+          # nothing on App Review's iPad (2.1(a), reviewed 2026-09-15): the
+          # plugin rejected with "You are missing
+          # NSPhotoLibraryAddUsageDescription". RepCheck never saves to the
+          # library (saveToGallery: false), so iOS never actually shows this
+          # prompt; the key only has to exist.
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryAddUsageDescription 'RepCheck never adds photos to your library unless you choose to save one.'" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'RepCheck never adds photos to your library unless you choose to save one.'" "$PLIST"
+
+      - name: Verify every usage string the plugins require
+        script: |
+          # Read the required keys out of the Camera plugin's own source
+          # rather than hardcoding them, so a plugin upgrade that adds a key
+          # fails HERE instead of shipping a camera that silently refuses to
+          # open. Fails the build on any key missing from the final plist.
+          python3 - <<'PYEOF'
+          import glob, plistlib, re, sys
+          sources = glob.glob("node_modules/@capacitor/camera/ios/Sources/**/CameraTypes.swift", recursive=True)
+          if not sources:
+              sys.exit("Could not find the Camera plugin's CameraTypes.swift -- its layout changed; fix this check rather than skipping it.")
+          text = open(sources[0]).read()
+          block = re.search(r"enum CameraPropertyListKeys[^{]*\{(.*?)\n\}", text, re.S)
+          if not block:
+              sys.exit("CameraPropertyListKeys not found in " + sources[0] + " -- update this check.")
+          required = re.findall(r'"(NS\w+UsageDescription)"', block.group(1))
+          if not required:
+              sys.exit("Parsed no usage-description keys from CameraPropertyListKeys -- update this check.")
+          with open("ios/App/App/Info.plist", "rb") as f:
+              plist = plistlib.load(f)
+          missing = [k for k in required if not str(plist.get(k, "")).strip()]
+          for k in required:
+              print(("MISSING " if k in missing else "ok      ") + k)
+          if missing:
+              sys.exit("Info.plist is missing " + ", ".join(missing) + " -- the Camera plugin would reject every call.")
+          PYEOF
 
       - name: Install the App Store icon
         script: |

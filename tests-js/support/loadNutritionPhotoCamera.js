@@ -146,6 +146,8 @@ function patchVideoPrototype(defaults) {
  *        never settles, as WebKit's does on a frameless track
  * @param {string} [options.nativeFailure] make the RepCheckNative pickers
  *        report this failure reason through their onFail callback
+ * @param {boolean} [options.native] run as the iOS app shell (RepCheckNative.isNative())
+ * @param {boolean} [options.nativeFile] the native camera hands back a photo
  * @param {boolean} [options.getUserMediaDeferred] getUserMedia stays pending
  *        until the test settles it through `pendingCameras` -- the iOS hang
  */
@@ -158,6 +160,8 @@ export function loadPhotoCamera(options = {}) {
     playNeverSettles = false,
     nativeFailure = null,
     getUserMediaDeferred = false,
+    native = false,
+    nativeFile = false,
   } = options;
   const pendingCameras = [];
 
@@ -201,9 +205,12 @@ export function loadPhotoCamera(options = {}) {
   });
 
   const RepCheckNative = {
+    isNative: () => native,
     openCamera: (input, onFile, onFail) => {
       calls.nativeOpenCamera += 1;
       if (nativeFailure && onFail) onFail(nativeFailure);
+      else if (nativeFile && onFile) onFile(new File(["native"], "photo.jpg", { type: "image/jpeg" }));
+      return Promise.resolve(null);
     },
     openLibrary: (input, onFile, onFail) => {
       calls.nativeOpenLibrary += 1;

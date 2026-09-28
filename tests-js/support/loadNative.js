@@ -40,6 +40,7 @@ export function loadNative({ capacitor = null, fetch: fetchStub, assign } = {}) 
     // The real File is fine here -- jsdom provides it, and the point of the
     // conversion is that downstream code receives a genuine File.
     File: globalThis.File,
+    atob: globalThis.atob,
     // Navigation is a side effect the sign-in path is judged on, so it is
     // always stubbed rather than left to jsdom, which refuses to navigate.
     location: {

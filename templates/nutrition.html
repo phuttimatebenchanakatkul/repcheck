@@ -3153,9 +3153,42 @@
     });
   }
 
-  async function openAfPhotoCamera() {
+  // "Take photo". Inside the iOS app, Apple's own camera comes first; the
+  // in-app viewfinder is the browser route, and the app's fallback.
+  //
+  // Why native first: on App Review's iPad (0.10.2 build 34, 2026-09-15)
+  // WKWebView REFUSED the viewfinder's getUserMedia -- their screenshot shows
+  // "Camera unavailable", which that build only rendered from the
+  // getUserMedia catch -- and the reason is not recoverable. The native
+  // camera does not go through WebKit at all. It failed there too, but for a
+  // proven reason: build 34's Info.plist lacked NSPhotoLibraryAddUsageDescription,
+  // so the Camera plugin rejected every call (fixed in codemagic.yaml, which
+  // now fails the build on any missing key).
+  //
+  // An app build whose plugin cannot open (build 34 and earlier, a plugin
+  // that is missing) still works: any failure other than a refused
+  // permission falls through to the in-app viewfinder, so deploying this
+  // ahead of the new binary makes nothing worse.
+  function openAfPhotoCamera() {
+    if (RepCheckNative.isNative && RepCheckNative.isNative()) {
+      return RepCheckNative.openCamera(null, useAfImage, (reason) => {
+        if (AF_PERMISSION_REFUSED.test(String(reason || ""))) {
+          // The in-app viewfinder needs the same camera permission, so it
+          // cannot help. Say what to change, and keep Upload photo in reach.
+          renderAfPhotoCameraUnavailable(afPickerFailureText(reason, "camera"));
+          return;
+        }
+        openAfPhotoViewfinder();
+      });
+    }
+    return openAfPhotoViewfinder();
+  }
+
+  async function openAfPhotoViewfinder() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      RepCheckNative.openCamera(afCameraInput, useAfImage);
+      RepCheckNative.openCamera(afCameraInput, useAfImage, (reason) => {
+        renderAfPhotoCameraUnavailable(afPickerFailureText(reason, "camera"));
+      });
       return;
     }
     afPhotoFacing = "environment";
@@ -3237,8 +3270,12 @@
 
   // What to tell the user when the native camera/library genuinely failed.
   // Every string here is our own copy; the plugin's message only picks one.
+  // How the Camera plugin words a refused permission ("User denied access
+  // to camera", "... to photos").
+  const AF_PERMISSION_REFUSED = /denied|permission|not authori[sz]ed/i;
+
   function afPickerFailureText(reason, what) {
-    if (/denied|permission|not authori[sz]ed/i.test(String(reason || ""))) {
+    if (AF_PERMISSION_REFUSED.test(String(reason || ""))) {
       return `RepCheck doesn't have access to your ${what}. Turn it on in Settings › RepCheck, or try the other option.`;
     }
     return `Couldn't open your ${what}. Try the other option.`;
@@ -3249,7 +3286,9 @@
   // through the native pickers inside the iOS shell, and a picker that fails
   // says so here -- a row that silently does nothing is the dead button App
   // Review rejected the iPad build for.
-  function renderAfPhotoCameraUnavailable() {
+  // `message` (optional) opens the screen with its failure line already
+  // showing -- e.g. why the native camera refused.
+  function renderAfPhotoCameraUnavailable(message) {
     afModalBody.innerHTML = `
       <div class="af-choice-intro">Camera unavailable — take a photo instead.</div>
       <div class="af-error" id="af-photo-fallback-error" role="alert" hidden></div>
@@ -3266,6 +3305,7 @@
     `;
     const errorEl = document.getElementById("af-photo-fallback-error");
     const showFailure = (text) => { errorEl.textContent = text; errorEl.hidden = false; };
+    if (message) showFailure(message);
     document.getElementById("af-photo-fallback-btn").addEventListener("click", () => {
       errorEl.hidden = true;
       RepCheckNative.openCamera(afCameraInput, useAfImage, (reason) => showFailure(afPickerFailureText(reason, "camera")));
