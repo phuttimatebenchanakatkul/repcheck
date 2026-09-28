@@ -137,6 +137,39 @@ describe("RepCheckNative inside the shell", () => {
   });
 });
 
+describe("RepCheckNative reading the photo back", () => {
+  it("asks for base64, so the photo never has to be fetched from capacitor://", async () => {
+    // A webPath fetch is refused by the page's own CSP (connect-src has no
+    // capacitor: source), which lost every native photo.
+    const getPhoto = vi.fn().mockResolvedValue({ base64String: btoa("ÿØÿ"), format: "jpeg" });
+    const { native } = loadNative({ capacitor: fakeCapacitor({ plugins: { Camera: { getPhoto } } }) });
+
+    const file = await native.pickImage({ source: "camera" });
+
+    expect(getPhoto.mock.calls[0][0].resultType).toBe("base64");
+    expect(file.name).toBe("photo.jpg");
+    expect(file.type).toBe("image/jpeg");
+    expect(file.size).toBe(3);
+  });
+
+  it("decodes the bytes exactly", async () => {
+    const getPhoto = vi.fn().mockResolvedValue({ base64String: btoa("þ"), format: "png" });
+    const { native } = loadNative({ capacitor: fakeCapacitor({ plugins: { Camera: { getPhoto } } }) });
+
+    const file = await native.pickImage({ source: "library" });
+    // jsdom's File has no arrayBuffer(); FileReader reads the same bytes.
+    const buffer = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsArrayBuffer(file);
+    });
+    const bytes = new Uint8Array(buffer);
+
+    expect(Array.from(bytes)).toEqual([1, 2, 254]);
+    expect(file.name).toBe("photo.png");
+  });
+});
+
 describe("RepCheckNative when things go wrong in the shell", () => {
   it("a cancelled camera yields no file and does NOT reopen a web picker", async () => {
     // Falling through to input.click() after a native cancel would stack a

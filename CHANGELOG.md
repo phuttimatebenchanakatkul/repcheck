@@ -2,6 +2,54 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.10.0] - 2026-09-28
+
+### Fixed
+
+App Review's own screenshot of the 2.1(a) rejection (0.10.2 build 34, iPad
+Air 11-inch, 2026-09-15) shows the "Camera unavailable — take a photo
+instead" screen. That build rendered it only from the getUserMedia `catch`,
+so WKWebView refused the in-app camera on their iPad. Its "Take photo" row
+(the native camera) then did nothing. Both halves are now traced to proven
+causes where one exists:
+
+- **The native camera could never open in the app (binary; needs a new
+  build).** Build 34's own App.ipa, pulled from Codemagic and read, lacks
+  `NSPhotoLibraryAddUsageDescription`. The Camera plugin checks all three of
+  its keys before showing any UI and rejects every call when one is missing,
+  so "Take photo", "Upload photo" and check-in photos all silently failed in
+  the app. `codemagic.yaml` now adds the key, and a new build step fails the
+  build if the final Info.plist lacks any key the plugin requires. The list
+  is read from the plugin's own source, so an upgrade can't reintroduce this.
+- **Native photos could never reach the page, even with the key.**
+  `native.js` fetched the plugin's `webPath` (`capacitor://localhost/...`),
+  and the page's CSP `connect-src` refuses that fetch. Verified in a browser:
+  "Refused to connect because it violates the document's Content Security
+  Policy". It now asks for `resultType: "base64"` and decodes locally, so no
+  fetch is needed.
+- **Inside the app, "Take photo" goes to Apple's camera first.** The in-app
+  getUserMedia viewfinder, which App Review's iPad refused for a reason that
+  can't be recovered, is now the browser route and the app's fallback. A
+  plugin that can't open (build 34 and earlier) falls through to the
+  viewfinder, so the currently shipped build keeps working. A refused
+  camera permission goes straight to a message pointing at Settings, with
+  Upload photo.
+
+Verified end to end in a browser with a faked Capacitor bridge running the
+real `native.js`: new binary, straight to the note prompt; build 34, falls
+back to the viewfinder and captures; permission refused, Settings message;
+browser, unchanged.
+
+### Added
+
+- `tests/test_ios_camera_usage_strings.py`: pins all three keys in
+  `codemagic.yaml`, and runs the build's verification step, extracted from
+  the YAML, against build 34's key set (fails) and a full set (passes).
+- `native.test.js`: base64 is requested and decoded byte-exact.
+- `nutritionPhotoCamera.test.js`: native-first routing, build-34
+  fall-through, a refused permission, and a native cancel.
+- All new guards are mutation-checked.
+
 ## [0.12.9.0] - 2026-09-26
 
 ### Fixed

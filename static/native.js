@@ -26,7 +26,13 @@
   // TS enums are only sugar over the same values, and importing them would
   // mean a bundler.
   var CAMERA_SOURCE = { camera: "CAMERA", library: "PHOTOS" };
-  var RESULT_URI = "uri";
+  // The photo comes back as base64 over the bridge, NOT as a webPath to
+  // fetch. A webPath is capacitor://localhost/_capacitor_file_/..., and this
+  // page is served from the Render origin: the CSP's connect-src (app.py)
+  // refuses that fetch outright -- verified in a browser, "Refused to connect
+  // because it violates the document's Content Security Policy" -- so every
+  // native photo was lost at this step. base64 needs no fetch at all.
+  var RESULT_BASE64 = "base64";
 
   function capacitor() {
     return window.Capacitor || null;
@@ -77,6 +83,14 @@
    * /api/* multipart posts) then needs no native-specific branch at all.
    */
   async function photoToFile(photo) {
+    if (photo && photo.base64String) {
+      var extensionB64 = extensionFor(photo.format);
+      var binary = window.atob(photo.base64String);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      var typeB64 = "image/" + (extensionB64 === "jpg" ? "jpeg" : extensionB64);
+      return new window.File([bytes], "photo." + extensionB64, { type: typeB64 });
+    }
     var path = photo && (photo.webPath || photo.path);
     if (!path) return null;
     var response = await window.fetch(path);
@@ -117,7 +131,7 @@
     try {
       photo = await Camera.getPhoto({
         source: CAMERA_SOURCE[settings.source] || CAMERA_SOURCE.camera,
-        resultType: RESULT_URI,
+        resultType: RESULT_BASE64,
         quality: typeof settings.quality === "number" ? settings.quality : 85,
         // The photo goes straight to an AI estimate or a private progress
         // log; cropping it first is friction with no payoff, and saving a

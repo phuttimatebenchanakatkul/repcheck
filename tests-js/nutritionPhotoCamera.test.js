@@ -159,6 +159,51 @@ describe("the in-app food-photo viewfinder", () => {
     });
   });
 
+  describe("inside the iOS app", () => {
+    // App Review's iPad refused the viewfinder's getUserMedia (their
+    // screenshot: "Camera unavailable", which build 34 only rendered from the
+    // getUserMedia catch). The app now goes to Apple's own camera first.
+    it("opens the native camera, not the in-app viewfinder", async () => {
+      harness = loadPhotoCamera({ native: true, nativeFile: true });
+      await harness.openAfPhotoCamera();
+
+      expect(harness.calls.nativeOpenCamera).toBe(1);
+      expect(harness.calls.getUserMedia).toHaveLength(0);
+      expect(harness.calls.useAfImage).toHaveLength(1);
+    });
+
+    it("falls through to the viewfinder when the plugin cannot open (build 34's missing Info.plist key)", async () => {
+      harness = loadPhotoCamera({
+        native: true,
+        nativeFailure: "You are missing NSPhotoLibraryAddUsageDescription in your Info.plist file.",
+      });
+      await harness.openAfPhotoCamera();
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(harness.calls.getUserMedia).toHaveLength(1);
+      expect(harness.onCameraScreen()).toBe(true);
+    });
+
+    it("a refused camera permission says so, with Settings and Upload photo, instead of trying the viewfinder", async () => {
+      harness = loadPhotoCamera({ native: true, nativeFailure: "User denied access to camera" });
+      await harness.openAfPhotoCamera();
+
+      expect(harness.calls.getUserMedia).toHaveLength(0);
+      expect(harness.onUnavailableScreen()).toBe(true);
+      expect(harness.fallbackError()).toMatch(/Settings/);
+      expect(harness.afModalBody.querySelector("#af-photo-fallback-upload-btn")).not.toBe(null);
+    });
+
+    it("a native cancel leaves the screen alone -- no error, no viewfinder", async () => {
+      harness = loadPhotoCamera({ native: true });
+      await harness.openAfPhotoCamera();
+
+      expect(harness.calls.nativeOpenCamera).toBe(1);
+      expect(harness.calls.getUserMedia).toHaveLength(0);
+      expect(harness.onUnavailableScreen()).toBe(false);
+    });
+  });
+
   describe("a camera that is slow, or never starts", () => {
     // iOS answers a second concurrent camera request by hanging, not by
     // rejecting (templates/nutrition.html's page-will-swap listener). Before
@@ -316,7 +361,8 @@ describe("the in-app food-photo viewfinder", () => {
       // pass against whatever happened to be extracted instead.
       const source = extractSource();
       for (const needed of [
-        "async function openAfPhotoCamera",
+        "function openAfPhotoCamera",
+        "async function openAfPhotoViewfinder",
         "async function startAfPhotoPreview",
         "async function renderAfPhotoCameraScreen",
         "function captureAfPhoto",
