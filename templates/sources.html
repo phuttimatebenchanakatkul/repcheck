@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}RepCheck - Sources{% endblock %}
+{% block heading %}Sources &amp; health information{% endblock %}
+
+{% block content %}
+<!--
+  Public (see _PUBLIC_ENDPOINTS in app.py), like the policy pages: App
+  Review must be able to open it without an account.
+
+  Exists because of Guideline 1.4.1 (rejection of 0.12.10 (35), 2026-10-06):
+  apps giving health information must cite their sources, and the citations
+  must be "easy for the user to find". Every AI chat reply also lists the
+  sources behind it, inline under the bubble, and links here. The list
+  below is rendered from health_sources.SOURCES, the same catalog the chats
+  cite from, so the two cannot drift apart.
+-->
+<div class="policy-page sources-page">
+  <p>RepCheck's AI coach, the workout chat and the Analyze chat answer
+  questions about training, recovery, mobility and nutrition. They are
+  instructed to base their answers on established exercise science, and
+  <strong>every answer lists the sources it draws on, with links, directly
+  under the reply</strong>.</p>
+  <p>This page collects every source those answers can cite, so you can read
+  the evidence for yourself.</p>
+
+  <h2>Not medical advice</h2>
+  <p>RepCheck gives general fitness information, not medical advice, a
+  diagnosis or treatment. AI answers can be wrong. Talk to a doctor or other
+  qualified health professional before starting a new training or diet
+  programme, especially if you have a medical condition, are pregnant, or are
+  recovering from an injury. Stop exercising and get medical help if you
+  feel chest pain, dizziness, shortness of breath beyond normal effort, or
+  sharp or lasting pain.</p>
+
+  <h2>Calorie and macro targets</h2>
+  <p>Your nutrition targets are calculated with a fixed formula, not by the
+  AI: resting energy use from the Katch-McArdle equation (based on your
+  weight and estimated body fat), multiplied by a standard activity factor,
+  with protein set per kilogram of lean body mass in the ranges recommended
+  by the
+  <a href="https://pubmed.ncbi.nlm.nih.gov/28642676/" target="_blank" rel="noopener noreferrer" data-source-link>International Society of Sports Nutrition</a>
+  and
+  <a href="https://pubmed.ncbi.nlm.nih.gov/24864135/" target="_blank" rel="noopener noreferrer" data-source-link>Helms et al. (2014)</a>.</p>
+
+  {% for label, items in groups %}
+  <h2>{{ label }}</h2>
+  <ul class="sources-list">
+    {% for source in items %}
+    <li id="source-{{ source.id }}">
+      <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer" data-source-link>{{ source.title }}</a>
+      <span class="sources-publisher">{{ source.publisher }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+
+  <p class="sources-footnote">Questions about a source, or found one that
+  is out of date? <a href="{{ url_for('support') }}">Contact us</a>.</p>
+</div>
+{% endblock %}

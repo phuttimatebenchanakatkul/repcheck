@@ -4970,7 +4970,7 @@
       }
       suggestionsEl.innerHTML = "";
       messagesEl.innerHTML = chatHistory.map((turn) => `
-        <div class="wlc-bubble ${turn.role === "user" ? "wlc-bubble-user" : "wlc-bubble-bot"}">${formatBubble(turn.text)}</div>
+        <div class="wlc-bubble ${turn.role === "user" ? "wlc-bubble-user" : "wlc-bubble-bot"}">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources ? "" : RepCheckSources.html(turn.sources)}</div>
       `).join("");
       scrollToBottom();
     }
@@ -5082,7 +5082,9 @@
         const data = await response.json();
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
-        chatHistory.push({ id: newTurnId(), role: "assistant", text: reply, date: todayIso });
+        // Citations behind the reply (health_sources.py), kept on the turn.
+        const sources = data.ok && Array.isArray(data.sources) ? data.sources : [];
+        chatHistory.push({ id: newTurnId(), role: "assistant", text: reply, sources, date: todayIso });
         saveHistory(todayIso, chatHistory);
         renderMessages();
         if (data.ok && data.limited) {

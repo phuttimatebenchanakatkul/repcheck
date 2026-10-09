@@ -308,6 +308,36 @@
     return signInWithProvider(href, "/auth/apple");
   }
 
+  /**
+   * Open an off-site page (a cited study, say) in the in-app browser.
+   *
+   * Without this, Capacitor hands any off-origin link to Safari, which
+   * throws the user out of the app to read a citation. SFSafariViewController
+   * keeps them in it with a Done button back. Returns false -- let the plain
+   * link proceed -- in a browser, or if the plugin is missing or refuses.
+   */
+  function openExternal(url) {
+    if (!isNative()) return false;
+    var Browser = plugin("Browser");
+    if (!Browser || typeof Browser.open !== "function") return false;
+    var href;
+    try {
+      href = new URL(String(url), window.location.origin).href;
+    } catch (error) {
+      return false;
+    }
+    if (href.indexOf("https://") !== 0) return false;
+    try {
+      var opening = Browser.open({ url: href });
+      if (opening && typeof opening.catch === "function") {
+        opening.catch(function () { window.location.assign(href); });
+      }
+    } catch (error) {
+      window.location.assign(href);
+    }
+    return true;
+  }
+
   // The listener has to exist before the user ever taps the button.
   bindAuthListener();
 
@@ -320,6 +350,7 @@
     haptic: haptic,
     signInWithGoogle: signInWithGoogle,
     signInWithApple: signInWithApple,
+    openExternal: openExternal,
     // Exposed for tests: the pure parts, so the conversion and the
     // cancel/error split can be exercised without a plugin.
     _internals: {

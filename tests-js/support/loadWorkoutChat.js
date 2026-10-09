@@ -13,6 +13,7 @@ import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.join(__dirname, "..", "..", "templates", "workouts.html");
+const AI_SOURCES_PATH = path.join(__dirname, "..", "..", "static", "ai_sources.js");
 
 const START_MARKER = "// ---------- AI chat grounded in the user's logged workouts ----------\n  // Chat is scoped to whichever date is selected in the date strip above:";
 const IIFE_OPEN = "(function () {";
@@ -144,6 +145,11 @@ export function loadWorkoutChat({ log = {}, locale = "en", fetchImpl = null, sel
   if (fetchImpl) {
     global.fetch = fetchImpl;
   }
+
+  // The real citation renderer (static/ai_sources.js), the same global the
+  // page gets from base.html, so the sources under a reply are exercised too.
+  delete window.RepCheckSources;
+  new Function(readFileSync(AI_SOURCES_PATH, "utf8"))();
 
   const source = extractSource();
   // The real template's chat IIFE reads `selectedDate` via closure over

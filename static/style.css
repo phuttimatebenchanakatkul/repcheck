@@ -2585,3 +2585,34 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
 .policy-page strong { color: var(--text); }
 .policy-page a { color: var(--text); text-decoration: underline; }
 .policy-updated { font-size: 13px; margin: 0 0 20px; }
+
+/* /sources (templates/sources.html): the citation list behind the AI chats. */
+.sources-list { list-style: none; padding-left: 0 !important; }
+.sources-list li { margin-bottom: 12px; }
+.sources-list a { display: block; overflow-wrap: anywhere; }
+.sources-publisher { display: block; font-size: 13px; margin-top: 2px; }
+.sources-footnote { margin-top: 28px; font-size: 14px; }
+
+/* The "Sources" list under an AI chat reply (static/ai_sources.js). Shared
+   by the coach page, the workout chat and the Analyze chat, so it sizes
+   off the bubble it sits in rather than any one page's type scale. */
+.ai-sources {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8em;
+  line-height: 1.45;
+}
+.ai-sources-label {
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+  margin-bottom: 4px;
+}
+.ai-sources ol { margin: 0; padding-left: 1.3em; }
+.ai-sources li { margin: 0 0 4px; }
+.ai-sources a { color: var(--blue); text-decoration: underline; overflow-wrap: anywhere; }
+.ai-sources-pub { display: block; color: var(--text-secondary); }
+.ai-sources-all { display: inline-block; margin-top: 2px; color: var(--text-secondary); text-decoration: underline; }

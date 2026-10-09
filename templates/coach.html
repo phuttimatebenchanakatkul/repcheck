@@ -14,6 +14,13 @@
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
   </button>
 
+  <!-- Guideline 1.4.1: the citations behind the coach's advice have to be
+       easy to find, so they are one tap from the page at all times, not
+       only under each reply. -->
+  <a class="cc-new-btn cc-sources-btn" href="{{ url_for('health_sources_page') }}" data-i18n-aria-label="coach.sourcesButton" aria-label="Sources and health information" data-i18n-title="coach.sourcesButton" title="Sources and health information">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M9 7h7"/><path d="M9 11h5"/></svg>
+  </a>
+
   <div class="cc-messages" id="cc-messages"></div>
 
   <div class="cc-suggestions" id="cc-suggestions"></div>
@@ -78,12 +85,16 @@
     transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   }
   .cc-new-btn:hover { color: var(--blue); border-color: var(--blue); }
+  /* Sits to the left of the new-chat button: 14px edge + 44px button + 8px gap. */
+  .cc-sources-btn { right: 66px; text-decoration: none; }
   .cc-new-btn:active { transform: scale(0.92); }
 
   .cc-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 22px 20px 8px;
+    /* Top padding clears the two floating corner buttons (14px + 44px +
+       8px), so the first bubble is not drawn underneath them. */
+    padding: 66px 20px 8px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -168,6 +179,14 @@
     letter-spacing: -0.01em;
     color: var(--text);
   }
+  .cc-welcome-sources {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 12px auto 0;
+    max-width: 360px;
+  }
+  .cc-welcome-sources a { color: var(--blue); font-weight: 600; }
   .cc-welcome-sub {
     font-size: 13.5px;
     color: var(--text-secondary);
@@ -277,7 +296,7 @@
   @media (max-width: 720px) {
     /* Height is no longer set here -- the base .cc-chat rule above now
        carries this block's own tab-bar math for every width. */
-    .cc-messages { padding: 16px 14px 6px; }
+    .cc-messages { padding: 66px 14px 6px; }
     .cc-bubble { max-width: 92%; font-size: 15px; }
     .cc-input-pill { margin: 6px 10px 10px; }
     .cc-input-pill input { font-size: 16px; } /* prevents iOS auto-zoom on focus */
@@ -372,6 +391,7 @@
             <div class="cc-welcome-orb">💪</div>
             <div class="cc-welcome-title">${t("coach.welcomeTitle")}</div>
             <div class="cc-welcome-sub">${t("coach.welcomeBody")}</div>
+            <div class="cc-welcome-sources">${t("coach.sourcesNote")} <a href="{{ url_for('health_sources_page') }}">${t("coach.sourcesLink")}</a></div>
           </div>
         `;
         renderSuggestions();
@@ -379,7 +399,7 @@
       }
       suggestionsEl.innerHTML = "";
       messagesEl.innerHTML = history.map((turn) => `
-        <div class="cc-bubble ${turn.role === "user" ? "cc-bubble-user" : "cc-bubble-coach"}">${formatBubble(turn.text)}</div>
+        <div class="cc-bubble ${turn.role === "user" ? "cc-bubble-user" : "cc-bubble-coach"}">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources ? "" : RepCheckSources.html(turn.sources)}</div>
       `).join("");
       scrollToBottom();
     }
@@ -476,7 +496,10 @@
         const data = await response.json();
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
-        history.push({ role: "coach", text: reply, date: todayIso });
+        // The citations behind the reply (health_sources.py) ride along on
+        // the turn, so they are still there when the thread is reopened.
+        const sources = data.ok && Array.isArray(data.sources) ? data.sources : [];
+        history.push({ role: "coach", text: reply, sources, date: todayIso });
         saveHistory(history);
         renderMessages();
         // Asking the coach something is using the app, so it counts toward

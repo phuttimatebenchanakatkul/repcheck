@@ -528,6 +528,7 @@
       "settings.legal.terms": "Terms of Service",
       "settings.legal.cookies": "Cookie Policy",
       "settings.legal.refunds": "Refund Policy",
+      "settings.legal.sources": "Sources & health information",
       "banner.deletion.text": "Your account is scheduled for deletion on {date}.",
       "banner.deletion.action": "Keep my account",
       "settings.units.clockHint": "Meal times and timelines.",
@@ -544,6 +545,12 @@
       "coach.limitReached": "Limit reached — resets in {time}",
       "coach.limitReachedPlaceholder": "Message limit reached",
       "coach.errorReaching": "Something went wrong reaching the coach. Please try again.",
+      "coach.sourcesNote": "Every answer lists the research it's based on. General fitness info, not medical advice.",
+      "coach.sourcesLink": "See all sources",
+      "coach.sourcesButton": "Sources and health information",
+
+      "aiSources.label": "Sources",
+      "aiSources.all": "All sources & health info",
 
       "workoutChat.title": "Workout AI Chat",
       "workoutChat.subtitle": "Ask about progressive overload on anything you've logged",
@@ -1414,6 +1421,7 @@
       "settings.legal.terms": "ข้อกำหนดการให้บริการ",
       "settings.legal.cookies": "นโยบายคุกกี้",
       "settings.legal.refunds": "นโยบายการคืนเงิน",
+      "settings.legal.sources": "แหล่งอ้างอิงและข้อมูลสุขภาพ",
       "banner.deletion.text": "บัญชีของคุณกำหนดลบในวันที่ {date}",
       "banner.deletion.action": "เก็บบัญชีของฉันไว้",
       "settings.units.clockHint": "เวลามื้ออาหารและไทม์ไลน์",
@@ -1430,6 +1438,12 @@
       "coach.limitReached": "ครบจำนวนที่กำหนดแล้ว — รีเซ็ตใน {time}",
       "coach.limitReachedPlaceholder": "ครบจำนวนข้อความที่กำหนดแล้ว",
       "coach.errorReaching": "เกิดข้อผิดพลาดในการติดต่อโค้ช กรุณาลองใหม่อีกครั้ง",
+      "coach.sourcesNote": "ทุกคำตอบจะระบุงานวิจัยที่ใช้อ้างอิง เป็นข้อมูลฟิตเนสทั่วไป ไม่ใช่คำแนะนำทางการแพทย์",
+      "coach.sourcesLink": "ดูแหล่งอ้างอิงทั้งหมด",
+      "coach.sourcesButton": "แหล่งอ้างอิงและข้อมูลสุขภาพ",
+
+      "aiSources.label": "แหล่งอ้างอิง",
+      "aiSources.all": "แหล่งอ้างอิงทั้งหมดและข้อมูลสุขภาพ",
 
       "workoutChat.title": "แชท AI สำหรับการออกกำลังกาย",
       "workoutChat.subtitle": "ถามเกี่ยวกับการเพิ่มน้ำหนักแบบก้าวหน้าสำหรับสิ่งที่คุณเคยบันทึกไว้",

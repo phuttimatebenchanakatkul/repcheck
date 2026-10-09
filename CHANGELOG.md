@@ -2,6 +2,39 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.12.11.0] - 2026-10-09
+
+### Fixed
+
+App Review rejected 0.12.10 (35) under **Guideline 1.4.1 - Safety -
+Physical Harm** on 2026-10-06 (iPad Air 11-inch, M3): the AI coach gave
+health and training recommendations without citations, and Apple asks that
+citations be links that are easy for the user to find. Every AI answer now
+shows its sources.
+
+- **Every AI chat reply lists its sources, with links, directly under the
+  bubble.** This covers the Coach page, the workout chat and the Analyze
+  chat. The model picks 1-3 ids from a fixed catalog (`health_sources.py`)
+  and ends its reply with a `SOURCES:` line. The server strips that line and
+  sends back the matching title, publisher and link. The model never writes
+  a URL, so it cannot cite a study that does not exist. Every PubMed id in
+  the catalog was checked against NCBI when it was added. If the model
+  leaves the line out or names an unknown id, a keyword match on the
+  question and reply picks the sources instead.
+- **New public `/sources` page** listing all 24 citations by topic, with a
+  "not medical advice" section and a note on how calorie and macro targets
+  are calculated. It needs no sign-in, so App Review can open it. Three
+  places link to it: a Sources button in the coach's corner, a note on the
+  coach's empty screen, and Settings → Legal.
+- **Inside the iOS app, citation links open in the in-app browser** (the
+  Browser plugin, via `RepCheckNative.openExternal`) instead of throwing the
+  user out to Safari.
+- The coach's message list now starts below its floating corner buttons,
+  so the first bubble is no longer drawn underneath them.
+
+This is a web-only change. The app loads production, so deploying is the
+fix; no new build is needed.
+
 ## [0.12.10.0] - 2026-09-28
 
 ### Fixed
