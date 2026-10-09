@@ -131,8 +131,13 @@ from database import (
     prune_analyze_results,
     block_user,
     create_content_report,
+    create_ai_report,
+    set_ai_consent,
+    get_open_ai_reports,
     get_open_reports,
+    mark_ai_report_handled,
     mark_report_handled,
+    reset_reported_name,
     unblock_user,
     REPORT_REASONS,
     rate_limit_consume,
@@ -1704,8 +1709,11 @@ def coach():
 def api_analyze_food():
     # Login required so every scan is counted against an account -- an
     # anonymous caller would otherwise have no counter and be unlimited.
-    if not current_user():
+    user = current_user()
+    if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if not _has_ai_consent(user):
+        return _ai_consent_refusal()
 
     image_file = request.files.get("image")
     if not image_file or image_file.filename == "":
@@ -2650,6 +2658,31 @@ def api_safety_report():
     return jsonify({"ok": True, "blocked": {"id": other["id"]}})
 
 
+@app.route("/api/ai-report", methods=["POST"])
+def api_ai_report():
+    """Report one AI chat reply (Guideline 4.7.1: a hosted chatbot needs the
+    same reporting as user content). The reply text comes from the client
+    because the conversation is only stored on the user's own devices; it is
+    reviewed on /admin/reports alongside reports against accounts."""
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    payload = request.get_json(silent=True) or {}
+    reply_text = str(payload.get("reply") or "").strip()
+    if not reply_text:
+        return jsonify({"ok": False, "error": "Nothing to report."}), 400
+    report_id = create_ai_report(
+        user["id"],
+        str(payload.get("feature") or "").strip(),
+        str(payload.get("reason") or "").strip(),
+        reply_text,
+    )
+    if not report_id:
+        return jsonify({"ok": False, "error": "You have too many reports waiting for review."}), 429
+    _track_feature("report_ai_reply")
+    return jsonify({"ok": True})
+
+
 # Same ADMIN_EMAILS / 404 gate as the other admin views: this one exists so
 # the 24-hour response time promised to reporters is something an actual
 # person can act on, rather than rows nobody ever reads.
@@ -2658,7 +2691,30 @@ def admin_reports():
     user = current_user()
     if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
         abort(404)
-    return render_template("admin_reports.html", reports=get_open_reports())
+    return render_template(
+        "admin_reports.html", reports=get_open_reports(), ai_reports=get_open_ai_reports()
+    )
+
+
+@app.route("/admin/reports/<int:report_id>/reset-name", methods=["POST"])
+def admin_report_reset_name(report_id):
+    """Act on a report, not just file it: the display name is the only thing
+    one user writes that others see, so replacing it removes the offending
+    content everywhere it appears (leaderboards, friends) in one step."""
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+    reset_reported_name(report_id)
+    return redirect(url_for("admin_reports"))
+
+
+@app.route("/admin/ai-reports/<int:report_id>/handled", methods=["POST"])
+def admin_ai_report_handled(report_id):
+    user = current_user()
+    if not user or (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        abort(404)
+    mark_ai_report_handled(report_id)
+    return redirect(url_for("admin_reports"))
 
 
 @app.route("/admin/reports/<int:report_id>/handled", methods=["POST"])
@@ -2752,6 +2808,8 @@ def api_challenge_submit(challenge_id):
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if not _has_ai_consent(user):
+        return _ai_consent_refusal()
     challenge = get_challenge(challenge_id)
     if not challenge:
         return jsonify({"ok": False, "error": "Challenge not found."}), 404
@@ -2982,12 +3040,48 @@ def api_hyrox_leaderboard():
     })
 
 
+# ---------- Consent to AI processing (Guideline 5.1.2(i)) ----------
+# Every feature that sends the user's content to Google Gemini -- food and
+# progress photos, lift and challenge videos, chat messages, workout logs,
+# body stats -- needs the user's explicit, informed consent first, and the
+# user must be able to take it back. static/ai_consent.js asks before the
+# first request leaves the device; these checks make the server refuse
+# regardless, so a stale tab or a direct API call cannot skip the question.
+AI_CONSENT_ERROR = (
+    "AI features are off for your account. Turn them on in Settings, "
+    "under AI features, to use this."
+)
+
+
+def _has_ai_consent(user):
+    return bool(user and user.get("ai_consent_at"))
+
+
+def _ai_consent_refusal():
+    return jsonify({"ok": False, "needs_ai_consent": True, "error": AI_CONSENT_ERROR}), 403
+
+
+@app.route("/api/ai-consent", methods=["POST"])
+def api_ai_consent():
+    user = current_user()
+    if not user:
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    payload = request.get_json(silent=True) or {}
+    granted = payload.get("granted") is True
+    set_ai_consent(user["id"], granted)
+    _track_feature("ai_consent_granted" if granted else "ai_consent_withdrawn")
+    return jsonify({"ok": True, "granted": granted})
+
+
 @app.route("/api/coach-chat", methods=["POST"])
 def api_coach_chat():
     # Same reasoning as /api/analyze-food: every message must count against
     # an account, so no anonymous access.
-    if not current_user():
+    user = current_user()
+    if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if not _has_ai_consent(user):
+        return _ai_consent_refusal()
 
     payload = request.get_json(silent=True) or {}
     message = str(payload.get("message", "")).strip()
@@ -3018,8 +3112,11 @@ def api_coach_chat():
 def api_analyze_chat():
     # Same reasoning as /api/analyze-food: every message must count against
     # an account, so no anonymous access.
-    if not current_user():
+    user = current_user()
+    if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if not _has_ai_consent(user):
+        return _ai_consent_refusal()
 
     payload = request.get_json(silent=True) or {}
     message = str(payload.get("message", "")).strip()
@@ -3053,8 +3150,11 @@ def api_analyze_chat():
 def api_workout_chat():
     # Same reasoning as /api/analyze-food: every message must count against
     # an account, so no anonymous access.
-    if not current_user():
+    user = current_user()
+    if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if not _has_ai_consent(user):
+        return _ai_consent_refusal()
 
     payload = request.get_json(silent=True) or {}
     message = str(payload.get("message", "")).strip()
@@ -3094,6 +3194,8 @@ def api_hyrox_analyze():
     user = current_user()
     if not user:
         return jsonify({"ok": False, "error": "Not logged in."}), 401
+    if not _has_ai_consent(user):
+        return _ai_consent_refusal()
     blocked, retry_after = _rate_limit_blocked("hyrox_analysis")
     if blocked:
         # The client already understands this shape (see hyrox_coach.py's
@@ -3215,6 +3317,8 @@ def api_generate_split():
     # in from a different part of the app, so a user can reach this wizard
     # having never opened it, and the plan still has to come out sensible.
     if split_type == "ai_suggest":
+        if not _has_ai_consent(current_user()):
+            return _ai_consent_refusal()
         gender = str(payload.get("gender") or "").strip().lower()
         gender = gender if gender in {"male", "female"} else None
         plan = suggest_split_plan(
@@ -3368,6 +3472,14 @@ def api_coaching_calculate():
 
 @app.route("/api/coaching/weekly-adjustment", methods=["POST"])
 def api_coaching_weekly_adjustment():
+    # Every other AI route already required an account. This one did not, so
+    # anyone could make the server call Gemini, unmetered and anonymously.
+    if not current_user():
+        return jsonify({"ok": False, "error": "Not logged in."}), 401
+    # Unlike the other AI routes this one has a non-AI answer -- the
+    # deterministic trend below -- so without consent it still completes the
+    # check-in, it just never sends anything to Gemini.
+    ai_allowed = _has_ai_consent(current_user())
     payload = request.get_json(silent=True) or {}
     profile, error = _validate_coaching_profile(payload)
     if error:
@@ -3402,6 +3514,8 @@ def api_coaching_weekly_adjustment():
             photo_files.append((path.read_bytes(), mime_type))
 
     try:
+        if not ai_allowed:
+            raise CheckinAnalysisError("AI processing not consented to")
         ai_result = analyze_checkin(profile, current_targets, week_weight_entries, week_calorie_days, baseline, photo_files)
         adjustment = apply_calorie_delta(profile, current_targets, ai_result["delta"], ai_result["reason"])
     except CheckinAnalysisError:
@@ -3427,6 +3541,11 @@ def analyze():
         return render_template(
             "index.html", active_nav="analyze", i18n_page="analyze", error=message
         )
+
+    if not _has_ai_consent(current_user()):
+        if wants_json:
+            return _ai_consent_refusal()
+        return fail(AI_CONSENT_ERROR)
 
     video_file = request.files.get("video")
     exercise = request.form.get("exercise", "").strip()

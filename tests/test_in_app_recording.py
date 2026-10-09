@@ -58,6 +58,9 @@ def client(tmp_path, monkeypatch):
     # The whole app is behind require_login (app.py), so a logged-out POST
     # never reaches the extension check at all -- it just redirects.
     user_id = create_local_user("recorder@test.local", "irrelevant-password", "Test User")
+    # Agreed to AI processing (Guideline 5.1.2(i)); these tests are about
+    # the upload formats, not the consent gate.
+    database.set_ai_consent(user_id, True)
     with client.session_transaction() as sess:
         sess["user_id"] = user_id
     return client

@@ -321,7 +321,9 @@ def test_every_screen_that_can_create_an_account_asks_permission_first(db, path)
     page = flask_app.test_client().get(path).get_data(as_text=True)
     prose = re.sub(r"<!--.*?-->", "", page, flags=re.S)
 
-    assert "third-party" in prose and "AI providers" in prose, (
+    # The provider is named, not just "third-party AI" (5.1.2(i) as Apple
+    # now reads it: users must know WHO receives their content).
+    assert "third-party AI provider" in prose and "Google Gemini" in prose, (
         "the signup screen must say the content is processed by third-party "
         "AI -- a Privacy Policy link alone discloses it somewhere else, it "
         "does not ask"

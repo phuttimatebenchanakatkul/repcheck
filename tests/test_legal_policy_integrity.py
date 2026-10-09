@@ -577,10 +577,22 @@ def test_every_third_party_the_code_talks_to_is_named_on_the_privacy_policy():
         + list((ROOT / "static").glob("*.js"))
         + [ROOT / "requirements.txt"]
     )
+    # Standalone developer command-line scripts, never imported by the app
+    # and unable to run on the server (the openai package is not in
+    # requirements.txt). They are not a recipient of any user's data, and
+    # counting them made /privacy name OpenAI -- a provider the app never
+    # calls, which is its own inaccuracy (Guideline 5.1.1(i)).
+    cli_only = {"analyze_form.py", "analyze_form_gpt.py"}
+    app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+    for name in cli_only:
+        module = name[:-3]
+        assert f"import {module}" not in app_source and f"from {module} " not in app_source, (
+            name + " is imported by the app now -- remove it from cli_only"
+        )
     blob = "\n".join(
         p.read_text(encoding="utf-8", errors="ignore")
         for p in sources
-        if p.is_file() and not p.name.startswith("test_")
+        if p.is_file() and not p.name.startswith("test_") and p.name not in cli_only
     ).lower()
 
     present = sorted(
@@ -592,7 +604,7 @@ def test_every_third_party_the_code_talks_to_is_named_on_the_privacy_policy():
     # vacuous and this test silently stops protecting the policy.
     assert len(present) >= 5, (
         "the provider scan found only " + repr(present) + " -- it should find "
-        "at least Google, OpenAI, jsDelivr and the model bucket. If a provider "
+        "at least Google, jsDelivr and the model bucket. If a provider "
         "was genuinely dropped, lower this floor deliberately."
     )
 

@@ -37,9 +37,6 @@
   }
   .fr-status { font-size: 12px; margin-top: 8px; }
 
-  .fr-scanner-wrap { margin-top: 12px; display: none; }
-  .fr-scanner-wrap.is-open { display: block; }
-  .fr-scanner-video { width: 100%; max-width: 360px; border-radius: 12px; background: #000; }
 
   .fr-friend-list { display: flex; flex-direction: column; gap: 8px; }
   .fr-friend-row {
@@ -144,21 +141,13 @@
 
 <div class="fr-card">
   <div class="fr-card-title" data-i18n="friends.addFriend.title">Add a friend</div>
-  <div class="fr-card-sub" data-i18n="friends.addFriend.sub">Enter their code, scan their QR, or check your contacts.</div>
+  <div class="fr-card-sub" data-i18n="friends.addFriend.sub">Enter your friend's code to add them.</div>
   <div class="fr-add-row">
     <input type="text" id="fr-add-input" placeholder="Friend code, e.g. RC-A1B2C3" data-i18n-placeholder="friends.codePlaceholder" autocomplete="off">
     <button type="button" class="fr-btn-primary" id="fr-add-btn" data-i18n="friends.add">Add</button>
-    <button type="button" class="fr-btn-secondary" id="fr-scan-btn" data-i18n="friends.scanQr">Scan QR</button>
-    <button type="button" class="fr-btn-secondary" id="fr-contacts-btn" data-i18n="friends.suggestFromContacts">Suggest from contacts</button>
   </div>
   <div class="fr-status" id="fr-add-status"></div>
 
-  <div class="fr-scanner-wrap" id="fr-scanner-wrap">
-    <video class="fr-scanner-video" id="fr-scanner-video" autoplay playsinline muted></video>
-    <div style="margin-top:8px;">
-      <button type="button" class="fr-btn-secondary" id="fr-scan-stop-btn" data-i18n="friends.stopScanning">Stop scanning</button>
-    </div>
-  </div>
 </div>
 
 <div class="fr-card">
@@ -323,98 +312,13 @@
       if (code) addFriendByCode(code);
     });
 
-    // ---------- QR scanning ----------
-    // DISABLED FOR NOW: getUserMedia (needed for a live camera feed) only
-    // works in a "secure context" (HTTPS, or plain HTTP on localhost
-    // only), and the self-signed HTTPS cert this required on the LAN was
-    // too much friction for now (browser trust warnings on every
-    // device). Commented out rather than deleted so it's easy to
-    // re-enable later -- startScan() below just tells the user to type
-    // the code by hand instead (there's no photo-upload fallback for QR
-    // the way there is for barcodes).
-    /*
-    let scanStream = null;
-    let scanRafId = null;
-
-    async function startScan() {
-      const statusEl = document.getElementById("fr-add-status");
-      if (!("BarcodeDetector" in window)) {
-        statusEl.textContent = t("friends.qrNotSupported");
-        statusEl.style.color = "var(--red)";
-        return;
-      }
-      try {
-        scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      } catch (err) {
-        statusEl.textContent = t("friends.cameraAccessDenied");
-        statusEl.style.color = "var(--red)";
-        return;
-      }
-      const video = document.getElementById("fr-scanner-video");
-      video.srcObject = scanStream;
-      document.getElementById("fr-scanner-wrap").classList.add("is-open");
-
-      const detector = new BarcodeDetector({ formats: ["qr_code"] });
-      const tick = async () => {
-        if (!scanStream) return;
-        try {
-          const codes = await detector.detect(video);
-          if (codes.length) {
-            stopScan();
-            addFriendByCode(codes[0].rawValue);
-            return;
-          }
-        } catch (err) { // transient decode failure — keep scanning
-        }
-        scanRafId = requestAnimationFrame(tick);
-      };
-      scanRafId = requestAnimationFrame(tick);
-    }
-
-    function stopScan() {
-      if (scanRafId) cancelAnimationFrame(scanRafId);
-      scanRafId = null;
-      if (scanStream) scanStream.getTracks().forEach((t) => t.stop());
-      scanStream = null;
-      document.getElementById("fr-scanner-wrap").classList.remove("is-open");
-    }
-    */
-    function startScan() {
-      // Live camera scanning is disabled for now (see comment block
-      // above) -- there's no photo-upload fallback for QR codes, so just
-      // point the user at manual entry instead.
-      const statusEl = document.getElementById("fr-add-status");
-      statusEl.textContent = t("friends.qrNotSupported");
-      statusEl.style.color = "var(--red)";
-    }
-    function stopScan() {} // no-op while live scanning is disabled
-
-    document.getElementById("fr-scan-btn").addEventListener("click", startScan);
-    document.getElementById("fr-scan-stop-btn").addEventListener("click", stopScan);
-
-    // ---------- Contact suggestions ----------
-    // The Contact Picker API is the only web-standard way to read a
-    // device's contacts, and it's Chrome-on-Android only today — there is
-    // no way for a website to list a desktop's contacts. Feature-detected,
-    // with an honest fallback rather than faking a contact list.
-    document.getElementById("fr-contacts-btn").addEventListener("click", async () => {
-      const statusEl = document.getElementById("fr-add-status");
-      if (!("contacts" in navigator && "ContactsManager" in window)) {
-        statusEl.textContent = t("friends.contactsNotAvailable");
-        statusEl.style.color = "var(--text-secondary)";
-        return;
-      }
-      try {
-        const contacts = await navigator.contacts.select(["name", "tel"], { multiple: true });
-        statusEl.textContent = contacts.length
-          ? t("friends.contactsFound", { n: contacts.length })
-          : t("friends.noContactsSelected");
-        statusEl.style.color = "var(--text-secondary)";
-      } catch (err) {
-        statusEl.textContent = t("friends.contactsCancelled");
-        statusEl.style.color = "var(--red)";
-      }
-    });
+    // QR scanning and "suggest from contacts" used to sit here. Neither
+    // could work in the app: live QR scanning was disabled and only ever
+    // told the user to type the code, and iOS has no Contact Picker API --
+    // where it did exist, it read contacts and then did nothing with them.
+    // A control that cannot work is an App Review 2.1 rejection, and
+    // reading contacts for nothing is a 5.1.2 one, so both went. Friend
+    // codes (above) are the way to add someone.
 
     loadFriends();
     document.addEventListener("repcheck:language-changed", renderFriendList);

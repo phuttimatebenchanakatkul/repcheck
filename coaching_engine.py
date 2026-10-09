@@ -163,10 +163,14 @@ LOSE_WEIGHT_PROTEIN_BUMP_G = {
 }
 
 # Floors so a deficit can never be calculated as unsafely low. Different
-# by gender per standard clinical minimum-safe-intake guidance (e.g. NHS/
-# NIH low-calorie-diet cautions) rather than one flat number for everyone.
-MIN_CALORIES_MALE = 1400
-MIN_CALORIES_FEMALE = 1000
+# by gender per standard clinical minimum-safe-intake guidance rather than
+# one flat number for everyone: the widely used floor for an unsupervised
+# diet is about 1,500 kcal/day for men and 1,200 for women (below that is a
+# "very low calorie diet", which needs medical supervision). These were
+# 1,400 / 1,000 -- the women's floor sat well inside VLCD territory, which
+# is exactly what App Review Guideline 1.4 (physical harm) is about.
+MIN_CALORIES_MALE = 1500
+MIN_CALORIES_FEMALE = 1200
 FAT_PERCENT_OF_CALORIES = 0.25  # "balanced" default, also the fallback for an unrecognized diet_preference
 WEEKLY_ADJUSTMENT_LIMIT = 150  # the +/- 1-150 kcal/week cap the coaching loop is allowed
 

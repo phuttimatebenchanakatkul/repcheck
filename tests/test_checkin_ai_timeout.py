@@ -94,10 +94,19 @@ def test_checkin_completes_when_the_ai_times_out(monkeypatch):
     """The whole point: a timing-out AI must not fail the user's check-in."""
     import app as app_module
 
+    calls = []
+
     def boom(*_args, **_kwargs):
+        calls.append(1)
         raise CheckinAnalysisError("Couldn't analyze this check-in: timed out")
 
     monkeypatch.setattr(app_module, "analyze_checkin", boom)
+    # A signed-in account that agreed to AI processing: the route now needs
+    # both, and without consent it never reaches the AI at all, which would
+    # make this test pass without exercising the timeout path.
+    monkeypatch.setattr(
+        app_module, "current_user", lambda: {"id": -1, "ai_consent_at": "2026-10-09 00:00:00"}
+    )
 
     client = app_module.app.test_client()
     res = client.post(
@@ -107,6 +116,7 @@ def test_checkin_completes_when_the_ai_times_out(monkeypatch):
     )
 
     assert res.status_code == 200, f"AI timeout must not fail the request: {res.data[:200]}"
+    assert calls, "the AI call was never attempted -- this test is not exercising the timeout"
     body = res.get_json()
     assert body["ok"] is True
     # coaching.js only treats ok:false as a failure, so ok:true here is what

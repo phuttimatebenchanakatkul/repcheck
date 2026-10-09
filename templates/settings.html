@@ -26,6 +26,9 @@
   }
   .st-save-btn:hover { opacity: 0.88; }
   .st-status { font-size: 12px; margin-left: 10px; }
+  .st-ai-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  #st-ai-toggle { white-space: nowrap; flex-shrink: 0; }
+  .st-ai-link { display: inline-block; margin-top: 10px; font-size: 12px; color: var(--text-secondary); text-decoration: underline; }
 
   .st-logout-btn {
     padding: 10px 18px; border-radius: 999px; border: 1px solid var(--red); cursor: pointer;
@@ -134,6 +137,26 @@
       <button type="button" data-value="th" data-i18n="settings.language.th">TH ไทย</button>
     </div>
   </div>
+</div>
+
+<!--
+  AI features (Guideline 5.1.2(i)). Consent to sending content to Google
+  Gemini has to be revocable, and revoking it has to be as easy as giving
+  it -- so it is one switch here, not an email to support. Rendered from the
+  account's own ai_consent_at; static/ai_consent.js does the saving.
+-->
+<div class="st-card" id="ai">
+  <div class="st-card-title" data-i18n="settings.ai.title">AI features</div>
+  <div class="st-card-sub" data-i18n="settings.ai.sub">Form analysis, food photo scans, the AI coach and chats, challenge rep counting, HYROX analysis, AI workout plans and weekly check-ins send what you submit to Google's Gemini AI to produce your result.</div>
+  <div class="st-unit-row" style="border-top:none; padding-top:0;">
+    <div>
+      <div class="st-unit-label" data-i18n="settings.ai.label">Allow AI processing</div>
+      <div class="st-ai-state" id="st-ai-state"></div>
+    </div>
+    <button type="button" class="st-save-btn" id="st-ai-toggle"></button>
+  </div>
+  <span class="st-status" id="st-ai-status"></span>
+  <a href="{{ url_for('privacy') }}#ai" class="st-ai-link" data-i18n="settings.ai.privacy">What is sent, and how it's handled</a>
 </div>
 
 <!--
@@ -600,6 +623,33 @@
     // (delete button) and "scheduled" (due date + restore button). Every
     // string goes in via textContent -- t() does not escape its vars (see
     // CLAUDE.md), and the due date comes back off the wire.
+    // ---- AI features (consent to Gemini processing) ----
+    const aiToggle = document.getElementById("st-ai-toggle");
+    if (aiToggle && window.RepCheckAIConsent) {
+      const aiState = document.getElementById("st-ai-state");
+      const aiStatus = document.getElementById("st-ai-status");
+      function paintAi() {
+        const on = RepCheckAIConsent.isGranted();
+        aiState.textContent = t(on ? "settings.ai.on" : "settings.ai.off");
+        aiToggle.textContent = t(on ? "settings.ai.turnOff" : "settings.ai.turnOn");
+      }
+      paintAi();
+      aiToggle.addEventListener("click", async () => {
+        const on = RepCheckAIConsent.isGranted();
+        aiToggle.disabled = true;
+        aiStatus.textContent = "";
+        try {
+          if (on) await RepCheckAIConsent.set(false);
+          else await RepCheckAIConsent.ensure();
+        } catch (err) {
+          aiStatus.textContent = (err && err.message) || "Couldn't save that.";
+        }
+        aiToggle.disabled = false;
+        paintAi();
+      });
+      document.addEventListener("repcheck:language-changed", paintAi);
+    }
+
     const deleteCard = document.getElementById("delete-account");
     if (deleteCard) {
       const graceDays = deleteCard.dataset.graceDays;

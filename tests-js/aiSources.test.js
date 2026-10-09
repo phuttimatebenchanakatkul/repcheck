@@ -90,3 +90,56 @@ describe("citation link clicks", () => {
     expect(event.__leftAlone).toBe(true);
   });
 });
+
+// Guideline 4.7.1: every AI reply can be reported, and says it is AI and not
+// medical advice (1.4.1).
+describe("report control under an AI reply", () => {
+  function mountReply(text) {
+    load();
+    document.body.innerHTML =
+      `<div class="cc-bubble cc-bubble-coach"><p>${text}</p>${window.RepCheckSources.html([STUDY], "coach")}</div>`;
+    return document.querySelector(".cc-bubble");
+  }
+
+  it("shows the disclaimer and a Report button only when a feature is given", () => {
+    load();
+    expect(window.RepCheckSources.html([STUDY])).not.toContain("ai-report");
+    const bubble = mountReply("Rest 3 minutes.");
+    expect(bubble.querySelectorAll(".ai-disclaimer")).toHaveLength(1);
+    expect(bubble.querySelector("[data-ai-report-open]")).not.toBeNull();
+  });
+
+  it("still offers Report on a reply with no sources", () => {
+    load();
+    expect(window.RepCheckSources.html([], "workout_chat")).toContain("data-ai-report-open");
+  });
+
+  it("posts the reply's own text -- not the footer -- with the chosen reason", async () => {
+    const bubble = mountReply("Rest 3 minutes.");
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
+    window.fetch = fetchMock;
+    bubble.querySelector("[data-ai-report-open]").click();
+    expect(bubble.querySelectorAll("[data-ai-report-reason]")).toHaveLength(4);
+    bubble.querySelector('[data-ai-report-reason="inaccurate"]').click();
+    await vi.waitFor(() => expect(bubble.querySelector(".ai-report-done").textContent).toContain("Thanks"));
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/ai-report");
+    expect(JSON.parse(options.body)).toEqual({ feature: "coach", reason: "inaccurate", reply: "Rest 3 minutes." });
+  });
+
+  it("says so when the report could not be sent", async () => {
+    const bubble = mountReply("x");
+    window.fetch = vi.fn().mockRejectedValue(new Error("offline"));
+    bubble.querySelector("[data-ai-report-open]").click();
+    bubble.querySelector('[data-ai-report-reason="other"]').click();
+    await vi.waitFor(() => expect(bubble.querySelector(".ai-report-done").textContent).toContain("Couldn't"));
+  });
+
+  it("Cancel puts the Report button back without duplicating the disclaimer", () => {
+    const bubble = mountReply("x");
+    bubble.querySelector("[data-ai-report-open]").click();
+    bubble.querySelector("[data-ai-report-cancel]").click();
+    expect(bubble.querySelector("[data-ai-report-open]")).not.toBeNull();
+    expect(bubble.querySelectorAll(".ai-disclaimer")).toHaveLength(1);
+  });
+});

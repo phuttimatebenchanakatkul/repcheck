@@ -2048,12 +2048,12 @@
           </div>
         `;
       } else {
-        const query = encodeURIComponent(`${name} proper form tutorial`);
-        videoContainer.innerHTML = `
-          <div class="exd-video-wrap">
-            <iframe class="exd-video-iframe" src="https://www.youtube-nocookie.com/embed?listType=search&list=${query}" title="${escapeAttr(name)} Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-          </div>
-        `;
+        // No curated video for this exercise. This used to embed a YouTube
+        // SEARCH list (embed?listType=search), which YouTube no longer
+        // serves -- the player rendered as a broken box (App Review 2.1).
+        // The search link below (exdVideoLink) is the working path, so the
+        // video slot is simply left empty.
+        videoContainer.innerHTML = "";
       }
     }
 
@@ -4970,7 +4970,7 @@
       }
       suggestionsEl.innerHTML = "";
       messagesEl.innerHTML = chatHistory.map((turn) => `
-        <div class="wlc-bubble ${turn.role === "user" ? "wlc-bubble-user" : "wlc-bubble-bot"}">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources ? "" : RepCheckSources.html(turn.sources)}</div>
+        <div class="wlc-bubble ${turn.role === "user" ? "wlc-bubble-user" : "wlc-bubble-bot"}">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources || !Array.isArray(turn.sources) ? "" : RepCheckSources.html(turn.sources, "workout_chat")}</div>
       `).join("");
       scrollToBottom();
     }
@@ -5083,7 +5083,7 @@
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
         // Citations behind the reply (health_sources.py), kept on the turn.
-        const sources = data.ok && Array.isArray(data.sources) ? data.sources : [];
+        const sources = data.ok && Array.isArray(data.sources) ? data.sources : null;
         chatHistory.push({ id: newTurnId(), role: "assistant", text: reply, sources, date: todayIso });
         saveHistory(todayIso, chatHistory);
         renderMessages();

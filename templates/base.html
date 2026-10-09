@@ -50,6 +50,8 @@
   <link rel="icon" href="{{ url_for('static', filename='logo-mark.png') }}">
   <script>
     window.REPCHECK_LOGGED_IN = {{ 'true' if current_user else 'false' }};
+    // Whether this account has agreed to AI processing (static/ai_consent.js).
+    window.REPCHECK_AI_CONSENT = {{ 'true' if current_user and current_user.ai_consent_at else 'false' }};
   </script>
   <!-- Records what THIS page's own scripts bind to document/window, so
        static/pagenav.js can release those bindings when it swaps the page
@@ -67,6 +69,10 @@
   <!-- The citation list under every AI chat reply (RepCheckSources), shared
        by the coach page, the workout chat and the Analyze chat. -->
   <script src="{{ asset_url('ai_sources.js') }}"></script>
+  <!-- Asks for consent before the first AI request leaves the device
+       (RepCheckAIConsent, Guideline 5.1.2(i)). Wraps fetch, so it must load
+       before any page script runs. -->
+  <script src="{{ asset_url('ai_consent.js') }}"></script>
   <script src="{{ asset_url('safety.js') }}"></script>
   <script src="{{ asset_url('numeric_fields.js') }}"></script>
   <script src="{{ asset_url('nutrition_macros.js') }}"></script>
