@@ -180,8 +180,9 @@ def client(tmp_path, monkeypatch):
 
 
 def _login(client, email):
-    from database import create_local_user
+    from database import create_local_user, set_ai_consent
     user_id = create_local_user(email, "irrelevant-password", "Test User")
+    set_ai_consent(user_id, True)
     with client.session_transaction() as sess:
         sess["user_id"] = user_id
 
@@ -228,7 +229,7 @@ def test_coach_page_keeps_and_renders_each_replys_sources():
     either and the citations silently vanish from the coach page."""
     coach = (ROOT / "templates" / "coach.html").read_text(encoding="utf-8")
     assert re.search(r'history\.push\(\{ role: "coach", text: reply, sources,', coach)
-    assert "RepCheckSources.html(turn.sources)" in coach
+    assert 'RepCheckSources.html(turn.sources, "coach")' in coach
 
 
 def test_base_template_loads_the_shared_renderer():

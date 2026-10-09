@@ -143,6 +143,9 @@
     {# The labelled way out, and the page's one primary action. Most people
        will use this rather than the back chevron, since it names what
        happens next. #}
+    {# Guideline 1.4.1: scores and rep counts come from the camera via AI,
+       so the screen that shows them says what they are. #}
+    <p class="an-estimate-note" data-i18n="analyze.estimateNote">Scores and rep counts are AI estimates from your video and can be wrong. This is general fitness feedback, not medical advice — if a movement causes pain, stop and see a doctor or physiotherapist.</p>
     <a class="an-btn an-btn-primary" href="{{ url_for('analyze_page') }}">
       <span data-i18n="analyze.analyzeAnother">Analyze another video</span>
     </a>

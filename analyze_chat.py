@@ -22,6 +22,7 @@ import os
 
 from dotenv import load_dotenv
 
+from ai_safety import chat_safety_settings
 from health_sources import attach_sources, prompt_instruction
 
 load_dotenv()
@@ -124,7 +125,7 @@ def get_analysis_chat_reply(message, history=None, context=None):
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=contents,
-            config=types.GenerateContentConfig(system_instruction=_build_system_prompt(context) + prompt_instruction()),
+            config=types.GenerateContentConfig(system_instruction=_build_system_prompt(context) + prompt_instruction(), safety_settings=chat_safety_settings()),
         )
         text, sources = attach_sources((response.text or "").strip(), message)
         reply = text or "Sorry, I couldn't come up with a reply there — could you try asking that again?"

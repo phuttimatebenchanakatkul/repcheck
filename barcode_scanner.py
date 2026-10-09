@@ -282,6 +282,10 @@ def _validate(barcode, product, source="Open Food Facts"):
         "food_name": food_name,
         "confidence": "high",  # exact barcode match, not a visual estimate
         "note": f"Nutrition from the product label ({source}), for a {grams}g serving.",
+        # Which database the figures came from, so the result screen can show
+        # the attribution that database's terms require (App Review 5.2.2):
+        # FatSecret's "Powered by fatsecret", Open Food Facts' ODbL credit.
+        "data_source": source,
         "ingredients": [{
             "name": food_name,
             "grams": grams,

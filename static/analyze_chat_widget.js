@@ -415,7 +415,7 @@
       suggestEl.innerHTML = "";
       threadEl.innerHTML = history.map((turn) => `
         <div class="ag-row ${turn.role === "user" ? "ag-row-user" : "ag-row-assistant"}">
-          <div class="ag-bubble">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources ? "" : RepCheckSources.html(turn.sources)}</div>
+          <div class="ag-bubble">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources || !Array.isArray(turn.sources) ? "" : RepCheckSources.html(turn.sources, "analyze_chat")}</div>
         </div>
       `).join("");
       scrollToBottom();
@@ -493,7 +493,7 @@
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || t("analyzeChat.errorReaching"));
         // Citations behind the reply (health_sources.py), kept on the turn.
-        const sources = data.ok && Array.isArray(data.sources) ? data.sources : [];
+        const sources = data.ok && Array.isArray(data.sources) ? data.sources : null;
         history.push({ role: "assistant", text: reply, sources });
         persistHistory();
         renderMessages();

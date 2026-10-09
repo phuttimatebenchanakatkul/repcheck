@@ -42,6 +42,8 @@
   }
   .rep-done:hover { border-color: var(--text-secondary); }
   .rep-empty { font-size: 14px; color: var(--text-secondary); padding: 24px 0; }
+  .rep-ai-title { font-size: 17px; font-weight: 800; margin: 28px 0 8px; }
+  .rep-reply { font-size: 13px; margin-top: 6px; white-space: pre-wrap; word-break: break-word; }
 </style>
 
 <div class="rep-count">
@@ -59,6 +61,9 @@
       </div>
     </div>
     <span class="rep-reason">{{ r.reason.replace('_', ' ') }}</span>
+    <form method="post" action="{{ url_for('admin_report_reset_name', report_id=r.id) }}">
+      <button type="submit" class="rep-done">Reset name</button>
+    </form>
     <form method="post" action="{{ url_for('admin_report_handled', report_id=r.id) }}">
       <button type="submit" class="rep-done">Mark handled</button>
     </form>
@@ -67,5 +72,30 @@
 </div>
 {% else %}
 <div class="rep-empty">Nothing to review.</div>
+{% endif %}
+
+{# Reports against an AI chat reply (Guideline 4.7.1), not an account. The
+   reply is shown in full: it is the only copy the server has. #}
+<h2 class="rep-ai-title">AI replies</h2>
+<div class="rep-count">
+  <strong>{{ ai_reports|length }}</strong> open AI report{{ '' if ai_reports|length == 1 else 's' }}
+</div>
+{% if ai_reports %}
+<div class="rep-list">
+  {% for r in ai_reports %}
+  <div class="rep-row">
+    <div class="rep-main">
+      <div class="rep-meta">{{ r.feature.replace('_', ' ') }} &middot; reported by {{ r.reporter_name }} &middot; {{ r.created_at }}</div>
+      <div class="rep-reply">{{ r.reply_text }}</div>
+    </div>
+    <span class="rep-reason">{{ r.reason }}</span>
+    <form method="post" action="{{ url_for('admin_ai_report_handled', report_id=r.id) }}">
+      <button type="submit" class="rep-done">Mark handled</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="rep-empty">No AI replies reported.</div>
 {% endif %}
 {% endblock %}

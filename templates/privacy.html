@@ -21,7 +21,7 @@
   policy with no identifiable controller is itself a defect under both.
 -->
 <div class="policy-page">
-  <p class="policy-updated">Last updated 12 September 2026</p>
+  <p class="policy-updated">Last updated 9 October 2026</p>
 
   <p>RepCheck is a training app. This page explains what it collects, why, who
   it is shared with, and how to get rid of it.</p>
@@ -55,11 +55,17 @@
     <li><strong>Lift videos</strong> — the clips you upload for form analysis.</li>
     <li><strong>Progress photos</strong> — the check-in photos of your body, if
       you choose to take them.</li>
-    <li><strong>Usage data</strong> — which pages you open and how often, used to
-      understand what parts of the app are worth building on. This is a running
-      count per page, kept on our own servers. There is no third-party
-      analytics in RepCheck: no Google Analytics, no advertising pixel, and
-      nothing that reports your behaviour to another company.</li>
+    <li><strong>Usage data</strong> — which pages you open and which features you
+      use (for example "food photo scan" or "coach message"), and how often,
+      used to understand what parts of the app are worth building on and to
+      enforce daily limits. These are running counts stored against your
+      account on our own servers; they are not a record of what you wrote or
+      uploaded. There is no third-party analytics in RepCheck: no Google
+      Analytics, no advertising pixel, and nothing that reports your behaviour
+      to another company.</li>
+    <li><strong>Reports you send</strong> — if you report another user, or
+      report an AI reply, we keep the report (and, for an AI reply, the text of
+      that reply) until we have reviewed it.</li>
   </ul>
   <p>We do not collect your contacts, your location, your device advertising
   identifier, or health data from Apple Health or any other app.</p>
@@ -82,14 +88,15 @@
     <li><strong>To provide the app you asked for</strong> (performance of our
       contract with you) — your account, your logs, your analyses. Without this
       there is no app.</li>
-    <li><strong>Your explicit consent</strong> — for health and body data, and
-      for sending your photos, videos and messages to third-party AI providers
-      to generate a result. You give this when you create an account, and you
-      can withdraw it by deleting the content or your account.</li>
+    <li><strong>Your explicit consent</strong> — for health and body data, and,
+      separately, for sending your content to our AI provider (Google Gemini)
+      to generate a result. The app asks for the AI consent the first time you
+      use an AI feature, before anything is sent, and you can withdraw it at
+      any time in <strong>Settings → AI features</strong>.</li>
     <li><strong>Our legitimate interests</strong> — keeping the service secure
-      and working: rate limits, abuse and fraud prevention, and the page counts
-      described above. We have weighed this against your privacy and kept it to
-      aggregate counts and security measures.</li>
+      and working: rate limits, abuse and fraud prevention, and the usage
+      counts described above. We have weighed this against your privacy and
+      kept it to simple counts and security measures.</li>
     <li><strong>Legal obligation</strong> — where the law requires us to keep or
       disclose something.</li>
   </ul>
@@ -97,31 +104,46 @@
   advertising, and we do not use it for profiling or for automated decisions
   that have a legal effect on you.</p>
 
-  <h2>AI processing by third parties</h2>
-  <p>Some features work by sending your content to third-party AI providers:</p>
+  <h2 id="ai">AI processing by a third party</h2>
+  <p>RepCheck's AI features work by sending your content to <strong>Google's
+  Gemini API</strong>. Nothing is sent until you have agreed: the app asks the
+  first time you use an AI feature, and you can turn it off at any time in
+  <strong>Settings → AI features</strong>. With it off, the AI features are
+  unavailable and nothing is sent; the rest of the app keeps working. Only
+  what the feature you are using needs is sent, and only when you use it:</p>
   <ul>
-    <li><strong>Food photos and meal descriptions</strong> are sent to Google
-      (Gemini) to estimate the food and its macros.</li>
-    <li><strong>Lift videos</strong> are analysed for form; frames and pose data
-      may be sent to Google (Gemini) or OpenAI depending on the analysis.</li>
-    <li><strong>Coach and chat messages</strong> are sent to the same providers to
-      generate replies.</li>
+    <li><strong>Food photo scan</strong> — the photo and any note you type, to
+      estimate the food and its calories and macros.</li>
+    <li><strong>Lift form analysis</strong> — a trimmed clip of your video, plus
+      the exercise you chose, to score your form and count reps. Pose detection
+      for trimming runs on your own device.</li>
+    <li><strong>Daily challenge</strong> — your challenge video, to count reps.</li>
+    <li><strong>AI coach, workout chat and analysis chat</strong> — your messages
+      and the conversation so far; for the workout chat, a summary of your
+      logged sets, weights and reps; for the analysis chat, that analysis's
+      scores and feedback.</li>
+    <li><strong>Weekly check-in</strong> — your progress photos for that week (if
+      you took them), body weight entries, logged calories, gender and goal, to
+      suggest a calorie adjustment.</li>
+    <li><strong>AI workout plan</strong> — the goal you type, your training days,
+      gender, current and goal weight, and where you train.</li>
+    <li><strong>HYROX race analysis</strong> — your race segment times.</li>
   </ul>
-  <p>These providers process the content to return a result. We do not sell
-  your data to anyone, and we do not use it for advertising.</p>
+  <p>Google processes this content to return a result to us. We do not sell
+  your data to anyone, and we do not use it for advertising or for building a
+  profile of you.</p>
 
   <h2>Who else your data reaches</h2>
   <p>The full list of companies that can touch your data, and why:</p>
   <ul>
     <li><strong>Render</strong> — hosts our servers and database.</li>
-    <li><strong>Google</strong> — Gemini, for the AI features above, and Google
-      Sign-In if you use it.</li>
-    <li><strong>OpenAI</strong> — some lift-video analysis.</li>
+    <li><strong>Google</strong> — Gemini, for the AI features above (only once
+      you have agreed), and Google Sign-In if you use it.</li>
     <li><strong>Apple</strong> — Apple Sign-In if you use it, and App Store
       distribution.</li>
-    <li><strong>FatSecret and barcode food databases</strong> — looked up by
-      barcode or food name to return nutrition figures. We send the barcode or
-      the search term, not anything that identifies you.</li>
+    <li><strong>FatSecret and Open Food Facts</strong> — looked up by barcode or
+      food name to return nutrition figures. We send the barcode or the search
+      term, not anything that identifies you.</li>
     <li><strong>YouTube</strong> — only if you open an embedded tutorial video.
       See our <a href="{{ url_for('cookies') }}">Cookie Policy</a>.</li>
     <li><strong>jsDelivr and Google's model storage</strong> — when you start a
@@ -146,9 +168,13 @@
 
   <h2>How long we keep it</h2>
   <ul>
-    <li><strong>Uploaded lift videos</strong> — deleted right after analysis.
-      Only the resulting scores and feedback text are kept, plus the trimmed
-      clip if you saved the analysis.</li>
+    <li><strong>Uploaded lift videos</strong> — the original upload is deleted
+      right after analysis. The scores, feedback and the trimmed clip are kept
+      in your analysis history so you can replay them, for your 20 most recent
+      analyses; older ones are deleted automatically, and you can delete any of
+      them yourself.</li>
+    <li><strong>Challenge videos</strong> — deleted right after the reps are
+      counted. Only the rep count is kept.</li>
     <li><strong>Your account and everything in it</strong> — kept while your
       account exists, then erased on the schedule below.</li>
     <li><strong>Anything you delete yourself</strong> — a log, a photo, a saved

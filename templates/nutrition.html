@@ -765,6 +765,11 @@
     pointer-events: none;
     display: flex;
   }
+  /* Food-database attribution (5.2.2), see dataSourceCreditHtml(). */
+  .nl-data-credit { font-size: 11.5px; text-align: center; margin: 6px 0 10px; }
+  .nl-data-credit a { color: var(--text-secondary); text-decoration: underline; }
+  /* Guideline 1.4.1: the figures are an AI estimate from a photo. */
+  .af-estimate-note { font-size: 12px; color: var(--text-secondary); line-height: 1.45; text-align: center; margin: 0 4px 10px; }
   .af-note {
     font-size: 12px;
     color: var(--text-secondary);
@@ -4232,14 +4237,17 @@
       ${afPreviewUrl ? `
         <div class="af-hero af-rise">
           <img class="af-hero-photo" src="${afPreviewUrl}" alt="">
-          <div class="af-hero-badge ${sureBadge ? "" : "is-unsure"}">${badgeCheck}${result.confidence} confidence</div>
+          <div class="af-hero-badge ${sureBadge ? "" : "is-unsure"}">${badgeCheck}${escapeHtml(result.confidence)} confidence</div>
         </div>
       ` : ""}
       <div class="af-title-wrap af-rise" style="--d:60ms;">
         <input type="text" class="af-title-input" id="af-food-name" maxlength="40" value="${result.food_name.replace(/"/g, "&quot;")}">
         <span class="af-title-pencil">${pencilIcon}</span>
       </div>
-      ${result.note ? `<div class="af-note af-rise" style="--d:100ms;">${result.note}</div>` : ""}
+      ${result.note ? `<div class="af-note af-rise" style="--d:100ms;">${escapeHtml(result.note)}</div>` : ""}
+      ${result.data_source
+        ? dataSourceCreditHtml(result.data_source)
+        : `<div class="af-estimate-note af-rise" style="--d:110ms;">${escapeHtml(RepCheckI18n.t("nutrition.aiEstimateNote"))}</div>`}
       <div id="af-donut-area" class="af-rise" style="--d:140ms;"></div>
       ${result.servings && result.servings.length > 1 ? `
       <div class="af-field af-serving-select-row af-rise" style="--d:180ms;">
@@ -5248,6 +5256,21 @@
     return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  // Attribution the food databases' terms require wherever their data is
+  // shown (App Review 5.2.2): FatSecret's Platform API asks for a
+  // "Powered by fatsecret" link, and Open Food Facts publishes its data
+  // under the ODbL, which requires crediting the source.
+  const DATA_SOURCE_CREDITS = {
+    "FatSecret": { url: "https://www.fatsecret.com", key: "nutrition.creditFatSecret", fallback: "Powered by fatsecret" },
+    "Open Food Facts": { url: "https://world.openfoodfacts.org", key: "nutrition.creditOpenFoodFacts", fallback: "Data from Open Food Facts (ODbL)" },
+  };
+  function dataSourceCreditHtml(source) {
+    const credit = DATA_SOURCE_CREDITS[source];
+    if (!credit) return "";
+    const label = RepCheckI18n.t(credit.key);
+    return `<div class="nl-data-credit"><a href="${credit.url}" target="_blank" rel="noopener noreferrer" data-source-link>${escapeHtml(label && label !== credit.key ? label : credit.fallback)}</a></div>`;
+  }
+
   function offResultRowHtml(result, index) {
     return `
       <button type="button" class="nl-food-row" data-off-index="${index}">
@@ -5407,7 +5430,7 @@
       modalOffResults = await fetchOffResults(query.trim());
       const list = document.getElementById("modal-food-list");
       if (!list || !modalOffResults.length) return;
-      list.insertAdjacentHTML("beforeend", modalOffResults.map(offResultRowHtml).join(""));
+      list.insertAdjacentHTML("beforeend", modalOffResults.map(offResultRowHtml).join("") + dataSourceCreditHtml("Open Food Facts"));
       const emptyMsg = document.getElementById("modal-empty-msg");
       if (emptyMsg) emptyMsg.style.display = "none";
     }, 350);

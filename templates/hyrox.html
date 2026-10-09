@@ -14,6 +14,14 @@
 -->
 <div id="hyrox-root"></div>
 
+{# Guideline 5.2.1 / 4.1: HYROX is a registered trademark of upsolut Sports
+   AG. The name is used only to say what this training tool is for; this
+   says so, and that there is no endorsement. #}
+<p class="hx-trademark-note" data-i18n="hyrox.trademarkNote">HYROX is a registered trademark of upsolut Sports AG. RepCheck is an independent training app and is not affiliated with, endorsed or sponsored by HYROX or upsolut Sports AG.</p>
+<style>
+  .hx-trademark-note { font-size: 11.5px; line-height: 1.5; color: var(--text-secondary); text-align: center; margin: 24px auto 8px; max-width: 520px; padding: 0 16px; }
+</style>
+
 <link rel="stylesheet" href="{{ asset_url('hyrox.css') }}">
 <script src="{{ asset_url('hyrox.js') }}"></script>
 {% endblock %}

@@ -139,6 +139,11 @@ def init_db():
         # _limited_user). The migration is kept only so fresh installs get
         # the same schema as databases it already ran against.
         _add_column_if_missing(conn, "users", "rate_limited", "INTEGER NOT NULL DEFAULT 1")
+        # When the user agreed to their content being sent to Google Gemini
+        # (Guideline 5.1.2(i): sharing personal data with a third-party AI
+        # needs explicit consent). NULL = never agreed, or withdrew -- every
+        # AI route refuses until it is set. See set_ai_consent().
+        _add_column_if_missing(conn, "users", "ai_consent_at", "TEXT")
         # Per-user AI usage counters (workout/food analysis, chatbot). One
         # row per user per feature, holding a fixed-window count -- see
         # rate_limit_peek / rate_limit_consume below.
@@ -406,6 +411,23 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_blocked_users_blocked ON blocked_users(blocked_id)"
         )
+        # Reports against an AI chat REPLY rather than a person (Guideline
+        # 4.7.1: hosted chatbots need reporting, like user content). The
+        # reply text is copied in because the conversation itself lives only
+        # in the reporter's own storage -- without it there would be nothing
+        # to review. Owned by the reporter (user_id), so account deletion
+        # takes it with everything else via _USER_OWNED_TABLES.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ai_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                feature TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                reply_text TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                handled_at TEXT
+            )
+        """)
         # The pre-launch waitlist from the marketing site. NOT a users row:
         # these people have no account, have consented only to one launch
         # email, and most of them will never become users. Kept in its own
@@ -486,6 +508,20 @@ def consume_native_auth_token(token):
 def get_user_by_id(user_id):
     with get_db() as conn:
         return _row_to_dict(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
+
+
+def set_ai_consent(user_id, granted):
+    """Record (granted=True) or withdraw (False) consent to AI processing.
+    Granting again keeps the original timestamp: it records when the user
+    first agreed, which is what a consent record is for."""
+    with get_db() as conn:
+        if granted:
+            conn.execute(
+                "UPDATE users SET ai_consent_at = COALESCE(ai_consent_at, datetime('now')) WHERE id = ?",
+                (user_id,),
+            )
+        else:
+            conn.execute("UPDATE users SET ai_consent_at = NULL WHERE id = ?", (user_id,))
 
 
 def get_user_by_email(email):
@@ -1457,6 +1493,69 @@ def create_content_report(reporter_id, reported_id, reason):
         return cur.lastrowid
 
 
+AI_REPORT_FEATURES = ("coach", "workout_chat", "analyze_chat")
+AI_REPORT_REASONS = ("harmful", "inaccurate", "offensive", "other")
+MAX_AI_REPORT_TEXT = 4000
+# A reporter can have this many unreviewed AI reports at once. Enough for any
+# honest use; stops a script from filling the review queue.
+MAX_OPEN_AI_REPORTS_PER_USER = 20
+
+
+def create_ai_report(user_id, feature, reason, reply_text):
+    """Record a report against one AI reply. Returns the row id, or None when
+    the report is empty or the reporter is over their open-report cap."""
+    reply_text = str(reply_text or "").strip()[:MAX_AI_REPORT_TEXT]
+    if not user_id or not reply_text:
+        return None
+    if feature not in AI_REPORT_FEATURES:
+        feature = "coach"
+    if reason not in AI_REPORT_REASONS:
+        reason = "other"
+    with get_db() as conn:
+        # Reporting the same reply twice before review is one complaint.
+        existing = conn.execute(
+            """SELECT id FROM ai_reports
+               WHERE user_id = ? AND reply_text = ? AND handled_at IS NULL""",
+            (user_id, reply_text),
+        ).fetchone()
+        if existing:
+            return existing["id"]
+        open_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM ai_reports WHERE user_id = ? AND handled_at IS NULL",
+            (user_id,),
+        ).fetchone()["n"]
+        if open_count >= MAX_OPEN_AI_REPORTS_PER_USER:
+            return None
+        cur = conn.execute(
+            "INSERT INTO ai_reports (user_id, feature, reason, reply_text) VALUES (?, ?, ?, ?)",
+            (user_id, feature, reason, reply_text),
+        )
+        return cur.lastrowid
+
+
+def get_open_ai_reports(limit=100):
+    """Unhandled AI-reply reports, oldest first, for the admin screen."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT a.id, a.feature, a.reason, a.reply_text, a.created_at,
+                      u.name AS reporter_name
+               FROM ai_reports a JOIN users u ON u.id = a.user_id
+               WHERE a.handled_at IS NULL
+               ORDER BY a.created_at ASC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_ai_report_handled(report_id):
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE ai_reports SET handled_at = datetime('now') WHERE id = ? AND handled_at IS NULL",
+            (report_id,),
+        )
+        return cur.rowcount > 0
+
+
 def get_open_reports(limit=100):
     """Unhandled reports, oldest first, for the admin review screen. Oldest
     first because the commitment made to users is a response time."""
@@ -1473,6 +1572,32 @@ def get_open_reports(limit=100):
             (limit,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+MODERATED_DISPLAY_NAME = "RepCheck User"
+
+
+def reset_reported_name(report_id):
+    """Moderation action for a report (Guideline 1.2): replace the reported
+    account's display name -- the only user-written content another user can
+    see -- with a neutral one, and close every open report against that
+    account. Returns the account id, or None if the report is gone."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT reported_id FROM content_reports WHERE id = ?", (report_id,)
+        ).fetchone()
+        if not row:
+            return None
+        reported_id = row["reported_id"]
+        conn.execute(
+            "UPDATE users SET name = ? WHERE id = ?", (MODERATED_DISPLAY_NAME, reported_id)
+        )
+        conn.execute(
+            """UPDATE content_reports SET handled_at = datetime('now')
+               WHERE reported_id = ? AND handled_at IS NULL""",
+            (reported_id,),
+        )
+        return reported_id
 
 
 def mark_report_handled(report_id):
@@ -1926,6 +2051,7 @@ _USER_OWNED_TABLES = (
     ("progress_photos", "user_id"),
     ("hyrox_results", "user_id"),
     ("analyze_results", "user_id"),
+    ("ai_reports", "user_id"),
 )
 
 

@@ -2,6 +2,56 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.13.0.0] - 2026-10-09
+
+### Fixed
+
+An audit of RepCheck against every section of the App Store Review
+Guidelines (`appstoreguid.txt`). These are the places the app fell short,
+and what changed for each.
+
+- **5.1.2(i): explicit consent before anything reaches Google Gemini.**
+  Photos, videos, chat messages, workout logs and body stats used to go to
+  Gemini on the strength of one line under the sign-up button. Now, the
+  first time any AI feature is used, a dialog names Google Gemini and lists
+  what each feature sends, before anything leaves the device. "Not now"
+  sends nothing. **Settings → AI features** turns it back off. Every AI
+  route on the server also refuses an account without consent
+  (`users.ai_consent_at`). The weekly check-in falls back to its non-AI
+  calculation instead of refusing.
+- **4.7.1: chatbot output is filtered and can be reported.** The coach,
+  workout chat and Analyze chat pass explicit Gemini safety settings
+  (`ai_safety.py`). Every AI reply has a **Report this reply** control,
+  and reports land on `/admin/reports` for review.
+- **1.4.1: estimates say what they are.** Form scores, rep counts,
+  challenge reps and food-photo calories are now labelled as AI estimates
+  where they're shown, with the see-a-doctor advice. Every chat reply is
+  marked "AI-generated · not medical advice". "AI counts the calories" and
+  "exact nutrition" copy is toned down.
+- **1.4: safer calorie floors.** The unsupervised minimums are raised to
+  1,500 kcal for men and 1,200 for women (were 1,400 / 1,000). A caution
+  now appears when the weight-loss rate slider is set above the standard
+  zone.
+- **1.2: reports can be acted on.** Admins can reset a reported display
+  name, which closes every open report against that account.
+- **1.6: security.** The weekly check-in route called Gemini for anonymous
+  callers; it now requires sign-in. The food scan put the AI's note and
+  confidence into the page unescaped; both are now escaped.
+- **5.1.1(i): the privacy policy matches the code.** It no longer names
+  OpenAI, which the app never calls. It now lists every AI feature and
+  what each one sends, including check-in photos, workout logs and body
+  stats. It describes the consent flow, per-account usage counts, stored
+  AI reports, and how long video clips are really kept.
+- **2.1: no dead controls.** Removed the Friends page's "Scan QR" button,
+  which never scanned, and "Suggest from contacts", which can't work on
+  iOS and did nothing with contacts anywhere. Removed the YouTube
+  search-list embed, which YouTube no longer serves.
+- **5.2.1: HYROX trademark.** The HYROX page now says the app isn't
+  affiliated with HYROX. The "official HYROX race" wording is gone.
+- **5.2.2: data attribution.** Barcode and search results now credit
+  their database ("Powered by fatsecret", Open Food Facts under ODbL).
+  `/sources` has a data and content credits section.
+
 ## [0.12.11.0] - 2026-10-09
 
 ### Fixed

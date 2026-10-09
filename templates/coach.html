@@ -399,7 +399,7 @@
       }
       suggestionsEl.innerHTML = "";
       messagesEl.innerHTML = history.map((turn) => `
-        <div class="cc-bubble ${turn.role === "user" ? "cc-bubble-user" : "cc-bubble-coach"}">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources ? "" : RepCheckSources.html(turn.sources)}</div>
+        <div class="cc-bubble ${turn.role === "user" ? "cc-bubble-user" : "cc-bubble-coach"}">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources || !Array.isArray(turn.sources) ? "" : RepCheckSources.html(turn.sources, "coach")}</div>
       `).join("");
       scrollToBottom();
     }
@@ -498,7 +498,10 @@
         const reply = data.ok ? data.reply : (data.error || "Something went wrong. Please try again.");
         // The citations behind the reply (health_sources.py) ride along on
         // the turn, so they are still there when the thread is reopened.
-        const sources = data.ok && Array.isArray(data.sources) ? data.sources : [];
+        // null when the reply did not come from the AI at all (an error, a
+        // consent refusal, a limit notice): those get no AI footer, so no
+        // "AI-generated" label or Report button on the app's own message.
+        const sources = data.ok && Array.isArray(data.sources) ? data.sources : null;
         history.push({ role: "coach", text: reply, sources, date: todayIso });
         saveHistory(history);
         renderMessages();

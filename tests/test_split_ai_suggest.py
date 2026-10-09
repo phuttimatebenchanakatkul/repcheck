@@ -313,6 +313,8 @@ def _logged_in_client():
     user_id = existing["id"] if existing else database.create_local_user(
         "split-endpoint@example.com", "irrelevant-password", "Split Endpoint Tester"
     )
+    # The AI split needs the account's consent to AI processing (5.1.2(i)).
+    database.set_ai_consent(user_id, True)
     # This account calls a rate-limited endpoint (split_generation: 2/day)
     # and this test module runs it against the REAL repcheck.db, not an
     # isolated one -- there is no fixture here that gives it its own DB the

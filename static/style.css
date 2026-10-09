@@ -2616,3 +2616,91 @@ html.an-result .ag-close svg { width: 13px; height: 13px; }
 .ai-sources a { color: var(--blue); text-decoration: underline; overflow-wrap: anywhere; }
 .ai-sources-pub { display: block; color: var(--text-secondary); }
 .ai-sources-all { display: inline-block; margin-top: 2px; color: var(--text-secondary); text-decoration: underline; }
+
+/* "AI estimate, not medical advice" under the analysis result (1.4.1). */
+.an-estimate-note { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 14px 2px; }
+
+/* Caution under the weight-loss rate slider when it is above the standard
+   zone (static/onboarding.js and static/coaching.js, Guideline 1.4). */
+.rate-caution {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--amber-bg, rgba(245, 158, 11, 0.12));
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* "AI-generated, not medical advice" in every AI chat reply's footer. */
+.ai-disclaimer { margin-top: 8px; font-size: 0.75em; color: var(--text-secondary); }
+
+/* Report control under an AI reply (static/ai_sources.js, Guideline 4.7.1). */
+.ai-report { margin-top: 8px; font-size: 0.78em; line-height: 1.4; }
+.ai-report-btn, .ai-report-reason, .ai-report-cancel {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  min-height: 32px;
+}
+.ai-report-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; padding: 4px 0;
+  color: var(--text-secondary);
+}
+.ai-report-btn:hover { color: var(--red, #d33); }
+.ai-report-prompt { font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.ai-report-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-report-reason, .ai-report-cancel {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+}
+.ai-report-reason:hover { border-color: var(--red, #d33); color: var(--red, #d33); }
+.ai-report-cancel { color: var(--text-secondary); }
+.ai-report-done { color: var(--text-secondary); }
+
+/* Consent to AI processing (static/ai_consent.js, Guideline 5.1.2(i)). A
+   plain centred card rather than a bottom sheet: it is asked once, it must
+   not be swiped away by accident, and it has to sit above any open sheet. */
+.aic-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.aic-card {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 20px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+.aic-title { font-size: 19px; font-weight: 800; margin: 0 0 8px; }
+.aic-body, .aic-fine { font-size: 14px; line-height: 1.5; color: var(--text-secondary); margin: 0 0 10px; }
+.aic-list { margin: 0 0 12px; padding-left: 18px; font-size: 14px; line-height: 1.45; }
+.aic-list li { margin-bottom: 5px; }
+.aic-link { font-size: 13px; color: var(--blue); text-decoration: underline; }
+.aic-error { color: var(--red, #d33); font-size: 13px; margin: 10px 0 0; }
+.aic-actions { display: flex; gap: 10px; margin-top: 18px; }
+.aic-btn {
+  flex: 1;
+  min-height: 46px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.aic-btn-secondary { background: none; border: 1px solid var(--border); color: var(--text); }
+.aic-btn-primary { background: var(--blue); border: none; color: #fff; }
+.aic-btn:disabled { opacity: 0.6; cursor: default; }

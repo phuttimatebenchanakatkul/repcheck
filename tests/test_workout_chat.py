@@ -209,8 +209,12 @@ def _login(client, user_id):
 
 
 def _make_user(email):
-    from database import create_local_user
-    return create_local_user(email, "irrelevant-password", "Test User")
+    from database import create_local_user, set_ai_consent
+    user_id = create_local_user(email, "irrelevant-password", "Test User")
+    # Every AI route refuses an account that has not agreed to AI processing
+    # (Guideline 5.1.2(i)); that gate has its own tests in test_ai_consent.py.
+    set_ai_consent(user_id, True)
+    return user_id
 
 
 def test_requires_login():

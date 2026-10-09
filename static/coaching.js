@@ -250,6 +250,7 @@
           <span class="pc-rate-readout-verb">${isLose ? t("coaching.wizard.rateLost") : t("coaching.wizard.rateGained")}</span>
           <span class="pc-rate-readout-freq">${t("coaching.wizard.perWeekLabel")}</span>
         </div>
+        <p class="rate-caution" id="pc-rate-caution" hidden></p>
       </div>
     `);
 
@@ -257,6 +258,9 @@
     const zoneEl = wrap.querySelector("#pc-rate-zone");
     const thumbEl = wrap.querySelector("#pc-rate-thumb");
     const badgeEl = wrap.querySelector("#pc-rate-badge");
+    // Guideline 1.4: above the standard zone, say plainly what a faster
+    // cut costs and who should not do it unsupervised.
+    const cautionEl = wrap.querySelector("#pc-rate-caution");
     const headerValueEl = wrap.querySelector("#pc-rate-header-value");
     const kgWeekEl = wrap.querySelector("#pc-rate-kg-week");
 
@@ -315,9 +319,13 @@
         else if (atRecommended) badgeKey = "coaching.wizard.rateStandardRecommended";
         badgeEl.textContent = t(badgeKey);
         badgeEl.className = "pc-rate-badge" + (standard ? " is-standard" : "");
+        const faster = badgeKey === "coaching.wizard.rateFaster";
+        cautionEl.hidden = !faster;
+        cautionEl.textContent = faster ? t("coaching.wizard.rateCaution") : "";
       } else {
         badgeEl.textContent = "";
         badgeEl.className = "pc-rate-badge";
+        cautionEl.hidden = true;
       }
 
       const weekKg = (current / 100) * wv;
