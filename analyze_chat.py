@@ -22,6 +22,8 @@ import os
 
 from dotenv import load_dotenv
 
+from health_sources import attach_sources, prompt_instruction
+
 load_dotenv()
 
 GEMINI_MODEL = "gemini-3.1-flash-lite"
@@ -101,7 +103,7 @@ def get_analysis_chat_reply(message, history=None, context=None):
     # generates a reply.
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        return {"reply": _fallback_reply(), "limited": False, "retry_after_seconds": 0}
+        return {"reply": _fallback_reply(), "sources": [], "limited": False, "retry_after_seconds": 0}
 
     history = history or []
 
@@ -122,11 +124,13 @@ def get_analysis_chat_reply(message, history=None, context=None):
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=contents,
-            config=types.GenerateContentConfig(system_instruction=_build_system_prompt(context)),
+            config=types.GenerateContentConfig(system_instruction=_build_system_prompt(context) + prompt_instruction()),
         )
-        text = (response.text or "").strip()
+        text, sources = attach_sources((response.text or "").strip(), message)
         reply = text or "Sorry, I couldn't come up with a reply there — could you try asking that again?"
+        if not text:
+            sources = []
     except Exception:
-        reply = _fallback_reply()
+        reply, sources = _fallback_reply(), []
 
-    return {"reply": reply, "limited": False, "retry_after_seconds": 0}
+    return {"reply": reply, "sources": sources, "limited": False, "retry_after_seconds": 0}

@@ -55,6 +55,7 @@ from barcode_scanner import (
     search_open_food_facts,
 )
 from coach_chat import get_coach_reply
+import health_sources
 from workout_chat import get_workout_chat_reply
 from checkin_analyzer import CheckinAnalysisError, analyze_checkin
 from coaching_engine import (
@@ -409,6 +410,10 @@ _PUBLIC_ENDPOINTS = frozenset({
     # and /terms, and those two link on to these -- so the whole set resolves
     # for someone who has agreed to nothing yet.
     "privacy", "terms", "support", "cookies", "refunds",
+    # The citations behind the AI chats' health advice (Guideline 1.4.1).
+    # App Review has to be able to follow a citation link without signing
+    # in, the same as the policy pages above.
+    "health_sources_page",
 })
 
 
@@ -2450,6 +2455,11 @@ def refunds():
     return render_template("refunds.html")
 
 
+@app.route("/sources", methods=["GET"])
+def health_sources_page():
+    return render_template("sources.html", groups=health_sources.grouped_catalog())
+
+
 # ---------- Friends ----------
 @app.route("/api/friends", methods=["GET"])
 def api_friends():
@@ -2998,6 +3008,7 @@ def api_coach_chat():
     return jsonify({
         "ok": True,
         "reply": result["reply"],
+        "sources": result.get("sources", []),
         "limited": result["limited"],
         "retry_after_seconds": result["retry_after_seconds"],
     })
@@ -3032,6 +3043,7 @@ def api_analyze_chat():
     return jsonify({
         "ok": True,
         "reply": result["reply"],
+        "sources": result.get("sources", []),
         "limited": result["limited"],
         "retry_after_seconds": result["retry_after_seconds"],
     })
@@ -3066,6 +3078,7 @@ def api_workout_chat():
     return jsonify({
         "ok": True,
         "reply": result["reply"],
+        "sources": result.get("sources", []),
         "limited": result["limited"],
         "retry_after_seconds": result["retry_after_seconds"],
     })

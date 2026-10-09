@@ -415,7 +415,7 @@
       suggestEl.innerHTML = "";
       threadEl.innerHTML = history.map((turn) => `
         <div class="ag-row ${turn.role === "user" ? "ag-row-user" : "ag-row-assistant"}">
-          <div class="ag-bubble">${formatBubble(turn.text)}</div>
+          <div class="ag-bubble">${formatBubble(turn.text)}${turn.role === "user" || !window.RepCheckSources ? "" : RepCheckSources.html(turn.sources)}</div>
         </div>
       `).join("");
       scrollToBottom();
@@ -492,7 +492,9 @@
         const data = await response.json();
         hideTyping();
         const reply = data.ok ? data.reply : (data.error || t("analyzeChat.errorReaching"));
-        history.push({ role: "assistant", text: reply });
+        // Citations behind the reply (health_sources.py), kept on the turn.
+        const sources = data.ok && Array.isArray(data.sources) ? data.sources : [];
+        history.push({ role: "assistant", text: reply, sources });
         persistHistory();
         renderMessages();
         // Counts toward the streak like any other use of the app. Needs an

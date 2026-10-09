@@ -330,6 +330,28 @@ describe("sendMessage", () => {
     expect(dom.messagesEl.innerHTML).toContain("<strong>32 kg</strong>");
   });
 
+  it("keeps the reply's sources on the turn and links them under the bubble (Guideline 1.4.1)", async () => {
+    const sources = [{
+      id: "acsm_2009",
+      title: "ACSM position stand: Progression models in resistance training for healthy adults",
+      publisher: "Medicine & Science in Sports & Exercise, 2009",
+      url: "https://pubmed.ncbi.nlm.nih.gov/19204579/",
+    }];
+    const fetchImpl = vi.fn().mockResolvedValue({
+      json: async () => ({ ok: true, reply: "Add **2.5 kg**.", sources, limited: false, retry_after_seconds: 0 }),
+    });
+    const { sendMessage, dom, getChatHistory } = loadWorkoutChat({ fetchImpl });
+    dom.inputEl.value = "How do I progress bench?";
+
+    await sendMessage();
+
+    expect(getChatHistory()[1].sources).toEqual(sources);
+    const link = dom.messagesEl.querySelector(".wlc-bubble-bot .ai-sources a[data-source-link]");
+    expect(link).not.toBeNull();
+    expect(link.getAttribute("href")).toBe("https://pubmed.ncbi.nlm.nih.gov/19204579/");
+    expect(dom.messagesEl.querySelector(".wlc-bubble-user .ai-sources")).toBeNull();
+  });
+
   it("sends only PRIOR turns as history, excluding the message just being sent", async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       json: async () => ({ ok: true, reply: "ok", limited: false, retry_after_seconds: 0 }),
