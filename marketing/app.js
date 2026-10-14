@@ -43,6 +43,57 @@
   // Both are forwarded to body rather than made scrollable, because the
   // margin must not move: it is the blank border of the picture.
   if (onCanvas()) {
+    // FORWARDED SCROLLING GLIDES, THE WAY THE BROWSER'S OWN DOES.
+    // This used to write scrollTop straight: a 100px wheel notch was 100px in
+    // one frame. Over the canvas the browser animates the same notch across
+    // a handful of frames, so the margin was the only place on the page that
+    // scrolled in steps. While the story is pinned and scrubbed the steps
+    // hid -- the scrub smooths them -- but from the moment content moves
+    // with the scroll (the panel unpinning after feature 06, the stats, the
+    // waitlist) it visibly stuttered a hundred pixels at a time.
+    //
+    // So both paths aim at a target and this eases body towards it. A notch
+    // that lands mid-glide adds to the TARGET, not to wherever the glide had
+    // got to, so a fast run of notches covers the full distance instead of
+    // losing the unfinished part of each one.
+    var glide = { raf: 0, target: 0, pos: 0, wrote: 0, t: 0 };
+    var glideMax = function () {
+      return document.body.scrollHeight - document.body.clientHeight;
+    };
+    // Where the next forwarded scroll counts from: the glide's destination
+    // while one is running, otherwise where body actually is.
+    var glideFrom = function () {
+      return glide.raf ? glide.target : document.body.scrollTop;
+    };
+    var glideStep = function (now) {
+      var body = document.body;
+      // Something else moved body since the last frame -- the reader
+      // scrolling over the canvas itself, a link, the panel's wordmark. They
+      // win; a glide that fought them would drag the page back.
+      if (Math.abs(body.scrollTop - glide.wrote) > 2) { glide.raf = 0; return; }
+      // Time-based, so it takes the same time at 60Hz and 144Hz. A 75ms
+      // constant puts a notch 95% of the way there in about a fifth of a
+      // second, which is the length of the browser's own wheel animation.
+      var dt = Math.min(64, now - glide.t);
+      glide.t = now;
+      var gap = glide.target - glide.pos;
+      glide.pos = Math.abs(gap) < 0.5 ? glide.target : glide.pos + gap * (1 - Math.exp(-dt / 75));
+      body.scrollTop = glide.pos;
+      glide.wrote = body.scrollTop;
+      glide.raf = glide.pos === glide.target ? 0 : window.requestAnimationFrame(glideStep);
+    };
+    var glideTo = function (y) {
+      y = Math.max(0, Math.min(glideMax(), y));
+      // Reduced motion gets the jump: the glide is decoration, and it is
+      // exactly the kind that preference is asking to be spared.
+      if (reduced) { document.body.scrollTop = y; return; }
+      glide.target = y;
+      if (glide.raf) return;
+      glide.pos = glide.wrote = document.body.scrollTop;
+      glide.t = window.performance.now();
+      glide.raf = window.requestAnimationFrame(glideStep);
+    };
+
     // The margin is the only place where <html> itself is the target -- over
     // the canvas the target is whatever is under the pointer inside body.
     window.addEventListener("wheel", function (evt) {
@@ -52,7 +103,7 @@
       var step = evt.deltaY;
       if (evt.deltaMode === 1) step *= 16;
       else if (evt.deltaMode === 2) step *= document.body.clientHeight;
-      document.body.scrollTop += step;
+      glideTo(glideFrom() + step);
       evt.preventDefault();
     }, { passive: false });
 
@@ -68,13 +119,13 @@
       if (evt.ctrlKey || evt.metaKey || evt.altKey) return;
 
       var page = document.body.clientHeight;
-      if (evt.key === "Home") document.body.scrollTop = 0;
-      else if (evt.key === "End") document.body.scrollTop = document.body.scrollHeight;
+      if (evt.key === "Home") glideTo(0);
+      else if (evt.key === "End") glideTo(glideMax());
       else if (PAGE_KEYS.hasOwnProperty(evt.key)) {
         var dir = PAGE_KEYS[evt.key];
         // Shift+Space is Page Up, the same as it is in every browser.
         if ((evt.key === " " || evt.key === "Spacebar") && evt.shiftKey) dir = -1;
-        document.body.scrollTop += dir * page;
+        glideTo(glideFrom() + dir * page);
       } else return;
       evt.preventDefault();
     });
@@ -745,6 +796,7 @@
           }
         });
 
+        var lastStage = featureBtns.length - 1;
         for (var s = 0; s < featureBtns.length; s++) {
           master
             // The handset: 0 -> 0.3 arriving, 0.3 -> 0.7 held, 0.7 -> 1
@@ -756,16 +808,29 @@
             // title stretched to 0.38 would have had the phone settled and
             // waiting through the second half of every arrival.
             .fromTo(phone, away(), rest({ ease: "power2.out", duration: IN_AT }), s)
-            .to(phone, away({ ease: "power2.in", duration: IN_AT }), s + 1 - IN_AT)
             // The title, on the same clock. autoAlpha, not opacity: it writes
             // visibility alongside, which is what keeps five invisible titles
             // out of the tab order -- the same pair the CSS was setting by
             // hand.
             .fromTo(featureBtns[s], { autoAlpha: 0 },
-              { autoAlpha: 1, ease: EASE_IN, duration: IN_AT }, s)
+              { autoAlpha: 1, ease: EASE_IN, duration: IN_AT }, s);
+          // THE LAST FEATURE DOES NOT LEAVE. Every other stage hands over to
+          // the next one; after the sixth the panel itself unpins and scrolls
+          // up into the stats, and that movement is the exit. Fading it out
+          // as well emptied the title column and dimmed the handset just
+          // before the panel went, so what slid away was a blank frame
+          // rather than the feature the reader had just reached.
+          if (s === lastStage) continue;
+          master
+            .to(phone, away({ ease: "power2.in", duration: IN_AT }), s + 1 - IN_AT)
             .to(featureBtns[s],
               { autoAlpha: 0, ease: EASE_OUT, duration: IN_AT }, s + 1 - IN_AT);
         }
+        // Holds the timeline at one unit per stage. Without the last exit
+        // its children end at lastStage + IN_AT, the scrub would stretch that
+        // shorter timeline over the same scroll, and every stage line would
+        // drift off the screen the panel is on.
+        master.set({}, {}, featureBtns.length);
       });
     }
   }
@@ -1205,9 +1270,37 @@
     // Watch reading 1:24:06 parked next to the nutrition log. Its own race
     // state is only half the question; the other half is whether the race is
     // the feature on show at all.
+    var rcPhone = $(".phone", whatSection);
+    var rcSlide = null;
     function rcSyncWatch() {
       var racing = rc.screen === "running" || rc.screen === "finished";
       var on = racing && rcShowing();
+      // THE HANDSET SLIDES OVER FOR THE WATCH; IT DOES NOT JUMP. The two are
+      // flex siblings centred as a pair, so the watch arriving or leaving
+      // re-centres the handset -- 104px sideways at 1440 wide, in one frame,
+      // measured. Leaving HYROX is where that hit hardest: the watch went at
+      // the stage line and the handset leapt across the panel in the middle
+      // of the cross-fade into Friends. So read where it was, make the
+      // change, and play it back from there through --rc-phone-dx/-dy, two
+      // offsets the handset's transform composes (styles.css), so the scale
+      // the scroll story scrubs is left alone.
+      //
+      // GSAP, not element.animate(). A WAAPI slide was tried and measured:
+      // on the frame after it started, Chrome reported it running at 0ms
+      // with a computed translate of `none` -- one frame of the handset at
+      // its destination before the slide began, in three runs of four. A
+      // GSAP tween writes its first value synchronously and steps on the
+      // same ticker as the scroll story, so there is no such frame.
+      //
+      // Only when the watch actually changes: rcRender calls this on every
+      // split, and a layout read per split would be a reflow per tick.
+      var gs = window.gsap;
+      var before = null;
+      if (on === rcWatch.hidden && rcPhone && gs && !reduced) {
+        before = rcPhone.getBoundingClientRect();
+        if (rcSlide) { rcSlide.kill(); rcSlide = null; }
+        gs.set(rcPhone, { "--rc-phone-dx": "0px", "--rc-phone-dy": "0px" });
+      }
       rcWatch.hidden = !on;
       // A class on the root as well, because ONE COLUMN CANNOT HOLD BOTH
       // DEVICES AT FULL SIZE and the stylesheet has no other way to know the
@@ -1223,6 +1316,19 @@
       // is out, and the two stack. Nothing changes on a wide one, where they
       // have always sat side by side. See the .rc-watch-on rules.
       document.documentElement.classList.toggle("rc-watch-on", on);
+
+      if (before) {
+        var after = rcPhone.getBoundingClientRect();
+        // Centre, not left edge: the handset scales from its top centre, so
+        // that is the point that stays put when only the position changes.
+        var dx = (before.left + before.width / 2) - (after.left + after.width / 2);
+        var dy = before.top - after.top;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          rcSlide = gs.fromTo(rcPhone,
+            { "--rc-phone-dx": dx + "px", "--rc-phone-dy": dy + "px" },
+            { "--rc-phone-dx": "0px", "--rc-phone-dy": "0px", duration: 0.52, ease: "sine.inOut" });
+        }
+      }
     }
 
     function rcStop() { if (rc.timer) { clearInterval(rc.timer); rc.timer = null; } }

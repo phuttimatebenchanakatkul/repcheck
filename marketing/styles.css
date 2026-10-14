@@ -850,6 +850,14 @@ button.stchip:hover { background: #34343a; }
 @media (max-width: 1240px) {
   .phone-stage { flex-direction: column; gap: 22px; }
 }
+/* Side by side, the handset keeps its width when the watch comes in. It
+   used to shrink to make room -- 322px to 309 in a 1080 canvas -- so the
+   HYROX screen reflowed and the handset changed size on the spot as the watch
+   came and went. Scaled as it is in the story, its drawn width is well inside
+   the column, so the pair can overhang the stage's padding instead. */
+@media (min-width: 1241px) {
+  .rc-story-on .phone { flex-shrink: 0; }
+}
 @media (max-width: 720px) {
   .phone-stage { padding-left: 20px; padding-right: 20px; }
 }
@@ -1169,14 +1177,22 @@ button.stchip:hover { background: #34343a; }
    in, after the sixth feature has had its full turn. */
 .rc-story-on .rc-story {
   position: relative;
-  /* +1, not +2. The hero is sticky and in the flow now, so it occupies the
-     first frame itself and this holds the rest.
+  /* +2: the hero's frame, and the room to leave in -- both, as above. This
+     was +1 on the reasoning that the sticky hero occupies the first frame
+     itself, but the margin-top below pulls the story back up over that
+     frame, so the hero's frame came out of this element's height after all
+     and the pin was one frame short. Measured: the panel unpinned at
+     3393px of a 565px frame, which is exactly where feature 06's stage
+     STARTS (3390-3955), so Friends cross-faded in while the whole panel slid
+     up off the canvas and never got a pinned turn -- the HYROX -> Friends
+     change was the one that moved, and the stats arrived over a half-faded
+     title. At +2 the pin runs to 3955, the end of the last stage.
      An explicit length and NOT a percentage: this element's parent is the
      .what section, which has no height of its own, so a percentage height
      has nothing to resolve against and collapses to the content -- written
      as 100% the whole story came out 571px instead of seven frames, and the
      six stages piled up on top of each other. */
-  height: calc((var(--rc-stages, 6) + 1) * var(--rc-frame-h));
+  height: calc((var(--rc-stages, 6) + 2) * var(--rc-frame-h));
   /* Pulled up over the hero's frame. The hero is sticky and in the flow, so
      without this you scroll a whole frame past it before the story's top
      reaches the top of the canvas -- and because the hero is pinned and
@@ -1329,9 +1345,14 @@ button.stchip:hover { background: #34343a; }
    overwrite the whole property and take the layout scale with it -- on a
    short screen the handset would snap back to full size and run off the foot
    of the panel. A multiplier and an offset it composes cannot do that: with
-   the defaults below this rule paints exactly what it painted before. */
+   the defaults below this rule paints exactly what it painted before.
+   --rc-phone-dx / -dy are the third pair, and transient the same way: the
+   slide app.js plays when the race watch arrives or leaves beside the
+   handset (see rcSyncWatch). Ahead of scale() so they move it in screen
+   pixels, which is what they are measured in. */
 .rc-story-on .phone {
-  transform: translate3d(0, var(--rc-phone-lift, 0px), 0)
+  transform: translate3d(var(--rc-phone-dx, 0px),
+                         calc(var(--rc-phone-lift, 0px) + var(--rc-phone-dy, 0px)), 0)
              scale(calc(var(--rc-phone-scale, 1) * var(--rc-phone-settle, 1)));
   transform-origin: center top;
   margin-bottom: calc((var(--rc-phone-scale, 1) - 1) * 662px);
