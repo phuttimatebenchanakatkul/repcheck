@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.13.0.3] - 2026-10-14
+
+### Changed
+
+- **repcheck-marketing.onrender.com is the full-size website again.** It
+  showed the page squeezed into a fixed 1080×566 Instagram frame, centred in
+  white. It now fills the window like repcheckofficials.onrender.com. The
+  Instagram frame is still there for when it's needed: add `?canvas=1` to
+  either address.
+
 ## [0.13.0.2] - 2026-10-14
 
 ### Fixed
