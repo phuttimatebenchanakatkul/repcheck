@@ -2,6 +2,32 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.13.0.2] - 2026-10-14
+
+### Fixed
+
+The marketing site on phones, measured on the live site at seven phone sizes
+before and after.
+
+- **repcheck-marketing now works on a phone at all.** Swiping scrolled the
+  page, but the scroll animation never noticed. The opening screen stayed on
+  top of everything, and a phone visitor never saw a single feature. (A mouse
+  wheel happened to work, which is why it looked fine on a laptop.) The
+  features now play on touch, and so do Page Down, Home and End from the
+  margin.
+- **The phone mockup no longer covers the HYROX description.** While the
+  race's Apple Watch was out, the phone stayed full size and the two
+  together overflowed the column: up over the HYROX text (about 100px) and
+  down off the bottom of the screen, taking the watch's "In design, not
+  shipped" note with them. The phone is now sized to the space it actually
+  has, minus the watch. It shrinks and grows smoothly as the watch comes and
+  goes, and on screens too short for both the watch stands down.
+- **Friends & Challenges gets a full-size phone.** It was sized as if the
+  watch were still out, 24% smaller than every other feature.
+- **The phone stays off "Scroll down".** It overlapped the cue on some
+  screens, and a desktop-only short-screen rule was shrinking it on small
+  phones (375×667 now 0.595, from 0.569).
+
 ## [0.13.0.1] - 2026-10-14
 
 ### Fixed

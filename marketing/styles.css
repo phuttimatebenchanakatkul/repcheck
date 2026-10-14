@@ -1349,11 +1349,13 @@ button.stchip:hover { background: #34343a; }
    --rc-phone-dx / -dy are the third pair, and transient the same way: the
    slide app.js plays when the race watch arrives or leaves beside the
    handset (see rcSyncWatch). Ahead of scale() so they move it in screen
-   pixels, which is what they are measured in. */
+   pixels, which is what they are measured in. --rc-phone-flip is the same
+   slide's size: in one column the handset shrinks to make room for the
+   watch, and this plays that back from the old size instead of cutting. */
 .rc-story-on .phone {
   transform: translate3d(var(--rc-phone-dx, 0px),
                          calc(var(--rc-phone-lift, 0px) + var(--rc-phone-dy, 0px)), 0)
-             scale(calc(var(--rc-phone-scale, 1) * var(--rc-phone-settle, 1)));
+             scale(calc(var(--rc-phone-scale, 1) * var(--rc-phone-settle, 1) * var(--rc-phone-flip, 1)));
   transform-origin: center top;
   margin-bottom: calc((var(--rc-phone-scale, 1) - 1) * 662px);
 }
@@ -1416,7 +1418,11 @@ button.stchip:hover { background: #34343a; }
      list's size and given no measure cap -- the column is already narrow. */
   .rc-story-on .feature-desc { font-size: 14px; line-height: 1.45; max-width: none; margin-top: 2px; }
   .rc-story-on .hint { padding-top: 6px; padding-bottom: 0; }
-  .rc-story-on .phone-stage { padding-top: 10px; padding-bottom: 10px; }
+  /* The bottom padding is the scroll cue's room. The cue is pinned 14px up
+     from the foot of the panel and is ~18px tall, and sizePhone() fits the
+     handset to this content box -- at 10px the box ran under the cue and the
+     handset sat on "Scroll down" (10px of it at 360x780). */
+  .rc-story-on .phone-stage { padding-top: 10px; padding-bottom: 42px; }
   /* The scale itself is not set here -- see the narrow ladder below. */
 }
 
@@ -1438,11 +1444,12 @@ button.stchip:hover { background: #34343a; }
     gap: 4px;
     justify-content: center;
   }
-  /* Smaller than the 0.60 the height ladder would give it -- the watch and
-     its note need about 220px of the column, and this is what is left. The
-     ladder's negative margin reconciles the layout box either way, so this
-     is the one value that has to change. */
-  .rc-watch-on.rc-story-on .phone { --rc-phone-scale: 0.44; }
+  /* The handset's size while the watch is out is NOT set here. A
+     `--rc-phone-scale: 0.44` sat here and never applied: app.js writes the
+     scale inline, which beats any rule, so the handset stayed full size
+     and the stacked pair overflowed the column -- over the description and
+     off the bottom of the screen. sizePhone() now measures the watch and
+     gives the handset what is left. */
   .rc-watch-on .watch-rig {
     display: block;
     width: 186px;
@@ -1461,6 +1468,12 @@ button.stchip:hover { background: #34343a; }
     animation: rc-watch-fade .34s ease both;
   }
   @keyframes rc-watch-fade { from { opacity: 0; } to { opacity: 1; } }
+  /* Set by sizePhone() when the column cannot hold both: under the watch the
+     handset would have to drop below 0.4 -- 0.294 at 360x780, narrower than
+     the watch itself. Same call as the 780px line above, made from the
+     measured column instead of a guessed height, and the note goes with the
+     watch, so nothing is left disclosing a device that is not on screen. */
+  html.rc-watch-cramped .watch-rig { display: none; }
   /* 0.54 of these lands them at ~11px and ~11.5px, which is what they are on
      the wide layout. Change the scale, change these. */
   .rc-watch-on .watch-note { font-size: 20.4px; line-height: 1.4; margin-top: 8px; }
@@ -1729,8 +1742,14 @@ button.stchip:hover { background: #34343a; }
    the handset already is -- the grey text landed on the black bezel. The
    padding goes on the columns rather than on the grid so that the hairline
    between them, which is a border on the column, still runs the full height
-   instead of stopping short of the bottom. */
-@media (max-height: 760px) {
+   instead of stopping short of the bottom.
+   Two columns only. In one column there is no hairline and the description
+   sits ABOVE the handset, so 74px under the title list and 74px under the
+   handset were 148px taken out of the handset's height for nothing -- the
+   old fixed-spare sizing simply let the handset run over that padding, and
+   once the handset was fitted to the stage it came out at 0.435 instead of
+   0.569 at 375x667. One column keeps the cue clear with its own padding. */
+@media (max-height: 760px) and (min-width: 721px) {
   /* Top-aligned rather than centred. Centring only buys back half of any
      padding you add at the foot, so clearing the two lines by centring meant
      padding the column by twice the space actually needed. Pinned to the top
