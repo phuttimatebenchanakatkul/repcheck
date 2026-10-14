@@ -6,8 +6,13 @@
  * styles.css under `html.rc-canvas` -- without it the page is the ordinary
  * full-bleed site it was before the canvas existed.
  *
- *   repcheck-marketing.onrender.com -> the canvas, for the Instagram post
+ *   repcheck-marketing.onrender.com -> the normal site
  *   repcheckofficials.onrender.com  -> the normal site
+ *
+ * repcheck-marketing showed the canvas, for the Instagram post, until
+ * 2026-10-14, when it was put back to the full-size site on request. No host
+ * shows it now; ?canvas=1 still does, and putting a hostname back in the list
+ * is the whole of switching one over again.
  *
  * Loaded from <head> as a blocking classic script, deliberately: it has to
  * decide before the first paint or the page renders full-bleed and snaps into
@@ -21,7 +26,7 @@
 (function () {
   "use strict";
 
-  var CANVAS_HOSTS = ["repcheck-marketing.onrender.com"];
+  var CANVAS_HOSTS = [];
 
   // ?canvas=1 forces it on and ?canvas=0 forces it off, for previewing either
   // shape from localhost or from the other site without editing this list.

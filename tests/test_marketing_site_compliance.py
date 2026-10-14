@@ -954,9 +954,10 @@ def test_every_text_token_clears_wcag_aa_on_the_page_background(token, marketing
 
 # --- the Instagram canvas is a HOST switch, not markup -----------------------
 #
-# Two Render static sites publish marketing/ from the same branch:
-# repcheck-marketing.onrender.com shows the page as a fixed 1080x566 Instagram
-# canvas, repcheckofficials.onrender.com shows the ordinary full-bleed site.
+# Two Render static sites publish marketing/ from the same branch. The page can
+# render as a fixed 1080x566 Instagram canvas, and which hosts do is a list in
+# assets/canvas-frame.js. Since 2026-10-14 neither does: repcheck-marketing was
+# the canvas and was put back to the ordinary full-bleed site on request.
 # Nothing in a static deploy can vary per host except client-side code, so the
 # difference is the rc-canvas class, and assets/canvas-frame.js is the only
 # thing allowed to add it. Written back into the markup, BOTH sites would be
@@ -989,9 +990,14 @@ def test_the_home_page_loads_the_script_that_decides_the_canvas():
     js = (MARKETING / "assets" / "canvas-frame.js").read_text(encoding="utf-8")
     code = re.sub(r"/\*.*?\*/|//[^\n]*", "", js, flags=re.DOTALL)
 
-    assert "repcheck-marketing.onrender.com" in code, (
-        "canvas-frame.js no longer names the host that shows the canvas."
-    )
-    assert "repcheckofficials.onrender.com" not in code, (
-        "repcheckofficials is the plain site -- it must not be in CANVAS_HOSTS."
+    # Both hosts show the full-size site. Naming either one in the code puts
+    # it back into the 1080x566 frame -- do that on purpose, and change this.
+    for host in ("repcheck-marketing.onrender.com", "repcheckofficials.onrender.com"):
+        assert host not in code, (
+            host + " is the plain full-size site -- it must not be in CANVAS_HOSTS."
+        )
+    # The canvas itself is kept, reachable by the preview override.
+    assert "canvas=" in code, (
+        "canvas-frame.js lost its ?canvas=1 / ?canvas=0 override -- with no host "
+        "in CANVAS_HOSTS that is the only way left to see the Instagram frame."
     )

@@ -47,9 +47,10 @@ https://repcheck-marketing.onrender.com (`repcheck-marketing`, id
 `srv-da6241gu01pc738uiv80`), also from `main`. Both are live on purpose and
 both are kept headered — one merge to `main` deploys to both.
 
-**The two show different shapes of the same page.** `repcheck-marketing` is
-the 1080x566 Instagram landscape canvas; `repcheckofficials` is the ordinary
-full-bleed site. A static deploy has no per-host build step, so the switch is
+**Both show the ordinary full-bleed site.** The page also has a 1080x566
+Instagram landscape canvas shape; `repcheck-marketing` showed it until
+2026-10-14 and was put back to the full-size site on request, so today no host
+does. A static deploy has no per-host build step, so the switch is
 `marketing/assets/canvas-frame.js`, which adds an `rc-canvas` class from
 `location.hostname` before the first paint; `styles.css` defines
 `--rc-frame-w` / `--rc-frame-h` as the WINDOW by default and redefines them
