@@ -313,6 +313,8 @@
   // Screens that need to know when they stop (or start) being the one on
   // show: the race parks its clock, the food log drops any open sheet.
   var featureListeners = [];
+  // Set by the scroll story to its handset-sizing function, null without it.
+  var phoneSizer = null;
   function onFeature(fn) { featureListeners.push(fn); }
   // Screens that can be mid-interaction register here so a stray hover
   // doesn't switch them away from under a visitor. An array, like the
@@ -453,6 +455,27 @@
     // frame for good. Off the canvas host the window is the scroller and
     // ScrollTrigger's own default is already right, so this sets nothing.
     if (scroller()) ScrollTrigger.defaults({ scroller: scroller() });
+    // AND IT HAS TO BE TOLD WHEN BODY SCROLLS. ScrollTrigger treats
+    // document.body as the viewport and listens for `scroll` on the window --
+    // but here body is an ordinary scroll container inside a clipped <html>,
+    // and an element's scroll event does not bubble, so the window never
+    // hears it. A mouse wheel happened to wake it by another route, which is
+    // why the desktop worked; nothing else did. Measured at 390x844 with real
+    // touch events: a swipe scrolled body to 2420px while the hero sat at full
+    // opacity on top of everything and the story never left feature 01 -- the
+    // canvas host showed a phone visitor the opening screen and nothing else.
+    // Page Down and Home/End from the margin were deaf the same way.
+    // Throttled to a frame, the same as ScrollTrigger's own scroll handler.
+    if (scroller()) {
+      var stTick = 0;
+      scroller().addEventListener("scroll", function () {
+        if (stTick) return;
+        stTick = window.requestAnimationFrame(function () {
+          stTick = 0;
+          ScrollTrigger.update();
+        });
+      }, { passive: true });
+    }
 
     // THE HANDSET IS SIZED FROM THE FRAME, from here rather than from CSS.
     // The scale wants (frame height - the chrome around it) / 662, and CSS
@@ -483,19 +506,51 @@
       // be covered. 190 clears it, and above 900px the scale clamps to 1
       // either way so nothing visible changes there.
       var spare = narrow ? 290 : (onCanvas() ? 150 : 190);
-      // The watch takes its own room out of the column beneath the handset.
-      if (narrow && document.documentElement.classList.contains("rc-watch-on")) {
-        spare = 420;
-      }
       var scale = (frameH() - spare) / 662;
+      // ONE COLUMN IS MEASURED, NOT ESTIMATED. The handset gets exactly the
+      // stage's content box, less the race watch when it is stacked
+      // underneath. A fixed 290 cannot know how many lines the description
+      // wrapped to, and a fixed allowance for the watch was worse: the
+      // inline scale this writes beats the stylesheet's watch-on value, so
+      // with the watch out the handset stayed full size and the stacked pair
+      // overflowed the column both ways -- up across the HYROX description
+      // (98px at 390x844) and down off the screen with the watch's "In
+      // design, not shipped" note (72px). The stage's height does not depend
+      // on the handset (its grid row is minmax(0, 1fr)), so this read is
+      // stable, and the stage's padding is what keeps it off the scroll cue.
+      var stage = narrow && phoneEl.parentNode;
+      var stageCs = stage && window.getComputedStyle(stage);
+      var room = stage
+        ? stage.clientHeight - parseFloat(stageCs.paddingTop) - parseFloat(stageCs.paddingBottom)
+        : 0;
+      var rig = document.getElementById("rc-watch");
+      // Re-decided on every call, so it starts from the watch being allowed.
+      document.documentElement.classList.remove("rc-watch-cramped");
+      if (room > 0 && rig && !rig.hidden && window.getComputedStyle(rig).display !== "none") {
+        // What the watch occupies in the column, or what it draws if that is
+        // more: it is scaled, and its margin only reconciles the two for one
+        // particular height.
+        var rigCs = window.getComputedStyle(rig);
+        var laid = rig.offsetHeight + parseFloat(rigCs.marginTop) + parseFloat(rigCs.marginBottom);
+        var rigRoom = Math.max(laid, rig.getBoundingClientRect().height) + (parseFloat(stageCs.rowGap) || 0);
+        // Too short a column for both at a size worth showing: the handset
+        // keeps the room and the watch stands down (styles.css).
+        if ((room - rigRoom) / 662 < 0.4) document.documentElement.classList.add("rc-watch-cramped");
+        else room -= rigRoom;
+      }
+      // No layout at all (a hidden preview pane) reads 0; keep the estimate.
+      if (room > 0) scale = room / 662;
       scale = Math.max(0.25, Math.min(1, scale));
       phoneEl.style.setProperty("--rc-phone-scale", String(Math.round(scale * 1000) / 1000));
     }
     sizePhone();
     window.addEventListener("resize", sizePhone);
-    // The watch coming and going changes what is left for the handset, and it
-    // is app.js that knows when that happens.
     onFeature(sizePhone);
+    // The watch coming and going changes what is left for the handset, and
+    // only the race code knows when that happens -- including in the MIDDLE
+    // of HYROX, which no feature change would catch. It calls this after it
+    // has moved the watch; see rcSyncWatch.
+    phoneSizer = sizePhone;
 
     // ScrollTrigger keeps its OWN record of where you were scrolled and puts
     // you back there on a refresh -- which is a sensible default for a pinned
@@ -1292,14 +1347,20 @@
       // GSAP tween writes its first value synchronously and steps on the
       // same ticker as the scroll story, so there is no such frame.
       //
+      // In one column the handset also changes SIZE -- it gives the watch
+      // room under it -- so the slide carries a scale as well
+      // (--rc-phone-flip): read where and how big it was, settle the new
+      // layout once, and play it back from there.
+      //
       // Only when the watch actually changes: rcRender calls this on every
       // split, and a layout read per split would be a reflow per tick.
       var gs = window.gsap;
+      var changing = on === rcWatch.hidden;
       var before = null;
-      if (on === rcWatch.hidden && rcPhone && gs && !reduced) {
+      if (changing && rcPhone && gs && !reduced) {
         before = rcPhone.getBoundingClientRect();
         if (rcSlide) { rcSlide.kill(); rcSlide = null; }
-        gs.set(rcPhone, { "--rc-phone-dx": "0px", "--rc-phone-dy": "0px" });
+        gs.set(rcPhone, { "--rc-phone-dx": "0px", "--rc-phone-dy": "0px", "--rc-phone-flip": 1 });
       }
       rcWatch.hidden = !on;
       // A class on the root as well, because ONE COLUMN CANNOT HOLD BOTH
@@ -1316,17 +1377,24 @@
       // is out, and the two stack. Nothing changes on a wide one, where they
       // have always sat side by side. See the .rc-watch-on rules.
       document.documentElement.classList.toggle("rc-watch-on", on);
+      // Re-fit the handset to what the watch has left it. After the watch
+      // has moved, never before: on a feature change the story's own
+      // sizePhone runs first, while the watch is still out, and on its own
+      // that sized Friends for a watch that was about to leave -- 0.64
+      // against every other feature's 0.837 at 390x844.
+      if (changing && phoneSizer) phoneSizer();
 
       if (before) {
         var after = rcPhone.getBoundingClientRect();
-        // Centre, not left edge: the handset scales from its top centre, so
-        // that is the point that stays put when only the position changes.
+        // Top centre: the handset scales from there, so it is the one point
+        // a translate alone puts back where it was.
         var dx = (before.left + before.width / 2) - (after.left + after.width / 2);
         var dy = before.top - after.top;
-        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        var flip = after.width > 0 ? before.width / after.width : 1;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5 || Math.abs(flip - 1) > 0.002) {
           rcSlide = gs.fromTo(rcPhone,
-            { "--rc-phone-dx": dx + "px", "--rc-phone-dy": dy + "px" },
-            { "--rc-phone-dx": "0px", "--rc-phone-dy": "0px", duration: 0.52, ease: "sine.inOut" });
+            { "--rc-phone-dx": dx + "px", "--rc-phone-dy": dy + "px", "--rc-phone-flip": flip },
+            { "--rc-phone-dx": "0px", "--rc-phone-dy": "0px", "--rc-phone-flip": 1, duration: 0.52, ease: "sine.inOut" });
         }
       }
     }
