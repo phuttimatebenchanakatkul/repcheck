@@ -2,6 +2,31 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.13.0.1] - 2026-10-14
+
+### Fixed
+
+Scrolling on the marketing site, measured frame by frame in Chromium before
+and after.
+
+- **Friends & Challenges gets its own turn.** The feature panel unpinned at
+  the exact scroll position where feature 06 starts, so Friends faded in
+  while the whole panel was already sliding off the page, and its title had
+  half faded out again by the time the stats arrived. The panel now stays
+  pinned through the whole of feature 06, and then scrolls up into the stats
+  with Friends still showing.
+- **The handset no longer jumps when you leave HYROX.** The race demo's
+  watch sits beside the handset. When it left, the handset jumped 104px
+  sideways in a single frame (and changed width) right in the middle of the
+  HYROX to Friends handover. It now slides across over half a second, at most
+  about 6px a frame, and keeps its width while the watch is out.
+- **Scrolling from the white margin is smooth.** On the canvas host the
+  wheel and Page Down over the margin jumped 100px a step instead of
+  scrolling smoothly. That showed from feature 05 onwards, where the page
+  starts actually moving. They now ease the way the browser's own scrolling
+  does, still cover the full distance on a fast scroll, and stop as soon as
+  you scroll the page any other way.
+
 ## [0.13.0.0] - 2026-10-09
 
 ### Fixed
