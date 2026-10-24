@@ -6,3 +6,4 @@
 #   pytest
 -r requirements.txt
 pytest==8.4.2
+psycopg[binary]==3.3.6

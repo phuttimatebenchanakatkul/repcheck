@@ -8,6 +8,16 @@ progress_photos/
 # -journal) untracked-but-not-ignored, one `git add -A` away from publishing
 # every user's email, password hash, and health data.
 repcheck.db*
+# The production export (/admin/export-db) is a SQLite file under whatever name
+# it was saved as -- repcheck_production.db was NOT matched by the line above.
+# Keep real exports outside the repo (e.g. D:\RepCheck_Backups\); these are the
+# safety net if one lands here anyway.
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+repcheck_production*
 *.mp4
 *.mov
 *.MOV
