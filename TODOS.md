@@ -1,5 +1,79 @@
 # TODOS
 
+## Supabase migration
+
+### Run the importer against a real production export before launch
+
+**What:** `scripts/migrate_sqlite_to_supabase.py` has only been run on the 28-account dev database and a synthetic one. Neither has a Google or Apple account, an account past its 30-day deletion window, or the older data shapes real users have.
+
+**Why:** The importer stops (exit 2) on any account it cannot import, and its accounting must balance; a real export is where either could trip. Better to learn that now than on launch day.
+
+**Context:** Save `https://repcheck-q0m4.onrender.com/admin/export-db` (signed in as the owner) OUTSIDE the repo, e.g. `D:\RepCheck_Backups\`, then `python scripts/migrate_sqlite_to_supabase.py <file> --dry-run` before anything else. See `MOBILE_APP_PLAN.md`, "Phase 1 status".
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** The owner downloading the export
+
+### Open sign-ups on the Supabase project bypass the display-name filter
+
+**What:** The project allows anyone with the anon key to create an account (`disable_signup` false). Sign-up must go through Flask so the display-name filter (App Review 1.2) applies.
+
+**Why:** An account made directly against Supabase Auth skips the filter. Nothing uses the project yet, so the exposure is small today.
+
+**Context:** Turn off "Allow new users to sign up" in the dashboard (Authentication → Sign In / Providers) until the app's sign-up path exists, or route sign-up through a Flask endpoint that uses the admin API.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** Phase 2 sign-up design
+
+### Per-user row ceilings for directly-writable tables
+
+**What:** The old server capped each synced key at 2 MiB and a workout day at 200 entries, and `PER_USER_LIMITS` bounded other tables. The app will write the user-data tables directly, so none of those limits exist in the database.
+
+**Why:** A user (or a bug) can fill their own tables without bound; every list read pays for it, and the Data API already pages at 1000 rows.
+
+**Context:** Choose ceilings and enforce them in the database (a trigger or policy), not in the app. Listed in `MOBILE_APP_PLAN.md` under open decisions.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Product decision on the numbers
+
+### Email verification and provider linking for migrated accounts
+
+**What:** Local-password accounts are imported with an unverified email (the old site never verified one); Google and Apple accounts are imported confirmed, and are expected to link by verified email at first provider sign-in. Neither the confirmation flow nor the linking has been tried with real providers, and Supabase's built-in mail sender cannot carry a whole user base.
+
+**Why:** Decides every local user's first launch-day sign-in. Apple accounts that never shared an email have a placeholder address and will not link at all.
+
+**Context:** Needs custom SMTP, "Confirm email" kept on, a decision between confirm-on-first-sign-in and treating the legacy password as proof, and a manual path for the placeholder-email Apple accounts. See "Passwords" in `MOBILE_APP_PLAN.md`.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** Phase 2
+
+### Storage buckets, their policies and the file copy
+
+**What:** No Storage buckets exist and none are in the migrations. Progress photos and analysis videos still live on the old disk; the importer reports every file it saw referenced but does not copy them.
+
+**Why:** The isolation guarantee covers tables only until the buckets and their policies are added and tested the same way.
+
+**Context:** Add buckets and policies as a migration, extend `tests/test_supabase_rls.py` to them (mutation-checked), then copy the files.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** None
+
+### The RLS isolation suite runs only where `.env` holds live Supabase keys
+
+**What:** `tests/test_supabase_rls.py` talks to the real project and is skipped without `SUPABASE_*` in `.env`, so any CI without those secrets silently does not run it.
+
+**Why:** A migration that opens a table would pass CI unnoticed.
+
+**Context:** Either run it in CI against a disposable Supabase project/branch, or run the CLI's local stack (needs Docker). Until then it is a manual pre-merge step for any change under `supabase/migrations/`.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
 ## Streaks
 
 ### Four streak back-fill queries in get_activity_dates() have no covering index

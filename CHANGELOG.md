@@ -2,6 +2,37 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.14.0.0] - 2026-10-25
+
+### Added
+
+Groundwork for the native iPhone and iPad app. **Nothing in the website or the
+current App Store app changes**: it is not wired to any of this yet.
+
+- **A new home for your data, built and tested.** The Supabase database now has
+  every table the app keeps (food, workouts, weigh-ins, HYROX races, chats, the
+  coaching profile, settings and the rest), laid out as proper rows instead of
+  one big blob per person.
+- **Each person can only ever see their own rows.** Tested by signing in as two
+  real users and trying to read, change, delete and forge each other's data in
+  every table. Every guard was then loosened on purpose, one at a time, to prove
+  the tests notice (25 of 25 did).
+- **A move-everything script** that copies the live website's data across without
+  losing or changing any of it. It counts every item, checks the new database
+  against its own plan before it saves anything, and undoes the whole run if a
+  single row differs. Run on the 28-account development database it agrees with a
+  separate count taken straight from the raw data, and it can be re-run safely.
+- **Safe by default.** The script refuses to run over accounts that have already
+  signed in, never carries the data of deleted accounts across, and parks
+  anything it can't store instead of failing the run.
+- A written plan for the rest of the move (`MOBILE_APP_PLAN.md`), including what
+  is built, what is proven, what still needs doing and what needs a decision.
+
+### Changed
+
+- The repo now ignores database exports and SQLite files by extension, so a
+  production export saved inside the project can't be committed by accident.
+
 ## [0.13.0.3] - 2026-10-14
 
 ### Changed

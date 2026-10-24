@@ -44,6 +44,17 @@ behavioural tests (see `tests/test_hyrox_flagged_copy_matches_behavior.py`,
 hand-rolled JS with no module boundary -- when adding one, mutation-check it:
 break the thing it guards and confirm the test actually fails.
 
+`tests/test_supabase_rls.py` talks to the real Supabase project (see
+`MOBILE_APP_PLAN.md`): it signs in as two throwaway users and calls the Data API,
+so it needs `SUPABASE_*` in `.env` and is skipped without them. It only touches
+users and rows it creates itself and removes them when it finishes (a run killed
+midway can leave `rls-*@example.invalid` users to delete by hand), so it does not
+touch real accounts' data. A new table there fails
+`test_every_public_table_has_a_reviewed_access_contract` until its grants and
+policies are decided and added to `EXPECTED_ACCESS`. A forged write must be sent
+with `return=minimal` (see the `Client` docstring), or the SELECT policy masks a
+broken INSERT/UPDATE policy.
+
 Escaping note: `RepCheckI18n.t()` does NOT escape its vars, and most list rows
 are template literals assigned via `innerHTML`. Any `t()` call carrying
 user-controlled data inside one needs an explicit `escapeHtml()`. There is no
