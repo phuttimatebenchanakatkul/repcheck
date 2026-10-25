@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from flask import Flask, jsonify
 
-from . import accounts
+from . import accounts, analyze
 from .auth import Verifier
 from .db import Database
 from .settings import from_env
@@ -30,6 +30,7 @@ class Services:
     verifier: Verifier
     storage: Storage
     auth_admin: AuthAdmin
+    analyzer: object              # (input_path, exercise, trimmed_path) -> result dict; the pipeline unless a test hands one in
 
 
 def json_error(message, status):
@@ -38,7 +39,7 @@ def json_error(message, status):
     return response
 
 
-def create_app(settings=None, db=None, verifier=None, storage=None, auth_admin=None, sweep=True):
+def create_app(settings=None, db=None, verifier=None, storage=None, auth_admin=None, analyzer=None, sweep=True):
     """Every collaborator can be handed in (tests do); by default they are built from the environment.
     `sweep=False` keeps tests from purging real accounts that happen to be past their grace period."""
     settings = settings or from_env()
@@ -50,10 +51,11 @@ def create_app(settings=None, db=None, verifier=None, storage=None, auth_admin=N
         verifier=verifier or Verifier(settings),
         storage=storage or Storage(settings),
         auth_admin=auth_admin or AuthAdmin(settings),
+        analyzer=analyzer or analyze.default_analyzer,
     )
 
-    from .routes import account, health, photos
-    for module in (health, account, photos):
+    from .routes import account, analyze as analyze_routes, consent, health, photos
+    for module in (health, account, consent, photos, analyze_routes):
         app.register_blueprint(module.bp)
 
     @app.after_request
