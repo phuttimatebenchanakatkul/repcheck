@@ -384,7 +384,7 @@ def test_the_report_names_accounts_that_were_not_imported_for_having_expired(cap
 
 # -- values that are replaced are said out loud ---------------------------------------
 
-def test_replaced_values_and_uncopied_files_are_noted_not_silent(source):
+def test_replaced_values_are_noted_and_the_files_the_rows_point_at_are_planned(source):
     _path, c = source
     add_user(c, 1)
     c.execute("insert into custom_foods (id, user_id, name, emoji, calories, protein, fat, carbs, serving_label, serving_grams) "
@@ -398,8 +398,9 @@ def test_replaced_values_and_uncopied_files_are_noted_not_silent(source):
     assert notes["custom_food_serving_label_was_blank_so_1_serving_was_used"] == 1
     assert notes["custom_food_serving_grams_was_zero_or_blank_so_100_was_used"] == 1
     assert "timestamp_unparseable_so_the_import_time_was_used" not in notes
-    (files,) = [v for k, v in notes.items() if k.startswith("files_referenced_but_NOT_copied")]
-    assert files == 2, "one progress photo and one analysis video"
+    uid = imp.user_uuid(1)
+    assert plan.files == [("progress-photos", uid, "a.jpg"), ("analyze-videos", uid, "v.mp4")],         "one progress photo and one analysis video; the analysis without a clip points at no file"
+    assert plan.unusable_files == []
 
 
 def test_an_unparseable_profile_timestamp_is_noted(source):
@@ -879,6 +880,40 @@ def run_main(tmp_path, monkeypatch):
     monkeypatch.setattr(imp, "load_rows", load_rows)
     monkeypatch.setattr(imp, "verify_database", verify_database)
     monkeypatch.setattr(imp, "delete_stale_auth", delete_stale_auth)
+
+    class FakeStore:
+        def __init__(self):
+            self.uploads, self.removed, self.refuse, self.remove_status = [], [], set(), 200
+
+        def upload(self, bucket, key, file_path, content_type):
+            state.events.append("upload")
+            self.uploads.append((bucket, key, content_type))
+            return ("refused", "mime type not supported") if key in self.refuse else ("ok", None)
+
+        def remove(self, bucket, keys):
+            state.events.append("remove")
+            self.removed += [(bucket, k) for k in keys]
+            return self.remove_status
+
+    state.store = FakeStore()
+    state.existing, state.extras, state.file_problems = set(), [], []
+
+    def existing_objects(conn, planned):
+        state.events.append("existing")
+        return set(state.existing)
+
+    def verify_files(result, conn):
+        state.events.append("verify-files")
+        return list(state.file_problems)
+
+    def storage_extras(conn, wanted, uids):
+        state.events.append("extras")
+        state.seen["wanted"], state.seen["extras_for"] = set(wanted), list(uids)
+        return list(state.extras)
+    monkeypatch.setattr(imp, "Store", lambda env: state.store)
+    monkeypatch.setattr(imp, "existing_objects", existing_objects)
+    monkeypatch.setattr(imp, "verify_files", verify_files)
+    monkeypatch.setattr(imp, "storage_extras", storage_extras)
     state.run = lambda *flags: imp.main([str(path), *flags])
     return state
 
@@ -887,7 +922,7 @@ def test_main_asks_its_questions_closes_that_connection_creates_accounts_then_lo
     """The first connection is closed before the long Auth step (a pooler may drop an idle one); the load
     uses a fresh connection and commits only after verification."""
     assert run_main.run() == 0
-    assert run_main.events == ["connect1", "commit1", "close1", "auth", "connect2", "load", "verify", "commit2", "close2"]
+    assert run_main.events == ["connect1", "commit1", "close1", "auth", "connect2", "load", "verify", "extras", "commit2", "close2"]
     for url, kwargs in run_main.connects:
         assert (url, kwargs) == ("postgresql://db", {"sslmode": "require", "prepare_threshold": None})
     assert "target project: abc.supabase.co" in capsys.readouterr().out
@@ -1215,3 +1250,172 @@ def test_verify_database_reads_floats_back_at_full_precision_before_it_reads_any
     imp.verify_database(plan, conn)
     first = conn.log[0][0].lower()
     assert "set local extra_float_digits" in first and first.rstrip().endswith("3")
+
+
+# -- files: what main() does with the photos and clips the rows point at -------------------------------------
+
+def test_the_files_of_accounts_that_are_not_imported_are_never_planned(source):
+    """A deleted account's photos must not follow the migration any more than its rows do."""
+    import datetime
+    _path, c = source
+    add_user(c, 1)
+    add_user(c, 2, deleted_at="2026-09-01 00:00:00")      # past its window
+    add_user(c, 3)                                          # left out on purpose
+    for uid, name in ((1, "a.jpg"), (2, "b.jpg"), (3, "c.jpg"), (GHOST, "d.jpg")):
+        c.execute("insert into progress_photos (user_id, date, angle, filename) values (?, '2026-10-24', 'front', ?)", (uid, name))
+        c.execute("insert into analyze_results (user_id, exercise_label, feedback_text, video_filename) values (?, 'Squat', 'f', ?)",
+                  (uid, name.replace(".jpg", ".mp4")))
+    c.commit()
+    plan = imp.build_plan(c, now=datetime.datetime(2026, 10, 24, tzinfo=datetime.timezone.utc), skip=[3])
+    assert plan.files == [("progress-photos", imp.user_uuid(1), "a.jpg"), ("analyze-videos", imp.user_uuid(1), "a.mp4")]
+
+
+def test_a_row_with_an_unusable_file_name_is_imported_and_the_name_is_reported_not_copied(source, capsys):
+    _path, c = source
+    add_user(c, 1)
+    c.execute("insert into progress_photos (user_id, date, angle, filename) values (1, '2026-10-24', 'front', '../../etc/passwd.jpg')")
+    c.commit()
+    plan = imp.build_plan(c)
+    assert len(plan.rows["progress_photos"]) == 1 and plan.files == []
+    assert [u[2] for u in plan.unusable_files] == ["../../etc/passwd.jpg"]
+    imp.print_files(plan)
+    assert "+1 the importer will not copy" in capsys.readouterr().out
+
+
+@pytest.fixture
+def run_files(run_main, tmp_path):
+    """run_main, plus: user 1 owns a progress photo and an analysis clip, and `root` holds copies of both."""
+    c = sqlite3.connect(run_main.path)
+    c.execute("insert into progress_photos (id, user_id, date, angle, filename) values (1, 1, '2026-10-24', 'front', 'aaaa.jpg')")
+    c.execute("insert into analyze_results (id, user_id, exercise_label, feedback_text, video_filename) "
+              "values (1, 1, 'Squat', 'f', '1_bbbb.mp4')")
+    c.commit()
+    c.close()
+    root = tmp_path / "disk"
+    (root / "progress_photos").mkdir(parents=True)
+    (root / "analyze_videos").mkdir()
+    (root / "progress_photos" / "aaaa.jpg").write_bytes(b"photo-bytes")
+    (root / "analyze_videos" / "1_bbbb.mp4").write_bytes(b"video-bytes")
+    run_main.root, run_main.uid = root, imp.user_uuid(1)
+    run_main.keys = [("progress-photos", f"{run_main.uid}/aaaa.jpg"), ("analyze-videos", f"{run_main.uid}/1_bbbb.mp4")]
+    return run_main
+
+
+def test_rows_that_point_at_files_stop_the_run_unless_the_files_or_skipping_them_is_asked_for(run_files, capsys):
+    """Forgetting the flag must not quietly leave every photo behind on launch day."""
+    assert run_files.run() == 2
+    out = capsys.readouterr().out
+    assert "--files-dir" in out and "--skip-files" in out and "Nothing was written" in out
+    assert run_files.events == []
+    assert run_files.run("--dry-run") == 2, "a dry run says the same"
+
+
+def test_a_folder_with_none_of_the_files_is_the_wrong_folder_and_stops_the_run(run_files, tmp_path, capsys):
+    wrong = tmp_path / "elsewhere"
+    wrong.mkdir()
+    assert run_files.run("--files-dir", str(wrong)) == 2
+    assert "wrong folder" in capsys.readouterr().out and run_files.events == []
+
+
+def test_a_dry_run_with_the_folder_reports_what_it_found_and_writes_nothing(run_files, capsys):
+    assert run_files.run("--dry-run", "--files-dir", str(run_files.root)) == 0
+    out = capsys.readouterr().out
+    assert "found 2" in out and "missing 0" in out and run_files.events == []
+
+
+def test_skipping_the_files_imports_the_rows_alone_and_says_what_that_means(run_files, capsys):
+    assert run_files.run("--skip-files") == 0
+    assert "NOT in Storage" in capsys.readouterr().out
+    assert "upload" not in run_files.events and "existing" not in run_files.events
+
+
+def test_files_go_up_after_the_accounts_and_before_the_database_and_are_verified_before_the_commit(run_files, capsys):
+    assert run_files.run("--files-dir", str(run_files.root)) == 0
+    assert run_files.events == ["connect1", "commit1", "existing", "commit1", "close1", "auth", "upload", "upload",
+                                "connect2", "load", "verify", "verify-files", "extras", "commit2", "close2"]
+    assert run_files.store.uploads == [("progress-photos", run_files.keys[0][1], "image/jpeg"),
+                                       ("analyze-videos", run_files.keys[1][1], "video/mp4")]
+    assert run_files.seen["wanted"] == set(run_files.keys)
+    assert "2 stored files match the files on disk" in capsys.readouterr().out
+
+
+def test_a_file_missing_from_the_folder_is_reported_and_its_row_is_kept(run_files, capsys):
+    (run_files.root / "analyze_videos" / "1_bbbb.mp4").unlink()
+    assert run_files.run("--files-dir", str(run_files.root)) == 0
+    out = capsys.readouterr().out
+    assert "missing 1" in out and "missing from disk: analyze-videos/1_bbbb.mp4" in out
+    assert [u[0] for u in run_files.store.uploads] == ["progress-photos"]
+    assert run_files.seen["wanted"] == set(run_files.keys), "the clip's row stays, so its object is still wanted"
+
+
+def test_a_file_the_bucket_refuses_is_reported_and_does_not_fail_the_run(run_files, capsys):
+    run_files.store.refuse = {run_files.keys[1][1]}
+    assert run_files.run("--files-dir", str(run_files.root)) == 0
+    out = capsys.readouterr().out
+    assert "turned away by the bucket's own rules: 1" in out and "refused: analyze-videos/1_bbbb.mp4" in out
+
+
+def test_a_failed_file_check_rolls_back_and_removes_the_objects_it_added_and_the_new_accounts(run_files, capsys):
+    run_files.file_problems = ["progress-photos: an object's content differs from the file on disk"]
+    assert run_files.run("--files-dir", str(run_files.root)) == 4
+    assert run_files.events[-5:] == ["verify-files", "rollback2", "remove", "remove", "close2"], \
+        "rolled back first, never committed; one delete per bucket"
+    assert "commit2" not in run_files.events and "extras" not in run_files.events
+    assert sorted(run_files.store.removed) == sorted(run_files.keys) and run_files.auth.deleted == ["u1"]
+    assert "VERIFICATION FAILED" in capsys.readouterr().out
+
+
+def test_a_failed_database_check_removes_the_stored_files_too(run_files):
+    run_files.verify = ["friends: planned 2, database has 1"]
+    assert run_files.run("--files-dir", str(run_files.root)) == 4
+    assert sorted(run_files.store.removed) == sorted(run_files.keys) and "commit2" not in run_files.events
+
+
+def test_an_object_that_was_already_in_storage_survives_a_failed_run(run_files):
+    """A rerun finds the earlier run's objects; failing must not delete what it did not add."""
+    run_files.existing = {run_files.keys[0]}
+    run_files.file_problems = ["x"]
+    assert run_files.run("--files-dir", str(run_files.root)) == 4
+    assert run_files.store.removed == [run_files.keys[1]]
+
+
+@pytest.mark.parametrize("error", [RuntimeError("boom"), KeyboardInterrupt()])
+def test_a_crash_while_loading_removes_the_stored_files_and_the_new_accounts(run_files, error):
+    run_files.load_error = error
+    with pytest.raises(type(error)):
+        run_files.run("--files-dir", str(run_files.root))
+    assert sorted(run_files.store.removed) == sorted(run_files.keys) and run_files.auth.deleted == ["u1"]
+
+
+def test_a_crash_half_way_through_the_uploads_removes_what_had_gone_up_and_the_object_in_flight(run_files):
+    def upload(bucket, key, file_path, content_type):
+        run_files.events.append("upload")
+        if bucket == "analyze-videos":
+            raise imp.StoreError("uploading to analyze-videos answered 403")
+        return "ok", None
+    run_files.store.upload = upload
+    with pytest.raises(imp.StoreError):
+        run_files.run("--files-dir", str(run_files.root))
+    assert sorted(run_files.store.removed) == sorted(run_files.keys), "the photo, and the clip whose upload was in flight"
+    assert run_files.auth.deleted == ["u1"] and "connect2" not in run_files.events and "load" not in run_files.events
+
+
+def test_stored_files_the_plan_does_not_call_for_are_removed_only_after_the_commit(run_main, capsys):
+    run_main.extras = [("progress-photos", "somebody/old.jpg")]
+    assert run_main.run() == 0
+    assert run_main.events[-3:] == ["commit2", "close2", "remove"]
+    assert run_main.store.removed == [("progress-photos", "somebody/old.jpg")]
+    assert "removed 1 stored files that are not part of this import" in capsys.readouterr().out
+
+
+def test_extras_are_looked_for_in_every_imported_users_folder_and_every_departed_users_too(run_main):
+    run_main.load_result = (3, ["old1", "old2"])
+    assert run_main.run("--reset") == 0
+    assert run_main.seen["extras_for"] == [imp.user_uuid(1), "old1", "old2"]
+
+
+def test_extras_that_will_not_delete_are_reported_after_a_successful_commit_with_status_3(run_main, capsys):
+    run_main.extras = [("progress-photos", "somebody/old.jpg")]
+    run_main.store.remove_status = 500
+    assert run_main.run() == 3
+    assert "commit2" in run_main.events and "stored files could not be removed" in capsys.readouterr().out
