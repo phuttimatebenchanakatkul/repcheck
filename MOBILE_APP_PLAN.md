@@ -200,6 +200,16 @@ locally against `<project>/auth/v1/.well-known/jwks.json` with `PyJWT` (already 
 secret keys are not JWTs. A locally verified token cannot know a session was revoked or a user banned since it was
 issued: such a token works until it expires.
 
+**Photos (done), and where they differ from the website.** Same rules (front/back, a real date from the account's
+creation day to tomorrow, 12 MiB, must verify as JPEG/PNG/WebP, 500 per person with the same 429 message), with three
+deliberate differences: the stored type and extension come from what the bytes verify as, not the filename the client
+chose (a client that sends no filename, as a phone camera blob may, just works); the 500 ceiling is enforced under a
+per-user advisory lock, so uploads racing at 499 cannot both land (the website could be raced past it); and deleting
+removes the file BEFORE the row, so a failed removal leaves the photo visible and retryable instead of an invisible file
+nobody can delete. Order of an upload: validate, store the file, record the row under the lock; a failure at any step
+undoes the earlier ones, so a refused upload never leaves a row or a file. The app reads its own photo rows and files
+directly (row-level security); Flask is for writing and for short-lived signed links.
+
 **Security shape.** Flask connects as the `postgres` owner, which bypasses RLS: every query in `api/` must scope itself
 to the caller by hand, and the tests prove it route by route (an action on one account never touches another).
 Algorithms are restricted to the asymmetric ones, and a service-role token, an anonymous session, a wrong audience or
@@ -214,7 +224,7 @@ Flask. (Switching sign-ups off in the dashboard is still sensible until the app 
 |---|---|
 | Settings, token verification, pooled Postgres access, Auth-admin and Storage clients, JSON plumbing, health | **Done** (v0.16.0.0) |
 | Profile creation, rename, account deletion + restore (30-day grace), the purge that removes a person's stored files through the Storage API before their Auth user | **Done** (v0.16.0.0) |
-| Progress photos: upload (type, size, date window, 500 cap), list, signed link, delete, through Storage | Next |
+| Progress photos: upload (type, size, date window, 500 cap), list, signed link, delete, through Storage | **Done** (v0.17.0.0) |
 | Analyze: grade an uploaded clip, store the trimmed clip, history, playback, the 20-newest prune through Storage | Next |
 | Consent, rate limits, usage, the three chats, HYROX analysis, split generation, coaching calculations | To do |
 | Custom foods and exercises (writes stay behind Flask), food lookup and barcode | To do |

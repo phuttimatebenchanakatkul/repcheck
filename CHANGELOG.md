@@ -2,6 +2,31 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.17.0.0] - 2026-10-25
+
+### Added
+
+The native app's server can now take, show and delete weekly progress photos. As
+before, nothing in the website or the current App Store app changes.
+
+- **Progress photos upload to private storage.** Same rules as the website: front or
+  back, a real date no earlier than the day the account was made and no later than
+  tomorrow, up to 12 MB, must genuinely be a JPEG, PNG or WebP, up to 500 per person.
+  A file that merely claims to be a photo (text, a damaged image, a GIF, a script
+  renamed `.jpg`) is turned away.
+- **A refused upload leaves nothing behind.** Not a stored file without a record, and
+  not a record without a file: every step undoes the one before it if something goes
+  wrong, including when the storage service or the database fails midway.
+- **Safer than the website in three ways.** The photo's real type is read from its
+  contents, not its filename (so a phone that sends no filename works); the 500-photo
+  limit can no longer be slipped past by uploading several at once; and deleting a
+  photo removes the file first, so a failed delete never leaves a photo you can't see
+  and can't remove.
+- **Only you can see your photos.** You get a short-lived link to your own photo; nobody
+  can get one for someone else's, and one person's full album never blocks another's.
+- **Proven against the real project:** 65 tests, then 36 deliberate breakages of the new
+  code, each noticed by a test except four that change nothing anyone could observe.
+
 ## [0.16.0.0] - 2026-10-25
 
 ### Added
