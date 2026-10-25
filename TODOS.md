@@ -72,7 +72,7 @@
 
 ### The rest of the Flask port (`api/`)
 
-**What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits, the chats, HYROX, splits and coaching, and food are in. Still to port, as slices: friends / blocks / reports / challenges / leaderboards / HYROX results, waitlist and admin. Then a Render service for it.
+**What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits, the chats, HYROX, splits and coaching, food, friends / blocks / reports / challenges / leaderboards / HYROX results, the waitlist and the owner's endpoints are in. Still to do: the Render service for it (`ADMIN_EMAILS`, `GEMINI_API_KEY`, `SUPABASE_*`, a worker timeout well above 30 s, ffmpeg in the image, exactly one proxy hop in front).
 
 **Why:** The native app needs these server-side rules (Gemini keys, rate limits, moderation, caps) and cannot ship without them.
 

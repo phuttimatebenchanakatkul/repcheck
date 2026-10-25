@@ -7,6 +7,7 @@ expensive call and REFUNDED if the work fails, which keeps both guarantees: a fa
 scarce analysis, and concurrent requests can never exceed the limit.
 """
 
+import datetime as dt
 import math
 import time
 from dataclasses import dataclass
@@ -53,6 +54,10 @@ def reserve(conn, user_id, feature, now=None):
     """Spend one use of `feature` if the window has room, in a single statement (the row is locked while it runs, so
     simultaneous calls are serialised). Returns a Reservation; a refused one says how long to wait."""
     limit, window = RATE_LIMITS[feature]
+    return _reserve(conn, user_id, feature, limit, window, now)
+
+
+def _reserve(conn, user_id, feature, limit, window, now=None):
     now = int(time.time()) if now is None else int(now)
     row = conn.execute(
         """insert into public.rate_limits (user_id, feature, window_start, count) values (%(u)s, %(f)s, %(now)s, 1)
@@ -79,6 +84,27 @@ def refund(conn, user_id, feature, reservation):
         "update public.rate_limits set count = greatest(count - 1, 0) "
         "where user_id = %s and feature = %s and window_start = %s",
         (user_id, feature, reservation.window_start))
+
+
+def _attempt_key(exercise, now=None):
+    day = dt.datetime.fromtimestamp(int(time.time()) if now is None else int(now), dt.timezone.utc).date().isoformat()
+    return f"challenge:{exercise}:{day}"
+
+
+def reserve_daily_attempt(conn, user_id, exercise, now=None):
+    """The one challenge attempt per exercise per UTC day, held while the clip is graded so that simultaneous submissions
+    cannot both reach the model. The key carries the day, so it resets at midnight UTC exactly as the saved-attempt check
+    does; earlier days' keys are swept as a new one is taken."""
+    now = int(time.time()) if now is None else int(now)
+    key = _attempt_key(exercise, now)
+    conn.execute("delete from public.rate_limits where user_id = %s and feature like 'challenge:%%' and feature not like %s",
+                 (user_id, "%:" + key.rsplit(":", 1)[1]))
+    return _reserve(conn, user_id, key, 1, DAY, now)
+
+
+def release_daily_attempt(conn, user_id, exercise, reservation, now=None):
+    """Give the attempt back (the clip could not be graded), so a failed upload does not use up the day's attempt."""
+    refund(conn, user_id, _attempt_key(exercise, now), reservation)
 
 
 def limit_message(feature, retry_after):

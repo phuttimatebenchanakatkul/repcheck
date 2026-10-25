@@ -26,6 +26,9 @@ class Settings:
     # (a reviewer who is told "come back in 24 hours" on the headline feature cannot test the app). Empty unless set
     # in the environment, so nobody is exempt by accident; the website's equivalent is hard-coded in app.py.
     rate_limit_exempt: frozenset = frozenset()
+    # Lower-cased addresses of the owner(s) who may use /api/admin/*. ADMIN_EMAILS ONLY: App Review's demo account is exempt
+    # from the limits (REVIEW_ACCOUNT_EMAILS) but must never be able to read the waitlist or the moderation queue.
+    admin_emails: frozenset = frozenset()
 
     @property
     def issuer(self):
@@ -67,5 +70,6 @@ def from_env(env=None, env_file=None):
     if not values["SUPABASE_DB_URL"].startswith(("postgresql://", "postgres://")):
         raise SettingsError("SUPABASE_DB_URL must be a postgresql:// connection string")
     exempt = frozenset(e.strip().lower() for var in EXEMPT_VARS for e in _unquote(env.get(var, "")).split(",") if e.strip())
+    admins = frozenset(e.strip().lower() for e in _unquote(env.get("ADMIN_EMAILS", "")).split(",") if e.strip())
     return Settings(supabase_url=url, service_key=values["SUPABASE_SERVICE_ROLE_KEY"], db_url=values["SUPABASE_DB_URL"],
-                    rate_limit_exempt=exempt)
+                    rate_limit_exempt=exempt, admin_emails=admins)
