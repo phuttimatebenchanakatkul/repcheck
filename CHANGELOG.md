@@ -2,6 +2,38 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.19.0.0] - 2026-10-25
+
+### Added
+
+The native app's server can now run the three AI chats, HYROX race analysis, split
+generation, the coaching calculations, the weekly check-in, and everything to do with
+food. As before, nothing in the website or the current App Store app changes.
+
+- **The coach, analysis follow-up and workout chats**, sharing one 3-a-day allowance as
+  before. A message over the limit is still a normal reply saying when to come back, so
+  the chat widgets keep working.
+- **HYROX race analysis** (8 per 5 hours), **split generation** (one a day; only the
+  AI-suggested kind needs consent), and the **coaching targets and body-fat ranges**.
+- **The weekly check-in is now metered** (5 a day). Past the limit, without consent, or if
+  the AI fails, the check-in still finishes with the plain trend adjustment, so you only
+  lose the AI refinement. Your own progress photos can go to the AI with it; nobody
+  else's can.
+- **Food:** the one-a-day photo scan, barcode scanning and lookup, online food search,
+  and your own foods and exercises (500 of each, calories always worked out from the
+  macros). A food you saved for a barcode still beats any outside database.
+- **A call that fails no longer costs you a use.** The allowance is held before the AI
+  call and handed back if it can't answer, for every one of these.
+- **Hardened:** messages, histories and race data are length-limited before they reach an
+  AI prompt (a malformed one is a clean 400 that costs nothing); every number is bounded
+  (an `Infinity` macro or a 1e308 serving was accepted before); barcode and photo
+  uploads are size-limited and food routes now need a sign-in (barcode lookups didn't);
+  the 500-item ceilings hold even when requests race; printing the server's settings in
+  a log or traceback no longer shows the service key or the database password.
+- **Proven:** 381 new tests, then 151 deliberate breakages of the new code. Every
+  one is noticed by a test except 11 that change nothing observable (a second check that
+  the database's own rules also enforce, for example).
+
 ## [0.18.0.0] - 2026-10-25
 
 ### Added

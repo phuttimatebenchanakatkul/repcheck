@@ -238,6 +238,50 @@ with `needs_ai_consent`) is checked before the upload is touched. Deliberate dif
 - Deployment note for later: grading runs inside the request (a minute or more), so the service needs a worker timeout well
   above gunicorn's default 30 s, and ffmpeg in its image.
 
+**The chats, HYROX, splits and coaching (done), and where they differ from the website.** `POST /api/coach-chat`,
+`/api/analyze-chat`, `/api/workout-chat` (one shared 3-a-day budget, as before), `/api/hyrox/analyze` (8 races per 5 hours),
+`/api/generate-split` (1 plan a day; every split type counts, only `ai_suggest` needs consent), and the coaching routes
+`GET /api/coaching/body-fat-ranges`, `POST /api/coaching/calculate` and `POST /api/coaching/weekly-adjustment`. They call the
+website's own modules unchanged (`coach_chat`, `analyze_chat`, `workout_chat`, `hyrox_coach`, `split_planner`,
+`checkin_analyzer`, `coaching_engine`); the model calls go through `api/ai.py` so tests substitute fakes. Deliberate differences:
+
+- **A call that fails does not cost a use.** The modules swallow model errors and answer with a fallback, so each backend
+  reports `failed`, and the use that was reserved before the call is refunded (the website recorded it whatever happened).
+  An over-limit chat is still a normal-looking 200 reply with `limited: true`, exactly as the chat widgets expect.
+- **Everything is bounded before it can reach a prompt.** Message 1000 characters (the website's input allowed 600 and the
+  server had no limit), history 40 turns of 4000 characters, context 40 000 characters, a HYROX race 40 segments and 20 000
+  characters, split inputs as before plus 14 custom days. A malformed history, context or race is a 400 that costs nothing;
+  on the website it crashed inside the module and spent a message on the fallback reply.
+- **No crash on a list where a word belongs.** The website's coaching check raises on `{"aspiration": [1]}` (a 500); the port
+  answers 400, and agrees with the website's check on 800 random payloads plus every boundary.
+- **The weekly check-in is now metered** (`checkin_analysis`, 5 a day; the website never limited it, so any signed-in user
+  could spend Gemini quota). Past the limit, or without consent, or if the model fails, the check-in still completes with the
+  deterministic adjustment, so a limited person loses only the AI refinement. Bad numbers in the logs are a 400, not a 500.
+- `hyrox_coach` keeps a per-session budget in Flask's cookie session, which this API does not have; it runs inside a throwaway
+  request context so the module stays byte-for-byte the website's and the per-account limit replaces its budget.
+
+**Food (done), and where it differs from the website.** `POST /api/analyze-food` (the AI photo scan, 1 a day), `POST
+/api/scan-barcode` (a photo or a live camera frame), `POST /api/lookup-barcode` (a decoded or typed number),
+`GET /api/search-food-online`, and `GET/POST/DELETE` on `/api/custom-foods` and `/api/custom-exercises`. They call
+`analyze_food_gemini` and `barcode_scanner` unchanged through `api/ai.py`. A person's own food for a barcode still beats any
+external lookup, and a barcode nobody knows is still a normal 200 (`not_found`) that lets the app offer to create it.
+Deliberate differences:
+
+- **Every food route needs a sign-in.** The website let anyone scan or look up a barcode (`current_user()` was optional
+  there), which made it a free way to drive image decoding and outbound traffic from the server. An account with no profile
+  can still scan; it just is not counted.
+- **The scan allowance is reserved first and handed back on failure**, like the other AI features: a photo the model could not
+  analyze is a 502 that costs nothing, and simultaneous scans cannot exceed the one a day. A refused scan is a 429 with
+  `Retry-After`. The photo's type comes from its bytes (a client may send any name or content type), and a photo that is not a
+  readable JPEG/PNG/WebP is refused before it costs anything.
+- **Bounded.** A photo is 12 MiB, a barcode frame 6 MiB, the note 300 characters, a search 100. Control characters are dropped
+  from every text field (a NUL cannot be stored at all). A macro is clamped to 0-5000 g and a serving to 100 000 g (`Infinity`
+  and `1e308` were accepted), and a food's emoji is clipped to 8 characters like an exercise's.
+- **The 500-food and 500-exercise ceilings are enforced under a per-person lock**, so requests racing at 499 cannot both land
+  (the website could be raced past them). A barcode that races past the duplicate check is caught by the database's unique
+  index and answered with the same 409. Calories are still derived from the macros, never taken from the client.
+- Barcode digits are ASCII `0-9` only (`str.isdigit` also accepted other scripts' digits), and a barcode over 20 digits is cut.
+
 **Security shape.** Flask connects as the `postgres` owner, which bypasses RLS: every query in `api/` must scope itself
 to the caller by hand, and the tests prove it route by route (an action on one account never touches another).
 Algorithms are restricted to the asymmetric ones, and a service-role token, an anonymous session, a wrong audience or
@@ -255,8 +299,8 @@ Flask. (Switching sign-ups off in the dashboard is still sensible until the app 
 | Progress photos: upload (type, size, date window, 500 cap), list, signed link, delete, through Storage | **Done** (v0.17.0.0) |
 | Analyze: grade an uploaded clip, store the trimmed clip, history, playback, the 20-newest prune through Storage | **Done** (v0.18.0.0) |
 | Consent, per-account rate limits and usage counters | **Done** (v0.18.0.0, with analyze) |
-| The three chats, HYROX analysis, split generation, coaching calculations (consent and limits are ready for them) | To do |
-| Custom foods and exercises (writes stay behind Flask), food lookup and barcode | To do |
+| The three chats, HYROX analysis, split generation, coaching calculations and the weekly check-in | **Done** (v0.19.0.0) |
+| Custom foods and exercises (writes stay behind Flask), the food photo scan, barcodes and online search | **Done** (v0.19.0.0) |
 | Friends, blocks, reports (+AI reports), challenges, leaderboards, HYROX results | To do |
 | Waitlist (the marketing form posts to Flask), admin pages or the Supabase dashboard | To do |
 | Deploy as its own Render service (`gunicorn "api.app:create_app()"`, the three `SUPABASE_*` variables) | After the slices, with the app |

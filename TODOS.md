@@ -72,7 +72,7 @@
 
 ### The rest of the Flask port (`api/`)
 
-**What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits are in. Still to port, as slices: the three chats / HYROX analysis / split generation / coaching calculations, custom foods and exercises, food lookup, friends / blocks / reports / challenges / leaderboards / HYROX results, waitlist and admin. Then a Render service for it.
+**What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits, the chats, HYROX, splits and coaching, and food are in. Still to port, as slices: friends / blocks / reports / challenges / leaderboards / HYROX results, waitlist and admin. Then a Render service for it.
 
 **Why:** The native app needs these server-side rules (Gemini keys, rate limits, moderation, caps) and cannot ship without them.
 

@@ -48,8 +48,10 @@ def test_emphasis_is_the_websites(css, score):
     assert feedback.section_emphasis(css, score) == website.section_emphasis(css, score)
 
 
-def test_rate_limits_are_the_websites():
-    assert limits.RATE_LIMITS == website.RATE_LIMITS
+def test_rate_limits_are_the_websites_plus_the_one_it_never_had():
+    assert {k: v for k, v in limits.RATE_LIMITS.items() if k in website.RATE_LIMITS} == website.RATE_LIMITS
+    assert set(limits.RATE_LIMITS) - set(website.RATE_LIMITS) == {"checkin_analysis"}
+    assert limits.RATE_LIMITS["checkin_analysis"] == (5, 24 * 60 * 60)
 
 
 @pytest.mark.parametrize("seconds", [1, 59, 60, 89, 90, 3599, 3600, 5400, 7199, 7200, 86399, 86400, 90000])

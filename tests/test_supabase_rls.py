@@ -26,6 +26,7 @@ Mutation-check any change here (CLAUDE.md): loosen the policy it guards, e.g.
 import os
 import re
 import secrets
+import time
 import uuid
 import warnings
 from datetime import date
@@ -211,12 +212,18 @@ def _admin_update_user(user_id, **fields):
 
 
 def _sign_in(email, password):
-    resp = HTTP.post(
-        _url("/auth/v1/token?grant_type=password"),
-        headers={"apikey": ENV["SUPABASE_ANON_KEY"], "Content-Type": "application/json"},
-        json={"email": email, "password": password},
-        timeout=30,
-    )
+    """Supabase Auth throttles password sign-ins per address; a whole test run signs in hundreds of throwaway people, so a
+    429 means wait and try again (the response says how long), not fail the test that happened to hit it."""
+    for attempt in range(8):
+        resp = HTTP.post(
+            _url("/auth/v1/token?grant_type=password"),
+            headers={"apikey": ENV["SUPABASE_ANON_KEY"], "Content-Type": "application/json"},
+            json={"email": email, "password": password},
+            timeout=30,
+        )
+        if resp.status_code != 429:
+            break
+        time.sleep(min(60, float(resp.headers.get("Retry-After") or 0) or 5 * (attempt + 1)))
     resp.raise_for_status()
     return resp.json()["access_token"]
 
