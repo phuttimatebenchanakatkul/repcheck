@@ -52,8 +52,8 @@ def create_app(settings=None, db=None, verifier=None, storage=None, auth_admin=N
         auth_admin=auth_admin or AuthAdmin(settings),
     )
 
-    from .routes import account, health
-    for module in (health, account):
+    from .routes import account, health, photos
+    for module in (health, account, photos):
         app.register_blueprint(module.bp)
 
     @app.after_request
