@@ -18,10 +18,10 @@ import pytest
 from api import accounts
 from api.app import create_app
 from api.auth import Identity
-from api.db import Database
-from api.settings import from_env
-from api.supabase_admin import AuthAdmin, Storage, SupabaseError
-from test_supabase_rls import ENV, HTTP, Person, _admin_delete_user, _url, needs_api, needs_db
+from api.supabase_admin import SupabaseError
+from api_support import (  # noqa: F401 -- the fixtures are used by name
+    auth_admin, auth_user_exists, bearer, client, db, objects_of, person, profile_row, settings, storage)
+from test_supabase_rls import ENV, Person, _admin_delete_user, needs_api, needs_db
 
 pytestmark = [needs_api, needs_db]
 
@@ -33,55 +33,9 @@ except Exception:                                        # noqa: BLE001
     pass
 
 
-@pytest.fixture(scope="module")
-def settings():
-    return from_env()
-
-
-@pytest.fixture(scope="module")
-def db(settings):
-    database = Database(settings.db_url)
-    yield database
-    database.close()
-
-
-@pytest.fixture(scope="module")
-def storage(settings):
-    return Storage(settings)
-
-
-@pytest.fixture(scope="module")
-def auth_admin(settings):
-    return AuthAdmin(settings)
-
-
-@pytest.fixture(scope="module")
-def client(settings, db):
-    app = create_app(settings, db=db, sweep=False)
-    return app.test_client()
-
-
-def bearer(person):
-    return {"Authorization": person.client.headers["Authorization"]}
-
-
-@pytest.fixture
-def person():
-    p = Person("api")
-    try:
-        yield p
-    finally:
-        _admin_delete_user(p.id)
-
-
 def identity(person, provider=None, **meta):
     claims = {"app_metadata": {"provider": provider} if provider else {}, "user_metadata": meta}
     return Identity(id=person.id, email=person.email, claims=claims)
-
-
-def profile_row(db, uid):
-    with db.connection() as conn:
-        return conn.execute("select * from public.profiles where id = %s", (uid,)).fetchone()
 
 
 # -- creating a profile --------------------------------------------------------------------------------
@@ -313,16 +267,6 @@ def seed_person(db, storage, label, *, objects=2):
 def expire(db, uid, days=31):
     with db.connection() as conn:
         conn.execute("update public.profiles set deleted_at = now() - make_interval(days => %s) where id = %s", (days, uid))
-
-
-def auth_user_exists(uid):
-    r = HTTP.get(_url(f"/auth/v1/admin/users/{uid}"), headers={"apikey": ENV["SUPABASE_SERVICE_ROLE_KEY"]}, timeout=30)
-    return r.status_code == 200
-
-
-def objects_of(db, uid):
-    with db.connection() as conn:
-        return accounts.stored_objects(conn, uid)
 
 
 def cleanup(db, storage, people):

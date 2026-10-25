@@ -269,10 +269,15 @@ def test_the_health_check_is_public_and_reports_a_dead_database_as_503(api_clien
 
 
 def test_every_route_but_health_demands_a_token(api_client):
+    import re
     public = {"health.health"}
+    checked = 0
     for rule in api_client.application.url_map.iter_rules():
         if rule.endpoint == "static" or rule.endpoint in public:
             continue
-        method = next(m for m in rule.methods if m in ("GET", "POST", "DELETE", "PUT"))
-        r = api_client.open(rule.rule, method=method)
-        assert r.status_code == 401, f"{method} {rule.rule} answered {r.status_code} without a token"
+        path = re.sub(r"<[^>]+>", "1", rule.rule)           # /photo/<int:id> -> /photo/1
+        for method in sorted(rule.methods - {"HEAD", "OPTIONS"}):
+            r = api_client.open(path, method=method)
+            assert r.status_code == 401, f"{method} {rule.rule} answered {r.status_code} without a token"
+            checked += 1
+    assert checked >= 9, "the walker found almost no routes: it is not testing what it claims"
