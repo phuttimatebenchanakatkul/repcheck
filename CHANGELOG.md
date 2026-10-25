@@ -2,6 +2,32 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.15.0.0] - 2026-10-25
+
+### Added
+
+More groundwork for the native iPhone and iPad app: **a place for your photos and
+form-check videos**. Nothing in the website or the current App Store app changes.
+
+- **Two private storage areas** for progress photos and trimmed form-check clips,
+  with the same size and file-type limits the website always enforced. Each person
+  can open their own files and nothing else: not other people's, not signed out, not
+  by guessing paths, and nobody can make a link to someone else's file. The app cannot
+  upload, replace or delete files itself; that stays with the server, which checks
+  them first.
+- **Tested the hard way.** Real users trying to read, overwrite, delete, move and copy
+  each other's files, with every protection loosened on purpose one at a time to prove
+  the tests notice (all 22 were noticed).
+- **The move-everything script now copies the photos and videos too.** It copies only
+  the files that imported accounts actually point at (never a deleted account's),
+  refuses names or links that could reach outside the folder, checks every copy against
+  what Storage says it holds, and undoes the whole run if anything differs. On the
+  development data it copied the two real photos byte for byte and ignored 357 stray test
+  files beside them.
+- **It won't quietly leave photos behind.** If accounts have photos and you give it
+  neither the photo folders nor `--skip-files`, or a folder where none of the files
+  turn up, it stops before changing anything.
+
 ## [0.14.0.0] - 2026-10-25
 
 ### Added
