@@ -2,6 +2,35 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.18.0.0] - 2026-10-25
+
+### Added
+
+The native app's server can now grade a set, keep the clip and the result, and show
+your history. As before, nothing in the website or the current App Store app changes.
+
+- **Upload a set and get graded.** Same upload rules as the website (a video up to
+  300 MB, in any of the formats it accepts). The server trims and grades it with the
+  existing AI pipeline, keeps the trimmed clip in private storage, saves the result,
+  and hands back a short-lived link to replay it (seeking works).
+- **AI features need your say-so first.** Turning them on is recorded with the time you
+  first agreed; turning them off stops the next request before anything is read or
+  sent. Only an explicit "yes" counts.
+- **A failed analysis never costs you your one-a-day.** The allowance is held before the
+  AI call and handed back if the video can't be graded or anything goes wrong, and
+  several requests at once can no longer sneak past the limit. The owner and App
+  Review's demo account can be exempted by configuration.
+- **History keeps your newest 20.** Older ones go, with their clips and chat threads. If
+  a clip can't be deleted its analysis stays so the next analysis tries again, rather
+  than leaving a video nobody can see or remove.
+- **Hardened against odd input:** exercise names are length- and character-checked
+  before they reach the AI prompt, and stray unprintable characters in the AI's reply no
+  longer lose a finished analysis.
+- **Proven:** 221 new tests, then 61 deliberate breakages of the new code, each noticed
+  by a test except four that change nothing observable. One real run through the actual
+  video trimmer and Gemini confirmed an unscorable clip is refused with the AI's own
+  reason, the allowance refunded and nothing left behind.
+
 ## [0.17.0.0] - 2026-10-25
 
 ### Added

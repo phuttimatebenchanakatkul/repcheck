@@ -52,15 +52,27 @@
 
 ### Pruning analysis history must remove the pruned clips' stored files through the Storage API
 
-**Fixed in part on `flask-port-foundation`, 2026-10-25** -- account deletion is done: `api/accounts.py` `purge_due` removes a person's files through the Storage API (and proves none are left) before deleting their Auth user, tested against the live project with a lying and a failing storage backend. What remains is the other half: the 20-newest `ANALYZE_HISTORY_KEEP` prune must delete the pruned clips' objects too, which belongs to the analyze slice of the port.
+**Fixed on `api-analyze`, 2026-10-25** -- both halves are done. Account deletion: `api/accounts.py` `purge_due` removes a person's files through the Storage API (and proves none are left) before deleting their Auth user. The 20-newest prune: `api/analyze.py` `prune` removes each stale clip through the API before its row and keeps the row if the clip will not go, so the next analysis retries.
+
+**Effort:** S
+**Priority:** P1 (resolved)
+**Depends on:** None
+
+### Set ADMIN_EMAILS (and REVIEW_ACCOUNT_EMAILS) when the API service is created
+
+**What:** In the API, who is exempt from the per-account AI limits comes from the `ADMIN_EMAILS` / `REVIEW_ACCOUNT_EMAILS` environment variables; with neither set nobody is exempt. The website hard-codes the owner.
+
+**Why:** Without them the owner is limited to one workout analysis a day, and an App Review tester is told to come back in 24 hours on the headline feature.
+
+**Context:** Comma-separated, case-insensitive. Matched against the verified email in the access token. Belongs in the Render service setup, alongside the three `SUPABASE_*` variables and `GEMINI_API_KEY`.
 
 **Effort:** S
 **Priority:** P1
-**Depends on:** The analyze slice of the Flask port
+**Depends on:** The Render service for the API
 
 ### The rest of the Flask port (`api/`)
 
-**What:** The foundation, profiles, account deletion, the Storage purge and progress photos are in. Still to port, as slices: analyze + clips, consent / rate limits / chats / coaching, custom foods and exercises, food lookup, friends / blocks / reports / challenges / leaderboards / HYROX results, waitlist and admin. Then a Render service for it.
+**What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits are in. Still to port, as slices: the three chats / HYROX analysis / split generation / coaching calculations, custom foods and exercises, food lookup, friends / blocks / reports / challenges / leaderboards / HYROX results, waitlist and admin. Then a Render service for it.
 
 **Why:** The native app needs these server-side rules (Gemini keys, rate limits, moderation, caps) and cannot ship without them.
 

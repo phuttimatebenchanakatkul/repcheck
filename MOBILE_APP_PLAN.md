@@ -210,6 +210,34 @@ nobody can delete. Order of an upload: validate, store the file, record the row 
 undoes the earlier ones, so a refused upload never leaves a row or a file. The app reads its own photo rows and files
 directly (row-level security); Flask is for writing and for short-lived signed links.
 
+**Analyze, consent and limits (done), and where they differ from the website.** `POST /api/analyze` takes the same
+multipart upload (a clip up to 300 MiB, an exercise name), trims and grades it with the existing `pipeline.run_pipeline`
+(ffmpeg + Gemini), keeps the trimmed clip in the private `analyze-videos` bucket and the result in `analyze_results`, and
+keeps each person's newest 20. History, one result, the latest, and a short-lived signed playback link are JSON
+endpoints (`/api/analyze/history`, `/history/<id>`, `/latest`, `/video/<id>`). Consent (`POST /api/ai-consent`, the same 403
+with `needs_ai_consent`) is checked before the upload is touched. Deliberate differences:
+
+- **The daily allowance is reserved before the Gemini call and refunded if the work fails**, atomically, in one SQL
+  statement. The website peeked first and recorded afterwards, so simultaneous requests all passed the peek. Both promises
+  hold: a failed analysis never burns the one-a-day, and concurrent requests can never exceed it. A refused request is a
+  429 with `Retry-After` (the website answered 400).
+- **Exemption is configuration, not code.** The owner and App Review's demo account are exempt from the limits only if
+  their addresses are in `ADMIN_EMAILS` / `REVIEW_ACCOUNT_EMAILS` on the API service (comma-separated); with neither set,
+  nobody is. **Set `ADMIN_EMAILS` when the service is created or the owner is limited too.** The address comes from the
+  verified token, never the request.
+- **Pruning removes the stale clip through the Storage API before its row, and keeps the row if the clip will not go**, so
+  the next analysis retries; a pruned analysis takes its chat thread with it (a cascade). A prune failure never fails the
+  analysis that triggered it.
+- The clip is best-effort exactly as before (storage failing, or refusing it, saves the analysis without one), but a clip
+  over the bucket's 50 MiB limit is not attempted, and an empty one is not stored.
+- The exercise name is length- and control-character-checked (it goes into the model's prompt); NUL characters in the
+  model's text are dropped (Postgres cannot store them).
+- Sections are returned as on the website (summary and detail HTML per section) but without the inline-SVG `icon`; the app
+  draws its own from `css_class`. `has_video` in the history list means a clip was stored, not that the file still exists
+  (the detail and playback endpoints check that when they sign the link). Times are ISO 8601 with a UTC offset.
+- Deployment note for later: grading runs inside the request (a minute or more), so the service needs a worker timeout well
+  above gunicorn's default 30 s, and ffmpeg in its image.
+
 **Security shape.** Flask connects as the `postgres` owner, which bypasses RLS: every query in `api/` must scope itself
 to the caller by hand, and the tests prove it route by route (an action on one account never touches another).
 Algorithms are restricted to the asymmetric ones, and a service-role token, an anonymous session, a wrong audience or
@@ -225,8 +253,9 @@ Flask. (Switching sign-ups off in the dashboard is still sensible until the app 
 | Settings, token verification, pooled Postgres access, Auth-admin and Storage clients, JSON plumbing, health | **Done** (v0.16.0.0) |
 | Profile creation, rename, account deletion + restore (30-day grace), the purge that removes a person's stored files through the Storage API before their Auth user | **Done** (v0.16.0.0) |
 | Progress photos: upload (type, size, date window, 500 cap), list, signed link, delete, through Storage | **Done** (v0.17.0.0) |
-| Analyze: grade an uploaded clip, store the trimmed clip, history, playback, the 20-newest prune through Storage | Next |
-| Consent, rate limits, usage, the three chats, HYROX analysis, split generation, coaching calculations | To do |
+| Analyze: grade an uploaded clip, store the trimmed clip, history, playback, the 20-newest prune through Storage | **Done** (v0.18.0.0) |
+| Consent, per-account rate limits and usage counters | **Done** (v0.18.0.0, with analyze) |
+| The three chats, HYROX analysis, split generation, coaching calculations (consent and limits are ready for them) | To do |
 | Custom foods and exercises (writes stay behind Flask), food lookup and barcode | To do |
 | Friends, blocks, reports (+AI reports), challenges, leaderboards, HYROX results | To do |
 | Waitlist (the marketing form posts to Flask), admin pages or the Supabase dashboard | To do |

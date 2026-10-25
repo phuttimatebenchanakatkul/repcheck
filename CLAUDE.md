@@ -51,7 +51,8 @@ installs `requirements.txt` only; the API's extra dependencies are in
 `tests/test_api_supabase_admin.py` run offline; `tests/test_api_accounts.py` is live like
 the two below. Flask connects as `postgres` (bypasses RLS), so every query must scope itself
 to the caller by hand, and a live test must scope any purge or sweep to the ids it created
-(`purge_due(..., only=[...])`) so it can never touch a real account that happens to be due.
+(`purge_due(..., only=[...])`) so it can never touch a real account that happens to be due. The analyze tests hand the app a
+fake grader (`create_app(analyzer=...)`), so they call neither Gemini nor ffmpeg; a real run is a manual smoke test.
 
 `tests/test_supabase_storage.py` is its twin for the two private Storage buckets
 (same keys, same skip rule). Its refusals are proved by effect, not status code, and
