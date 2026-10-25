@@ -2,7 +2,7 @@
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -19,8 +19,8 @@ class SettingsError(RuntimeError):
 @dataclass(frozen=True)
 class Settings:
     supabase_url: str
-    service_key: str            # secret: bypasses RLS. Server only, never sent to a client.
-    db_url: str                 # the transaction pooler (port 6543): Render cannot reach the IPv6-only direct host
+    service_key: str = field(repr=False)     # secret: bypasses RLS. Server only, never sent to a client; kept out of repr() so a log line or traceback cannot print it
+    db_url: str = field(repr=False)          # carries the database password. The transaction pooler (port 6543): Render cannot reach the IPv6-only direct host
     jwt_audience: str = "authenticated"
     # Lower-cased addresses of accounts the AI usage limits do not apply to: the owner, and App Review's demo account
     # (a reviewer who is told "come back in 24 hours" on the headline feature cannot test the app). Empty unless set

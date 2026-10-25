@@ -201,6 +201,12 @@ def test_settings_come_from_the_environment_unquoted_and_without_a_trailing_slas
     assert s.project_ref == "abc"
 
 
+def test_printing_the_settings_never_shows_the_service_key_or_the_database_password():
+    """A pytest failure, a log line or a traceback prints a dataclass's repr; the first cut printed the key."""
+    shown = repr(SETTINGS) + str(SETTINGS)
+    assert "the-secret" not in shown and FAKE_DB_URL not in shown and "supabase_url" in shown
+
+
 def test_a_missing_setting_is_named_but_never_its_neighbours_values(tmp_path):
     with pytest.raises(SettingsError) as exc:
         from_env({"SUPABASE_URL": "https://abc.supabase.co", "SUPABASE_DB_URL": "postgresql://" + "u:SECRETPW" + "@h/db"},

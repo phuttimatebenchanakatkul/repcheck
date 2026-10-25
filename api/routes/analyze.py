@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 
-from .. import accounts, analyze, consent, limits
+from .. import accounts, ai, analyze, consent, limits
 from ..auth import current_identity, login_required
 from ..supabase_admin import SupabaseError
 from .account import fail, services
@@ -118,11 +118,7 @@ def _store_clip(svc, user_id, trimmed_path, suffix):
 
 
 def _refund(svc, user_id, reservation):
-    try:
-        with svc.db.connection() as conn:
-            limits.refund(conn, user_id, analyze.FEATURE, reservation)
-    except Exception:                                    # noqa: BLE001 -- a failed refund must not mask the real failure
-        log.exception("could not refund an analysis use for %s", user_id)
+    ai.release(svc, user_id, analyze.FEATURE, reservation)
 
 
 @bp.get("/api/analyze/history")

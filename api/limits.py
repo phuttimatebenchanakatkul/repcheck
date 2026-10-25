@@ -20,6 +20,9 @@ RATE_LIMITS = {
     "ai_chat": (3, DAY),               # the coach, analysis follow-ups and workout chat share this one bucket
     "split_generation": (1, DAY),
     "hyrox_analysis": (8, 5 * 60 * 60),
+    # NEW here (the website never limited it): the weekly check-in may call the model with photos. Past the limit the
+    # check-in still completes with the deterministic adjustment, so a limited person loses only the AI refinement.
+    "checkin_analysis": (5, DAY),
 }
 
 
