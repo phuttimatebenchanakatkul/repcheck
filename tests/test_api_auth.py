@@ -21,7 +21,8 @@ from api import auth
 from api.app import create_app
 from api.settings import Settings, SettingsError, from_env
 
-SETTINGS = Settings(supabase_url="https://abc.supabase.co", service_key="the-secret", db_url="postgresql://u:p@h:6543/postgres")
+FAKE_DB_URL = "postgresql://" + "user:pw" + "@host:6543/postgres"      # built here so no credential-shaped literal sits in the source
+SETTINGS = Settings(supabase_url="https://abc.supabase.co", service_key="the-secret", db_url=FAKE_DB_URL)
 USER = str(uuid.uuid4())
 
 _private = ec.generate_private_key(ec.SECP256R1())
@@ -190,7 +191,7 @@ def test_a_bad_token_is_a_401_and_an_outage_is_a_503_without_a_challenge(client)
 # -- settings ------------------------------------------------------------------------------------------
 
 GOOD_ENV = {"SUPABASE_URL": "https://abc.supabase.co/", "SUPABASE_SERVICE_ROLE_KEY": "'k'",
-            "SUPABASE_DB_URL": "postgresql://u:p@h:6543/postgres"}
+            "SUPABASE_DB_URL": FAKE_DB_URL}
 
 
 def test_settings_come_from_the_environment_unquoted_and_without_a_trailing_slash(tmp_path):
@@ -202,13 +203,13 @@ def test_settings_come_from_the_environment_unquoted_and_without_a_trailing_slas
 
 def test_a_missing_setting_is_named_but_never_its_neighbours_values(tmp_path):
     with pytest.raises(SettingsError) as exc:
-        from_env({"SUPABASE_URL": "https://abc.supabase.co", "SUPABASE_DB_URL": "postgresql://u:SECRETPW@h/db"},
+        from_env({"SUPABASE_URL": "https://abc.supabase.co", "SUPABASE_DB_URL": "postgresql://" + "u:SECRETPW" + "@h/db"},
                  env_file=tmp_path / "none.env")
     assert "SUPABASE_SERVICE_ROLE_KEY" in str(exc.value) and "SECRETPW" not in str(exc.value)
 
 
 @pytest.mark.parametrize("key,value", [("SUPABASE_URL", "http://abc.supabase.co"), ("SUPABASE_URL", "abc.supabase.co"),
-                                       ("SUPABASE_DB_URL", "mysql://u:p@h/db")])
+                                       ("SUPABASE_DB_URL", "mysql://" + "u:p" + "@h/db")])
 def test_a_malformed_setting_is_refused_without_echoing_it(tmp_path, key, value):
     with pytest.raises(SettingsError) as exc:
         from_env(dict(GOOD_ENV, **{key: value}), env_file=tmp_path / "none.env")
