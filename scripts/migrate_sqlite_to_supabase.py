@@ -2,7 +2,7 @@
 """Import a RepCheck SQLite database into the Supabase project.
 
     python scripts/migrate_sqlite_to_supabase.py repcheck_production.db --dry-run
-    python scripts/migrate_sqlite_to_supabase.py repcheck_production.db --reset
+    python scripts/migrate_sqlite_to_supabase.py repcheck_production.db --reset --files-dir D:/RepCheck_Backups/disk
 
 Reads SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_DB_URL from the
 environment or the repo's .env. The SQLite file is opened READ-ONLY.
@@ -19,15 +19,18 @@ What it does, in this order
      is supplied for a new one, so Auth stores a random one nobody knows; the real password hash goes to
      legacy_password_hashes, and a row THERE -- not a missing Auth password -- marks an account as still
      needing its password migrated.
-  2. In ONE database transaction: with --reset, deletes what a previous import left (its profiles, which
+  2. Copies the photo and video FILES into the private Storage buckets (see "Files" below), before the
+     database is touched, and checks each against Storage's own record of it.
+  3. In ONE database transaction: with --reset, deletes what a previous import left (its profiles, which
      cascades through everything they own, the parked quarantine rows, this file's waitlist emails), then
      loads every real table and turns each user_data blob into rows.
-  3. Proves it BEFORE committing: every source item is accounted for as imported, quarantined, a
+  4. Proves it BEFORE committing: every source item is accounted for as imported, quarantined, a
      collapsed duplicate or not imported (orphaned); then every table is read back and compared, row by
      row, with the plan. A failed check rolls the transaction back, so the project is exactly as it was,
-     and deletes the Auth accounts this run created.
-  4. Commits. Only then are Auth accounts of previously imported users who are no longer in the source
-     deleted.
+     and deletes the Auth accounts and the stored files this run created.
+  5. Commits. Only then are Auth accounts of previously imported users who are no longer in the source
+     deleted, and stored files the plan does not call for (an earlier failed run's, or an account that
+     is gone) removed, so Storage ends up holding exactly the plan.
 
 Nothing a live user owns is silently dropped. A row that breaks a rule is parked whole in
 import_quarantine with the reason (erased with its owner). A key the mapper does not recognise goes into
@@ -36,8 +39,13 @@ report: rows whose owner is no longer in `users` (SQLite never enforced its fore
 account left them behind), accounts already past their 30-day deletion window, and accounts the operator
 left out with --skip-account. A deleted account's data must not follow the migration.
 
-NOT done by this script: copying the photo and video FILES. Rows keep the filenames; the files live on the
-old server's disk and need a separate copy into Storage.
+Files. /admin/export-db carries only the database; the photos and clips live on the old server's disk
+(DATA_DIR/progress_photos and DATA_DIR/analyze_videos). Copy those two folders somewhere (outside the
+repo) and pass their parent with --files-dir, or import the rows alone with --skip-files. Rows that point
+at files with neither flag stop the run, and so does a folder in which none of them is found. A row's file
+that is simply absent is reported and the row is kept (the old site answered 404 for it too). A file is
+copied only if its name is what the old server generated and its type is one the bucket allows; links are
+refused. Object key: '<user uuid>/<file name>'. Nothing is copied for an account that is not imported.
 
 Sized for the app as it is (thousands of users, hundreds of thousands of rows): the whole import is held
 in memory and loaded with executemany. Move to COPY and batches if it grows a hundredfold.
@@ -982,6 +990,8 @@ class Plan:
         self.skipped_accounts = []          # legacy ids the operator left out on purpose (--skip-account)
         self.unimportable = []              # (legacy id, reason): accounts Auth or Postgres cannot take
         self.skipped_by_design = {}
+        self.files = []                     # (bucket, user uuid, file name) the imported rows point at
+        self.unusable_files = []            # (bucket, user uuid, file name, why): never copied
 
     def q(self, source, legacy_id, payload, error):
         if unsafe_reason(payload):
@@ -1189,10 +1199,7 @@ def build_plan(conn, now=None, skip=()):
     simple("waitlist", "waitlist", lambda r: {
         "email": r["email"], "source": r.get("source"), "created_at": ts(r)})
     plan.identity_tables.update(CORE_IDENTITY)
-    files = len(plan.rows["progress_photos"]) + sum(1 for r in plan.rows["analyze_results"] if r["video_filename"])
-    if files:
-        plan.notes["files_referenced_but_NOT_copied (progress photos and analysis videos stay on the old disk; "
-                   "copy them into Storage separately)"] = files
+    plan.files, plan.unusable_files = plan_files(plan.rows)
     for table, why in (("auth_throttle", "short-lived login/signup throttle keyed on opaque strings"),
                        ("native_auth_tokens", "120-second sign-in handoff tokens; Supabase Auth replaces them")):
         if _has_table(conn, table):
@@ -1268,24 +1275,36 @@ class AuthError(RuntimeError):
     pass
 
 
-class Auth:
-    """The Auth admin API. A 429 or 5xx, a dropped connection and a timeout are retried with a
-    backoff: they are the service having a bad moment, not a refusal of the account."""
+class StoreError(RuntimeError):
+    pass
+
+
+class _Api:
+    """A Supabase admin API. A 429 or 5xx, a dropped connection and a timeout are retried with a
+    backoff: they are the service having a bad moment, not a refusal."""
 
     RETRY_STATUSES = (429, 500, 502, 503, 504)
+    error = AuthError
+    timeout = 30
 
-    def __init__(self, env, sleep=time.sleep):
+    def __init__(self, env, sleep, path, headers):
         import requests
         self.requests = requests.Session()
         self.sleep = sleep
-        self.base = env["SUPABASE_URL"].rstrip("/") + "/auth/v1/admin/users"
-        self.headers = {"apikey": env["SUPABASE_SERVICE_ROLE_KEY"], "Content-Type": "application/json"}
+        self.base = env["SUPABASE_URL"].rstrip("/") + path
+        self.headers = headers
 
-    def _call(self, verb, url, **kwargs):
+    def _call(self, verb, url, body=None, headers=None, **kwargs):
+        """`body`, when given, opens the file to send: it is reopened for every attempt."""
         last = None
         for attempt in range(4):
             try:
-                response = getattr(self.requests, verb)(url, headers=self.headers, timeout=30, **kwargs)
+                if body is None:
+                    response = getattr(self.requests, verb)(url, headers=headers or self.headers, timeout=self.timeout, **kwargs)
+                else:
+                    with body() as fh:
+                        response = getattr(self.requests, verb)(url, headers=headers or self.headers, timeout=self.timeout,
+                                                                data=fh, **kwargs)
             except OSError as exc:                  # requests' connection errors and timeouts are OSErrors
                 last = exc
             else:
@@ -1293,7 +1312,16 @@ class Auth:
                     return response
                 last = response.status_code
             self.sleep(2 ** attempt)
-        raise AuthError(f"{verb} {url.rsplit('/', 1)[-1]} kept failing: {last}")
+        raise self.error(f"{verb} {url.rsplit('/', 1)[-1]} kept failing: {last}")
+
+
+class Auth(_Api):
+    """The Auth admin API."""
+
+    def __init__(self, env, sleep=time.sleep):
+        super().__init__(env, sleep, "/auth/v1/admin/users",
+                         {"apikey": env["SUPABASE_SERVICE_ROLE_KEY"], "Content-Type": "application/json"})
+
 
     def exists(self, uid):
         status = self._call("get", f"{self.base}/{uid}").status_code
@@ -1321,6 +1349,36 @@ class Auth:
 
     def delete(self, uid):
         return self._call("delete", f"{self.base}/{uid}").status_code
+
+
+class Store(_Api):
+    """The Storage API, as the service role (which bypasses the buckets' policies; their size and type
+    rules still apply)."""
+
+    error = StoreError
+    timeout = 300
+
+    def __init__(self, env, sleep=time.sleep):
+        key = env["SUPABASE_SERVICE_ROLE_KEY"]
+        super().__init__(env, sleep, "/storage/v1", {"apikey": key, "Authorization": "Bearer " + key})
+
+    def upload(self, bucket, key, path, content_type):
+        """("ok", None), or ("refused", why) when the bucket's own rules (size, type) turn the file away.
+        Upserts, so a rerun replaces an object instead of failing on it."""
+        r = self._call("post", f"{self.base}/object/{bucket}/{key}", body=lambda: open(path, "rb"),
+                       headers=dict(self.headers, **{"Content-Type": content_type, "x-upsert": "true"}))
+        if r.status_code == 200:
+            return "ok", None
+        try:
+            detail = r.json()
+        except ValueError:
+            detail = {}
+        if r.status_code == 400 and str(detail.get("statusCode")) in REFUSED_BY_BUCKET:
+            return "refused", str(detail.get("message") or detail.get("error"))
+        raise StoreError(f"uploading to {bucket} answered {r.status_code}")
+
+    def remove(self, bucket, keys):
+        return self._call("delete", f"{self.base}/object/{bucket}", json={"prefixes": list(keys)}).status_code
 
 
 def adapt(column, value):
@@ -1433,6 +1491,238 @@ def load_rows(plan, conn, reset=False):
 def delete_stale_auth(auth, uids):
     """Delete the Auth accounts of previously imported users who are no longer in the source."""
     return [uid for uid in uids if auth.delete(uid) not in (200, 404)]
+
+
+# ---------------------------------------------------------------------------
+# Files (progress photos, analysis clips) -> Storage
+# ---------------------------------------------------------------------------
+
+# Equal to supabase/migrations/20261025100000_storage_buckets.sql (a test pins it) and to the folders
+# the old server kept them in (app.py: PROGRESS_PHOTOS_DIR, ANALYZE_VIDEOS_DIR).
+BUCKETS = {
+    "progress-photos": {
+        "dir": "progress_photos", "limit": 12 * 1024 * 1024,
+        "types": {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}},
+    "analyze-videos": {
+        "dir": "analyze_videos", "limit": 50 * 1024 * 1024,
+        "types": {".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v",
+                  ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".webm": "video/webm"}},
+}
+# What the old server generated: a hex id plus an extension. Anything else is not a file name this script
+# will join to a directory or put in an object key.
+FILE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}")
+# Storage answers a refused upload with HTTP 400 and the real status inside the body.
+REFUSED_BY_BUCKET = ("413", "415")
+DELETE_BATCH = 100
+
+
+def object_key(uid, name):
+    return f"{uid}/{name}"
+
+
+def plan_files(rows):
+    """The files the imported rows point at: ([(bucket, user id, name)], [(bucket, user id, name, why)]).
+    A file of an account that is not imported is never in here, because its rows are not."""
+    planned, unusable, seen = [], [], set()
+    for table, column, bucket in (("progress_photos", "filename", "progress-photos"),
+                                  ("analyze_results", "video_filename", "analyze-videos")):
+        for r in rows.get(table, []):
+            name = r.get(column)
+            if not name:
+                continue
+            ext = Path(name).suffix.lower()
+            if not FILE_NAME_RE.fullmatch(name):
+                why = "the name has characters outside A-Z a-z 0-9 . _ -"
+            elif ext not in BUCKETS[bucket]["types"]:
+                why = f"extension {ext or '(none)'} is not allowed in {bucket}"
+            else:
+                item = (bucket, r["user_id"], name)
+                if item not in seen:
+                    seen.add(item)
+                    planned.append(item)
+                continue
+            unusable.append((bucket, r["user_id"], name, why))
+    return planned, unusable
+
+
+class FileScan:
+    """What is actually on disk for the planned files."""
+
+    def __init__(self):
+        self.found = []       # (bucket, user id, name, path, size)
+        self.missing = []     # (bucket, user id, name): the row stays, the old site served a 404 for it too
+        self.refused = []     # (bucket, user id, name, why): present but not copied
+
+
+def scan_files(planned, root):
+    scan, root = FileScan(), Path(root)
+    for bucket, uid, name in planned:
+        path = root / BUCKETS[bucket]["dir"] / name
+        try:
+            if path.is_symlink():
+                scan.refused.append((bucket, uid, name, "is a symbolic link"))
+                continue
+            if not path.is_file():
+                scan.missing.append((bucket, uid, name))
+                continue
+            size = path.stat().st_size
+        except OSError:
+            scan.missing.append((bucket, uid, name))
+            continue
+        if size > BUCKETS[bucket]["limit"]:
+            scan.refused.append((bucket, uid, name, f"is {size} bytes, over the {BUCKETS[bucket]['limit']} byte limit of {bucket}"))
+        else:
+            scan.found.append((bucket, uid, name, path, size))
+    return scan
+
+
+class FileCopy:
+    """What copy_files did, kept as it goes so a crash half way can still be undone."""
+
+    def __init__(self):
+        self.expected = {}    # (bucket, key) -> (md5 hex, size) of every object that went up
+        self.created = []     # (bucket, key) this run added (did not exist before)
+        self.refused = []     # (bucket, user id, name, why) Storage's bucket rules turned away
+        self.size_only = 0    # objects whose ETag was not an md5 (multipart), checked by size alone
+
+
+def file_md5(path):
+    digest = hashlib.md5()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def existing_objects(conn, planned):
+    """Which of the planned objects Storage already holds (so a failed run removes only what it added)."""
+    found = set()
+    with conn.cursor() as cur:
+        for bucket in BUCKETS:
+            names = [object_key(uid, name) for b, uid, name in planned if b == bucket]
+            if names:
+                cur.execute("select name from storage.objects where bucket_id = %s and name = any(%s)", (bucket, names))
+                found |= {(bucket, row[0]) for row in cur.fetchall()}
+    return found
+
+
+def copy_files(scan, store, had, result, say=print):
+    total = len(scan.found)
+    for i, (bucket, uid, name, path, size) in enumerate(scan.found, 1):
+        key = object_key(uid, name)
+        digest = file_md5(path)
+        if (bucket, key) not in had:
+            result.created.append((bucket, key))      # before the upload: a crash mid-upload is then undone too
+        status, detail = store.upload(bucket, key, path, BUCKETS[bucket]["types"][Path(name).suffix.lower()])
+        if status == "refused":
+            result.refused.append((bucket, uid, name, detail))
+        else:
+            result.expected[(bucket, key)] = (digest, size)
+        if i % 100 == 0:
+            say(f"  copied {i} of {total} files")
+    return result
+
+
+def verify_files(result, conn):
+    """Read Storage's own record of every uploaded object and compare it with the file that was sent: for
+    a single-part upload the ETag IS the md5, so no object is downloaded again."""
+    problems = []
+    with conn.cursor() as cur:
+        for bucket in BUCKETS:
+            wanted = {key: v for (b, key), v in result.expected.items() if b == bucket}
+            if not wanted:
+                continue
+            cur.execute("select name, metadata->>'eTag', (metadata->>'size')::bigint from storage.objects "
+                        "where bucket_id = %s and name = any(%s)", (bucket, sorted(wanted)))
+            stored = {name: (etag, size) for name, etag, size in cur.fetchall()}
+            for key, (digest, size) in sorted(wanted.items()):
+                if key not in stored:
+                    problems.append(f"{bucket}: an uploaded object is missing from Storage")
+                    continue
+                etag, stored_size = stored[key]
+                if stored_size != size:
+                    problems.append(f"{bucket}: an object is {stored_size} bytes in Storage, {size} on disk")
+                elif etag and "-" in etag:
+                    result.size_only += 1
+                elif (etag or "").strip('"') != digest:
+                    problems.append(f"{bucket}: an object's content differs from the file on disk")
+    return problems
+
+
+def storage_extras(conn, wanted, uids):
+    """Objects in these users' folders that the plan does not call for (left by an earlier failed run, or
+    belonging to an account that is gone): after the commit, Storage must hold exactly the plan."""
+    with conn.cursor() as cur:
+        cur.execute("select bucket_id, name from storage.objects where bucket_id = any(%s) "
+                    "and split_part(name, '/', 1) = any(%s)", (list(BUCKETS), list(uids)))
+        return sorted((b, n) for b, n in cur.fetchall() if (b, n) not in wanted)
+
+
+def delete_objects(store, items):
+    """Delete (bucket, key) pairs through the Storage API (SQL cannot: the bytes would be orphaned).
+    Returns those that would not go."""
+    failed = []
+    for bucket in BUCKETS:
+        keys = [k for b, k in items if b == bucket]
+        for i in range(0, len(keys), DELETE_BATCH):
+            batch = keys[i:i + DELETE_BATCH]
+            try:
+                if store.remove(bucket, batch) != 200:
+                    failed += [(bucket, k) for k in batch]
+            except Exception:
+                failed += [(bucket, k) for k in batch]
+    return failed
+
+
+def undo_files(store, created):
+    """Remove the objects a failed run added. Best effort, like undo_auth."""
+    failed = delete_objects(store, created) if created else []
+    if failed:
+        print(f"WARNING: could not remove {len(failed)} stored files this run added; the next run removes them", file=sys.stderr)
+    return failed
+
+
+def print_files(plan):
+    print(f"\nfiles referenced by imported rows: {len(plan.files)}"
+          + (f" (+{len(plan.unusable_files)} the importer will not copy)" if plan.unusable_files else ""))
+    for bucket, _uid, name, why in plan.unusable_files[:10]:
+        print(f"  not copied: a {bucket} name: {why}")
+
+
+def print_scan(scan, root):
+    mib = sum(s for *_x, s in scan.found) / (1024 * 1024)
+    print(f"  in {root}: found {len(scan.found)} ({mib:.1f} MiB), missing {len(scan.missing)}, not copyable {len(scan.refused)}")
+    for bucket, _uid, name in scan.missing[:10]:
+        print(f"  missing from disk: {bucket}/{name}")
+    for bucket, _uid, name, why in scan.refused[:10]:
+        print(f"  not copied: {bucket}/{name} {why}")
+    if len(scan.missing) > 10:
+        print(f"  ... and {len(scan.missing) - 10} more missing")
+
+
+def check_files(plan, args):
+    """What happens to the files the imported rows point at. Returns (scan or None, exit code or None).
+    Never silent: rows that point at files need an explicit answer, or a launch would quietly leave every
+    photo behind."""
+    print_files(plan)
+    if not plan.files:
+        return None, None
+    if args.skip_files:
+        print("\n--skip-files: the rows will point at files that are NOT in Storage until they are copied.")
+        return None, None
+    if not args.files_dir:
+        print("\nThe imported rows point at files, and the SQLite export does not contain them. Give a folder holding a copy "
+              "of the old server's progress_photos/ and analyze_videos/ with --files-dir, or import the rows alone with "
+              "--skip-files. Nothing was written.")
+        return None, 2
+    root = Path(args.files_dir)
+    scan = scan_files(plan.files, root)
+    print_scan(scan, root)
+    if not scan.found:
+        print("\nNone of the referenced files were found there: this is almost certainly the wrong folder (it needs "
+              "progress_photos/ and analyze_videos/ inside it). Nothing was written.")
+        return None, 2
+    return scan, None
 
 
 # ---------------------------------------------------------------------------
@@ -1606,6 +1896,10 @@ def main(argv=None):
     ap.add_argument("--force-reset-signed-in-accounts", metavar="PROJECT_REF",
                     help="allow --reset even though imported accounts have signed in (after launch these are the "
                          "real users: this DELETES their data). Give the project ref shown as 'target project'.")
+    ap.add_argument("--files-dir", metavar="DIR",
+                    help="a copy of the old server's data folder: it must contain progress_photos/ and analyze_videos/")
+    ap.add_argument("--skip-files", action="store_true",
+                    help="import the rows only; they will point at files that are not in Storage until copied")
     args = ap.parse_args(argv)
 
     path = Path(args.sqlite_path).resolve()
@@ -1623,6 +1917,9 @@ def main(argv=None):
         print("\nNothing was written. Fix those accounts in the source, or leave them out on purpose with "
               "--skip-account <legacy id>.")
         return 2
+    scan, refusal = check_files(plan, args)
+    if refusal is not None:
+        return refusal
     if args.dry_run:
         print("\ndry run: the plan checks out and the accounting balances; nothing was written")
         return 0
@@ -1639,6 +1936,7 @@ def main(argv=None):
 
     # Read-only questions first, on a connection that is then closed: the Auth step below can take a
     # long time and a database connection left idle through it may be dropped by the pooler.
+    had = set()
     conn = connect()
     try:
         with conn.cursor() as cur:
@@ -1652,6 +1950,9 @@ def main(argv=None):
                             "where p.legacy_user_id is not null and u.last_sign_in_at is not null")
                 signed_in = cur.fetchone()[0]
             conn.commit()
+        if scan is not None:
+            had = existing_objects(conn, plan.files)
+            conn.commit()
     finally:
         conn.close()
     if previous and not args.reset:
@@ -1664,16 +1965,29 @@ def main(argv=None):
 
     created, existing = create_auth_users(plan, auth)        # deletes what it created if it fails
     print(f"\nauth accounts created: {len(created)} (already present and refreshed: {existing})")
+    copy, store, extras = FileCopy(), None, []
+    wanted = {(bucket, object_key(uid, name)) for bucket, uid, name in plan.files}
     conn = None
     try:
+        if scan is not None:
+            store = Store(env)
+            copy_files(scan, store, had, copy)
+            print(f"files copied: {len(copy.expected)} (turned away by the bucket's own rules: {len(copy.refused)})")
+            for bucket, _uid, name, why in copy.refused[:10]:
+                print(f"  refused: {bucket}/{name}: {why}")
         conn = connect()
         removed, stale = load_rows(plan, conn, reset=args.reset)
         problems = verify_database(plan, conn)
+        if copy.expected:
+            problems += verify_files(copy, conn)
+        if not problems:
+            extras = storage_extras(conn, wanted, [uid for uid, _l, _e, _m in plan.users] + list(stale))
         if problems:
             conn.rollback()
             undo_auth(auth, created)
+            undo_files(store, copy.created)
             print("\nVERIFICATION FAILED. Nothing was committed (the project is as it was), and the Auth accounts "
-                  "this run created were removed:\n  " + "\n  ".join(problems[:40]))
+                  "and stored files this run created were removed:\n  " + "\n  ".join(problems[:40]))
             return 4
         conn.commit()
     except BaseException:
@@ -1683,6 +1997,8 @@ def main(argv=None):
             except Exception:
                 pass
         undo_auth(auth, created)
+        if copy.created:
+            undo_files(store or Store(env), copy.created)
         raise
     finally:
         if conn is not None:
@@ -1690,15 +2006,23 @@ def main(argv=None):
                 conn.close()
             except Exception:
                 pass
-    print("verified before commit: every table holds exactly the planned rows. Committed."
-          + (f" Replaced {removed} previously imported accounts." if args.reset else ""))
+    print("verified before commit: every table holds exactly the planned rows"
+          + (f" and {len(copy.expected)} stored files match the files on disk" if copy.expected else "")
+          + ". Committed." + (f" Replaced {removed} previously imported accounts." if args.reset else ""))
+    status = 0
     if stale:
         failed = delete_stale_auth(auth, stale)
         print(f"removed {len(stale) - len(failed)} Auth accounts that are no longer in the source")
         if failed:
             print(f"WARNING: these Auth accounts could not be deleted and need removing by hand: {failed}")
-            return 3
-    return 0
+            status = 3
+    if extras:
+        failed = delete_objects(store or Store(env), extras)
+        print(f"removed {len(extras) - len(failed)} stored files that are not part of this import")
+        if failed:
+            print(f"WARNING: {len(failed)} stored files could not be removed; the next run removes them")
+            status = 3
+    return status
 
 
 if __name__ == "__main__":

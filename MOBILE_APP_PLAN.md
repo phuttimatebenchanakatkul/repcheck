@@ -2,8 +2,8 @@
 
 Status: **plan finished 2026-10-24. Supabase Pro project created the same
 day** (ref `edktymiqqgqmzaxckfzc`, Singapore, Postgres 17), with keys in
-`.env` and verified. **Phase 1, first half (schema, security rules, import
-script) was built and tested 2026-10-24/25**; see "Phase 1 status" below for
+`.env` and verified. **Phase 1, first part (schema, security rules, import
+script, Storage and the file copy) was built and tested 2026-10-24/25**; see "Phase 1 status" below for
 what is done, what is proven, what is still to do, and what needs a decision.
 
 Connection gotcha: `SUPABASE_DB_URL` must use the shared pooler
@@ -42,7 +42,7 @@ Sign in with Apple/Google. The goal is a native app on a backend built for it.
 | Builds | **EAS Build** in the cloud | No Mac available. Expo Go and dev builds install on a real iPhone/iPad from Windows, with live reload |
 | Database | **Supabase Postgres** | Managed, backed up, with row-level security so the app can talk to it directly |
 | Auth | **Supabase Auth** (email, Apple, Google) | Native SDKs for React Native. Replaces `auth.py` entirely |
-| Files | **Supabase Storage** | Progress photos, form videos and challenge clips, in private per-user buckets |
+| Files | **Supabase Storage** | Progress photos and the trimmed analysis clip, in two private buckets under `<user id>/`. Challenge clips are not kept (the site deletes them once graded) |
 | Who talks to the DB | **Hybrid.** The app reads and writes the user's own data directly (RLS); anything secret goes through Flask | Plain CRUD gets instant and works offline. Gemini/FatSecret keys, rate limits, grading and moderation stay on the server |
 | Backend | **Flask becomes API-only**, on Postgres | AI, food lookup, limits, consent, citations, grading and moderation logic already exist and work |
 | Region | **Supabase Southeast Asia (Singapore)** | The Render service is in Singapore, and every Flask query crosses that link |
@@ -134,9 +134,9 @@ from the start.
   `auth.users` + `profiles` (a deterministic uuid per legacy id), blobs parsed
   into tables, then every table read back and compared with the plan before
   anything is committed. It must be rerunnable, because it runs for dev now and
-  again for real at launch. **Copying the files (progress photos, analysis
-  videos) into Storage is a separate step it does not do**; it reports every
-  file it saw referenced.
+  again for real at launch. It also copies the files (progress photos, analysis
+  clips) into the two private Storage buckets from a copy of the old server's
+  folders (`--files-dir`), checking each against Storage's own record of it.
 - **Flask ported to Postgres** (`psycopg` through the pooler, same function
   names in `database.py`), verifying Supabase JWTs, with the page routes
   deleted from this branch.
@@ -161,7 +161,9 @@ exercises). Haptics on every log and complete action.
 
 ### 4. Analyze and the AI coach
 Record with `react-native-vision-camera` or pick from the library, then upload
-straight to Storage and have Flask grade it. Results, history and playback.
+and have Flask grade it. (Today the app may only READ its own Storage files; an
+upload straight to the `analyze-videos` bucket needs a new INSERT policy and new
+isolation tests, so decide between that and a multipart upload to Flask here.) Results, history and playback.
 The analyze, coach and workout chats keep their citations, the Report button
 and the AI-consent gate exactly. Each of these closed an App Review
 rejection.
@@ -226,7 +228,7 @@ ceiling has to be chosen again, in the database.
 
 ## Phase 1 status (2026-10-25)
 
-**Built and applied to the Supabase project:** six migrations in
+**Built and applied to the Supabase project:** seven migrations in
 `supabase/migrations/`.
 
 1. `core_tables`: profiles and the tables that were already real SQLite tables.
@@ -243,12 +245,16 @@ ceiling has to be chosen again, in the database.
    and the required-field rule treats whitespace as blank.
 6. `whitespace_means_all_whitespace`: `btrim` strips only spaces, so a tab or a
    non-breaking space still counted as a value; now it strips all of them.
+7. `storage_buckets`: two private buckets, `progress-photos` (12 MiB, JPEG / PNG /
+   WebP: the site's own limits) and `analyze-videos` (50 MiB, the six video types the
+   site accepted), with one read-own policy each on `storage.objects`.
 
 RLS is on every table; the project exposes no table automatically and new tables
 start closed (default privileges revoked from `anon`, `authenticated` and PUBLIC).
 Also built: the two-user isolation suite (`tests/test_supabase_rls.py`), the importer
 (`scripts/migrate_sqlite_to_supabase.py`) and its unit tests
-(`tests/test_sqlite_to_supabase_mappers.py`, `tests/test_sqlite_to_supabase_plan.py`).
+(`tests/test_sqlite_to_supabase_mappers.py`, `_plan.py`, `_files.py`), and the
+Storage isolation suite (`tests/test_supabase_storage.py`).
 
 **Who can touch what.** The app reads and writes its own rows directly in the
 user-data tables above, and reads (only) its own rows in `custom_foods`,
@@ -262,6 +268,17 @@ update its coaching profile but not delete it (that row goes with the account).
 Friends, challenges, leaderboards, reports, usage and rate limits are
 unreachable from the app and served by Flask. User ids are **not secrets**: they are
 derived from the legacy ids, so nothing may rely on an id being unguessable.
+
+**Storage.** Objects live at `<user id>/<file name>`, where the name is
+`progress_photos.filename` or `analyze_results.video_filename`. The app may READ its
+own files (download, signed link, list its own folder) and nothing else: Flask, with
+the service role, uploads, replaces and deletes, for the same reason it keeps writing
+the matching tables (it checks what the database cannot: that the bytes are really an
+image, the 500-photo cap, the check-in date window). Neither bucket allows direct
+SQL deletes (Storage refuses them), and **deleting an Auth user does not delete its
+files**, both measured: account deletion and the history prune
+(`ANALYZE_HISTORY_KEEP`) must remove objects through the Storage API. The Flask port
+owns that; `run_deletion_purge`'s file unlinks today are the model.
 
 **What is proven, and how**
 - **Isolation (`tests/test_supabase_rls.py`, 155 tests, ~55 s).** Signs in as real
@@ -282,15 +299,46 @@ derived from the legacy ids, so nothing may rely on an id being unguessable.
   applies the SELECT policy to the rows it touches), so those are killed by the
   structural test, not a behavioural one. The suite needs `SUPABASE_*` in `.env`
   and is skipped without it, so CI does not run it (see `TODOS.md`).
-- **Importer (249 unit tests, no network, ~3 s).** 129 mutations of the importer,
-  all caught, plus two on the float-precision guard below. End to end on the live
+- **Storage isolation (`tests/test_supabase_storage.py`, 58 tests, ~20 s).** Two
+  signed-in users and a third with nothing, against the live Storage API: own files
+  readable; no other user's file readable by name, by `..`, `%2e%2e`, `//` or a
+  leading slash, by a signed link, or listed; nothing readable signed out; and not one
+  upload, overwrite, delete, move or copy works for the app, in either bucket, proved
+  by the EFFECT (bytes and keys unchanged, read back with the service key) because
+  Storage reports a refusal as HTTP 400 with the real status in the body and a refused
+  bulk delete as 200 with an empty list. A control test runs the same requests as the
+  service role and requires every one to succeed, so a malformed request cannot pass
+  as a refusal. Buckets and policies are pinned exactly (all private, the limits, the
+  types, one SELECT policy each scoped to the bucket AND the caller, RLS on every
+  storage table). 22 guards loosened one at a time (a policy opened wide or to anon,
+  a bucket made public, an INSERT / UPDATE / DELETE policy added, users allowed to
+  see / create / change buckets, limits removed or doubled, a type widened, a stray
+  public bucket, a policy on another storage table): all caught, 18 by the behavioural
+  tests alone (the other 4 are catalog-level by nature: two are behaviourally
+  equivalent today because the folder check still blocks everyone, two have nothing
+  observable), catalog identical afterwards. That exercise found a real flaw in the
+  tests: under a loosened bucket policy their own attack on the REAL bucket succeeded
+  and left it public, so the test now restores the buckets in a `finally` and the
+  harness detects and repairs such damage. Not covered, and not coverable from here:
+  `storage.objects` itself is owned by `supabase_storage_admin`, so turning its RLS off
+  cannot be simulated; the suite asserts it is on.
+- **Importer (314 unit tests, no network, ~4 s).** 129 mutations of the importer,
+  all caught, plus two on the float-precision guard below and 53 on the file copy
+  (52 caught; the survivor is equivalent: `requests` adds the JSON content type itself). End to end on the live
   project, twice: a synthetic database built with the current `init_db()` (Apple,
   Google and local accounts, a scheduled deletion, orphans, awkward text, every
   blob shape; 45 independent checks, including what an imported user can and
   cannot read through the API) and the 28-account dev database (a naive per-user
   count taken straight from the raw JSON agrees on 28 users x 10 tables, zero
   mismatches). A forced re-import reproduces everything, and the project was
-  emptied again afterwards.
+  emptied again afterwards. The file copy was run live with the dev database and the
+  dev server's disk: only the two referenced photos went up (not the 357 unreferenced
+  test PNGs beside them), each byte-identical by md5 and by a full sha256 download;
+  an injected failure after the upload removed the files, the accounts and the rows;
+  a stray file in an imported user's folder was tidied on the next `--reset`; replacing
+  the dev import with the synthetic one emptied the departed users' folders and used
+  the video bucket; the owner could read their photo through the API and another user
+  could neither read it nor get a signed link.
 - **The importer's own guarantees.** All-or-nothing: every table is read back and
   compared with the plan, row by row, before the commit, and a mismatch rolls the
   database back and deletes the Auth accounts that run created. Every source item is
@@ -304,18 +352,40 @@ derived from the legacy ids, so nothing may rely on an id being unguessable.
   is given the project ref. Values that cannot be stored (NUL characters, lone
   surrogates) are parked in `import_quarantine` instead of failing the run.
   Verification never prints a value, only which column differs.
+- **The file copy's guarantees.** Rows that point at files need an explicit answer:
+  `--files-dir <folder>` (a copy of the old server's `progress_photos/` and
+  `analyze_videos/`) or `--skip-files`; with neither, or with a folder in which none of
+  the files is found (almost certainly the wrong folder), the run stops before writing
+  anything. Only files the imported rows name are copied (no unreferenced file, and
+  nothing for a deleted, expired or skipped account). A name must be what the old
+  server generated (a hex id plus an allowed extension: no separators, no leading dot),
+  links are refused, and over-limit files are reported, not truncated. An absent file
+  is reported and its row kept (the old site answered 404 for it too). Files go up
+  BEFORE the database transaction, are checked against Storage's own record (for a
+  single-part upload the ETag is the md5, so nothing is downloaded again), and any
+  failure removes exactly the objects this run added. After the commit, Storage is
+  tidied to the plan: an imported user's folder holds only planned files, and a
+  departed user's folder is emptied.
 
 **Running it**
 
 ```
-python scripts/migrate_sqlite_to_supabase.py <file.db> --dry-run   # map + account, touch nothing
-python scripts/migrate_sqlite_to_supabase.py <file.db>             # first load
-python scripts/migrate_sqlite_to_supabase.py <file.db> --reset     # replace a previous import
-python -m pytest tests/test_supabase_rls.py                        # needs SUPABASE_* in .env; skipped without
+python scripts/migrate_sqlite_to_supabase.py <file.db> --dry-run --files-dir <disk>   # map + account + look for the files, touch nothing
+python scripts/migrate_sqlite_to_supabase.py <file.db> --files-dir <disk>             # first load
+python scripts/migrate_sqlite_to_supabase.py <file.db> --files-dir <disk> --reset    # replace a previous import
+python scripts/migrate_sqlite_to_supabase.py <file.db> --skip-files                   # rows only; photos stay uncopied
+python -m pytest tests/test_supabase_rls.py tests/test_supabase_storage.py            # need SUPABASE_* in .env; skipped without
 ```
 
-The project is empty again (all 37 tables, no auth users): the dev copy was
-removed after testing because this project becomes production.
+`<disk>` is a copy of the old server's data folder (`DATA_DIR`: it must contain
+`progress_photos/` and `analyze_videos/`), kept outside the repo like the export.
+`/admin/export-db` carries only the database, so the files have to come off the Render
+disk some other way: Render's shell (the export route's own comment mentions SSH) or
+`scp`. A one-off owner-only download route would also work, but it is a change to the
+frozen website, so it needs your say-so.
+
+The project is empty again (all 37 tables, no auth users, no stored files): the dev
+copy was removed after testing because this project becomes production.
 
 **Findings from the data that shaped the importer**
 - SQLite never enforced foreign keys, so rows of deleted accounts are left
@@ -337,15 +407,21 @@ removed after testing because this project becomes production.
   computed values, but do not rely on a float round-tripping bit-exactly.
 - The Data API returns at most 1000 rows per request (measured on this project: 1500
   rows in, 1000 back, no error), so a long food or workout log must be paged.
+- **How Storage behaves** (all measured here): a refused upload is HTTP 400 with the
+  real status (403, 404, 413, 415) inside the body; the project-wide upload cap allows
+  at least 50 MiB (exactly 50 MiB went up, one byte more was refused by the bucket);
+  bucket limits apply to the service role too; a user cannot even see a bucket, so
+  update / delete policies alone would do nothing, and the loophole to guard against is
+  SELECT plus a write policy; zero-byte files are accepted.
 
 **Not done yet in phase 1**
-- **Storage buckets and their policies.** Buckets are not in the migrations and do
-  not exist; the isolation suite must be extended to cover them. The file copy
-  (progress photos, videos) is part of this.
-- **Flask ported to Postgres, verifying Supabase JWTs.**
+- **Flask ported to Postgres, verifying Supabase JWTs.** Including the Storage side
+  of it: serving or signing the user's files, uploading photos and clips with the
+  service role, and removing a user's objects through the Storage API when an account
+  is deleted or the history is pruned.
 - **Apple / Google providers** in the Supabase dashboard.
-- **A true production copy** (below): everything was run on the dev database and a
-  synthetic one.
+- **A true production copy and the files that go with it** (below): everything was
+  run on the dev database and its dev disk, and a synthetic one.
 
 **Open decisions (yours)**
 1. **A real production copy.** The local `repcheck.db` is a dev database (28
@@ -354,8 +430,9 @@ removed after testing because this project becomes production.
    `https://repcheck-q0m4.onrender.com/admin/export-db` while signed in as the
    owner and save it **outside the repo** (for example `D:\RepCheck_Backups\`).
    `.gitignore` now also covers `*.db`, `*.sqlite*` and `repcheck_production*`,
-   but the repo is public, so still keep it outside. Then run `--dry-run` on it
-   before anything else.
+   but the repo is public, so still keep it outside. Then copy the Render disk's
+   `progress_photos/` and `analyze_videos/` next to it (see "Running it") and run
+   `--dry-run --files-dir` on both before anything else.
 2. Per-user row ceilings for the directly-writable tables (above).
 3. Legacy `hour` entries: leave at midnight, or convert `hour` into a time.
 4. **Sign-up must go through Flask**, not Supabase Auth directly, or the
@@ -459,8 +536,9 @@ rehearsed.
 ## Costs and risks
 
 - **Supabase cost.** Pro is $25 a month, plus storage and egress beyond the
-  included amount. Form videos are the big storage consumer, so set a
-  retention policy for `analyze-videos`.
+  included amount. Form videos are the big storage consumer; the site already keeps
+  only each user's newest 20 (`ANALYZE_HISTORY_KEEP`), and the Flask port must keep
+  that prune, deleting the objects through the Storage API.
 - **Everything happens on one day.** The data move, auth change and new app
   all land at once. The rehearsal and the manual-release hold are the
   mitigation.

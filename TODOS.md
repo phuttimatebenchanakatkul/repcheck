@@ -8,11 +8,11 @@
 
 **Why:** The importer stops (exit 2) on any account it cannot import, and its accounting must balance; a real export is where either could trip. Better to learn that now than on launch day.
 
-**Context:** Save `https://repcheck-q0m4.onrender.com/admin/export-db` (signed in as the owner) OUTSIDE the repo, e.g. `D:\RepCheck_Backups\`, then `python scripts/migrate_sqlite_to_supabase.py <file> --dry-run` before anything else. See `MOBILE_APP_PLAN.md`, "Phase 1 status".
+**Context:** Save `https://repcheck-q0m4.onrender.com/admin/export-db` (signed in as the owner) OUTSIDE the repo, e.g. `D:\RepCheck_Backups\`, and copy the Render disk's `progress_photos/` and `analyze_videos/` folders next to it (the export carries only the database), then `python scripts/migrate_sqlite_to_supabase.py <file> --dry-run --files-dir <folder>` before anything else. See `MOBILE_APP_PLAN.md`, "Phase 1 status".
 
 **Effort:** S
 **Priority:** P1
-**Depends on:** The owner downloading the export
+**Depends on:** The owner downloading the export and the two file folders
 
 ### Open sign-ups on the Supabase project bypass the display-name filter
 
@@ -50,23 +50,31 @@
 **Priority:** P1
 **Depends on:** Phase 2
 
-### Storage buckets, their policies and the file copy
+### Deleting an account or pruning history must remove the user's stored files through the Storage API
 
-**What:** No Storage buckets exist and none are in the migrations. Progress photos and analysis videos still live on the old disk; the importer reports every file it saw referenced but does not copy them.
+**What:** The two private buckets exist (migration `storage_buckets`) and the importer fills them, but deleting an Auth user does NOT delete its objects and direct SQL deletes are refused (both measured; `tests/test_supabase_storage.py` pins them). The site did this itself (`run_deletion_purge`, `prune_analyze_results`).
 
-**Why:** The isolation guarantee covers tables only until the buckets and their policies are added and tested the same way.
+**Why:** Without it a deleted account's progress photos stay in Storage forever, which breaks the promise the 30-day deletion makes and costs money.
 
-**Context:** Add buckets and policies as a migration, extend `tests/test_supabase_rls.py` to them (mutation-checked), then copy the files.
+**Context:** Belongs to the Flask-on-Postgres port: on purge, list `<user id>/` in both buckets and remove through the API before deleting the user; keep the 20-newest `ANALYZE_HISTORY_KEEP` prune and delete the pruned clips' objects too. The importer already does the same for departed users (`delete_objects`).
 
 **Effort:** M
 **Priority:** P1
+**Depends on:** The Flask port
+
+### Storage buckets, their policies and the file copy
+
+**Fixed on `supabase-storage`, 2026-10-25** -- two private buckets, read-own policies, a 58-test mutation-checked isolation suite, and a file copy in the importer (`--files-dir`), run live against the dev database and its disk. What remains is split into the entries above and below.
+
+**Effort:** M
+**Priority:** P1 (resolved)
 **Depends on:** None
 
-### The RLS isolation suite runs only where `.env` holds live Supabase keys
+### The RLS and Storage isolation suites run only where `.env` holds live Supabase keys
 
-**What:** `tests/test_supabase_rls.py` talks to the real project and is skipped without `SUPABASE_*` in `.env`, so any CI without those secrets silently does not run it.
+**What:** `tests/test_supabase_rls.py` and `tests/test_supabase_storage.py` talk to the real project and are skipped without `SUPABASE_*` in `.env`, so any CI without those secrets silently does not run them.
 
-**Why:** A migration that opens a table would pass CI unnoticed.
+**Why:** A migration that opens a table or a bucket would pass CI unnoticed.
 
 **Context:** Either run it in CI against a disposable Supabase project/branch, or run the CLI's local stack (needs Docker). Until then it is a manual pre-merge step for any change under `supabase/migrations/`.
 

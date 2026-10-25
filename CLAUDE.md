@@ -44,6 +44,11 @@ behavioural tests (see `tests/test_hyrox_flagged_copy_matches_behavior.py`,
 hand-rolled JS with no module boundary -- when adding one, mutation-check it:
 break the thing it guards and confirm the test actually fails.
 
+`tests/test_supabase_storage.py` is its twin for the two private Storage buckets
+(same keys, same skip rule). Its refusals are proved by effect, not status code, and
+a test that attacks a real bucket must restore it in a `finally`: under a loosened
+policy the attack succeeds for real.
+
 `tests/test_supabase_rls.py` talks to the real Supabase project (see
 `MOBILE_APP_PLAN.md`): it signs in as two throwaway users and calls the Data API,
 so it needs `SUPABASE_*` in `.env` and is skipped without them. It only touches
