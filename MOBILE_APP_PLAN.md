@@ -282,6 +282,39 @@ Deliberate differences:
   index and answered with the same 409. Calories are still derived from the macros, never taken from the client.
 - Barcode digits are ASCII `0-9` only (`str.isdigit` also accepted other scripts' digits), and a barcode over 20 digits is cut.
 
+**Social, the waitlist and the owner's endpoints (done), and where they differ from the website.** Friends
+(`GET /api/friends`, `POST /api/friends/add`), blocking (`GET/POST/DELETE /api/safety/block[s]`), reports
+(`POST /api/safety/report`, `POST /api/ai-report`), `GET /api/activity/dates`, challenges (`GET/POST /api/challenges`,
+`GET /api/challenges/today`, `POST /api/challenges/<id>/submit`), `GET /api/leaderboard`, `POST /api/hyrox/results`,
+`GET /api/hyrox/leaderboard`, the public `POST /api/waitlist` the marketing form posts to, and `/api/admin/*` for the
+owner (the moderation queue, the waitlist as JSON or CSV, erasing an address, the signup list and one account's usage).
+A person is a UUID now, so every id in a request or response is one. Deliberate differences:
+
+- **A challenge can be submitted to only if it is yours or a friend's, and the friend is not blocked.** The website accepted
+  any challenge id, which put a stranger's score on the board of people who never befriended them. Not visible is the same
+  404 as not existing.
+- **The day's challenge attempt is held while the clip is graded** (an atomic reservation per exercise per UTC day, in
+  `rate_limits`) and given back if the clip cannot be counted, so two simultaneous uploads cannot both reach the model. The
+  website checked saved attempts only, so a double tap graded twice.
+- **Friend-code guesses are counted under a per-person lock** (30 wrong codes an hour, as before; only a code that matches
+  nobody counts), so a burst cannot exceed the budget; a code that is not text is a 400, not a crash. The QR image route is
+  gone: the app draws its own QR from the friend code, and its scanner should accept both the bare code and the old
+  `.../friends?add=CODE` link form.
+- **HYROX:** a time must also be finite and at most 24 hours (the website accepted NaN). The plausibility floor still applies
+  on the way out, before each person's best is taken. `/api/hyrox/history-entry` is not ported: the app writes its own
+  race history straight to `hyrox_races` under row-level security.
+- **The 200-challenge and 500-result ceilings, report caps and the AI-report ceiling are enforced under a lock** so racing
+  requests cannot pass them.
+- **Waitlist:** the hourly limit per visitor is one atomic statement (the website read, then wrote), an address with a control
+  character is refused (Postgres cannot store a NUL; the website answered 500), a body whose email or source is not text is
+  handled instead of crashing, and the CSV neutralises a cell that starts like a spreadsheet formula (`=cmd@evil.com` is a
+  valid address). The visitor is `request.remote_addr` behind `ProxyFix(x_for=1)`: **the Render service must sit behind exactly
+  one proxy hop, or the per-visitor limit keys on the wrong address.** CORS answers only the two marketing hostnames.
+- **Owner endpoints are JSON and answer 404 to everyone else.** The owner is whoever's verified token email is in
+  `ADMIN_EMAILS`; App Review's demo account (`REVIEW_ACCOUNT_EMAILS`) is exempt from limits but is never an admin.
+  `/admin/export-db` is gone: Supabase keeps the backups and `pg_dump` is the export. The Supabase dashboard remains the
+  fallback for anything these do not cover.
+
 **Security shape.** Flask connects as the `postgres` owner, which bypasses RLS: every query in `api/` must scope itself
 to the caller by hand, and the tests prove it route by route (an action on one account never touches another).
 Algorithms are restricted to the asymmetric ones, and a service-role token, an anonymous session, a wrong audience or
@@ -301,8 +334,8 @@ Flask. (Switching sign-ups off in the dashboard is still sensible until the app 
 | Consent, per-account rate limits and usage counters | **Done** (v0.18.0.0, with analyze) |
 | The three chats, HYROX analysis, split generation, coaching calculations and the weekly check-in | **Done** (v0.19.0.0) |
 | Custom foods and exercises (writes stay behind Flask), the food photo scan, barcodes and online search | **Done** (v0.19.0.0) |
-| Friends, blocks, reports (+AI reports), challenges, leaderboards, HYROX results | To do |
-| Waitlist (the marketing form posts to Flask), admin pages or the Supabase dashboard | To do |
+| Friends, blocks, reports (+AI reports), challenges, leaderboards, HYROX results, the streak's server-side dates | **Done** (v0.20.0.0) |
+| Waitlist (the marketing form posts to Flask), the owner's endpoints (moderation queue, waitlist, signups) | **Done** (v0.20.0.0) |
 | Deploy as its own Render service (`gunicorn "api.app:create_app()"`, the three `SUPABASE_*` variables) | After the slices, with the app |
 
 ## Synced data (what the browser kept, and where it lives now)

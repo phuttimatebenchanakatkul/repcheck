@@ -276,7 +276,7 @@ def test_the_health_check_is_public_and_reports_a_dead_database_as_503(api_clien
 
 def test_every_route_but_health_demands_a_token(api_client):
     import re
-    public = {"health.health"}
+    public = {"health.health", "waitlist.join_waitlist"}      # the marketing form posts before anyone has an account
     checked = 0
     for rule in api_client.application.url_map.iter_rules():
         if rule.endpoint == "static" or rule.endpoint in public:

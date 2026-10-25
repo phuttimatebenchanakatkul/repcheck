@@ -91,6 +91,18 @@ class LookupFailed(Exception):
     """A barcode could not be read, or a lookup service failed (the website's BarcodeScanError). The message is safe to show."""
 
 
+class RepCountFailed(Exception):
+    """The challenge clip could not be counted (the website's RepCountError); the message is safe to show."""
+
+
+def _count_reps(video_path, exercise, trimmed_path):
+    from rep_form_analyzer import RepCountError, analyze_reps
+    try:
+        return analyze_reps(video_path, exercise, trimmed_path=trimmed_path)
+    except RepCountError as exc:
+        raise RepCountFailed(str(exc)) from exc
+
+
 def _analyze_food(image_bytes, mime_type, note):
     from analyze_food_gemini import FoodAnalysisError, analyze_food_photo
     try:
@@ -153,6 +165,7 @@ class Backends:
     decode_barcode: Callable     # (image_bytes) -> digits; raises LookupFailed
     lookup_barcode: Callable     # (digits) -> result dict; raises ProductNotFound / LookupFailed
     search_foods: Callable       # (query) -> list; raises LookupFailed
+    count_reps: Callable         # (video_path, exercise, trimmed_path) -> {reps, rejected, notes}; raises RepCountFailed
 
 
 def default_backends():
@@ -168,4 +181,5 @@ def default_backends():
         decode_barcode=_decode_barcode,
         lookup_barcode=_lookup_barcode,
         search_foods=_search_foods,
+        count_reps=_count_reps,
     )

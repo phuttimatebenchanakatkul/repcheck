@@ -2,6 +2,35 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.20.0.0] - 2026-10-25
+
+### Added
+
+The last slice of the native app's server: everything that reaches across people, plus
+the waitlist and the owner's tools. As before, nothing in the website or the current App
+Store app changes.
+
+- **Friends, blocks and reports.** Add a friend by code (wrong guesses are limited and
+  counted even when requests arrive together), block or report an account (reporting
+  blocks too), report an AI reply. A block hides each person from the other everywhere:
+  friends, challenges, both leaderboards.
+- **Challenges and leaderboards.** Today's exercise, recording an attempt (the clip is
+  counted by the AI and thrown away), the friends and global rep boards, HYROX results
+  and their board, and the days the streak counts from server records.
+- **You can only join challenges you can see.** The website let anyone post a score to
+  any challenge number; here it has to be yours or a friend's. Two uploads at once can no
+  longer both be graded.
+- **The waitlist form posts here**, from the marketing site's two addresses only. Five
+  tries an hour per visitor, counted exactly; a repeat address looks the same as a new one.
+- **Owner endpoints** for the moderation queue (mark handled, replace an offensive name and
+  close every report on that account), the waitlist (JSON, CSV, erase an address) and the
+  signup list and per-account usage. Anyone else gets a plain "not found", including App
+  Review's demo account. The CSV can no longer run a formula from a malicious address.
+- **Hardened:** a HYROX time of NaN or over a day is refused, wrong-typed bodies are clean
+  400s, and the per-person ceilings hold when requests race.
+- **Proven:** 346 new tests, then 181 deliberate breakages of the new code,
+  all noticed by a test except 4 that change nothing observable (a second check behind the first).
+
 ## [0.19.0.0] - 2026-10-25
 
 ### Added

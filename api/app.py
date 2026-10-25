@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass
 
 from flask import Flask, jsonify
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import accounts, ai as ai_module, analyze
 from .auth import Verifier
@@ -46,6 +47,9 @@ def create_app(settings=None, db=None, verifier=None, storage=None, auth_admin=N
     settings = settings or from_env()
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = DEFAULT_MAX_BODY
+    # Behind the platform's proxy the caller's address is the entry the proxy itself appended (one hop); the waitlist's
+    # per-visitor limit keys on request.remote_addr and must not be fooled by a header the caller wrote.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
     app.extensions["api"] = Services(
         settings=settings,
         db=db or Database(settings.db_url),
@@ -56,8 +60,9 @@ def create_app(settings=None, db=None, verifier=None, storage=None, auth_admin=N
         ai=ai or ai_module.default_backends(),
     )
 
-    from .routes import account, analyze as analyze_routes, chat, coaching, consent, foods, health, photos, planning
-    for module in (health, account, consent, photos, analyze_routes, chat, coaching, planning, foods):
+    from .routes import (account, admin as admin_routes, analyze as analyze_routes, chat, coaching, consent, foods, health, photos,
+                         planning, social, waitlist)
+    for module in (health, account, consent, photos, analyze_routes, chat, coaching, planning, foods, social, admin_routes, waitlist):
         app.register_blueprint(module.bp)
 
     @app.after_request
