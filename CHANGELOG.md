@@ -2,6 +2,31 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.16.0.0] - 2026-10-25
+
+### Added
+
+The start of the native app's server, built **next to** the website rather than inside
+it. Nothing in the website or the current App Store app changes, and nothing in
+production can load it yet.
+
+- **A new, separate API for the native app**, with its own sign-in check: it accepts
+  only genuine, current sessions from this project, and turns away expired,
+  forged, anonymous, wrong-project and service-level tokens (all tested one by one).
+- **Creating an account now has one door.** A profile can only be created through the
+  API, which applies the same display-name filter as the website (and now also rejects
+  invisible or direction-flipping characters and names over 60 characters). Signing up
+  directly against Supabase without going through it gives an account with nowhere to
+  keep any data, so the filter cannot be bypassed.
+- **Deleting your account actually deletes your photos and videos.** After the 30-day
+  grace period the server removes every stored file first, checks none are left, and
+  only then removes the account and all its data. If a file won't go, the account stays
+  and the next sweep finishes the job. Asking to delete twice never extends the
+  grace period, and restoring cancels it.
+- **Proven against the real project:** 120 new tests, then every important line of the
+  new code broken on purpose to make sure a test notices (72 of 74 were noticed; the
+  other two change nothing observable).
+
 ## [0.15.0.0] - 2026-10-25
 
 ### Added

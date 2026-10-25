@@ -50,17 +50,25 @@
 **Priority:** P1
 **Depends on:** Phase 2
 
-### Deleting an account or pruning history must remove the user's stored files through the Storage API
+### Pruning analysis history must remove the pruned clips' stored files through the Storage API
 
-**What:** The two private buckets exist (migration `storage_buckets`) and the importer fills them, but deleting an Auth user does NOT delete its objects and direct SQL deletes are refused (both measured; `tests/test_supabase_storage.py` pins them). The site did this itself (`run_deletion_purge`, `prune_analyze_results`).
+**Fixed in part on `flask-port-foundation`, 2026-10-25** -- account deletion is done: `api/accounts.py` `purge_due` removes a person's files through the Storage API (and proves none are left) before deleting their Auth user, tested against the live project with a lying and a failing storage backend. What remains is the other half: the 20-newest `ANALYZE_HISTORY_KEEP` prune must delete the pruned clips' objects too, which belongs to the analyze slice of the port.
 
-**Why:** Without it a deleted account's progress photos stay in Storage forever, which breaks the promise the 30-day deletion makes and costs money.
-
-**Context:** Belongs to the Flask-on-Postgres port: on purge, list `<user id>/` in both buckets and remove through the API before deleting the user; keep the 20-newest `ANALYZE_HISTORY_KEEP` prune and delete the pruned clips' objects too. The importer already does the same for departed users (`delete_objects`).
-
-**Effort:** M
+**Effort:** S
 **Priority:** P1
-**Depends on:** The Flask port
+**Depends on:** The analyze slice of the Flask port
+
+### The rest of the Flask port (`api/`)
+
+**What:** The foundation, profiles, account deletion and the Storage purge are in. Still to port, as slices: progress photos, analyze + clips, consent / rate limits / chats / coaching, custom foods and exercises, food lookup, friends / blocks / reports / challenges / leaderboards / HYROX results, waitlist and admin. Then a Render service for it.
+
+**Why:** The native app needs these server-side rules (Gemini keys, rate limits, moderation, caps) and cannot ship without them.
+
+**Context:** See "The Flask port" in `MOBILE_APP_PLAN.md` for the slice table and why `api/` is a separate package (a merge to main auto-deploys the website, which must not import it).
+
+**Effort:** L
+**Priority:** P1
+**Depends on:** None
 
 ### Storage buckets, their policies and the file copy
 
