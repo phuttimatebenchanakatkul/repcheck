@@ -44,6 +44,15 @@ behavioural tests (see `tests/test_hyrox_flagged_copy_matches_behavior.py`,
 hand-rolled JS with no module boundary -- when adding one, mutation-check it:
 break the thing it guards and confirm the test actually fails.
 
+`api/` is the native app's Flask API (Supabase Postgres, Auth, Storage); it is NOT the
+website and the website must never import it (a merge to main deploys the website, which
+installs `requirements.txt` only; the API's extra dependencies are in
+`requirements-api.txt`). Its tests: `tests/test_api_auth.py` and
+`tests/test_api_supabase_admin.py` run offline; `tests/test_api_accounts.py` is live like
+the two below. Flask connects as `postgres` (bypasses RLS), so every query must scope itself
+to the caller by hand, and a live test must scope any purge or sweep to the ids it created
+(`purge_due(..., only=[...])`) so it can never touch a real account that happens to be due.
+
 `tests/test_supabase_storage.py` is its twin for the two private Storage buckets
 (same keys, same skip rule). Its refusals are proved by effect, not status code, and
 a test that attacks a real bucket must restore it in a `finally`: under a loosened

@@ -1,0 +1,9 @@
+# Dependencies of the native-app API (api/), which runs as its OWN service on Supabase Postgres.
+# Deliberately a separate file: requirements.txt is what the production image (the website, still on
+# SQLite) installs on every deploy, and nothing here may change that build.
+#
+#   pip install -r requirements-api.txt
+#   gunicorn "api.app:create_app()"
+-r requirements.txt
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.1

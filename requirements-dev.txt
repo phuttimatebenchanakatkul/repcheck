@@ -4,6 +4,5 @@
 #
 #   pip install -r requirements-dev.txt
 #   pytest
--r requirements.txt
+-r requirements-api.txt
 pytest==8.4.2
-psycopg[binary]==3.3.6

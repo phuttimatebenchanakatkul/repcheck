@@ -184,6 +184,44 @@ See "Launch day" below.
 
 ---
 
+## The Flask port (`api/`)
+
+**How it differs from the plan above, and why.** Phase 1 said to port `app.py` and `database.py` in place on a
+branch. A merge to `main` auto-deploys to Render, where the website and the App Store app still run on SQLite, so an
+in-place port could not land on `main` until launch day and would drift from it meanwhile. The port is instead a new,
+additive package, `api/`, that production never imports (and `api/` imports nothing from `app.py` or `database.py`,
+which run SQL against SQLite and start side effects at import). It lands on `main` slice by slice, is tested there,
+installs from its own `requirements-api.txt` (so the live site's build is untouched), and becomes its own Render
+service when the app ships. `app.py` is retired at launch with the rest of the website. Pure-logic modules are reused
+as they are (`name_filter`, `ai_safety`, `coaching_engine`, the food and exercise libraries, the Gemini wrappers).
+
+**Verified about the tokens** (against this project): access tokens are ES256 JWTs, one hour long, verifiable
+locally against `<project>/auth/v1/.well-known/jwks.json` with `PyJWT` (already a dependency); the publishable and
+secret keys are not JWTs. A locally verified token cannot know a session was revoked or a user banned since it was
+issued: such a token works until it expires.
+
+**Security shape.** Flask connects as the `postgres` owner, which bypasses RLS: every query in `api/` must scope itself
+to the caller by hand, and the tests prove it route by route (an action on one account never touches another).
+Algorithms are restricted to the asymmetric ones, and a service-role token, an anonymous session, a wrong audience or
+issuer, and a subject that is not a UUID are all refused.
+
+**Open decision 4 is closed by construction.** A profile row can be created only by `POST /api/profile`, which applies
+the display-name filter, and every table a user owns points at `profiles`. So someone who signs up straight against
+Supabase Auth, skipping Flask, gets an account with nowhere to put data; sign-ups do not have to be routed through
+Flask. (Switching sign-ups off in the dashboard is still sensible until the app exists, to keep spam accounts out.)
+
+| Slice | State |
+|---|---|
+| Settings, token verification, pooled Postgres access, Auth-admin and Storage clients, JSON plumbing, health | **Done** (v0.16.0.0) |
+| Profile creation, rename, account deletion + restore (30-day grace), the purge that removes a person's stored files through the Storage API before their Auth user | **Done** (v0.16.0.0) |
+| Progress photos: upload (type, size, date window, 500 cap), list, signed link, delete, through Storage | Next |
+| Analyze: grade an uploaded clip, store the trimmed clip, history, playback, the 20-newest prune through Storage | Next |
+| Consent, rate limits, usage, the three chats, HYROX analysis, split generation, coaching calculations | To do |
+| Custom foods and exercises (writes stay behind Flask), food lookup and barcode | To do |
+| Friends, blocks, reports (+AI reports), challenges, leaderboards, HYROX results | To do |
+| Waitlist (the marketing form posts to Flask), admin pages or the Supabase dashboard | To do |
+| Deploy as its own Render service (`gunicorn "api.app:create_app()"`, the three `SUPABASE_*` variables) | After the slices, with the app |
+
 ## Synced data (what the browser kept, and where it lives now)
 
 Traced from the code that writes each key (`app.py` `SYNCED_DATA_KEYS`,
@@ -415,10 +453,10 @@ copy was removed after testing because this project becomes production.
   SELECT plus a write policy; zero-byte files are accepted.
 
 **Not done yet in phase 1**
-- **Flask ported to Postgres, verifying Supabase JWTs.** Including the Storage side
-  of it: serving or signing the user's files, uploading photos and clips with the
-  service role, and removing a user's objects through the Storage API when an account
-  is deleted or the history is pruned.
+- **Flask ported to Postgres, verifying Supabase JWTs**: foundation, accounts and the
+  Storage purge are done; the remaining routes are in "The Flask port" above (photo
+  and clip uploads and signed links, and the history prune through the Storage API, are
+  the next slices).
 - **Apple / Google providers** in the Supabase dashboard.
 - **A true production copy and the files that go with it** (below): everything was
   run on the dev database and its dev disk, and a synthetic one.
@@ -435,13 +473,13 @@ copy was removed after testing because this project becomes production.
    `--dry-run --files-dir` on both before anything else.
 2. Per-user row ceilings for the directly-writable tables (above).
 3. Legacy `hour` entries: leave at midnight, or convert `hour` into a time.
-4. **Sign-up must go through Flask**, not Supabase Auth directly, or the
-   display-name filter is bypassed (App Review 1.2). Decide in phase 2. Until
-   then, **turn off "Allow new users to sign up"** in the dashboard
-   (Authentication → Sign In / Providers). Today it is on (checked 2026-10-25:
-   `disable_signup` false, `mailer_autoconfirm` false): anyone holding the anon key
-   can create an account directly, with no display-name filter. Email confirmation
-   is on, which is the setting the migration relies on (see "Passwords").
+4. **Sign-up and the display-name filter** (App Review 1.2): resolved by construction, see
+   "The Flask port". An account created straight against Supabase Auth has no profile and so
+   nowhere to put data; only `POST /api/profile` makes a profile, and it applies the filter.
+   Still worth turning off "Allow new users to sign up" in the dashboard (Authentication →
+   Sign In / Providers) until the app exists, to keep spam accounts out. Today it is on (checked
+   2026-10-25: `disable_signup` false, `mailer_autoconfirm` false). Email confirmation is on,
+   which is the setting the migration relies on (see "Passwords").
 5. **Email verification and provider linking** (see "Passwords").
 
 **Known website bug the data model inherits unchanged:** changing gender in
