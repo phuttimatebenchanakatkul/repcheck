@@ -4,6 +4,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { useEffect } from 'react';
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { DataProvider } from '@/data/DataProvider';
 import { restoreLanguage } from '@/i18n/storage';
 import { CACHE_MAX_AGE_MS, persister, queryClient } from '@/store';
 import { SyncManager } from '@/store/SyncManager';
@@ -62,9 +63,11 @@ export default function RootLayout() {
     <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: CACHE_MAX_AGE_MS }}>
       <AuthProvider>
         <SyncManager />
-        <ThemeProvider value={navigationTheme}>
-          <Gate />
-        </ThemeProvider>
+        <DataProvider>
+          <ThemeProvider value={navigationTheme}>
+            <Gate />
+          </ThemeProvider>
+        </DataProvider>
       </AuthProvider>
     </PersistQueryClientProvider>
   );

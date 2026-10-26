@@ -1,5 +1,1 @@
-import { ComingSoon } from '@/ui/ComingSoon';
-
-export default function Nutrition() {
-  return <ComingSoon titleKey="nav.nutrition" />;
-}
+export { default } from '@/features/nutrition/NutritionScreen';

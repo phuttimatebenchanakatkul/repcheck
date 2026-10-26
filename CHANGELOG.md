@@ -2,6 +2,30 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.23.0.0] - 2026-10-26
+
+### Added
+
+The native app's three main tabs now work: Home, Nutrition and Workouts, on the same data as the
+account, online or offline. Nothing in the website or the current App Store app changes, and
+neither deploy image includes the new code.
+
+- **Nutrition.** Log food from the shared library of 744 foods or your own, with the amount in
+  grams, ounces or millilitres; a dish scales every ingredient together. Calories and macros against
+  your goals, a week strip, favourites, "recent" and "what you usually eat at this hour", quick add
+  from typed macros, create your own food, edit goals.
+- **Workouts.** Today's split plan, then log exercises set by set: weight and reps, each side
+  separately where that makes sense, reps only for bodyweight movements. A tick appears when every
+  set has its reps. Search 735 exercises, star favourites, make your own.
+- **Home.** Your streak (current, longest, the last seven days), today's calories and macros, a
+  weigh-in in kilograms or pounds.
+- **Works without signal.** What you log shows at once and is sent when there is signal, in the
+  order you did it. A workout you shorten while offline can no longer bring back its old sets.
+- **Haptics** on logging a food, adding an exercise or set, a favourite, and finishing an exercise.
+- **Proven:** 929 app tests, plus the website's own code run against every rule that was
+  ported (all 744 foods, seeded random days), then 991 deliberate breakages (in two passes; each survivor was killed by a new test, fixed, or is a change with no effect: a type, a tuning constant, a style number, a counter).
+  The Thai strings added are not yet read by a native speaker; nothing has run on a phone yet.
+
 ## [0.22.0.0] - 2026-10-26
 
 ### Added

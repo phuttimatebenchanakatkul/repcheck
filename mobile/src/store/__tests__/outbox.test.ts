@@ -322,6 +322,148 @@ describe('flushing', () => {
   });
 });
 
+describe('purge', () => {
+  const sets = (entryId: string, position: number, userId = 'u1'): Operation => ({ kind: 'upsert', table: 'workout_sets', key: 'user_id,entry_id,position', row: { user_id: userId, entry_id: entryId, position } });
+  const isSetsOf = (entryId: string) => (op: Operation) => op.table === 'workout_sets' && (op.kind === 'upsert' ? op.row.entry_id : op.match.entry_id) === entryId;
+
+  it('drops this person’s waiting operations that match, and only those', async () => {
+    const { outbox } = make();
+    await outbox.enqueue('u1', sets('a', 0));
+    await outbox.enqueue('u1', sets('a', 1));
+    await outbox.enqueue('u1', sets('b', 0));
+    await outbox.enqueue('u1', entry('2026-10-26'));
+    expect(await outbox.purge('u1', isSetsOf('a'))).toBe(2);
+    expect(outbox.pending('u1').map((q) => rowIdentity(q.op))).toEqual([rowIdentity(sets('b', 0)), rowIdentity(entry('2026-10-26'))]);
+  });
+
+  it('never touches another person’s queue', async () => {
+    const { outbox } = make();
+    await outbox.enqueue('u2', sets('a', 0, 'u2'));
+    expect(await outbox.purge('u1', () => true)).toBe(0);
+    expect(outbox.pending('u2')).toHaveLength(1);
+  });
+
+  it('never drops the operation that is on the wire', async () => {
+    let release: (value: null) => void = () => undefined;
+    const execute: Executor = jest.fn(() => new Promise<null>((resolve) => { release = resolve; }));
+    const outbox = new Outbox(memoryStorage(), execute, now);
+    await outbox.enqueue('u1', sets('a', 0));
+    await outbox.enqueue('u1', sets('a', 1));
+    const flushing = outbox.flush('u1');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(await outbox.purge('u1', isSetsOf('a'))).toBe(1); // the second; the first is already being sent
+    expect(outbox.pending('u1')).toHaveLength(1);
+    release(null);
+    await flushing;
+    expect(outbox.pending('u1')).toEqual([]);
+  });
+
+  it('is saved, so a restart does not bring the dropped operations back', async () => {
+    const storage = memoryStorage();
+    const first = new Outbox(storage, scripted().execute, now);
+    await first.enqueue('u1', sets('a', 0));
+    await first.purge('u1', isSetsOf('a'));
+    const second = new Outbox(storage, scripted().execute, now);
+    await second.load();
+    expect(second.pending('u1')).toEqual([]);
+  });
+
+  it('does not write or notify when nothing matched', async () => {
+    const { outbox, storage } = make();
+    await outbox.enqueue('u1', entry('2026-10-26'));
+    const writes = storage.writes;
+    const listener = jest.fn();
+    outbox.subscribe(listener);
+    expect(await outbox.purge('u1', isSetsOf('zzz'))).toBe(0);
+    expect(storage.writes).toBe(writes);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('tells subscribers when something was dropped', async () => {
+    const { outbox } = make();
+    await outbox.enqueue('u1', sets('a', 0));
+    const listener = jest.fn();
+    outbox.subscribe(listener);
+    await outbox.purge('u1', isSetsOf('a'));
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('replace', () => {
+  const put = (id: string, position: number, user = 'u1'): Operation => ({ kind: 'upsert', table: 'workout_sets', key: 'user_id,entry_id,position', row: { user_id: user, entry_id: id, position } });
+  const setsOf = (id: string) => (op: Operation) => op.table === 'workout_sets' && (op.kind === 'upsert' ? op.row.entry_id : op.match.entry_id) === id;
+
+  it('drops the matching waiting writes and queues the new ones in the order given', async () => {
+    const { outbox } = make();
+    await outbox.enqueue('u1', put('a', 0));
+    await outbox.enqueue('u1', put('a', 1));
+    await outbox.enqueue('u1', put('b', 0));
+    await outbox.replace('u1', setsOf('a'), [put('a', 5), put('a', 6)]);
+    expect(outbox.pending('u1').map((q) => rowOf(q.op).entry_id + ':' + rowOf(q.op).position)).toEqual(['b:0', 'a:5', 'a:6']);
+  });
+
+  it('is saved with ONE write however many operations it queues', async () => {
+    const { outbox, storage } = make();
+    await outbox.load();
+    const before = storage.writes;
+    await outbox.replace('u1', () => false, [put('a', 0), put('a', 1), put('a', 2), put('a', 3)]);
+    expect(storage.writes - before).toBe(1);
+  });
+
+  it('is all or nothing: a queue that would overflow is left exactly as it was', async () => {
+    const { outbox, storage } = make();
+    for (let i = 0; i < MAX_QUEUED - 1; i++) await outbox.enqueue('u1', entry(`d${i}`));
+    await outbox.enqueue('u1', put('a', 0));
+    const before = outbox.pending('u1').map((q) => q.id);
+    const saved = storage.data.get(STORAGE_KEY);
+    await expect(outbox.replace('u1', setsOf('a'), [put('a', 0), put('a', 1)])).rejects.toBeInstanceOf(OutboxFullError);
+    expect(outbox.pending('u1').map((q) => q.id)).toEqual(before);
+    expect(storage.data.get(STORAGE_KEY)).toBe(saved);
+  });
+
+  it('what it drops frees room for what it queues', async () => {
+    const { outbox } = make();
+    for (let i = 0; i < MAX_QUEUED - 2; i++) await outbox.enqueue('u1', entry(`d${i}`));
+    await outbox.enqueue('u1', put('a', 0));
+    await outbox.enqueue('u1', put('a', 1));
+    await outbox.replace('u1', setsOf('a'), [put('a', 0), put('a', 1)]);
+    expect(outbox.pending('u1')).toHaveLength(MAX_QUEUED);
+  });
+
+  it('an operation that cancels a waiting one (create then delete) still works inside it', async () => {
+    const { outbox } = make();
+    await outbox.enqueue('u1', entry('2026-10-26'));
+    await outbox.replace('u1', () => false, [remove('2026-10-26')]);
+    expect(outbox.pending('u1')).toEqual([]);
+  });
+
+  it('never drops the write on the wire, and queues the new one behind it', async () => {
+    let release: (value: null) => void = () => undefined;
+    let calls = 0;
+    const execute: Executor = jest.fn(() => (calls++ === 0 ? new Promise<null>((resolve) => { release = resolve; }) : Promise.resolve(null)));
+    const outbox = new Outbox(memoryStorage(), execute, now);
+    await outbox.enqueue('u1', put('a', 0));
+    const flushing = outbox.flush('u1');
+    await Promise.resolve();
+    await Promise.resolve();
+    await outbox.replace('u1', setsOf('a'), [put('a', 0)]);
+    expect(outbox.pending('u1')).toHaveLength(2); // the one on the wire stays; the new write waits behind it
+    release(null);
+    await flushing;
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(outbox.pending('u1')).toEqual([]);
+  });
+
+  it('does not touch another person’s queue', async () => {
+    const { outbox } = make();
+    await outbox.enqueue('u2', put('a', 0, 'u2'));
+    await outbox.replace('u1', setsOf('a'), [put('a', 0)]);
+    expect(outbox.pending('u2')).toHaveLength(1);
+    expect(outbox.pending('u1')).toHaveLength(1);
+  });
+});
+
 describe('signing out', () => {
   it('discardAll empties the queue, the failures and the saved copy, and tells subscribers', async () => {
     const { outbox, storage } = make(undefined, scripted({ status: 400 }));
@@ -354,5 +496,40 @@ describe('signing out', () => {
     unsubscribe();
     await outbox.enqueue('u1', entry('a'));
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('survivors: per-person failures and loading once', () => {
+  it('failures can be listed for one person without showing another’s', async () => {
+    const { outbox } = make(memoryStorage(), scripted({ status: 400, message: 'no' }, { status: 400, message: 'no' }));
+    await outbox.enqueue('u1', entry('a'));
+    await outbox.enqueue('u2', { ...entry('b'), row: { user_id: 'u2', log_date: 'b', kg: 1 } });
+    await outbox.flush('u1');
+    await outbox.flush('u2');
+    expect(outbox.failures('u1')).toHaveLength(1);
+    expect(outbox.failures('u2')).toHaveLength(1);
+    expect(outbox.failures()).toHaveLength(2);
+    expect(outbox.failures('u1')[0].userId).toBe('u1');
+    expect(outbox.failures('nobody')).toEqual([]);
+  });
+
+  it('the saved queue is read once: a later load does not undo what is in memory', async () => {
+    const storage = memoryStorage();
+    const { outbox } = make(storage);
+    await outbox.load();
+    await outbox.enqueue('u1', entry('a'));
+    storage.data.set(STORAGE_KEY, JSON.stringify({ queue: [], failed: [] })); // storage changed behind its back
+    await outbox.load();
+    expect(outbox.pending('u1')).toHaveLength(1);
+  });
+});
+
+describe('survivors 2: the documented limits', () => {
+  it('are the numbers the plan and the changelog state', () => {
+    expect(MAX_QUEUED).toBe(500);
+    expect(MAX_FAILED).toBe(100);
+    expect(MAX_ATTEMPTS).toBe(20);
+    expect(BASE_DELAY_MS).toBe(2_000);
+    expect(MAX_DELAY_MS).toBe(300_000);
   });
 });

@@ -81,4 +81,64 @@ describe('endpoints', () => {
     await api.restoreAccount();
     expect(post).toHaveBeenCalledWith('/api/account/restore');
   });
+
+  describe('custom foods and exercises', () => {
+    const food = { id: 5, name: 'Shake', emoji: '🥤', calories: 300, protein: 30, fat: 5, carbs: 30, barcode: null, servingLabel: '1 bottle', servingGrams: 400, servings: [] };
+    const exercise = { id: 2, name: 'Sled push', emoji: null, mode: 'both' as const };
+
+    it('lists them, and an answer without the list is an empty one', async () => {
+      const get = jest.fn(async (path: string) => (path === '/api/custom-foods' ? { ok: true, foods: [food] } : { ok: true, exercises: [exercise] }));
+      const api = endpoints(fakeApi({ get }));
+      expect(await api.listCustomFoods()).toEqual([food]);
+      expect(await api.listCustomExercises()).toEqual([exercise]);
+      expect(get).toHaveBeenCalledWith('/api/custom-foods');
+      expect(get).toHaveBeenCalledWith('/api/custom-exercises');
+      const empty = endpoints(fakeApi({ get: async () => ({ ok: true }) }));
+      expect(await empty.listCustomFoods()).toEqual([]);
+      expect(await empty.listCustomExercises()).toEqual([]);
+    });
+
+    it('creates one by posting it and returns what the server made', async () => {
+      const post = jest.fn(async (path: string) => (path === '/api/custom-foods' ? { ok: true, food } : { ok: true, exercise }));
+      const api = endpoints(fakeApi({ post }));
+      const input = { name: 'Shake', protein: 30, fat: 5, carbs: 30, servingLabel: '1 bottle', servingGrams: 400 };
+      expect(await api.createCustomFood(input)).toEqual(food);
+      expect(post).toHaveBeenCalledWith('/api/custom-foods', input);
+      expect(await api.createCustomExercise({ name: 'Sled push', mode: 'both' })).toEqual(exercise);
+      expect(post).toHaveBeenCalledWith('/api/custom-exercises', { name: 'Sled push', mode: 'both' });
+    });
+
+    it('lets the server’s refusal through untouched', async () => {
+      const refusal = new ApiError('You already have a custom food saved for this barcode.', 409);
+      const api = endpoints(fakeApi({ post: async () => { throw refusal; } }));
+      await expect(api.createCustomFood({ name: 'x', protein: 1, fat: 1, carbs: 1 })).rejects.toBe(refusal);
+    });
+
+    it('deletes by id', async () => {
+      const del = jest.fn(async () => ({ ok: true }));
+      const api = endpoints(fakeApi({ del }));
+      await api.deleteCustomFood(5);
+      await api.deleteCustomExercise(2);
+      expect(del).toHaveBeenCalledWith('/api/custom-foods/5');
+      expect(del).toHaveBeenCalledWith('/api/custom-exercises/2');
+    });
+  });
+
+  describe('activityDates', () => {
+    it('asks for the days in the person’s own time zone and returns the map', async () => {
+      const get = jest.fn(async () => ({ ok: true, dates: { '2026-10-25': ['challenge'] } }));
+      expect(await endpoints(fakeApi({ get })).activityDates(420)).toEqual({ '2026-10-25': ['challenge'] });
+      expect(get).toHaveBeenCalledWith('/api/activity/dates', { tz_offset_minutes: 420 });
+    });
+
+    it('a negative offset (west of Greenwich) is sent as it is', async () => {
+      const get = jest.fn(async () => ({ ok: true, dates: {} }));
+      await endpoints(fakeApi({ get })).activityDates(-300);
+      expect(get).toHaveBeenCalledWith('/api/activity/dates', { tz_offset_minutes: -300 });
+    });
+
+    it('an answer without dates is no days', async () => {
+      expect(await endpoints(fakeApi({ get: async () => ({ ok: true }) })).activityDates(0)).toEqual({});
+    });
+  });
 });

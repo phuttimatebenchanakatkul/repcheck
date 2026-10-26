@@ -1,0 +1,91 @@
+/**
+ * The write-queue operations (src/store/outbox.ts) for each thing a person can change. Every operation is an IDEMPOTENT whole-row
+ * upsert or a delete by key, so a retry after an interrupted send is always safe.
+ */
+import type { Operation } from '../store/outbox';
+
+import type { Json } from '@/supabase/database.types';
+
+import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
+import {
+  goalsToRow,
+  nutritionEntryToRow,
+  settingsToRow,
+  splitPlanToRow,
+  weightToRow,
+  workoutEntryToRow,
+  workoutSetToRow,
+  type AppSettings,
+  type Row,
+  type WeightEntry,
+} from './mappers';
+
+export const nutritionUpsert = (userId: string, day: string, entry: NutritionEntry): Operation => ({
+  kind: 'upsert', table: 'nutrition_entries', key: 'user_id,id', row: nutritionEntryToRow(userId, day, entry) as Record<string, unknown>,
+});
+
+export const nutritionDelete = (userId: string, id: string): Operation => ({
+  kind: 'delete', table: 'nutrition_entries', key: 'user_id,id', match: { user_id: userId, id },
+});
+
+/**
+ * Saving a workout entry replaces its sets: the entry row, then every set row by position, and any positions beyond the new count
+ * removed. The set DELETE goes first and is by (user, entry) so it also clears sets left over from a longer earlier version; the
+ * outbox keeps the order, and the cascade on the entry means deleting the entry needs only the one delete.
+ */
+export function workoutSave(userId: string, day: string, entry: WorkoutEntry): Operation[] {
+  return [
+    { kind: 'upsert', table: 'workout_entries', key: 'user_id,id', row: workoutEntryToRow(userId, day, entry) as Record<string, unknown> },
+    { kind: 'delete', table: 'workout_sets', key: 'user_id,entry_id', match: { user_id: userId, entry_id: entry.id } },
+    ...entry.sets.map((set, position): Operation => ({
+      kind: 'upsert', table: 'workout_sets', key: 'user_id,entry_id,position', row: workoutSetToRow(userId, entry.id, position, set) as Record<string, unknown>,
+    })),
+  ];
+}
+
+export const workoutDelete = (userId: string, id: string): Operation => ({
+  kind: 'delete', table: 'workout_entries', key: 'user_id,id', match: { user_id: userId, id },
+});
+
+/** null when the figure is outside what the database accepts (the caller reports it before anything is queued). */
+export function weightUpsert(userId: string, entry: WeightEntry): Operation | null {
+  const row = weightToRow(userId, entry);
+  return row ? { kind: 'upsert', table: 'weight_entries', key: 'user_id,log_date', row: row as Record<string, unknown> } : null;
+}
+
+export const weightDelete = (userId: string, day: string): Operation => ({
+  kind: 'delete', table: 'weight_entries', key: 'user_id,log_date', match: { user_id: userId, log_date: day },
+});
+
+export const goalsUpsert = (userId: string, goals: Pick<Goals, 'protein' | 'fat' | 'carbs'>, extra?: Json): Operation => ({
+  kind: 'upsert', table: 'nutrition_goals', key: 'user_id', row: goalsToRow(userId, goals, extra) as Record<string, unknown>,
+});
+
+export const settingsUpsert = (userId: string, settings: AppSettings, base?: Row<'user_settings'> | null): Operation => ({
+  kind: 'upsert', table: 'user_settings', key: 'user_id', row: settingsToRow(userId, settings, base) as Record<string, unknown>,
+});
+
+export const splitPlanUpsert = (userId: string, plan: SplitPlan, extra?: Json): Operation => ({
+  kind: 'upsert', table: 'split_plans', key: 'user_id', row: splitPlanToRow(userId, plan, extra) as Record<string, unknown>,
+});
+
+export const nutritionFavorite = (userId: string, name: string, on: boolean): Operation =>
+  on
+    ? { kind: 'upsert', table: 'nutrition_favorites', key: 'user_id,food_name', row: { user_id: userId, food_name: name } }
+    : { kind: 'delete', table: 'nutrition_favorites', key: 'user_id,food_name', match: { user_id: userId, food_name: name } };
+
+export const exerciseFavorite = (userId: string, name: string, on: boolean): Operation =>
+  on
+    ? { kind: 'upsert', table: 'exercise_favorites', key: 'user_id,exercise_name', row: { user_id: userId, exercise_name: name } }
+    : { kind: 'delete', table: 'exercise_favorites', key: 'user_id,exercise_name', match: { user_id: userId, exercise_name: name } };
+
+/** "fasting" / "incomplete" for a day; null restores automatic detection (the row is removed). */
+export const dayStatus = (userId: string, day: string, status: 'fasting' | 'incomplete' | null): Operation =>
+  status
+    ? { kind: 'upsert', table: 'day_status_overrides', key: 'user_id,log_date', row: { user_id: userId, log_date: day, status } }
+    : { kind: 'delete', table: 'day_status_overrides', key: 'user_id,log_date', match: { user_id: userId, log_date: day } };
+
+/** Records a client-side action as a streak day (the ones with no dated record of their own: coach chat, a split plan edit, ...). */
+export const activityMark = (userId: string, day: string, action: string): Operation => ({
+  kind: 'upsert', table: 'activity_days', key: 'user_id,log_date,action', row: { user_id: userId, log_date: day, action },
+});

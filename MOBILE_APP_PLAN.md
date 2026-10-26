@@ -390,6 +390,49 @@ being sent and been lost; the SDK re-announcing `SIGNED_IN` on returning to the 
   Go shows) in Supabase's allowed redirect URLs and the **Site URL** set to a page that tells the reader to go back to the app;
   it only works on the phone that asked for it (the one-time code is tied to a secret kept there).
 
+## Phase 3 status: the daily loop (`mobile/`, v0.23.0.0)
+
+**What is in, and how it is checked.** Home, Nutrition and Workouts work end to end against Supabase, online and offline. Checked by
+`cd mobile && npm run check` (strict TypeScript, lint, 929 Jest tests), `tests/test_mobile_libraries.py`, and 991 deliberate
+breakages of the new logic, data layer and screens (in two passes; each survivor was killed by a new test, fixed, or is a change with no effect: a type, a tuning constant, a style number, a counter).
+
+| Piece | Where | Notes |
+|---|---|---|
+| Food and exercise libraries | `scripts/export_libraries.py` -> `mobile/src/data/foods.json` (744 foods), `exercises.json` (735 exercises) | Generated from `food_library.py` and `exercise_library.py`; `--check` fails when stale, and `tests/test_mobile_libraries.py` also checks the JSON against the Python modules (names, macros, every dish ingredient is a food, dish calories match the sum of their ingredients) |
+| The website's rules, in TypeScript | `src/logic/` | Macros, goals, units, dates, streaks, search and scoring, suggestions, workouts and sets, the split plan, the food icon. **Each is tested against the website's own code**: `static/*.js` run in a sandbox, and functions lifted out of `templates/nutrition.html` and `workouts.html`, over every food in the library and seeded random inputs. Where the website had a quirk (a day's total is the sum of per-entry ROUNDED values; a blank or zero amount keeps the last good one) the port keeps it |
+| Rows <-> app shapes | `src/data/mappers.ts` | A row is written WHOLE (NULL for what is absent, so converting a food to a dish leaves no stale columns); `extra` (fields another version put there) is carried through; weights outside 0-400 kg are refused before anything is queued; reps and loads are cleaned to what the integer and non-negative columns accept |
+| Writes | `src/data/ops.ts`, `src/store/outbox.ts` | Every change is an idempotent whole-row upsert or a delete by key. A workout's sets are replaced as a group: `Outbox.replace` drops the older version's still-waiting set writes and queues the new ones **all or nothing, saved once** |
+| What the screen shows | `src/data/overlay.ts`, `hooks.ts` | The server's rows with this device's still-waiting writes laid on top **in the order they were queued**, so a log made offline shows at once and a refetch never makes it vanish. The actions patch the query cache with the SAME overlay functions, so "what the cache says after my action" and "what the screen shows while it is queued" cannot disagree |
+| Reads | `src/data/access.ts` | Straight from Supabase, each query filtered by `user_id` as well as by row-level security; the streak reads days from food, workouts, weigh-ins and `activity_days`, paged, plus the days only the server records (`/api/activity/dates`, best effort) |
+| Sync | `src/store/SyncManager.tsx` | After a flush that sent or lost anything, the person's cached data is marked stale so the screens read the server again |
+| Home | `src/features/home/` | Streak (current, longest, last 7 days), today's calories and macros, quick actions, a weigh-in (kg or lb) |
+| Nutrition | `src/features/nutrition/` | Week strip with a dot on logged days, calorie ring and macro bars against goals (calories derived from macros, as on the website), foods in time order that open to their amount (g / oz / mL, or a dish's total scaled across its ingredients) and ingredients, favourites, search of the library and the person's own foods, "recent", "top picks around this hour", quick add from typed macros, create a food of your own, edit goals, delete with a confirmation |
+| Workouts | `src/features/workouts/` | Today's split plan, week strip, exercises in time order that open to their sets (weight x reps; each-side L/R where the exercise allows; bodyweight movements reps only; add and remove sets; the weight carries to the next set), a tick when every set has its reps, favourites, search, create your own exercise |
+| Haptics | `src/ui/haptics.ts` | A light tick for a favourite or an added set, the success tap when a food is logged, an exercise added, a weight saved or the last rep count goes in |
+
+**Bugs the checks found while it was written:**
+
+- A re-saved workout with fewer sets would, offline, have been followed by the longer old version's extra sets (coalescing only
+  replaces the SAME row). Fixed by `Outbox.replace` and an overlay that applies the set writes in queue order.
+- A custom exercise made "each side" was logged in both-sides mode the first time, because the list the screen held did not yet
+  contain it.
+- `newId()` returned `undefined` where the platform's UUID generator is a stub: two entries would have shared a key. It now always
+  returns a non-empty string.
+- The progress bar was not announced by a screen reader (it was not marked accessible).
+- Adding an ingredient to a food that was open showed the old single food until it was closed (the card kept its draft).
+- Switching a food's unit read the amount back from the rounded text, drifting up to 0.05 g each time.
+- A failed "Add" (full queue) had already thrown away the food and amount the person chose.
+- `daysBetween` went through local clock arithmetic and could be off by a day across a daylight-saving change; it now counts calendar days in UTC.
+- The digit-before-the-match rule of the food search score (`7up` for `up`) was untested against the website.
+
+**Not built yet in Phase 3 (each is its own next slice):** the AI photo scan and the barcode scan (the native camera); the "Plan my
+split" wizard (the plan is shown and logged from, but not yet created or edited in the app); the weight history and streak
+calendar pages; managing (deleting) custom foods and exercises; swipe-to-delete; exercise videos and photos; per-hour "+" logging.
+
+**Not verified, and why:** nothing has run on a phone yet (see Phase 2). The screens are checked by Jest with the real data layer
+over an in-memory Supabase, not by eye: spacing, the sheet presentation and haptics need Expo Go on an iPhone and an iPad. The
+Thai `app.*` strings added here are mine and want a native read.
+
 ## Deploying `api/` (Render)
 
 `Dockerfile.api` is the API's own image (the website's is `Dockerfile`, untouched). It installs `requirements-api.txt`,

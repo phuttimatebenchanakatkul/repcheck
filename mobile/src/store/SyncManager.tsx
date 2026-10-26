@@ -4,7 +4,9 @@ import { AppState } from 'react-native';
 
 import { useAuth } from '@/auth/AuthProvider';
 
-import { clearCachedData, getOutbox, watchNetwork } from './index';
+import { keys } from '@/data/keys';
+
+import { clearCachedData, getOutbox, queryClient, watchNetwork } from './index';
 
 /**
  * Keeps the device and the server in step, rendering nothing:
@@ -37,6 +39,9 @@ export function SyncManager() {
       timer = undefined;
       if (!onlineManager.isOnline()) return; // the online listener below will call back
       const result = await outbox.flush(userId);
+      // What was sent is now the server's, and what the database refused is not (the screen showed it as done): either way what the
+      // screens hold may differ from the server, so read again.
+      if (result.sent > 0 || result.dropped > 0) void queryClient.invalidateQueries({ queryKey: keys.all(userId) });
       if (!stopped && result.retryInMs !== null) {
         clearTimeout(timer); // two callers can join one flush and both get this result: keep one retry, not two
         timer = setTimeout(() => void run(), result.retryInMs);
