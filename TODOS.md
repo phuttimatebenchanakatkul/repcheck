@@ -72,7 +72,7 @@
 
 ### The rest of the Flask port (`api/`)
 
-**What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits, the chats, HYROX, splits and coaching, food, friends / blocks / reports / challenges / leaderboards / HYROX results, the waitlist and the owner's endpoints are in. Still to do: the Render service for it (`ADMIN_EMAILS`, `GEMINI_API_KEY`, `SUPABASE_*`, a worker timeout well above 30 s, ffmpeg in the image, exactly one proxy hop in front).
+**What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits, the chats, HYROX, splits and coaching, food, friends / blocks / reports / challenges / leaderboards / HYROX results, the waitlist and the owner's endpoints are in. Still to do: create the Render service from `Dockerfile.api` (the click-through is in "Deploying `api/`" in `MOBILE_APP_PLAN.md`), then point the native app at it.
 
 **Why:** The native app needs these server-side rules (Gemini keys, rate limits, moderation, caps) and cannot ship without them.
 

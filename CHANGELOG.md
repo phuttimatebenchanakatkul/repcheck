@@ -2,6 +2,24 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.20.1.0] - 2026-10-26
+
+### Added
+
+The native app's server now has its own container image, so it can be deployed as a
+separate Render service. Nothing in the website or the current App Store app changes, and
+the website's image is untouched.
+
+- **`Dockerfile.api`**: installs the API's own dependencies, adds the video and barcode
+  tools it needs, and runs with a worker timeout long enough to grade a clip inside the
+  request (the default would cut it off after 30 seconds).
+- **A step-by-step setup** in `MOBILE_APP_PLAN.md`: which options to pick in Render, the
+  environment variables to copy over, the health URL to check, and the one thing that must
+  be true of the proxy in front of it.
+- **A test that guards the contract** without needing Docker: every library the API imports
+  is installed by its requirements file, the command and timeout are right, and no secret is
+  baked into the image. Ten deliberate breakages of the Dockerfile were each caught.
+
 ## [0.20.0.0] - 2026-10-25
 
 ### Added
