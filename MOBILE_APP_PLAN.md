@@ -336,7 +336,56 @@ Flask. (Switching sign-ups off in the dashboard is still sensible until the app 
 | Custom foods and exercises (writes stay behind Flask), the food photo scan, barcodes and online search | **Done** (v0.19.0.0) |
 | Friends, blocks, reports (+AI reports), challenges, leaderboards, HYROX results, the streak's server-side dates | **Done** (v0.20.0.0) |
 | Waitlist (the marketing form posts to Flask), the owner's endpoints (moderation queue, waitlist, signups) | **Done** (v0.20.0.0) |
-| Deploy as its own Render service (`gunicorn "api.app:create_app()"`, the three `SUPABASE_*` variables) | After the slices, with the app |
+| Deploy as its own Render service (`Dockerfile.api`, the `SUPABASE_*` variables) | **Prepared** (v0.20.1.0): the image and the click-through are below; creating the service is yours |
+
+## Deploying `api/` (Render)
+
+`Dockerfile.api` is the API's own image (the website's is `Dockerfile`, untouched). It installs `requirements-api.txt`,
+adds `ffmpeg` and `libzbar0`, and runs `gunicorn "api.app:create_app()"` with ONE worker and eight threads and a 600 s
+worker timeout (a set is graded inside the request, a minute or more; gunicorn's default is 30 s). One worker because a
+second copy of OpenCV and the Gemini client roughly doubles memory; the threads cover the waiting. `tests/test_api_deploy_files.py`
+holds the contract (every third-party import of `api/` is installed, the command and timeout, no secret baked in).
+
+**Create the service (Render dashboard, ~5 minutes):**
+
+1. **New + > Web Service > Build and deploy from a Git repository**, pick the `repcheck` repository.
+2. Name `repcheck-api`. Region **Singapore** (the Supabase project is in Singapore; every request makes several database
+   round trips). Branch `main`. Leave Root Directory empty.
+3. **Language: Docker.** Dockerfile Path **`./Dockerfile.api`**. (It must not be the default `./Dockerfile`: that is the website.)
+4. Instance type **Starter** or larger. The free tier sleeps, and 512 MB is the floor for OpenCV + ffmpeg; if the service is ever
+   killed for memory, move to Standard (2 GB) rather than adding workers.
+5. **Advanced > Health Check Path: `/api/health`** (it answers 503 when the database is unreachable, so Render stops routing to a
+   broken instance). Leave Auto-Deploy on. No disk is needed: uploads and clips live in temporary directories and the files that
+   matter go to Supabase Storage.
+6. **Environment variables** (Add from `.env` where noted; never paste them anywhere else):
+
+   | Name | Value |
+   |---|---|
+   | `SUPABASE_URL` | from `.env` |
+   | `SUPABASE_SERVICE_ROLE_KEY` | from `.env` (the `sb_secret_...` key) |
+   | `SUPABASE_DB_URL` | from `.env`: the shared pooler on port **6543** (`...pooler.supabase.com:6543`), not the `db.<ref>` host, which is IPv6-only and Render cannot reach it |
+   | `GEMINI_API_KEY` | the same value as on the website's service |
+   | `ADMIN_EMAILS` | `phuttimatebenchanakatkul@gmail.com` (comma-separated). **Without it the owner endpoints answer 404 to you too, and you are limited like everyone else** |
+   | `REVIEW_ACCOUNT_EMAILS` | the same value as on the website's service (App Review's demo account: exempt from limits, never an admin) |
+   | `FATSECRET_CLIENT_ID`, `FATSECRET_CLIENT_SECRET`, `FATSECRET_REGION` | optional; copy from the website's service if set there (without them the extra food lookup is a silent no-op) |
+
+7. **Create Web Service.** The first build takes several minutes.
+
+**Check it** (replace the host with the one Render shows): `https://repcheck-api.onrender.com/api/health` should answer
+`{"ok":true}`, and `https://repcheck-api.onrender.com/api/profile` should answer 401 `{"ok":false,...}` (a route that needs a token).
+Deploy status can be read from the Render API like the website's (`srv-...` id of the new service); a failed deploy rolls back
+silently, so check the status, not just the health URL.
+
+**Two things that must match the service, or it fails quietly:**
+
+- **Exactly one proxy hop** sits in front of it (Render's own). The waitlist's per-visitor limit keys on `request.remote_addr` behind
+  `ProxyFix(x_for=1)`; a CDN or second proxy in front would make every visitor share one address (or let a caller choose theirs).
+- At launch the marketing form's three settings move together: `ENDPOINT` in `marketing/app.js`, `connect-src` in the marketing
+  sites' Render CSP header, and `WAITLIST_ORIGINS` in `api/admin.py` (already the two marketing hostnames). Update
+  `marketing/privacy.html` in the same change if the destination or the processor changes.
+
+**Not part of this service:** the website keeps running from `Dockerfile` until launch day. Nothing here changes it; this
+service simply sits unused until the native app talks to it.
 
 ## Synced data (what the browser kept, and where it lives now)
 

@@ -1,0 +1,31 @@
+# The native app's API (api/) as its OWN Render web service. The website's image is `Dockerfile`; this one is separate so
+# the website's build and dependencies never change when the API's do.
+#
+# Render: New > Web Service > Language "Docker" > Dockerfile Path `./Dockerfile.api` (see MOBILE_APP_PLAN.md, "Deploying api/").
+FROM python:3.12-slim
+
+# System packages the Python side alone can't provide (the same two the website needs, for the same modules it reuses):
+# - ffmpeg: video_trimmer.py shells out to it to trim uploaded clips before they are graded
+# - libzbar0: pyzbar's barcode decoder needs the native zbar library
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libzbar0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt requirements-api.txt ./
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+# The API reuses the website's pure-logic modules (coach_chat, pipeline, name_filter, ...), so the whole tree is copied;
+# .dockerignore keeps the tests, node_modules, local databases and .env out of the image.
+COPY . .
+
+# Render sets $PORT at runtime; default to 5000 for a local `docker run`.
+ENV PORT=5000
+EXPOSE 5000
+
+# One worker with eight threads: grading a clip is minutes of waiting on ffmpeg and Gemini, which threads handle well, and
+# a second copy of OpenCV and the Gemini client would roughly double memory on a small instance. --timeout is far above
+# gunicorn's 30 s default because a set is graded inside the request (a minute or more). The database pool is per worker.
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 600 --access-logfile - "api.app:create_app()"
