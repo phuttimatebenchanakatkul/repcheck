@@ -251,6 +251,62 @@ describe('auth events', () => {
   });
 });
 
+describe('password recovery', () => {
+  it('a recovery link holds the person on the new-password step, signed in or not', async () => {
+    await mount();
+    await waitFor(() => expect(status()).toBe('signed-out'));
+    await emit('PASSWORD_RECOVERY', session());
+    expect(status()).toBe('recovering');
+    expect(mockApi.getProfile).not.toHaveBeenCalled(); // no profile work for a session that is only for choosing a password
+  });
+
+  it('the SIGNED_IN the SDK also announces does not drag the person into the app before the password is chosen', async () => {
+    await mount();
+    await waitFor(() => expect(status()).toBe('signed-out'));
+    await emit('PASSWORD_RECOVERY', session());
+    await emit('TOKEN_REFRESHED', session());
+    expect(status()).toBe('recovering');
+  });
+
+  it('a profile load already under way is superseded by the recovery', async () => {
+    mockAuth.session = session();
+    let finish!: (p: Profile) => void;
+    mockApi.getProfile.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+    await mount();
+    await waitFor(() => expect(status()).toBe('setting-up'));
+    await emit('PASSWORD_RECOVERY', session());
+    await act(async () => finish(profile()));
+    expect(status()).toBe('recovering');
+  });
+
+  it('finishing recovery carries on into the app as that person', async () => {
+    mockApi.getProfile.mockResolvedValue(profile());
+    await mount();
+    await waitFor(() => expect(status()).toBe('signed-out'));
+    await emit('PASSWORD_RECOVERY', session());
+    await act(async () => latest.finishRecovery());
+    await waitFor(() => expect(status()).toBe('ready'));
+  });
+
+  it('finishRecovery does nothing outside recovery', async () => {
+    mockAuth.session = session();
+    mockApi.getProfile.mockResolvedValue(profile());
+    await mount();
+    await waitFor(() => expect(status()).toBe('ready'));
+    mockApi.getProfile.mockClear();
+    await act(async () => latest.finishRecovery());
+    expect(mockApi.getProfile).not.toHaveBeenCalled();
+  });
+
+  it('signing out ends a recovery', async () => {
+    await mount();
+    await waitFor(() => expect(status()).toBe('signed-out'));
+    await emit('PASSWORD_RECOVERY', session());
+    await emit('SIGNED_OUT', null);
+    expect(status()).toBe('signed-out');
+  });
+});
+
 describe('useAuth', () => {
   it("refuses to be used outside the provider", async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);

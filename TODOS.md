@@ -72,7 +72,7 @@
 
 ### Native app: what Phase 2 left open (`mobile/`)
 
-**What:** (1) run it on a real iPhone and iPad (`cd mobile && npx expo start`, Expo Go), sign up, sign in, kill and reopen, go offline; (2) the legacy-password migration route in `api/` plus the app's fallback sign-in, a "resend confirmation email" action and password reset; (3) set up Sign in with Apple (Apple Developer + the Supabase Apple provider) and, if wanted, Google (`EXPO_PUBLIC_GOOGLE_SIGN_IN=1`); (4) `eas init` and an `eas.json` once there is an Expo account; (5) a native read of the Thai strings under `app.*` in `mobile/src/i18n/app.th.json`.
+**What:** (1) run it on a real iPhone and iPad (`cd mobile && npx expo start`, Expo Go), sign up, sign in, kill and reopen, go offline; (2) with the legacy-password route and password reset now written (v0.22.0.0), try them for real: import a test account with an old hash, sign in with the old password, request a reset and open the link on the same phone (needs custom SMTP and the redirect URLs from "Phase 2 status"); (3) set up Sign in with Apple (Apple Developer + the Supabase Apple provider) and, if wanted, Google (`EXPO_PUBLIC_GOOGLE_SIGN_IN=1`); (4) `eas init` and an `eas.json` once there is an Expo account; (5) a native read of the Thai strings under `app.*` in `mobile/src/i18n/app.th.json`.
 
 **Why:** Phase 2's code and tests are done and checked as far as Windows without a device allows; these are the parts that need a device, an account, or a decision. See "Phase 2 status" in `MOBILE_APP_PLAN.md`.
 

@@ -32,6 +32,9 @@ function Gate() {
       <Stack.Protected guard={status === 'signed-out'}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
+      <Stack.Protected guard={status === 'signed-out' || status === 'recovering'}>
+        <Stack.Screen name="reset-password" />
+      </Stack.Protected>
       <Stack.Protected guard={needsSetup}>
         <Stack.Screen name="setup" />
       </Stack.Protected>

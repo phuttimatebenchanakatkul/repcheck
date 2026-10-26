@@ -16,6 +16,8 @@ export type AuthState =
   | { status: 'needs-name'; session: Session }
   /** Signed in and the server could not be reached or refused: let the person retry. */
   | { status: 'error'; session: Session; message: string }
+  /** Signed in only by a password-recovery link: held on the new-password screen until a new password is chosen. */
+  | { status: 'recovering'; session: Session }
   | { status: 'ready'; session: Session; profile: Profile };
 
 interface AuthContextValue {
@@ -26,6 +28,8 @@ interface AuthContextValue {
   retry: () => void;
   /** Remember a name Apple shared at sign-in, used if the profile has to be created. */
   rememberNameHint: (name: string | null) => void;
+  /** The new password is chosen: carry on into the app as that person. */
+  finishRecovery: () => void;
   /** Re-read the profile (after a rename, consent change, ...). */
   refreshProfile: () => Promise<void>;
 }
@@ -66,6 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT' || !session) {
         attempt.current++;
         setState({ status: 'signed-out' });
+      } else if (event === 'PASSWORD_RECOVERY') {
+        attempt.current++; // whatever setup was under way is superseded: this session is for choosing a password only
+        setState({ status: 'recovering', session });
       } else if (event === 'SIGNED_IN') {
         const now = current.current;
         // The SDK re-announces SIGNED_IN when the app returns to the foreground: that is the same person, not a new sign-in,
@@ -101,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       retry() {
         if (state.status === 'error') void setUp(state.session);
+      },
+      finishRecovery() {
+        if (state.status === 'recovering') void setUp(state.session);
       },
       rememberNameHint(name) {
         nameHint.current = name;

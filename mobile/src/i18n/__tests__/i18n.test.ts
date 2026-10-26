@@ -111,7 +111,8 @@ describe('the dictionaries', () => {
 
 describe('the export from static/i18n.js', () => {
   it('the committed JSON is exactly what the exporter produces now (run npm run i18n:export after editing the website strings)', () => {
-    for (const [file, text] of Object.entries(expectedFiles())) expect(fs.readFileSync(file, 'utf8')).toBe(text);
+    // compared with line endings normalised: a Windows checkout may have turned the files' LF into CRLF
+    for (const [file, text] of Object.entries(expectedFiles())) expect(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n')).toBe(text);
   });
 
   it('finds the literal even with braces, quotes and comments inside it', () => {

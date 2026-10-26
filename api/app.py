@@ -61,8 +61,8 @@ def create_app(settings=None, db=None, verifier=None, storage=None, auth_admin=N
     )
 
     from .routes import (account, admin as admin_routes, analyze as analyze_routes, chat, coaching, consent, foods, health, photos,
-                         planning, social, waitlist)
-    for module in (health, account, consent, photos, analyze_routes, chat, coaching, planning, foods, social, admin_routes, waitlist):
+                         planning, social, waitlist, legacy)
+    for module in (health, account, consent, photos, analyze_routes, chat, coaching, planning, foods, social, admin_routes, waitlist, legacy):
         app.register_blueprint(module.bp)
 
     @app.after_request

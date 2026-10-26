@@ -2,6 +2,28 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.22.0.0] - 2026-10-26
+
+### Added
+
+People who signed up on the old website can now sign in to the new app with the password they
+already have, and anyone can reset a forgotten one. Nothing in the website or the current App
+Store app changes.
+
+- **Your old password still works.** The first time you sign in, the server checks it against
+  the old website's stored hash, moves it across, and from then on it is an ordinary password.
+  The old hash is deleted the moment it is used, so an old leaked password can't be put back.
+- **It can't be used to find out who has an account.** An unknown address, an account that was
+  never on the old site and a wrong password all get the identical answer, take the same time,
+  and count the same toward a limit (10 tries per address, 30 per phone, every 15 minutes).
+- **Forgot password** emails a reset link that opens the app and asks for a new password
+  before anything else; "resend confirmation email" appears when an address is unconfirmed. A
+  password the new system won't accept (too short, or known to have leaked) is offered a reset
+  instead of a dead end. Sign-up now asks for at least 8 characters, as the website did.
+- **Proven:** 56 server tests and 50 app tests, then 88 deliberate
+  breakages (all noticed except 2 that change nothing observable). A real throwaway account
+  with a real old hash was moved across and then signed in through Supabase itself.
+
 ## [0.21.0.0] - 2026-10-26
 
 ### Added

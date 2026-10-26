@@ -34,5 +34,22 @@
   "app.setup.signOut": "Log out",
   "app.comingSoon": "This screen is being built.",
   "app.home.hello": "Hi, {name}",
-  "app.offline.banner": "You're offline. Changes will sync when you're back online."
+  "app.offline.banner": "You're offline. Changes will sync when you're back online.",
+  "app.auth.forgot": "Forgot password?",
+  "app.auth.resend": "Resend confirmation email",
+  "app.auth.resent": "We sent a new confirmation email. Check your inbox.",
+  "app.auth.sendReset": "Email me a reset link",
+  "app.auth.error.reset-required": "We couldn't carry your old password over. Reset it with a link we'll email you.",
+  "app.auth.error.link-invalid": "That link has expired or was already used. Request a new one.",
+  "app.auth.error.tooShort": "Use at least 8 characters.",
+  "app.reset.title": "Reset your password",
+  "app.reset.sub": "Enter your email and we'll send you a link.",
+  "app.reset.sent": "If that email has an account, a reset link is on its way. Open it on this phone.",
+  "app.reset.working": "Checking your link…",
+  "app.reset.newTitle": "Choose a new password",
+  "app.reset.newPassword": "New password",
+  "app.reset.repeat": "Repeat the new password",
+  "app.reset.mismatch": "The two passwords don't match.",
+  "app.reset.save": "Save password",
+  "app.reset.back": "Back to log in"
 }
