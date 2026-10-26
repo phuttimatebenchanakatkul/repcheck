@@ -440,8 +440,15 @@ and edited: what falls on each weekday (any of its days, or Rest), exercises add
 starts the wizard over. Saving marks the day for the streak, as the website does. Today's plan card quick-logs an exercise for TODAY and
 shows a tick once it is logged.
 
-**Not built yet in Phase 3 (each is its own next slice):** the weight history and streak
-calendar pages; managing (deleting) custom foods and exercises; swipe-to-delete; exercise videos and photos; per-hour "+" logging.
+**Added in v0.26.0.0: the history pages.** *Streak history* (from the streak card on Home): current and longest streak and a calendar of the
+days that counted; going back stops at the first month the app reads data for (`STREAK_WINDOW_DAYS`). *Weight history* (from the weigh-in
+card): a month or a year at a time with latest / average / change, a line chart, the month's list with each day's change, the year's months,
+and a calendar of the days weight was logged. Tapping a day shows its weight; only TODAY can be logged or replaced (the website's rule).
+The weigh-in form is now one shared component (`features/history/WeightForm.tsx`) used by Home and the calendar. Weigh-ins are read a page
+at a time, so a long history is not cut at 1000 rows. Both pages are root-stack screens with a native header and back button.
+
+**Not built yet in Phase 3 (each is its own next slice):** the *Logging History* page (the nutrition calendar with fasting / incomplete
+day statuses) and *Full stats* (the week's calories chart); managing (deleting) custom foods and exercises; swipe-to-delete; exercise videos and photos; per-hour "+" logging.
 
 **Not verified, and why:** nothing has run on a phone yet (see Phase 2). The screens are checked by Jest with the real data layer
 over an in-memory Supabase, not by eye: spacing, the sheet presentation and haptics need Expo Go on an iPhone and an iPad. The

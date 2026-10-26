@@ -175,9 +175,14 @@ export function createData(deps: DataDeps) {
     return oneOf<Row<'split_plans'>>(await table('split_plans').maybeSingle());
   }
 
+  /** A range of weigh-ins, a page at a time (the history page reads them all, and the server returns at most PAGE_SIZE rows per request). */
   async function weights(from: string, to: string): Promise<WeightEntry[]> {
-    const rows = rowsOf<Row<'weight_entries'>>(await table('weight_entries').gte('log_date', from).lte('log_date', to).order('log_date'));
-    return rows.map(weightFromRow);
+    const out: WeightEntry[] = [];
+    for (let start = 0; ; start += PAGE_SIZE) {
+      const page = rowsOf<Row<'weight_entries'>>(await table('weight_entries').gte('log_date', from).lte('log_date', to).order('log_date').range(start, start + PAGE_SIZE - 1));
+      out.push(...page.map(weightFromRow));
+      if (page.length < PAGE_SIZE) return out;
+    }
   }
 
   async function settingsRow(): Promise<Row<'user_settings'> | null> {
