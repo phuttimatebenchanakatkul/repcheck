@@ -2,6 +2,26 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.24.0.0] - 2026-10-26
+
+### Added
+
+The native app can now scan food: photograph a meal for an estimate, or scan a barcode. Nothing in
+the website or the current App Store app changes.
+
+- **Scan a meal.** Take a photo or choose one; the AI estimates the dish's ingredients, calories
+  and macros. You see the estimate, can rename it, change the amount (servings, grams or ounces)
+  and pick a serving size where the food has several, then add it. It is logged as a dish, so each
+  ingredient can be adjusted afterwards.
+- **Scan a barcode** with the live camera. The product's figures come from Open Food Facts or
+  FatSecret, with the credit their terms ask for. A product nobody knows offers to make the food
+  yourself, with that barcode saved on it.
+- **AI consent first.** The first photo asks "Allow AI features?" in the website's words, and
+  nothing is sent until you say yes.
+- **Proven:** 976 app tests, then 131 deliberate breakages of the scan code (every
+  survivor was either killed by a new test or changes nothing observable). Not yet run on a phone;
+  the camera itself needs Expo Go or a development build, and the new Thai strings need a native read.
+
 ## [0.23.0.0] - 2026-10-26
 
 ### Added

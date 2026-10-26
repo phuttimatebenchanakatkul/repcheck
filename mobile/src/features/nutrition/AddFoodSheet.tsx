@@ -52,6 +52,7 @@ function AddFoodBody({
   onAddIngredient,
   onCreateFood,
   onQuickAdd,
+  onScan,
 }: {
   mode: 'entry' | 'ingredient';
   day: string;
@@ -67,6 +68,7 @@ function AddFoodBody({
   onAddIngredient: (foodName: string) => void;
   onCreateFood: () => void;
   onQuickAdd: () => void;
+  onScan: (mode: 'meal' | 'barcode') => void;
 }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -249,6 +251,22 @@ function AddFoodBody({
 
           {entryMode && (
             <View style={{ gap: space.sm, marginTop: space.md }}>
+              <Row onPress={() => onScan('meal')} label={t('mobile.scanMeal')}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="rowTitle">{t('mobile.scanMeal')}</Text>
+                  <Text variant="caption" secondary>
+                    {t('mobile.scanMealSub')}
+                  </Text>
+                </View>
+              </Row>
+              <Row onPress={() => onScan('barcode')} label={t('mobile.scanBarcode')}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="rowTitle">{t('mobile.scanBarcode')}</Text>
+                  <Text variant="caption" secondary>
+                    {t('mobile.scanBarcodeSub')}
+                  </Text>
+                </View>
+              </Row>
               <Row onPress={onCreateFood} label={t('nutrition.custom.create')}>
                 <View style={{ flex: 1 }}>
                   <Text variant="rowTitle">{t('nutrition.custom.create')}</Text>

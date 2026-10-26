@@ -33,10 +33,25 @@
       "expo-apple-authentication",
       "expo-localization",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "RepCheck uses the camera to scan barcodes and photograph meals so it can estimate their calories and macros."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RepCheck reads a photo you choose so it can estimate a meal's calories and macros.",
+          "cameraPermission": "RepCheck uses the camera to photograph a meal so it can estimate its calories and macros."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#f5f6f8",
-          "dark": { "backgroundColor": "#0b0b0c" },
+          "dark": {
+            "backgroundColor": "#0b0b0c"
+          },
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160
         }
