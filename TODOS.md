@@ -70,6 +70,16 @@
 **Priority:** P1
 **Depends on:** The Render service for the API
 
+### Native app: what Phase 2 left open (`mobile/`)
+
+**What:** (1) run it on a real iPhone and iPad (`cd mobile && npx expo start`, Expo Go), sign up, sign in, kill and reopen, go offline; (2) the legacy-password migration route in `api/` plus the app's fallback sign-in, a "resend confirmation email" action and password reset; (3) set up Sign in with Apple (Apple Developer + the Supabase Apple provider) and, if wanted, Google (`EXPO_PUBLIC_GOOGLE_SIGN_IN=1`); (4) `eas init` and an `eas.json` once there is an Expo account; (5) a native read of the Thai strings under `app.*` in `mobile/src/i18n/app.th.json`.
+
+**Why:** Phase 2's code and tests are done and checked as far as Windows without a device allows; these are the parts that need a device, an account, or a decision. See "Phase 2 status" in `MOBILE_APP_PLAN.md`.
+
+**Context:** Phase 3 (the daily loop: Home, Nutrition, Workouts) builds on `mobile/src/store/outbox.ts` for its direct Supabase writes.
+
+**Depends on:** your phone and your Apple/Expo accounts
+
 ### The rest of the Flask port (`api/`)
 
 **What:** The foundation, profiles, account deletion, the Storage purge, progress photos, analyze and clips, consent and rate limits, the chats, HYROX, splits and coaching, food, friends / blocks / reports / challenges / leaderboards / HYROX results, the waitlist and the owner's endpoints are in. Still to do: create the Render service from `Dockerfile.api` (the click-through is in "Deploying `api/`" in `MOBILE_APP_PLAN.md`), then point the native app at it.

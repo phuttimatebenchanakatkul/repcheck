@@ -2,6 +2,28 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.21.0.0] - 2026-10-26
+
+### Added
+
+The native app now exists: `mobile/`, a React Native (Expo) app that will replace the App Store
+wrapper at launch. It signs in, shows the five tabs and works offline, but the tabs themselves are
+placeholders until the next phases. Nothing in the website or the current App Store app changes,
+and neither deploy image includes the new folder.
+
+- **Sign in or sign up** with email or Apple, with the same "you agree to our Terms and Privacy
+  Policy, including that photos, videos and messages go to Google Gemini" notice the website shows,
+  word for word. Your session lives in the iPhone Keychain.
+- **The five tabs** (Home, Workouts, Analyze, Nutrition, Coach) as the system's own tab bar, in
+  English or Thai, in light or dark, on phone or iPad.
+- **Works with no signal.** What you last saw stays on screen, and changes you make wait in a queue
+  and are sent in order when you are back online. Signing out wipes all of it from the device.
+- **Safe by construction:** the app refuses to start with a Supabase secret key (only the public
+  one belongs in an app), and repository tests fail if a secret or a non-public setting gets in.
+- **Proven:** 217 app tests, 12 repository tests and 116 deliberate breakages of the app's logic, each
+  noticed except two that change nothing visible. The whole app compiles to an iOS bundle. It has
+  **not yet run on a phone**; see the plan's "Phase 2 status" for what that needs.
+
 ## [0.20.1.0] - 2026-10-26
 
 ### Added

@@ -28,3 +28,6 @@ capacitor.config.json
 tests/
 tests-js/
 vitest.config.js
+
+# The native app (Expo/React Native) is built by EAS, never served by Flask; its node_modules alone run to hundreds of MB.
+mobile/
