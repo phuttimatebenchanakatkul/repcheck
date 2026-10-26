@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { DataProvider } from '@/data/DataProvider';
+import { useTranslation } from '@/i18n';
 import { restoreLanguage } from '@/i18n/storage';
 import { CACHE_MAX_AGE_MS, persister, queryClient } from '@/store';
 import { SyncManager } from '@/store/SyncManager';
@@ -20,6 +21,7 @@ void SplashScreen.preventAutoHideAsync();
 function Gate() {
   const { state } = useAuth();
   const status = state.status;
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (status !== 'loading') void SplashScreen.hideAsync();
@@ -41,6 +43,8 @@ function Gate() {
       </Stack.Protected>
       <Stack.Protected guard={status === 'ready'}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="streaks" options={{ headerShown: true, title: t('streaks.calendarTitle') }} />
+        <Stack.Screen name="weight" options={{ headerShown: true, title: t('app.weight.title') }} />
       </Stack.Protected>
     </Stack>
   );

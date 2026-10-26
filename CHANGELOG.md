@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.26.0.0] - 2026-10-26
+
+### Added
+
+Two history pages in the native app. Nothing in the website or the current App Store app changes.
+
+- **Streak history.** Tap the streak card on Home: your current and longest streak, and a calendar
+  of the days that counted, month by month.
+- **Weight history.** Tap "View history" under the weigh-in: a month or a year at a time with your
+  latest, average and change, a line chart, and each day's change. Below it, a calendar of the days
+  you logged your weight; tap a day to see it, and today to log or replace it.
+- **A long weight history is read in full.** It was cut off after 1000 entries before.
+- **Proven:** 1135 app tests, then 153 deliberate breakages of the new code (each survivor killed by
+  a new test or a change with no observable effect). Not yet run on a phone; the new Thai strings need
+  a native read.
+
 ## [0.25.0.0] - 2026-10-26
 
 ### Added

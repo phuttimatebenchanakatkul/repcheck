@@ -8,6 +8,7 @@ import { supabaseExecutor } from '../../store/executor';
 import { MAX_QUEUED, Outbox, OutboxFullError, type KeyValueStorage } from '../../store/outbox';
 import { FakeDatabase } from '../../testing/fakeSupabase';
 import { PAGE_SIZE, RECENT_NUTRITION_LIMIT, RECENT_WORKOUT_LIMIT, STREAK_WINDOW_DAYS, createData, type DataApi, type RecentNutrition, type RecentWorkout } from '../access';
+import { toIsoDate } from '../../logic/dates';
 import { keys } from '../keys';
 import { toTimestamp } from '../mappers';
 
@@ -563,5 +564,28 @@ describe('the coaching profile for planning', () => {
     expect(await data.fetch.coachingProfile()).toEqual({});
     db.failWhen = () => ({ status: 500, message: 'boom' });
     expect(await data.fetch.coachingProfile()).toEqual({});
+  });
+});
+
+describe('weigh-ins past one page', () => {
+  it('are all read, oldest first', async () => {
+    const { db, data } = setup();
+    db.maxRows = PAGE_SIZE;
+    const start = new Date(2020, 0, 1);
+    db.seed('weight_entries', Array.from({ length: PAGE_SIZE + 250 }, (_, i) => ({ user_id: U, log_date: toIsoDate(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)), kg: 80, logged_at: toTimestamp(T0), extra: {} })));
+    const all = await data.fetch.weights('1900-01-01', '2999-12-31');
+    expect(all).toHaveLength(PAGE_SIZE + 250);
+    expect(all[0].day).toBe('2020-01-01');
+    expect(all[all.length - 1].day > all[0].day).toBe(true);
+    expect(db.calls.filter((c) => c === 'read:weight_entries')).toHaveLength(2);
+  });
+
+  it('exactly one full page takes a second, empty, request to know it is the end', async () => {
+    const { db, data } = setup();
+    db.maxRows = PAGE_SIZE;
+    const start = new Date(2020, 0, 1);
+    db.seed('weight_entries', Array.from({ length: PAGE_SIZE }, (_, i) => ({ user_id: U, log_date: toIsoDate(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)), kg: 80, logged_at: toTimestamp(T0), extra: {} })));
+    expect(await data.fetch.weights('1900-01-01', '2999-12-31')).toHaveLength(PAGE_SIZE);
+    expect(db.calls.filter((c) => c === 'read:weight_entries')).toHaveLength(2);
   });
 });

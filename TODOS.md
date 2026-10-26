@@ -1202,9 +1202,9 @@ review).
 
 ## Native app, Phase 3 leftovers
 
-### Weight history, streak calendar, managing custom foods and exercises
+### Logging History, Full stats, managing custom foods and exercises
 
-**What:** The weight history page (`weight.*` strings), the streak calendar (`streaks.*`), deleting custom foods and exercises (the API and data layer have it, no screen does), swipe-to-delete, exercise videos and photos, per-hour "+" logging.
+**What:** The Logging History page (the nutrition calendar with fasting / incomplete day statuses: `loggingHistory.*`), Full stats (the week's calories chart: `fullStats.*`), deleting custom foods and exercises (the API and data layer have it, no screen does), swipe-to-delete, exercise videos and photos, per-hour "+" logging.
 
 **Why:** The website has them; the first cut of the app does not.
 

@@ -102,5 +102,11 @@
   "app.scan.failed": "Couldn't scan that. Check your connection and try again.",
   "app.plan.whatsOnThisDay": "What's on this day?",
   "app.plan.loggedToday": "{name}, already logged today",
-  "app.plan.selected": "Selected ({n})"
+  "app.plan.selected": "Selected ({n})",
+  "app.weight.title": "Weight history",
+  "app.history.prevMonth": "Previous month",
+  "app.history.nextMonth": "Next month",
+  "app.history.viewHistory": "View history",
+  "app.history.viewStreak": "Streak history",
+  "app.history.day": "{date}: {status}"
 }

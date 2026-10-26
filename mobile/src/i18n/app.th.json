@@ -102,5 +102,11 @@
   "app.scan.failed": "สแกนไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง",
   "app.plan.whatsOnThisDay": "วันนี้ทำอะไร",
   "app.plan.loggedToday": "{name} บันทึกวันนี้แล้ว",
-  "app.plan.selected": "ที่เลือกไว้ ({n})"
+  "app.plan.selected": "ที่เลือกไว้ ({n})",
+  "app.weight.title": "ประวัติน้ำหนัก",
+  "app.history.prevMonth": "เดือนก่อนหน้า",
+  "app.history.nextMonth": "เดือนถัดไป",
+  "app.history.viewHistory": "ดูประวัติ",
+  "app.history.viewStreak": "ประวัติสตรีค",
+  "app.history.day": "{date}: {status}"
 }

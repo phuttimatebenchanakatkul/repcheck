@@ -1,22 +1,22 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthProvider';
 import { signOut } from '@/auth/actions';
-import { useActions, useGoals, useNutritionDay, useSettings, useStreak, useWeights, useWorkoutDay } from '@/data/hooks';
+import { useGoals, useNutritionDay, useSettings, useStreak, useWeights, useWorkoutDay } from '@/data/hooks';
 import { useTranslation } from '@/i18n';
 import { addDays, parseIso, toIsoDate } from '@/logic/dates';
 import { calorieRing, percentOf, sumMacrosForDay } from '@/logic/macros';
 import { lastDays } from '@/logic/streak';
-import { displayToKg, formatWeightKg, localeFor, weightUnitLabel } from '@/logic/units';
+import { formatWeightKg, localeFor } from '@/logic/units';
 import { getSupabase } from '@/supabase/client';
-import { Button, Card, ErrorText, Field, Screen, Text } from '@/ui/components';
-import { success } from '@/ui/haptics';
+import { Button, Card, Screen, Text } from '@/ui/components';
 import { OfflineBanner } from '@/ui/OfflineBanner';
 import { useTheme } from '@/ui/theme';
 import { space } from '@/ui/tokens';
 import { Bar, Ring } from '@/ui/widgets';
+
+import { WeightForm } from '../history/WeightForm';
 
 /**
  * Today at a glance: the streak, calories and macros against the goals, a quick weigh-in, and the two things most people open the
@@ -38,10 +38,6 @@ export default function HomeScreen() {
   const workouts = useWorkoutDay(today);
   const settings = useSettings();
   const weights = useWeights(addDays(today, -365), today);
-  const actions = useActions();
-
-  const [weight, setWeight] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   const totals = sumMacrosForDay(entries.data);
   const ring = calorieRing(totals.calories, goals.data.calories);
@@ -49,19 +45,6 @@ export default function HomeScreen() {
   const latest = weights.data[weights.data.length - 1];
   const week = lastDays(now, 7);
   const exerciseCount = workouts.data.length;
-
-  const saveWeight = async () => {
-    const kg = displayToKg(weight, units);
-    setError(null);
-    try {
-      const saved = Number.isFinite(kg) && (await actions.saveWeight({ day: today, kg, loggedAt: Date.now() }));
-      if (!saved) return setError(t('app.home.weightInvalid'));
-      success();
-      setWeight('');
-    } catch {
-      setError(t('nutrition.log.saveError'));
-    }
-  };
 
   return (
     <Screen>
@@ -104,6 +87,7 @@ export default function HomeScreen() {
             {t('streaks.longest')}: {streak.data.longest}
           </Text>
         )}
+        <Button tone="plain" title={t('app.history.viewStreak')} onPress={() => router.push('/streaks')} />
       </Card>
 
       <Card>
@@ -168,9 +152,8 @@ export default function HomeScreen() {
             {t('weight.emptyTitle')}
           </Text>
         )}
-        <Field label={t('app.home.weightLabel', { unit: weightUnitLabel(units) })} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" />
-        <ErrorText>{error}</ErrorText>
-        <Button title={t('common.save')} onPress={() => void saveWeight()} disabled={!weight.trim()} />
+        <WeightForm day={today} units={units} />
+        <Button tone="plain" title={t('app.history.viewHistory')} onPress={() => router.push('/weight')} />
       </Card>
 
       <Button tone="plain" title={t('app.setup.signOut')} onPress={() => void signOut(getSupabase())} />

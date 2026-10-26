@@ -6,9 +6,10 @@ import { USER, dataHarness, nutritionRow } from '@/testing/dataHarness';
 import HomeScreen from '../HomeScreen';
 
 const mockNavigate = jest.fn();
+const mockPush = jest.fn();
 const mockSignOut = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate, push: mockPush }) }));
 jest.mock('@/auth/AuthProvider', () => ({ useAuth: () => ({ state: { status: 'ready', profile: { name: 'Sam' }, session: { user: { id: 'user-1' } } } }) }));
 jest.mock('@/auth/actions', () => ({ signOut: (...args: unknown[]) => mockSignOut(...args) }));
 jest.mock('@/supabase/client', () => ({ getSupabase: () => ({ marker: 'supabase' }) }));
@@ -35,6 +36,7 @@ const press = async (name: string | RegExp) => {
 
 beforeEach(() => {
   mockNavigate.mockClear();
+  mockPush.mockClear();
   mockSignOut.mockClear();
 });
 
@@ -216,5 +218,45 @@ describe('survivors: the week and the longest streak', () => {
     await open();
     await screen.findByTestId('streak-count');
     expect(screen.queryByText(/Longest streak ever/)).toBeNull();
+  });
+});
+
+describe('the history pages', () => {
+  it('the streak card opens the streak history, the weight card the weight history', async () => {
+    await open();
+    await press('Streak history');
+    expect(mockPush).toHaveBeenCalledWith('/streaks');
+    await press('View history');
+    expect(mockPush).toHaveBeenCalledWith('/weight');
+  });
+});
+
+describe('survivors: today’s workouts line, longest streak', () => {
+  const workout = (n: number) => ({ user_id: USER, id: `w${n}`, log_date: TODAY, exercise: `Lift ${n}`, added_at: new Date(at(TODAY, 8 + n)).toISOString(), unilateral: false, extra: {} });
+
+  it('says how many exercises were done today: one, then several, none says nothing', async () => {
+    const one = dataHarness();
+    one.db.seed('workout_entries', [workout(1)]);
+    const view = await render(<one.Provider><HomeScreen /></one.Provider>);
+    expect(await screen.findByText('Workouts: 1 exercise')).toBeOnTheScreen();
+    await view.unmount();
+
+    const two = dataHarness();
+    two.db.seed('workout_entries', [workout(1), workout(2)]);
+    await render(<two.Provider><HomeScreen /></two.Provider>);
+    expect(await screen.findByText('Workouts: 2 exercises')).toBeOnTheScreen();
+  });
+
+  it('no workout today: no line', async () => {
+    await open();
+    await screen.findByTestId('streak-count');
+    expect(screen.queryByText(/^Workouts:/)).toBeNull();
+  });
+
+  it('a streak of one day still shows the longest streak', async () => {
+    const h = dataHarness();
+    h.db.seed('nutrition_entries', [nutritionRow('a', TODAY, at(TODAY, 8))]);
+    await open(h);
+    expect(await screen.findByText('Longest streak ever: 1')).toBeOnTheScreen();
   });
 });
