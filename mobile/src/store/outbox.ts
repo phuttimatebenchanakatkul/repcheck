@@ -138,9 +138,8 @@ export class Outbox {
     return userId ? this.failed.filter((q) => q.userId === userId) : [...this.failed];
   }
 
-  /** Queue an operation for `userId`. A newer write to a row replaces an older waiting one. */
-  async enqueue(userId: string, op: Operation): Promise<void> {
-    await this.load();
+  /** Puts one operation in the queue (coalescing with a waiting write to the same row). Throws OutboxFullError; saves nothing. */
+  private place(userId: string, op: Operation): void {
     const identity = rowIdentity(op);
     const at = this.queue.findIndex((q) => q.userId === userId && rowIdentity(q.op) === identity && q.id !== this.inFlight);
     if (at >= 0) {
@@ -154,7 +153,45 @@ export class Outbox {
       if (this.queue.length >= MAX_QUEUED) throw new OutboxFullError();
       this.queue.push({ id: this.newId(), userId, op, queuedAt: this.now(), attempts: 0 });
     }
+  }
+
+  /** Removes this person's waiting operations that match, except the one on the wire. Returns how many. */
+  private drop(userId: string, matches: (op: Operation) => boolean): number {
+    const before = this.queue.length;
+    this.queue = this.queue.filter((q) => q.userId !== userId || q.id === this.inFlight || !matches(q.op));
+    return before - this.queue.length;
+  }
+
+  /** Queue an operation for `userId`. A newer write to a row replaces an older waiting one. */
+  async enqueue(userId: string, op: Operation): Promise<void> {
+    await this.replace(userId, () => false, [op]);
+  }
+
+  /**
+   * Drops this person's WAITING operations that match (except the one on the wire) and queues `ops` in their place, ALL OR NOTHING:
+   * if the queue would overflow, it is left exactly as it was. For a change that replaces a whole group of rows (a workout's sets):
+   * coalescing only replaces the same row, so without the drop a shorter new version would leave the longer old version's extra rows
+   * queued and sent after it. Saved with one write.
+   */
+  async replace(userId: string, matches: (op: Operation) => boolean, ops: readonly Operation[]): Promise<void> {
+    await this.load();
+    const snapshot = this.queue.slice();
+    try {
+      this.drop(userId, matches);
+      for (const op of ops) this.place(userId, op);
+    } catch (error) {
+      this.queue = snapshot;
+      throw error;
+    }
     await this.save();
+  }
+
+  /** `replace` with nothing queued afterwards. Returns how many were dropped. */
+  async purge(userId: string, matches: (op: Operation) => boolean): Promise<number> {
+    await this.load();
+    const dropped = this.drop(userId, matches);
+    if (dropped) await this.save();
+    return dropped;
   }
 
   /**

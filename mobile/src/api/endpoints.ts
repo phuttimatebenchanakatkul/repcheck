@@ -19,6 +19,40 @@ export interface DeletionSchedule {
   grace_days: number;
 }
 
+/** A food the person created: per-serving macros (calories are always derived by the server from the macros). */
+export interface CustomFood {
+  id: number;
+  name: string;
+  emoji: string;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  barcode: string | null;
+  servingLabel: string;
+  servingGrams: number;
+  servings: { label: string; grams: number }[];
+}
+
+export interface NewCustomFood {
+  name: string;
+  emoji?: string;
+  protein: number;
+  fat: number;
+  carbs: number;
+  barcode?: string;
+  servingLabel?: string;
+  servingGrams?: number;
+  servings?: { label: string; grams: number }[];
+}
+
+export interface CustomExercise {
+  id: number;
+  name: string;
+  emoji: string | null;
+  mode: 'both' | 'each' | 'either';
+}
+
 /** What the server said about an imported account's old password. */
 export type LegacyLogin = 'migrated' | 'mismatch' | 'reset-required' | 'rate-limited' | 'unavailable';
 
@@ -58,6 +92,35 @@ export function endpoints(api: Api) {
     async ensureProfile(name?: string): Promise<{ profile: Profile; created: boolean }> {
       const body = await api.post('/api/profile', name === undefined ? {} : { name });
       return { profile: body.profile as Profile, created: body.created === true };
+    },
+
+    async listCustomFoods(): Promise<CustomFood[]> {
+      return ((await api.get('/api/custom-foods')).foods ?? []) as CustomFood[];
+    },
+
+    async createCustomFood(food: NewCustomFood): Promise<CustomFood> {
+      return (await api.post('/api/custom-foods', food)).food as CustomFood;
+    },
+
+    async deleteCustomFood(id: number): Promise<void> {
+      await api.del(`/api/custom-foods/${id}`);
+    },
+
+    async listCustomExercises(): Promise<CustomExercise[]> {
+      return ((await api.get('/api/custom-exercises')).exercises ?? []) as CustomExercise[];
+    },
+
+    async createCustomExercise(exercise: { name: string; emoji?: string; mode?: CustomExercise['mode'] }): Promise<CustomExercise> {
+      return (await api.post('/api/custom-exercises', exercise)).exercise as CustomExercise;
+    },
+
+    async deleteCustomExercise(id: number): Promise<void> {
+      await api.del(`/api/custom-exercises/${id}`);
+    },
+
+    /** Days this account did something only the server records (challenges, check-in photos, ...), for the streak. */
+    async activityDates(tzOffsetMinutes: number): Promise<Record<string, string[]>> {
+      return ((await api.get('/api/activity/dates', { tz_offset_minutes: tzOffsetMinutes })).dates ?? {}) as Record<string, string[]>;
     },
 
     async rename(name: string): Promise<void> {

@@ -65,6 +65,15 @@ when they are stale), and `src/supabase/database.types.ts` from the live schema 
 refuses a secret one, and `tests/test_mobile_app.py` fails if secret key material or a non-`EXPO_PUBLIC_` variable gets
 into the source.
 
+The app's data layer (`mobile/src/data/`) has rules a change can break without any test noticing at first glance. Reads are
+the server's rows PLUS this device's waiting writes, applied in queue order by `overlay.ts`; every action patches the query
+cache with the same overlay function, so add a new kind of data by adding its mapper, its op, its overlay, its fetcher and its
+hook together. A row is always written whole. Replacing a group of rows (a workout's sets) goes through `Outbox.replace`, never
+through several `enqueue`s. Screen tests build the whole layer in memory with `src/testing/dataHarness.tsx` (a fake Supabase
+that does NOT enforce row-level security, so seed another person's rows to prove the app's own `user_id` filter). The food and
+exercise libraries are GENERATED: `python scripts/export_libraries.py` (`--check` fails when stale). Query clients in tests need
+`gcTime: Infinity` or Jest never exits.
+
 `tests/test_supabase_storage.py` is its twin for the two private Storage buckets
 (same keys, same skip rule). Its refusals are proved by effect, not status code, and
 a test that attacks a real bucket must restore it in a `finally`: under a loosened

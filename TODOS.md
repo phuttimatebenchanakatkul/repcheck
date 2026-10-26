@@ -1200,6 +1200,52 @@ review).
 **Priority:** P4
 **Depends on:** None
 
+## Native app, Phase 3 leftovers
+
+### AI food photo scan and barcode scan
+
+**What:** The native camera flows for Nutrition: photograph a meal for an estimate (`POST /api/analyze-food`), scan a barcode (`/api/scan-barcode`, `/api/lookup-barcode`), and the online food search.
+
+**Why:** Part of Phase 3 in `MOBILE_APP_PLAN.md`; the API side is finished and tested, the screens are not built.
+
+**Context:** Needs `expo-camera`; follow the website's flow (amount confirmation, `source: "scan"` so the entry shows under recent scans). The AI-consent refusal (`needs_ai_consent`) must lead to the consent screen.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** Nothing
+
+### "Plan my split" wizard
+
+**What:** Creating and editing the split plan in the app (the website's wizard). The app shows today's plan and logs from it; it cannot create one.
+
+**Why:** A person who only uses the app has no way to get a plan.
+
+**Context:** `workouts.wizard.*` strings already exist in the exported translations. The plan is one `split_plans` row (`splitPlanUpsert` exists); a plan edit should also `markActivity` for the streak, as on the website.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** Nothing
+
+### Weight history, streak calendar, managing custom foods and exercises
+
+**What:** The weight history page (`weight.*` strings), the streak calendar (`streaks.*`), deleting custom foods and exercises (the API and data layer have it, no screen does), swipe-to-delete, exercise videos and photos, per-hour "+" logging.
+
+**Why:** The website has them; the first cut of the app does not.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Nothing
+
+### The streak looks back 400 days
+
+**What:** `STREAK_WINDOW_DAYS` bounds the days the streak reads (so a long history is not paged on every open). A run longer than that shows as the window's length, and "longest streak" is the longest inside it.
+
+**Why:** Keeps Home fast. Revisit if anyone has a streak that long.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** Nothing
+
 ## Completed
 
 ### The food log demo's two sheets have no dialog role or focus trap
