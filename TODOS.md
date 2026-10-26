@@ -1202,18 +1202,6 @@ review).
 
 ## Native app, Phase 3 leftovers
 
-### "Plan my split" wizard
-
-**What:** Creating and editing the split plan in the app (the website's wizard). The app shows today's plan and logs from it; it cannot create one.
-
-**Why:** A person who only uses the app has no way to get a plan.
-
-**Context:** `workouts.wizard.*` strings already exist in the exported translations. The plan is one `split_plans` row (`splitPlanUpsert` exists); a plan edit should also `markActivity` for the streak, as on the website.
-
-**Effort:** M
-**Priority:** P1
-**Depends on:** Nothing
-
 ### Weight history, streak calendar, managing custom foods and exercises
 
 **What:** The weight history page (`weight.*` strings), the streak calendar (`streaks.*`), deleting custom foods and exercises (the API and data layer have it, no screen does), swipe-to-delete, exercise videos and photos, per-hour "+" logging.

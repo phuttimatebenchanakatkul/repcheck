@@ -99,5 +99,8 @@
   "app.scan.addToLog": "เพิ่มลงบันทึก",
   "app.scan.createFromBarcode": "สร้างอาหารนี้เอง",
   "app.scan.barcodeLabel": "บาร์โค้ด {code}",
-  "app.scan.failed": "สแกนไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง"
+  "app.scan.failed": "สแกนไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง",
+  "app.plan.whatsOnThisDay": "วันนี้ทำอะไร",
+  "app.plan.loggedToday": "{name} บันทึกวันนี้แล้ว",
+  "app.plan.selected": "ที่เลือกไว้ ({n})"
 }

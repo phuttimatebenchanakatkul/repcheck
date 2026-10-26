@@ -2,6 +2,27 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.25.0.0] - 2026-10-26
+
+### Added
+
+The native app can now plan your training week. Nothing in the website or the current App Store
+app changes.
+
+- **Plan my split.** Let the AI build it (where you train, your goal, how many days a week) or
+  build it yourself: name your days, or start from Push / Pull / Legs, Upper / Lower, Full Body or
+  a bro split, then tick the exercises for each day. Building it yourself uses no AI.
+- **Look it over before you keep it.** Choose which day falls on which weekday (or Rest), add and
+  remove exercises, and set the sets and reps for each one, with the standard shown and a reset.
+- **Edit later.** The saved plan opens on today. Changes save as you make them, offline too, and
+  "Edit split" starts the wizard over.
+- **Today's plan** now logs an exercise for today with one tap and shows a tick once it is logged.
+- **AI consent** is asked before the first plan is built, in the website's words.
+- **Proven:** 1082 app tests, then 241 deliberate breakages of the planner (every survivor
+  killed by a new test or a change that has no observable effect). Tests found two real faults on the
+  way: tapping Allow on the consent question asked it again instead of building the plan, and a
+  ticked exercise was hidden inside a collapsed category. Not yet run on a phone.
+
 ## [0.24.0.0] - 2026-10-26
 
 ### Added

@@ -10,6 +10,7 @@ import { newId } from '@/logic/ids';
 import { macroLine } from '@/logic/macros';
 import { scanAmountIn, scanBaseGrams, scanEntry, scanGrams, scanTotals, type ScanResult, type ScanUnit } from '@/logic/scan';
 import type { NutritionEntry } from '@/logic/types';
+import { AiConsent } from '@/ui/AiConsent';
 import { Button, Card, ErrorText, Text } from '@/ui/components';
 import { success } from '@/ui/haptics';
 import { choosePhoto, takePhoto, type PhotoResult } from '@/ui/photos';
@@ -243,18 +244,7 @@ function ScanBody({ mode, day, onAdd, onCreateFood }: { mode: 'meal' | 'barcode'
     case 'scanning':
       return <BarcodeCamera onScanned={(code) => void lookUp(code)} />;
     case 'consent':
-      return (
-        <View style={{ gap: space.md }}>
-          <Text variant="title">{t('aiConsent.title')}</Text>
-          <Text variant="body">{t('aiConsent.body')}</Text>
-          <Text variant="body">• {t('aiConsent.item1')}</Text>
-          <Text variant="caption" secondary>
-            {t('aiConsent.fine')}
-          </Text>
-          <Button title={t('aiConsent.allow')} onPress={() => void allow(stage.image)} />
-          <Button tone="plain" title={t('aiConsent.decline')} onPress={again} />
-        </View>
-      );
+      return <AiConsent onAllow={() => void allow(stage.image)} onDecline={again} />;
     case 'working':
       return (
         <View style={{ alignItems: 'center', gap: space.md, paddingVertical: space.xl }}>

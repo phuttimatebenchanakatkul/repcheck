@@ -6,7 +6,7 @@ import { useTranslation } from '@/i18n';
 import { toIsoDate } from '@/logic/dates';
 import { dayTitle } from '@/logic/dayTitle';
 import { newId } from '@/logic/ids';
-import type { CustomExerciseMode, WorkoutEntry } from '@/logic/types';
+import type { CustomExerciseMode, SplitPlan, WorkoutEntry } from '@/logic/types';
 import { localeFor } from '@/logic/units';
 import { newWorkoutEntry, todaysSplit, type CustomExerciseMeta } from '@/logic/workouts';
 import { Button, Card, ErrorText, Screen, Text } from '@/ui/components';
@@ -17,6 +17,7 @@ import { space } from '@/ui/tokens';
 
 import { CustomExerciseSheet, ExercisePicker, emojiForExercise } from './ExercisePicker';
 import { PlanCard } from './PlanCard';
+import { PlanSheet } from './plan/PlanSheet';
 import { WorkoutCard } from './WorkoutCard';
 
 /**
@@ -31,9 +32,11 @@ export default function WorkoutsScreen() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState<{ name: string } | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const entries = useWorkoutDay(day);
+  const todays = useWorkoutDay(today);
   const recent = useWorkoutRecent();
   const favorites = useExerciseFavorites();
   const plan = useSplitPlan();
@@ -61,11 +64,11 @@ export default function WorkoutsScreen() {
   };
 
   /** `extraCustom`: an exercise made a moment ago, which the cached list does not hold yet but whose mode the new entry must follow. */
-  const addExercise = async (name: string, extraCustom: CustomExerciseMeta = {}) => {
-    const entry = newWorkoutEntry(name, { id: newId(), day, now: new Date(), custom: { ...custom, ...extraCustom } });
-    if (await run(() => actions.saveWorkout(day, entry))) {
+  const addExercise = async (name: string, extraCustom: CustomExerciseMeta = {}, onDay: string = day) => {
+    const entry = newWorkoutEntry(name, { id: newId(), day: onDay, now: new Date(), custom: { ...custom, ...extraCustom } });
+    if (await run(() => actions.saveWorkout(onDay, entry))) {
       success();
-      setExpanded(entry.id);
+      if (onDay === day) setExpanded(entry.id);
       setPicking(false);
       setCreating(null);
     }
@@ -76,10 +79,22 @@ export default function WorkoutsScreen() {
     await addExercise(created.name, { [created.name]: { mode: created.mode } });
   };
 
+  /** Building or changing a split is using the app, so the day counts toward the streak (the website marks it in the same place). */
+  const savePlan = async (next: SplitPlan) => {
+    await actions.saveSplitPlan(next);
+    await actions.markActivity(today, 'split_plan');
+  };
+
   return (
     <Screen>
       <OfflineBanner />
-      <PlanCard plan={plan.data} today={today} onAdd={(name) => void addExercise(name)} />
+      <PlanCard
+        plan={plan.data}
+        today={today}
+        loggedToday={new Set(todays.data.map((entry) => entry.exercise))}
+        onAdd={(name) => void addExercise(name, {}, today)}
+        onOpen={() => setPlanOpen(true)}
+      />
       <DateStrip selected={day} today={today} loggedDays={loggedDays} loggedLabel={(date) => t('app.workouts.dayLogged', { day: date })} onSelect={setDay} />
 
       <View style={{ gap: space.xs }}>
@@ -149,6 +164,7 @@ export default function WorkoutsScreen() {
         onCreate={(name) => setCreating({ name: name ?? '' })}
         onClose={() => setPicking(false)}
       />
+      <PlanSheet visible={planOpen} saved={plan.data} onSave={savePlan} onClose={() => setPlanOpen(false)} />
       <CustomExerciseSheet
         visible={creating !== null}
         initialName={creating?.name ?? ''}

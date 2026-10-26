@@ -114,12 +114,12 @@ export function Chip({ label, onPress, selected, style }: { label: string; onPre
 }
 
 /** A pressable row that reads as one control to a screen reader. */
-export function Row({ children, onPress, label, style }: { children: ReactNode; onPress?: () => void; label?: string; style?: StyleProp<ViewStyle> }) {
+export function Row({ children, onPress, label, selected, style }: { children: ReactNode; onPress?: () => void; label?: string; selected?: boolean; style?: StyleProp<ViewStyle> }) {
   const { colors } = useTheme();
   const base: ViewStyle = { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56, padding: space.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border };
   if (!onPress) return <View style={[base, style]}>{children}</View>;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [base, { opacity: pressed ? 0.8 : 1 }, style]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? undefined : { selected }} onPress={onPress} style={({ pressed }) => [base, { opacity: pressed ? 0.8 : 1 }, style]}>
       {children}
     </Pressable>
   );

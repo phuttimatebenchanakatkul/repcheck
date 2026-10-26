@@ -12,6 +12,7 @@ import type { CustomExercise, CustomFood, NewCustomFood } from '../api/endpoints
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { Operation, Outbox } from '../store/outbox';
 import { addDays, toIsoDate } from '../logic/dates';
+import type { CoachingProfile } from '../logic/splitPlan';
 import { keys } from './keys';
 import {
   nutritionRowToEntry,
@@ -181,6 +182,16 @@ export function createData(deps: DataDeps) {
 
   async function settingsRow(): Promise<Row<'user_settings'> | null> {
     return oneOf<Row<'user_settings'>>(await table('user_settings').maybeSingle());
+  }
+
+  /** What the coach knows about the person, for tailoring a plan. Optional by design: no profile, or any trouble reading it, is just no tailoring. */
+  async function coachingProfile(): Promise<CoachingProfile> {
+    try {
+      const row = oneOf<Row<'coaching_profiles'>>(await table('coaching_profiles').maybeSingle());
+      return row ? { gender: row.gender, goal_weight_kg: row.goal_weight_kg, current_weight_kg: row.weight_kg } : {};
+    } catch {
+      return {};
+    }
   }
 
   async function dayStatuses(from: string, to: string): Promise<DayStatuses> {
@@ -375,7 +386,7 @@ export function createData(deps: DataDeps) {
     userId,
     fetch: {
       nutritionDay, nutritionRecent, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
-      weights, settingsRow, dayStatuses, activeDays,
+      weights, settingsRow, dayStatuses, activeDays, coachingProfile,
       customFoods: () => api.listCustomFoods(),
       customExercises: () => api.listCustomExercises(),
     },
