@@ -315,6 +315,17 @@ A person is a UUID now, so every id in a request or response is one. Deliberate 
   `/admin/export-db` is gone: Supabase keeps the backups and `pg_dump` is the export. The Supabase dashboard remains the
   fallback for anything these do not cover.
 
+**The old password (done in v0.22.0.0).** `POST /api/auth/legacy-login {email, password}` is the one unauthenticated door onto a
+password check; the app calls it once, only after Supabase says the credentials are wrong. If the password matches the old
+scrypt hash in `legacy_password_hashes`, Supabase's password is set to it through the Auth admin API and the app signs in
+normally; the database trigger then drops the old hash (so a leaked old password can never be put back, which a test proves
+against the real project). Because it is a password oracle, every non-success is the SAME 401 (unknown address, no old hash,
+wrong password) and a scrypt hash is computed in all three so the time does not say which; tries are counted per address
+(10 / 15 min, the website's login limit) and per caller (30 / 15 min) BEFORE any hashing, atomically, and a success gives the
+address's tries back. A password the project refuses (too short or leaked) is a 409 `reset_required`: the app offers a reset link.
+**The email is not confirmed by this** (the importer left it unconfirmed because the old site never verified an address): the
+next step is the confirmation email, which the app can resend. That settles the plan's open decision the recommended way.
+
 **Security shape.** Flask connects as the `postgres` owner, which bypasses RLS: every query in `api/` must scope itself
 to the caller by hand, and the tests prove it route by route (an action on one account never touches another).
 Algorithms are restricted to the asymmetric ones, and a service-role token, an anonymous session, a wrong audience or
@@ -341,7 +352,7 @@ Flask. (Switching sign-ups off in the dashboard is still sensible until the app 
 ## Phase 2 status: the app foundations (`mobile/`)
 
 **What is in, and how it is checked.** Everything below is covered by `cd mobile && npm run check` (strict TypeScript, lint,
-217 Jest tests), by `tests/test_mobile_app.py`, and by 116 deliberate breakages of the app's logic (all noticed by a test except
+267 Jest tests), by `tests/test_mobile_app.py`, and by 161 deliberate breakages of the app's logic (all noticed by a test except
 two that change nothing observable). `npx expo export --platform ios` compiles the whole app to a Hermes bundle.
 
 | Piece | Where | Notes |
@@ -357,6 +368,7 @@ two that change nothing observable). `npx expo export --platform ios` compiles t
 | API client | `src/api/` | Typed; bearer token on every call, one forced refresh on a 401, timeouts, server messages surfaced, `Retry-After` and the AI-consent refusal recognised |
 | DB types | `src/supabase/database.types.ts` | Generated from the live schema, only for tables the app may read |
 | Offline | `src/store/` | React Query cache persisted for a day (wiped on sign-out); a write queue for direct Supabase writes: idempotent operations only, order kept, a newer write replaces a waiting one, a refusal is set aside rather than blocking the rest, backoff for the rest, nothing of anyone's survives sign-out |
+| Old passwords, reset, resend | `src/auth/legacy.ts`, `src/app/reset-password.tsx` | Sign-in tries Supabase, then asks the server about the OLD hash once; "Forgot password?"; a recovery link holds the person on a new-password step (`recovering` state) before they enter the app; "Resend confirmation email" when an address is unconfirmed |
 | Translations | `src/i18n/` | The website's 913 strings exported from `static/i18n.js` (same keys, same `{vars}`, same fallback rules) plus the app's own `app.*` strings in English and Thai (**the Thai is mine and wants a native read**) |
 
 **Bugs the checks found while it was written:** a session rewrite that failed partway could leave the old manifest pointing at a
@@ -373,9 +385,10 @@ being sent and been lost; the SDK re-announcing `SIGNED_IN` on returning to the 
   `repcheck://auth-callback` in Supabase's redirect URLs, and has not met a real Google account.
 - **Email confirmation** must stay ON in Supabase and needs custom SMTP before launch (see "Passwords").
 - **EAS**: no `eas.json` yet; `npx eas-cli init` needs your Expo account.
-- **Not built yet, and needed before launch:** the legacy-password migration route (see "Passwords": the app tries Supabase, and
-  for an imported account falls back to a Flask route that checks the old scrypt hash), a "resend confirmation email" action, and
-  password reset.
+- **Added in v0.22.0.0 (same caveat: nothing has run on a device):** the legacy-password fallback, "resend confirmation email",
+  and password reset by email. A reset link needs `repcheck://reset-password` (and, in development, the `exp://...` address Expo
+  Go shows) in Supabase's allowed redirect URLs and the **Site URL** set to a page that tells the reader to go back to the app;
+  it only works on the phone that asked for it (the one-time code is tied to a secret kept there).
 
 ## Deploying `api/` (Render)
 

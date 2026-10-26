@@ -1,12 +1,16 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Pressable, Text as RNText, View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthProvider';
-import { signInWithEmail, signUpWithEmail, type AuthResult } from '@/auth/actions';
+import { requestPasswordReset, resendConfirmation, signUpWithEmail, type AuthResult } from '@/auth/actions';
+import { getApi } from '@/api';
 import { appleSignInAvailable, signInWithApple } from '@/auth/apple';
 import { GOOGLE_ENABLED, signInWithGoogle } from '@/auth/google';
+import { signInWithMigration } from '@/auth/legacy';
 import { useTranslation, type TranslationKey } from '@/i18n';
 import { getSupabase } from '@/supabase/client';
 import { Button, ErrorText, Field, Screen, Text } from '@/ui/components';
@@ -16,6 +20,7 @@ import { space, type } from '@/ui/tokens';
 /** The public policy pages: they open for someone with no account yet, which is the point of showing them here. */
 const TERMS_URL = 'https://repcheck-q0m4.onrender.com/terms';
 const PRIVACY_URL = 'https://repcheck-q0m4.onrender.com/privacy';
+const MIN_PASSWORD = 8; // the website's rule
 
 export default function SignIn() {
   const { t } = useTranslation();
@@ -28,6 +33,8 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** What the last failure lets the person do next, besides trying again. */
+  const [next, setNext] = useState<'resend' | 'reset' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const signingUp = mode === 'sign-up';
 
@@ -38,6 +45,7 @@ export default function SignIn() {
   function describe(result: AuthResult): void {
     if (result.ok) return; // the auth listener moves the app on
     if (result.reason === 'cancelled') return;
+    setNext(result.reason === 'email-not-confirmed' ? 'resend' : result.reason === 'reset-required' ? 'reset' : null);
     if (result.reason === 'confirm-email') {
       setNotice(t('app.auth.confirmEmail'));
       setMode('log-in');
@@ -50,6 +58,7 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     setNotice(null);
+    setNext(null);
     try {
       describe(await work());
     } finally {
@@ -60,7 +69,22 @@ export default function SignIn() {
   function submit() {
     if (!email.trim() || !password) return setError(t('app.auth.error.missing'));
     if (signingUp && !name.trim()) return setError(t('app.auth.error.missingName'));
-    void run(() => (signingUp ? signUpWithEmail(getSupabase(), email, password, name) : signInWithEmail(getSupabase(), email, password)));
+    if (signingUp && password.length < MIN_PASSWORD) return setError(t('app.auth.error.tooShort')); // the website's rule
+    void run(() => (signingUp ? signUpWithEmail(getSupabase(), email, password, name) : signInWithMigration(getSupabase(), getApi(), email, password)));
+  }
+
+  /** The follow-up the last failure offered: another confirmation email, or a reset link. */
+  async function followUp() {
+    setBusy(true);
+    const result = next === 'resend' ? await resendConfirmation(getSupabase(), email) : await requestPasswordReset(getSupabase(), email, Linking.createURL('reset-password'));
+    setBusy(false);
+    if (result.ok) {
+      setError(null);
+      setNext(null);
+      setNotice(next === 'resend' ? t('app.auth.resent') : t('app.reset.sent'));
+    } else {
+      setError(t(`app.auth.error.${result.reason}` as TranslationKey));
+    }
   }
 
   function apple() {
@@ -113,7 +137,10 @@ export default function SignIn() {
 
       {notice && <Text variant="body">{notice}</Text>}
       <ErrorText>{error}</ErrorText>
+      {next && <Button tone="plain" disabled={busy} title={next === 'resend' ? t('app.auth.resend') : t('app.auth.sendReset')} onPress={() => void followUp()} />}
       <Button title={busy ? t('app.auth.working') : signingUp ? t('app.auth.signUp') : t('app.auth.logIn')} loading={busy} onPress={submit} />
+
+      {!signingUp && <Button tone="plain" title={t('app.auth.forgot')} onPress={() => router.push('/reset-password')} />}
 
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: space.xs, alignItems: 'center' }}>
         <Text variant="body" secondary>

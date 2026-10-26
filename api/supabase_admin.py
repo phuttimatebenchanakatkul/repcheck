@@ -27,6 +27,10 @@ class Refused(SupabaseError):
     """The bucket's size or type rule refused the file. The caller's input is wrong, not the service."""
 
 
+class WeakPassword(SupabaseError):
+    """The project's password policy refused the password (too short, or one that has leaked). The person's input, not the service."""
+
+
 class _Client:
     timeout = 30
 
@@ -63,6 +67,16 @@ class AuthAdmin(_Client):
     def __init__(self, settings, **kw):
         super().__init__(settings, "/auth/v1/admin/users",
                          {"apikey": settings.service_key, "Content-Type": "application/json"}, **kw)
+
+    def set_password(self, uid, password):
+        """Set an existing user's password. Their email confirmation is NOT touched. Raises WeakPassword when the project's policy
+        refuses it, SupabaseError for anything else."""
+        response = self._call("put", f"{self.base}/{uid}", json={"password": password})
+        if response.status_code == 200:
+            return
+        if response.status_code == 422 and _body(response).get("error_code") == "weak_password":
+            raise WeakPassword("the password does not meet the project's policy")
+        raise SupabaseError(f"setting a password answered {response.status_code}")
 
     def delete_user(self, uid):
         """Delete the Auth user (which cascades to the profile and everything it owns). True if it is gone,

@@ -5,7 +5,7 @@ test_api_accounts.py and by tests/test_supabase_storage.py, which talks to the s
 import pytest
 
 from api.settings import Settings
-from api.supabase_admin import AuthAdmin, Refused, Storage, SupabaseError
+from api.supabase_admin import AuthAdmin, Refused, Storage, SupabaseError, WeakPassword
 
 SETTINGS = Settings(supabase_url="https://abc.supabase.co", service_key="the-secret", db_url="postgresql://x")
 
@@ -39,6 +39,9 @@ class Session:
 
     def delete(self, url, **kw):
         return self._do("delete", url, **kw)
+
+    def put(self, url, **kw):
+        return self._do("put", url, **kw)
 
 
 @pytest.fixture
@@ -185,3 +188,43 @@ def test_deleting_an_auth_user_treats_gone_as_done_and_anything_odd_as_an_error(
     admin.session.default = Response(403, {})
     with pytest.raises(SupabaseError, match="403"):
         admin.delete_user("uid")
+
+
+# -- setting a password ----------------------------------------------------------------------------------
+
+UID = "11111111-2222-3333-4444-555555555555"
+
+
+def test_set_password_puts_only_the_password_to_that_user_with_the_service_key(admin):
+    admin.set_password(UID, "new-password-1")
+    (verb, url, kw), = admin.session.calls
+    assert (verb, url) == ("put", f"https://abc.supabase.co/auth/v1/admin/users/{UID}")
+    assert kw["json"] == {"password": "new-password-1"}, "nothing else about the user (not their email confirmation) is touched"
+    assert kw["headers"]["apikey"] == "the-secret"
+
+
+def test_a_password_the_policy_refuses_is_a_weak_password_error_and_is_not_retried(admin):
+    admin.session.default = Response(422, {"error_code": "weak_password", "msg": "Password should be at least 6 characters."})
+    with pytest.raises(WeakPassword):
+        admin.set_password(UID, "abc")
+    assert len(admin.session.calls) == 1
+
+
+def test_a_weak_password_is_still_a_supabase_error_for_callers_that_do_not_care_which():
+    assert issubclass(WeakPassword, SupabaseError)
+
+
+def test_any_other_refusal_is_a_plain_supabase_error_that_names_neither_the_password_nor_the_key(admin):
+    for status, body in ((422, {"error_code": "something_else"}), (404, {}), (403, {"error_code": "weak_password"}), (400, None)):
+        admin.session.calls.clear()
+        admin.session.default = Response(status, body)
+        with pytest.raises(SupabaseError) as exc:
+            admin.set_password(UID, "very-secret-pw")
+        assert not isinstance(exc.value, WeakPassword)
+        assert "very-secret-pw" not in str(exc.value) and "the-secret" not in str(exc.value)
+
+
+def test_a_5xx_while_setting_a_password_is_retried_and_then_succeeds(admin):
+    admin.session.queue = [Response(503), Response(200, {})]
+    admin.set_password(UID, "new-password-1")
+    assert len(admin.session.calls) == 2 and admin.slept == [1]

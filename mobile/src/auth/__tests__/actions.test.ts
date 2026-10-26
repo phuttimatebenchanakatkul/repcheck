@@ -1,6 +1,6 @@
 import type { Supabase } from '@/supabase/client';
 
-import { reasonFor, signInWithAppleToken, signInWithEmail, signOut, signUpWithEmail } from '../actions';
+import { exchangeRecoveryCode, reasonFor, requestPasswordReset, resendConfirmation, signInWithAppleToken, signInWithEmail, signOut, signUpWithEmail, updatePassword } from '../actions';
 import { parseAuthCallback } from '../google';
 
 type Auth = Record<string, jest.Mock>;
@@ -14,6 +14,12 @@ describe('reasonFor', () => {
     [{ code: 'over_request_rate_limit', status: 429 }, 'rate-limited'],
     [{ code: 'over_email_send_rate_limit' }, 'rate-limited'],
     [{ code: 'weak_password', status: 422 }, 'weak-password'],
+    [{ code: 'same_password', status: 422 }, 'weak-password'],
+    [{ code: 'otp_expired', status: 403 }, 'link-invalid'],
+    [{ code: 'flow_state_expired', status: 400 }, 'link-invalid'],
+    [{ code: 'flow_state_not_found', status: 404 }, 'link-invalid'],
+    [{ code: 'bad_code_verifier', status: 400 }, 'link-invalid'],
+    [{ name: 'AuthPKCECodeVerifierMissingError', status: 400 }, 'link-invalid'],
     [{ status: 429 }, 'rate-limited'],
     [{ status: 0 }, 'unavailable'],
     [{}, 'unavailable'],
@@ -104,5 +110,45 @@ describe('parseAuthCallback (Google)', () => {
 
   it('never takes tokens from the URL: only a code is accepted', () => {
     expect(parseAuthCallback('repcheck://auth-callback#access_token=a&refresh_token=b')).toBeNull();
+  });
+});
+
+describe('password reset and confirmation', () => {
+  it('requestPasswordReset trims the address and says where the link must come back to', async () => {
+    const resetPasswordForEmail = jest.fn(async () => ({ error: null }));
+    expect(await requestPasswordReset(client({ resetPasswordForEmail }), ' a@b.co ', 'repcheck://reset-password')).toEqual({ ok: true });
+    expect(resetPasswordForEmail).toHaveBeenCalledWith('a@b.co', { redirectTo: 'repcheck://reset-password' });
+  });
+
+  it('requestPasswordReset reports a rate limit, and nothing else about the address', async () => {
+    const limited = jest.fn(async () => ({ error: { code: 'over_email_send_rate_limit', status: 429 } }));
+    expect(await requestPasswordReset(client({ resetPasswordForEmail: limited }), 'a@b.co', 'x')).toEqual({ ok: false, reason: 'rate-limited' });
+  });
+
+  it('resendConfirmation asks for another sign-up email for the trimmed address', async () => {
+    const resend = jest.fn(async () => ({ error: null }));
+    expect(await resendConfirmation(client({ resend }), ' a@b.co ')).toEqual({ ok: true });
+    expect(resend).toHaveBeenCalledWith({ type: 'signup', email: 'a@b.co' });
+  });
+
+  it('resendConfirmation reports the failure', async () => {
+    const resend = jest.fn(async () => ({ error: { code: 'over_email_send_rate_limit', status: 429 } }));
+    expect(await resendConfirmation(client({ resend }), 'a@b.co')).toEqual({ ok: false, reason: 'rate-limited' });
+  });
+
+  it('exchangeRecoveryCode swaps the code and reports a dead link as such', async () => {
+    const exchangeCodeForSession = jest.fn(async () => ({ error: null }));
+    expect(await exchangeRecoveryCode(client({ exchangeCodeForSession }), 'abc')).toEqual({ ok: true });
+    expect(exchangeCodeForSession).toHaveBeenCalledWith('abc');
+    const dead = jest.fn(async () => ({ error: { code: 'flow_state_expired', status: 400 } }));
+    expect(await exchangeRecoveryCode(client({ exchangeCodeForSession: dead }), 'abc')).toEqual({ ok: false, reason: 'link-invalid' });
+  });
+
+  it('updatePassword sets exactly the password, untouched, and reports a refusal', async () => {
+    const updateUser = jest.fn(async () => ({ error: null }));
+    expect(await updatePassword(client({ updateUser }), ' new pw ')).toEqual({ ok: true });
+    expect(updateUser).toHaveBeenCalledWith({ password: ' new pw ' });
+    const weak = jest.fn(async () => ({ error: { code: 'weak_password', status: 422 } }));
+    expect(await updatePassword(client({ updateUser: weak }), 'x')).toEqual({ ok: false, reason: 'weak-password' });
   });
 });

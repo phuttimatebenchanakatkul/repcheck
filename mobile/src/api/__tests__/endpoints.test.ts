@@ -14,6 +14,23 @@ function fakeApi(handlers: Partial<Record<'get' | 'post' | 'del', (...args: any[
 }
 
 describe('endpoints', () => {
+  it('legacyLogin posts the credentials and maps every answer the server gives', async () => {
+    const post = jest.fn(async () => ({ ok: true }));
+    expect(await endpoints(fakeApi({ post })).legacyLogin('a@b.co', 'pw')).toBe('migrated');
+    expect(post).toHaveBeenCalledWith('/api/auth/legacy-login', { email: 'a@b.co', password: 'pw' });
+    const failing = (error: ApiError) => endpoints(fakeApi({ post: async () => { throw error; } })).legacyLogin('a@b.co', 'pw');
+    expect(await failing(new ApiError('no', 401))).toBe('mismatch');
+    expect(await failing(new ApiError('reset', 409, { reset_required: true }))).toBe('reset-required');
+    expect(await failing(new ApiError('slow', 429, {}, 60))).toBe('rate-limited');
+    expect(await failing(new ApiError('offline', 0))).toBe('unavailable');
+  });
+
+  it('legacyLogin does not mistake an unrelated 409 or a server error for an answer', async () => {
+    const failing = (error: ApiError) => endpoints(fakeApi({ post: async () => { throw error; } })).legacyLogin('a@b.co', 'pw');
+    await expect(failing(new ApiError('conflict', 409))).rejects.toMatchObject({ status: 409 });
+    await expect(failing(new ApiError('boom', 500))).rejects.toMatchObject({ status: 500 });
+  });
+
   it('health is true only for ok:true', async () => {
     expect(await endpoints(fakeApi({ get: async () => ({ ok: true }) })).health()).toBe(true);
     expect(await endpoints(fakeApi({ get: async () => ({}) })).health()).toBe(false);

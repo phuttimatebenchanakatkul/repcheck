@@ -19,8 +19,29 @@ export interface DeletionSchedule {
   grace_days: number;
 }
 
+/** What the server said about an imported account's old password. */
+export type LegacyLogin = 'migrated' | 'mismatch' | 'reset-required' | 'rate-limited' | 'unavailable';
+
 export function endpoints(api: Api) {
   return {
+    /**
+     * Asks the server to check an email + password against the OLD website's hash (for an imported account). Needs no session.
+     * 'migrated' means the password now works with Supabase, so the caller signs in again.
+     */
+    async legacyLogin(email: string, password: string): Promise<LegacyLogin> {
+      try {
+        await api.post('/api/auth/legacy-login', { email, password });
+        return 'migrated';
+      } catch (error) {
+        const e = error as { status?: number; body?: { reset_required?: unknown } };
+        if (e.status === 409 && e.body?.reset_required === true) return 'reset-required';
+        if (e.status === 401) return 'mismatch';
+        if (e.status === 429) return 'rate-limited';
+        if (e.status === 0) return 'unavailable';
+        throw error;
+      }
+    },
+
     health: async (): Promise<boolean> => (await api.get('/api/health')).ok === true,
 
     /** The caller's profile, or null if they have none yet (a first sign-in). */
