@@ -54,6 +54,17 @@ to the caller by hand, and a live test must scope any purge or sweep to the ids 
 (`purge_due(..., only=[...])`) so it can never touch a real account that happens to be due. The analyze tests hand the app a
 fake grader (`create_app(analyzer=...)`), so they call neither Gemini nor ffmpeg; a real run is a manual smoke test.
 
+`mobile/` is the native app (Expo SDK 58 / React Native / TypeScript, expo-router), NOT the website: the website
+never imports it and neither Docker image ships it (`.dockerignore`). It has its own checks, run from `mobile/`:
+`npm run check` (tsc --noEmit, `expo lint`, Jest). A third suite, then, beside the two above. `npm install` first. Never
+use `npm add`: `npx expo install <pkg>` picks the version that matches the SDK. Jest's React Native Testing Library is
+v14, where `render`, `fireEvent` and `act` are ASYNC (`await` them). Keep test files OUT of `src/app/` (every file there
+is a route). `src/i18n/en.json` and `th.json` are GENERATED from `static/i18n.js` (`npm run i18n:export`; a Jest test fails
+when they are stale), and `src/supabase/database.types.ts` from the live schema (`python scripts/gen_supabase_types.py`;
+`tests/test_mobile_app.py` fails when stale). The app is only ever given the PUBLISHABLE Supabase key: `src/config.ts`
+refuses a secret one, and `tests/test_mobile_app.py` fails if secret key material or a non-`EXPO_PUBLIC_` variable gets
+into the source.
+
 `tests/test_supabase_storage.py` is its twin for the two private Storage buckets
 (same keys, same skip rule). Its refusals are proved by effect, not status code, and
 a test that attacks a real bucket must restore it in a `finally`: under a loosened

@@ -338,6 +338,45 @@ Flask. (Switching sign-ups off in the dashboard is still sensible until the app 
 | Waitlist (the marketing form posts to Flask), the owner's endpoints (moderation queue, waitlist, signups) | **Done** (v0.20.0.0) |
 | Deploy as its own Render service (`Dockerfile.api`, the `SUPABASE_*` variables) | **Prepared** (v0.20.1.0): the image and the click-through are below; creating the service is yours |
 
+## Phase 2 status: the app foundations (`mobile/`)
+
+**What is in, and how it is checked.** Everything below is covered by `cd mobile && npm run check` (strict TypeScript, lint,
+217 Jest tests), by `tests/test_mobile_app.py`, and by 116 deliberate breakages of the app's logic (all noticed by a test except
+two that change nothing observable). `npx expo export --platform ios` compiles the whole app to a Hermes bundle.
+
+| Piece | Where | Notes |
+|---|---|---|
+| Expo SDK 58 app, expo-router, typed routes | `mobile/` | Bundle id `com.benchanakatkul.repcheck`, Universal, version `1.0.0` (above the store's `0.12.10`); the website's icon |
+| Design tokens | `src/ui/tokens.ts` | DESIGN.md's palette, radii, scale. System font (SF Pro / the system Thai face): what a native app uses. A red ink and a button fill were ADDED so error text and the primary button clear 4.5:1; a test computes every ratio |
+| Native tab shell | `src/app/(tabs)/` | `NativeTabs` (a real UITabBar), five tabs with SF Symbols, labels follow the language; each screen is a placeholder until its phase |
+| Sign-in, sign-up | `src/app/(auth)/sign-in.tsx`, `src/auth/` | Email + password and native Sign in with Apple. The website's consent notice, word for word (a test pins it), with the Terms/Privacy links in an in-app browser |
+| The gate | `src/app/_layout.tsx` | `Stack.Protected`: signed-out, setting-up, and signed-in are three separate sets of screens, so a stale link cannot reach a tab without a session |
+| First sign-in | `src/auth/profile.ts` | Creates the profile through `POST /api/profile` (the only thing that makes one), using the name typed at sign-up or shared by Apple, falling back to the provider's; an email account with no usable name is asked for one |
+| Session storage | `src/supabase/secureStorage.ts` | The Supabase session in the iOS Keychain, chunked (a session exceeds SecureStore's 2 KB), read all-or-nothing |
+| Supabase client | `src/supabase/client.ts` | PKCE flow, auto-refresh paused in the background |
+| API client | `src/api/` | Typed; bearer token on every call, one forced refresh on a 401, timeouts, server messages surfaced, `Retry-After` and the AI-consent refusal recognised |
+| DB types | `src/supabase/database.types.ts` | Generated from the live schema, only for tables the app may read |
+| Offline | `src/store/` | React Query cache persisted for a day (wiped on sign-out); a write queue for direct Supabase writes: idempotent operations only, order kept, a newer write replaces a waiting one, a refusal is set aside rather than blocking the rest, backoff for the rest, nothing of anyone's survives sign-out |
+| Translations | `src/i18n/` | The website's 913 strings exported from `static/i18n.js` (same keys, same `{vars}`, same fallback rules) plus the app's own `app.*` strings in English and Thai (**the Thai is mine and wants a native read**) |
+
+**Bugs the checks found while it was written:** a session rewrite that failed partway could leave the old manifest pointing at a
+mixed set of pieces (a corrupt session); a newer write queued while its row was on the wire would have replaced the entry
+being sent and been lost; the SDK re-announcing `SIGNED_IN` on returning to the foreground would have restarted setup.
+
+**Not verified, and why (needs you or a device):**
+
+- **Nothing has run on a phone yet.** There is no Mac, no Expo account linked and no device in this session. The first real
+  check is `npx expo start` and opening it in Expo Go on your iPhone, then an iPad.
+- **Sign in with Apple** needs the Apple Developer App ID with the capability, a Services ID, and the Apple provider enabled in the
+  Supabase dashboard (and a build that includes the capability; Expo Go cannot do it, a development build can).
+- **Google sign-in is written but OFF** (`EXPO_PUBLIC_GOOGLE_SIGN_IN=1` turns it on): it needs the Google provider and
+  `repcheck://auth-callback` in Supabase's redirect URLs, and has not met a real Google account.
+- **Email confirmation** must stay ON in Supabase and needs custom SMTP before launch (see "Passwords").
+- **EAS**: no `eas.json` yet; `npx eas-cli init` needs your Expo account.
+- **Not built yet, and needed before launch:** the legacy-password migration route (see "Passwords": the app tries Supabase, and
+  for an imported account falls back to a Flask route that checks the old scrypt hash), a "resend confirmation email" action, and
+  password reset.
+
 ## Deploying `api/` (Render)
 
 `Dockerfile.api` is the API's own image (the website's is `Dockerfile`, untouched). It installs `requirements-api.txt`,
