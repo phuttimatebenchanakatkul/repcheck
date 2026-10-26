@@ -1202,18 +1202,6 @@ review).
 
 ## Native app, Phase 3 leftovers
 
-### AI food photo scan and barcode scan
-
-**What:** The native camera flows for Nutrition: photograph a meal for an estimate (`POST /api/analyze-food`), scan a barcode (`/api/scan-barcode`, `/api/lookup-barcode`), and the online food search.
-
-**Why:** Part of Phase 3 in `MOBILE_APP_PLAN.md`; the API side is finished and tested, the screens are not built.
-
-**Context:** Needs `expo-camera`; follow the website's flow (amount confirmation, `source: "scan"` so the entry shows under recent scans). The AI-consent refusal (`needs_ai_consent`) must lead to the consent screen.
-
-**Effort:** M
-**Priority:** P1
-**Depends on:** Nothing
-
 ### "Plan my split" wizard
 
 **What:** Creating and editing the split plan in the app (the website's wizard). The app shows today's plan and logs from it; it cannot create one.

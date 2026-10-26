@@ -18,6 +18,7 @@ import { AddFoodSheet } from './AddFoodSheet';
 import { DateStrip } from '@/ui/DateStrip';
 import { EntryCard } from './EntryCard';
 import { CustomFoodSheet, GoalsSheet, QuickAddSheet } from './forms';
+import { ScanSheet } from './ScanSheet';
 import { TotalsCard } from './TotalsCard';
 
 type Adding = { mode: 'entry' } | { mode: 'ingredient'; target: NutritionEntry };
@@ -36,6 +37,9 @@ export default function NutritionScreen() {
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
+  const [scanning, setScanning] = useState<'meal' | 'barcode' | null>(null);
+  /** Set when a scanned barcode matched nothing and the person is making that food themselves. */
+  const [barcode, setBarcode] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   /** Bumped when an ingredient is added from outside the card, so the open card is rebuilt from the saved dish instead of its draft. */
   const [rev, setRev] = useState(0);
@@ -72,6 +76,7 @@ export default function NutritionScreen() {
       setExpanded(entry.id);
       setAdding(null);
       setQuickOpen(false);
+      setScanning(null);
     }
   };
 
@@ -87,6 +92,7 @@ export default function NutritionScreen() {
   const createFood = async (food: NewCustomFood) => {
     await actions.createCustomFood(food); // the sheet shows the server's reason if it refuses
     setCustomOpen(false);
+    setBarcode(undefined);
   };
 
   return (
@@ -165,11 +171,33 @@ export default function NutritionScreen() {
         onClose={() => setAdding(null)}
         onAdd={(entry) => void addEntry(entry)}
         onAddIngredient={(name) => adding?.mode === 'ingredient' && void addIngredientTo(adding.target, name)}
-        onCreateFood={() => setCustomOpen(true)}
-        onQuickAdd={() => setQuickOpen(true)}
+        onCreateFood={() => {
+          setAdding(null); // one sheet at a time: stacked modals are fragile on iOS
+          setCustomOpen(true);
+        }}
+        onQuickAdd={() => {
+          setAdding(null);
+          setQuickOpen(true);
+        }}
+        onScan={(mode) => {
+          setAdding(null);
+          setScanning(mode);
+        }}
+      />
+      <ScanSheet
+        visible={scanning !== null}
+        mode={scanning ?? 'meal'}
+        day={day}
+        onAdd={(entry) => void addEntry(entry)}
+        onCreateFood={(code) => {
+          setScanning(null);
+          setBarcode(code);
+          setCustomOpen(true);
+        }}
+        onClose={() => setScanning(null)}
       />
       <QuickAddSheet visible={quickOpen} day={day} onAdd={(entry) => void addEntry(entry)} onClose={() => setQuickOpen(false)} />
-      <CustomFoodSheet visible={customOpen} onCreate={createFood} onClose={() => setCustomOpen(false)} />
+      <CustomFoodSheet visible={customOpen} barcode={barcode} onCreate={createFood} onClose={() => { setCustomOpen(false); setBarcode(undefined); }} />
       <GoalsSheet
         visible={goalsOpen}
         goals={goals.data}

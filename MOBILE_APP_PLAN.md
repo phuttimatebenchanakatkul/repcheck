@@ -425,7 +425,14 @@ breakages of the new logic, data layer and screens (in two passes; each survivor
 - `daysBetween` went through local clock arithmetic and could be off by a day across a daylight-saving change; it now counts calendar days in UTC.
 - The digit-before-the-match rule of the food search score (`7up` for `up`) was untested against the website.
 
-**Not built yet in Phase 3 (each is its own next slice):** the AI photo scan and the barcode scan (the native camera); the "Plan my
+**Added in v0.24.0.0: the food scans.** "Scan a meal" (take or choose a photo, AI estimate) and "Scan barcode" (live camera) in the log
+sheet. A photo asks for AI consent first (the website's wording) and sends nothing until allowed; a server refusal for missing consent asks
+again. The result screen is the website's: editable name, confidence, the AI-estimate note or the data source's required credit, macros that
+follow the amount, serving sizes, amount in servings / g / oz. It logs a dish of the scan's ingredients marked `source: "scan"`. A barcode
+nobody knows leads to making the food yourself with that barcode. Camera and photo permission texts are in `app.json`. `expo-camera` and
+`expo-image-picker` were added with `expo install`.
+
+**Not built yet in Phase 3 (each is its own next slice):** the "Plan my
 split" wizard (the plan is shown and logged from, but not yet created or edited in the app); the weight history and streak
 calendar pages; managing (deleting) custom foods and exercises; swipe-to-delete; exercise videos and photos; per-hour "+" logging.
 

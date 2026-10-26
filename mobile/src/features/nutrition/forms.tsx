@@ -134,7 +134,7 @@ export function QuickAddSheet({ visible, day, hour, onAdd, onClose }: { visible:
 
 // -- a food of their own ---------------------------------------------------------------------------------------------------------------
 
-function CustomFoodForm({ onCreate }: { onCreate: (food: NewCustomFood) => Promise<void> }) {
+function CustomFoodForm({ barcode, onCreate }: { barcode?: string; onCreate: (food: NewCustomFood) => Promise<void> }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [serving, setServing] = useState('');
@@ -156,6 +156,7 @@ function CustomFoodForm({ onCreate }: { onCreate: (food: NewCustomFood) => Promi
         ...macros,
         servingLabel: serving.trim() || undefined,
         servingGrams: parseMacro(servingGrams) || undefined,
+        barcode,
       });
     } catch (e) {
       // The server's own message is the useful one (a barcode already saved, the ceiling reached); anything else is generic.
@@ -167,6 +168,11 @@ function CustomFoodForm({ onCreate }: { onCreate: (food: NewCustomFood) => Promi
 
   return (
     <View style={{ gap: space.md }}>
+      {barcode ? (
+        <Text variant="body" secondary>
+          {t('app.scan.barcodeLabel', { code: barcode })}
+        </Text>
+      ) : null}
       <Field label={t('app.nutrition.custom.name')} value={name} onChangeText={setName} autoCapitalize="sentences" />
       <Field label={t('app.nutrition.custom.serving')} value={serving} onChangeText={setServing} placeholder={t('app.nutrition.custom.servingHint')} />
       <Field label={t('app.nutrition.custom.servingGrams')} value={servingGrams} onChangeText={setServingGrams} {...numberField} />
@@ -185,11 +191,11 @@ function CustomFoodForm({ onCreate }: { onCreate: (food: NewCustomFood) => Promi
   );
 }
 
-export function CustomFoodSheet({ visible, onCreate, onClose }: { visible: boolean; onCreate: (food: NewCustomFood) => Promise<void>; onClose: () => void }) {
+export function CustomFoodSheet({ visible, barcode, onCreate, onClose }: { visible: boolean; /** Make the food for this scanned barcode. */ barcode?: string; onCreate: (food: NewCustomFood) => Promise<void>; onClose: () => void }) {
   const { t } = useTranslation();
   return (
     <Sheet visible={visible} title={t('nutrition.custom.create')} closeLabel={t('common.close')} onClose={onClose}>
-      <CustomFoodForm onCreate={onCreate} />
+      <CustomFoodForm barcode={barcode} onCreate={onCreate} />
     </Sheet>
   );
 }
