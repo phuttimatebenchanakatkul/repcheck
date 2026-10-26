@@ -550,3 +550,18 @@ describe('survivors 2: the documented numbers', () => {
     expect(PAGE_SIZE).toBe(1000);
   });
 });
+
+describe('the coaching profile for planning', () => {
+  it('is the few fields a plan is tailored with', async () => {
+    const { db, data } = setup();
+    db.seed('coaching_profiles', [{ user_id: OTHER, gender: 'male', weight_kg: 1, goal_weight_kg: 1 }, { user_id: U, gender: 'female', weight_kg: 66, goal_weight_kg: 60, height_cm: 170 }]);
+    expect(await data.fetch.coachingProfile()).toEqual({ gender: 'female', goal_weight_kg: 60, current_weight_kg: 66 });
+  });
+
+  it('no profile, or trouble reading it, is no tailoring rather than an error', async () => {
+    const { db, data } = setup();
+    expect(await data.fetch.coachingProfile()).toEqual({});
+    db.failWhen = () => ({ status: 500, message: 'boom' });
+    expect(await data.fetch.coachingProfile()).toEqual({});
+  });
+});

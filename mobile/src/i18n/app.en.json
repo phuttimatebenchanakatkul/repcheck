@@ -99,5 +99,8 @@
   "app.scan.addToLog": "Add to log",
   "app.scan.createFromBarcode": "Create this food yourself",
   "app.scan.barcodeLabel": "Barcode {code}",
-  "app.scan.failed": "Couldn't scan that. Check your connection and try again."
+  "app.scan.failed": "Couldn't scan that. Check your connection and try again.",
+  "app.plan.whatsOnThisDay": "What's on this day?",
+  "app.plan.loggedToday": "{name}, already logged today",
+  "app.plan.selected": "Selected ({n})"
 }

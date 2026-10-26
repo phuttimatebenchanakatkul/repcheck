@@ -432,8 +432,15 @@ follow the amount, serving sizes, amount in servings / g / oz. It logs a dish of
 nobody knows leads to making the food yourself with that barcode. Camera and photo permission texts are in `app.json`. `expo-camera` and
 `expo-image-picker` were added with `expo install`.
 
-**Not built yet in Phase 3 (each is its own next slice):** the "Plan my
-split" wizard (the plan is shown and logged from, but not yet created or edited in the app); the weight history and streak
+**Added in v0.25.0.0: "Plan my split".** The wizard, in the app. *Let AI build it*: where you train, your goal (optional), how many days;
+the server builds the plan (`POST /api/generate-split`, after AI consent). *Build it myself*: a template or your own day names, and the
+exercises you tick for each day (browsed by category, your own first, create one on the spot); no AI is involved. The built plan is reviewed
+and edited: what falls on each weekday (any of its days, or Rest), exercises added or removed, and each exercise's sets and reps (held to
+20 and 50, with the standard shown and a reset). A saved plan opens on today's weekday and saves edits as they are made; "Edit split"
+starts the wizard over. Saving marks the day for the streak, as the website does. Today's plan card quick-logs an exercise for TODAY and
+shows a tick once it is logged.
+
+**Not built yet in Phase 3 (each is its own next slice):** the weight history and streak
 calendar pages; managing (deleting) custom foods and exercises; swipe-to-delete; exercise videos and photos; per-hour "+" logging.
 
 **Not verified, and why:** nothing has run on a phone yet (see Phase 2). The screens are checked by Jest with the real data layer
