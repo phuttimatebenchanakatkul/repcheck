@@ -371,3 +371,19 @@ export function coachingRowFromData(userId: string, data: CoachingData, base: Ro
     extra: base?.extra ?? {},
   };
 }
+
+/**
+ * The coaching row after a weekly check-in: the same row with the check-in's day, and, when the server changed the targets, why and by how
+ * much; a goal reached and acted on is marked handled so it does not make the next check-in due early again.
+ */
+export function coachingRowAfterCheckin(
+  base: Row<'coaching_profiles'>,
+  checkin: { today: string; nowIso: string; adjustment: { reason: string; delta: number } | null; goalHandled: boolean },
+): NewRow<'coaching_profiles'> {
+  return {
+    ...base,
+    last_adjustment_on: checkin.today,
+    ...(checkin.adjustment ? { last_adjustment_reason: checkin.adjustment.reason, last_adjustment_delta: checkin.adjustment.delta, last_adjustment_at: checkin.nowIso } : {}),
+    ...(checkin.goalHandled ? { goal_handled_weight_kg: base.goal_weight_kg, goal_handled_aspiration: base.aspiration, goal_achieved_weight_kg: null, goal_achieved_aspiration: null } : {}),
+  };
+}

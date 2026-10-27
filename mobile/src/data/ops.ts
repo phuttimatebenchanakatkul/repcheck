@@ -11,6 +11,7 @@ import type { CoachingData } from '../logic/coachingProfile';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import {
   analysisTurnToRow,
+  coachingRowAfterCheckin,
   coachingRowFromData,
   workoutTurnToRow,
   coachTurnToRow,
@@ -124,4 +125,9 @@ export const workoutChatClear = (userId: string, day: string): Operation => ({
 /** Saving the coaching profile: one row per person, written whole. */
 export const coachingProfileSave = (userId: string, data: CoachingData, base: Row<'coaching_profiles'> | null | undefined, weeklyDistribution: Json | null): Operation => ({
   kind: 'upsert', table: 'coaching_profiles', key: 'user_id', row: coachingRowFromData(userId, data, base, weeklyDistribution) as Record<string, unknown>,
+});
+
+/** Saving a finished weekly check-in onto the coaching row. */
+export const coachingCheckinSave = (userId: string, base: Row<'coaching_profiles'>, checkin: Parameters<typeof coachingRowAfterCheckin>[1]): Operation => ({
+  kind: 'upsert', table: 'coaching_profiles', key: 'user_id', row: { ...coachingRowAfterCheckin(base, checkin), user_id: userId } as Record<string, unknown>,
 });
