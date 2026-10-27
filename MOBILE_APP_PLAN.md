@@ -463,7 +463,8 @@ Thai `app.*` strings added here are mine and want a native read.
 
 ## Phase 4 status: Analyze and the AI coach (`mobile/`)
 
-Phase 4 ships in slices. **4a, the Analyze tab, is v0.28.0.0.** The three chats, the Report button and the Coach tab are next.
+Phase 4 ships in slices. **4a, the Analyze tab, is v0.28.0.0; 4b-1, the Coach tab, is v0.29.0.0.** The analysis chat and the workout
+chat (both reuse 4b-1's chat view, session hook and reply footer) are next.
 
 **Added in v0.28.0.0: Analyze.** Choose an exercise (the last one analyzed is already chosen; the picker offers recent, favourites and a
 starter set, and searches the library and your own exercises), film a set or choose a clip, send it, read the result. The result is the
@@ -495,6 +496,25 @@ Decisions made here, so they are not re-opened:
   full brightness; the app simply never dims.
 - **The status lines stay on the last one.** The website cycles the seven lines round and round; grading can take minutes, and
   "Loading video..." returning after "Drafting your form report..." reads as a restart.
+
+**Added in v0.29.0.0: the Coach tab (4b-1), and the parts every chat shares.** Ask about training; one conversation per day (yesterday's
+is gone when the day turns, as on the website), kept on the device and on the server in `coach_messages`, emptied with *New chat*. Every
+answer carries its sources (at most three, plain https links, opened in the in-app browser), a link to every source, the "AI-generated,
+not medical advice" line, and the Report button (four reasons, then the reply's own text to `/api/ai-report`): each of these closed an App
+Review rejection (1.4.1, 4.7.1) and `tests/test_mobile_app.py` pins them. The consent question comes before the first message leaves the
+phone, and now names chat messages. Over the daily limit, the notice and a countdown replace the text box until the wait is over.
+
+The shared pieces: `logic/chat.ts` (reply and citation parsing, the website's `formatBubble` rules, the countdown, history), `api/chat.ts`
+(the three chat routes and the report), `features/chat/` (`ChatView`, `useChatSession`, `SourcesFooter`), and a coach-thread slice of the
+data layer (mapper, ops, overlay, fetch, hook, actions, tested like every other table; the fake database now numbers `seq` itself).
+
+Deliberate differences from the website's chat:
+- **A question is saved WITH its answer.** The website saved the question first and also sent it twice (inside `history` and as `message`,
+  so the model saw it twice). Here `history` is what came before and a question that fails (no signal, an error, the daily limit, no consent
+  yet) goes back into the text box instead of staying in the thread unanswered.
+- **A notice is not a reply.** Errors and the limit notice are shown, never saved, never sent back as history, and carry no AI footer; the
+  website saved them as turns and put the Report button under the limit notice.
+- **Streak.** An answered question marks the day (`activity_days`, action `coach_chat`), offline-safe like every other write.
 
 **Not verified, and why:** nothing has run on a phone. The camera, the picker's export, `expo-video` playback and a real 60-second
 upload over mobile data need Expo Go on an iPhone. `npx expo export --platform ios` compiles it; Jest covers the logic and the screens

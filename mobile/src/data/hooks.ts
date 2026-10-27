@@ -10,6 +10,7 @@ import { createContext, useContext, useMemo } from 'react';
 
 import type { CustomExercise, CustomFood } from '../api/endpoints';
 import { activeDaySet, currentStreak, longestStreak } from '../logic/streak';
+import type { ChatTurn } from '../logic/chat';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { QueuedOperation } from '../store/outbox';
 import type { Data, RecentNutrition, RecentWorkout } from './access';
@@ -19,6 +20,7 @@ import { goalsFromRow, settingsFromRow, splitPlanFromRow, type AppSettings, type
 import {
   latestRow,
   overlayDayStatuses,
+  overlayCoachThread,
   overlayNames,
   overlayNutritionDay,
   overlayNutritionRange,
@@ -220,4 +222,17 @@ export function useCustomExercises(): Loaded<CustomExercise[]> {
   const { data } = useDataContext();
   const query = useQuery({ queryKey: keys.customExercises(data.userId), queryFn: () => data.fetch.customExercises() });
   return status(query, query.data ?? []);
+}
+
+/** The coach's thread for one day: the server's turns with this device's waiting turns (and a waiting clear) applied. */
+export function useCoachThread(day: string): Loaded<ChatTurn[]> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.coachThread(data.userId, day), queryFn: () => data.fetch.coachThread(day) });
+  const turns = useMemo(() => {
+    const ops = waiting(queue, data.userId, 'coach_messages');
+    // A waiting turn belongs to the day it was made on; only today's are laid over today's thread.
+    const own = ops.filter((op) => op.kind === 'delete' || op.row.msg_date === day);
+    return overlayCoachThread(query.data ?? [], own);
+  }, [query.data, queue, data.userId, day]);
+  return status(query, turns);
 }

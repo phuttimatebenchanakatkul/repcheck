@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.29.0.0] - 2026-10-27
+
+### Added
+
+The Coach tab in the native app. Nothing in the website or the current App Store app changes.
+
+- **Ask the coach.** Muscle, fat loss, recovery, form. One conversation a day, kept when you close the app, cleared with *New chat*.
+- **Every answer shows where it came from.** Up to three sources you can open, a link to all of them, a line saying it is AI-generated
+  general fitness information and not medical advice, and a *Report this reply* button with four reasons.
+- **Ask first.** Before your first message is sent you are asked to allow AI features; the question now also names chat messages.
+- **Daily limit.** When the day's messages are used up you see how long until they reset, and your unsent question stays in the box.
+- **Proven:** 1508 app tests, then 152 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change that has no observable effect). Not yet run on a phone; the keyboard behaviour and the new Thai strings need a
+  look on a device.
+
 ## [0.28.0.0] - 2026-10-27
 
 ### Added

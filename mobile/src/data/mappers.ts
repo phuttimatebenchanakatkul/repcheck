@@ -9,6 +9,7 @@
  */
 import type { Database, Json } from '@/supabase/database.types';
 
+import { cleanSources, type ChatTurn } from '../logic/chat';
 import { normaliseGoals, isFoodUnit, num } from '../logic/macros';
 import type { Goals, Ingredient, NutritionEntry, SplitPlan, WorkoutEntry, WorkoutSet } from '../logic/types';
 import { resolveUnits, type UnitPrefs } from '../logic/units';
@@ -248,5 +249,31 @@ export function splitPlanToRow(userId: string, plan: SplitPlan, extra: Json = {}
     schedule: plan.schedule,
     exercise_prescriptions: plan.exercisePrescriptions as Json,
     extra,
+  };
+}
+
+// -- the coach's thread ------------------------------------------------------------------------------------------------------------
+
+/** One saved coach turn. The table calls the AI's side "coach" (what the website and the importer wrote); the app calls it "assistant". */
+export function coachTurnFromRow(row: Row<'coach_messages'>): ChatTurn {
+  return {
+    id: row.client_id,
+    role: row.role === 'user' ? 'user' : 'assistant',
+    text: row.body,
+    sources: Array.isArray(row.sources) ? cleanSources(row.sources) : null,
+    date: row.msg_date ?? '',
+  };
+}
+
+/** The whole row. `seq` is the database's own ordering (generated always), so it is never written. */
+export function coachTurnToRow(userId: string, turn: ChatTurn): NewRow<'coach_messages'> {
+  return {
+    user_id: userId,
+    client_id: turn.id,
+    role: turn.role === 'user' ? 'user' : 'coach',
+    body: turn.text,
+    msg_date: turn.date,
+    sources: turn.sources === null ? null : (turn.sources as unknown as Json),
+    extra: {},
   };
 }

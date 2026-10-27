@@ -6,8 +6,10 @@ import type { Operation } from '../store/outbox';
 
 import type { Json } from '@/supabase/database.types';
 
+import type { ChatTurn } from '../logic/chat';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import {
+  coachTurnToRow,
   goalsToRow,
   nutritionEntryToRow,
   settingsToRow,
@@ -88,4 +90,14 @@ export const dayStatus = (userId: string, day: string, status: 'fasting' | 'inco
 /** Records a client-side action as a streak day (the ones with no dated record of their own: coach chat, a split plan edit, ...). */
 export const activityMark = (userId: string, day: string, action: string): Operation => ({
   kind: 'upsert', table: 'activity_days', key: 'user_id,log_date,action', row: { user_id: userId, log_date: day, action },
+});
+
+/** Saving one coach turn: an upsert on (user, client id), so a retried send is the same send. */
+export const coachTurnSave = (userId: string, turn: ChatTurn): Operation => ({
+  kind: 'upsert', table: 'coach_messages', key: 'user_id,client_id', row: coachTurnToRow(userId, turn) as Record<string, unknown>,
+});
+
+/** Clearing the coach's thread removes every one of the person's turns (the website's "clear" empties the whole thread). */
+export const coachClear = (userId: string): Operation => ({
+  kind: 'delete', table: 'coach_messages', key: 'user_id', match: { user_id: userId },
 });

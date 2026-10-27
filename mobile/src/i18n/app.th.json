@@ -132,5 +132,8 @@
   "app.analyze.historyFailed": "โหลดการวิเคราะห์ของคุณไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองใหม่",
   "app.analyze.openAnalysis": "{exercise}, {when}, คะแนน {score}",
   "app.analyze.offlineClip": "เชื่อมต่ออินเทอร์เน็ตเพื่อดูคลิปของคุณ",
-  "app.analyze.noRecent": "ยังไม่มีการวิเคราะห์"
+  "app.analyze.noRecent": "ยังไม่มีการวิเคราะห์",
+  "app.chat.send": "ส่ง",
+  "app.chat.thinking": "กำลังคิด…",
+  "app.chat.sourceOpen": "เปิดแหล่งอ้างอิง: {title}"
 }

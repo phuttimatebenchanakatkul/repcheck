@@ -1,6 +1,6 @@
 import { Platform, View } from 'react-native';
 
-import { parseRichText } from '@/logic/richText';
+import { parseRichText, type Block } from '@/logic/richText';
 import { Text } from '@/ui/components';
 import { space } from '@/ui/tokens';
 
@@ -8,7 +8,11 @@ const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
 /** The server's small report HTML (paragraphs, bullets, bold, italic, code) drawn as native text. Nothing in it can be tapped or loaded. */
 export function RichText({ html }: { html: string | null | undefined }) {
-  const blocks = parseRichText(html);
+  return <RichBlocks blocks={parseRichText(html)} />;
+}
+
+/** Paragraphs and bullets that are already parsed (the chats parse their own plain text into the same shape). */
+export function RichBlocks({ blocks }: { blocks: readonly Block[] }) {
   if (blocks.length === 0) return null;
   return (
     <View style={{ gap: space.xs }}>

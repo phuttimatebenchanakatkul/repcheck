@@ -132,5 +132,8 @@
   "app.analyze.historyFailed": "Couldn't load your analyses. Check your connection and try again.",
   "app.analyze.openAnalysis": "{exercise}, {when}, score {score}",
   "app.analyze.offlineClip": "Connect to the internet to watch your clip.",
-  "app.analyze.noRecent": "No analyses yet."
+  "app.analyze.noRecent": "No analyses yet.",
+  "app.chat.send": "Send",
+  "app.chat.thinking": "Thinking…",
+  "app.chat.sourceOpen": "Open source: {title}"
 }

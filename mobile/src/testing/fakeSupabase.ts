@@ -22,6 +22,9 @@ function compare(a: unknown, b: unknown): number {
   return (a as number | string) < (b as number | string) ? -1 : 1;
 }
 
+/** Tables whose `seq` column the database numbers itself (generated always). */
+const GENERATED_SEQ = new Set(['coach_messages', 'workout_chat_messages', 'analyze_chat_messages']);
+
 export class FakeDatabase {
   private tables = new Map<string, Row[]>();
   /** Every read and write that reached the "server", in order: `read:table`, `upsert:table`, `delete:table`. */
@@ -71,7 +74,12 @@ export class FakeDatabase {
         const rows = this.raw(table);
         const at = rows.findIndex((existing) => columns.every((c) => existing[c] === row[c]));
         if (at >= 0) rows[at] = { ...rows[at], ...clone(row) };
-        else rows.push(clone(row));
+        else {
+          const fresh = clone(row);
+          // `seq` is generated always on the chat tables: the database numbers a new row, a client cannot choose it.
+          if (GENERATED_SEQ.has(table)) fresh.seq = rows.reduce((top, existing) => Math.max(top, Number(existing.seq) || 0), 0) + 1;
+          rows.push(fresh);
+        }
         return { data: null, error: null, status: 201 };
       },
       delete: () => ({
