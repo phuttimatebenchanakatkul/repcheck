@@ -8,6 +8,7 @@ import { DataProvider } from '@/data/DataProvider';
 import { useTranslation } from '@/i18n';
 import { restoreLanguage } from '@/i18n/storage';
 import { CACHE_MAX_AGE_MS, persister, queryClient } from '@/store';
+import { RemindersScheduler } from '@/features/settings/RemindersScheduler';
 import { SettingsApplier } from '@/features/settings/SettingsApplier';
 import { SyncManager } from '@/store/SyncManager';
 import { useTheme } from '@/ui/theme';
@@ -34,6 +35,7 @@ function Gate() {
   return (
     <>
     {status === 'ready' ? <SettingsApplier /> : null}
+    {status === 'ready' ? <RemindersScheduler /> : null}
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={status === 'signed-out'}>
         <Stack.Screen name="(auth)" />

@@ -644,6 +644,23 @@ website also raised a browser notification for the same thing; that is a push no
 Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
 field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.
 
+## Phase 6 status: native features (`mobile/`)
+
+**6a, reminders, is v0.40.0.0.** Local notifications (`expo-notifications`), not push: nothing is sent from a server and no device token is
+kept, so there is nothing new for the privacy policy to say and no APNs key to hold. *Settings > Reminders* turns them on (which is when iOS
+asks for permission) and off; the choice is about this phone, kept on it, and off until chosen. When on, two reminders are kept waiting, each
+for its next occasion only, and replaced whenever the person's data changes, the language changes or the app returns to the front:
+
+- **Away:** 6 pm on the day the third quiet day (no weight, no food) begins; if the person is already away, the next 6 pm, once, not every
+  day (coming back moves it out of the way). This is the website's browser notification (`coaching.notify.body`), which could only fire while a
+  tab was open.
+- **Check-in due:** 9 am on the day the weekly check-in falls due (seven days after the last). One already due is not reminded of: the cards on
+  Home and Nutrition say so.
+
+Both need a coaching profile. Signing out cancels them. Not done in Phase 6 yet, and why: real push (needs the APNs key and an Expo or
+Apple account, plus a Flask sender), Apple Health (a native module: needs an EAS development build to try) and the home-screen widget
+(Swift via `expo-apple-targets`, built by EAS) are all things that cannot be tried here, and follow once there is a device to run them on.
+
 ## Deploying `api/` (Render)
 
 `Dockerfile.api` is the API's own image (the website's is `Dockerfile`, untouched). It installs `requirements-api.txt`,

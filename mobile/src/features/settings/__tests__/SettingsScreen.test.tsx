@@ -1,9 +1,12 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { Alert, Appearance } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { getLanguage, setLanguage } from '@/i18n';
+import { remindersAreOn, resetReminderPref } from '@/store/remindersPref';
 import { USER, dataHarness } from '@/testing/dataHarness';
 
 import SettingsScreen from '../SettingsScreen';
@@ -45,8 +48,10 @@ const choose = async (name: string) => {
   await fireEvent.press(await screen.findByRole('radio', { name }));
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
+  resetReminderPref();
+  await AsyncStorage.clear();
   setLanguage('en');
   mockAuth.state = signedIn();
   mockApi.rename.mockResolvedValue(undefined);
@@ -411,5 +416,86 @@ describe('blocked accounts', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work. Try again.");
     await press('Try again');
     expect(await screen.findByTestId('blocked-u-2')).toBeOnTheScreen();
+  });
+});
+
+describe('reminders', () => {
+  const notifications = Notifications as unknown as { getPermissionsAsync: jest.Mock; requestPermissionsAsync: jest.Mock };
+
+  beforeEach(() => {
+    notifications.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true });
+    notifications.requestPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+  });
+
+  it('are off until turned on, and say what they are', async () => {
+    await open();
+    expect(screen.getByTestId('reminders-state')).toHaveTextContent('Off');
+    expect(screen.getByText(/A notification when your weekly check-in is due/)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Turn on reminders' })).toBeOnTheScreen();
+  });
+
+  it('turning them on asks permission, then they are on and kept for next time', async () => {
+    await open();
+    await press('Turn on reminders');
+    await waitFor(() => expect(screen.getByTestId('reminders-state')).toHaveTextContent('On'));
+    expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(remindersAreOn()).toBe(true);
+    expect(await AsyncStorage.getItem('repcheck_reminders')).toBe('on');
+    expect(screen.getByRole('button', { name: 'Turn off reminders' })).toBeOnTheScreen();
+  });
+
+  it('already allowed: no question, they are simply on', async () => {
+    notifications.getPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    await open();
+    await press('Turn on reminders');
+    await waitFor(() => expect(screen.getByTestId('reminders-state')).toHaveTextContent('On'));
+    expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('if the phone says no, they stay off and the person is told how to change that', async () => {
+    notifications.requestPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: false });
+    await open();
+    await press('Turn on reminders');
+    expect(await screen.findByText("Notifications are off for RepCheck. Turn them on in your phone's Settings to get reminders.")).toBeOnTheScreen();
+    expect(screen.getByTestId('reminders-state')).toHaveTextContent('Off');
+    expect(remindersAreOn()).toBe(false);
+    expect(await AsyncStorage.getItem('repcheck_reminders')).toBeNull();
+  });
+
+  it('refused for good before: says so without asking again', async () => {
+    notifications.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: false });
+    await open();
+    await press('Turn on reminders');
+    expect(await screen.findByText(/Notifications are off for RepCheck/)).toBeOnTheScreen();
+    expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('trying again after a no clears the message when it works', async () => {
+    notifications.requestPermissionsAsync.mockResolvedValueOnce({ granted: false, canAskAgain: true }).mockResolvedValueOnce({ granted: true, canAskAgain: true });
+    await open();
+    await press('Turn on reminders');
+    await screen.findByText(/Notifications are off for RepCheck/);
+    await press('Turn on reminders');
+    await waitFor(() => expect(screen.queryByText(/Notifications are off for RepCheck/)).toBeNull());
+    expect(screen.getByTestId('reminders-state')).toHaveTextContent('On');
+  });
+
+  it('the button is busy while the phone is being asked', async () => {
+    let answer: (value: { granted: boolean; canAskAgain: boolean }) => void = () => undefined;
+    notifications.requestPermissionsAsync.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await open();
+    await press('Turn on reminders');
+    expect(screen.getByRole('button', { busy: true }).props.accessibilityState).toMatchObject({ busy: true, disabled: true });
+    await act(async () => answer({ granted: true, canAskAgain: true }));
+    await waitFor(() => expect(screen.queryByRole('button', { busy: true })).toBeNull());
+  });
+
+  it('turning them off is one tap and kept', async () => {
+    await open();
+    await press('Turn on reminders');
+    await press('Turn off reminders');
+    await waitFor(() => expect(screen.getByTestId('reminders-state')).toHaveTextContent('Off'));
+    expect(remindersAreOn()).toBe(false);
+    expect(await AsyncStorage.getItem('repcheck_reminders')).toBe('off');
   });
 });

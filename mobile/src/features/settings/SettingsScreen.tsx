@@ -13,8 +13,10 @@ import { chooseLanguage } from '@/i18n/storage';
 import { ACCOUNT_GRACE_DAYS, colorSchemeOverride, formatDueDate, providerName } from '@/logic/account';
 import { localeFor, type UnitPrefs } from '@/logic/units';
 import { AI_PRIVACY_URL, LEGAL_LINKS, WEBSITE_URL } from '@/links';
+import { chooseReminders, useRemindersOn } from '@/store/remindersPref';
 import { getSupabase } from '@/supabase/client';
 import { Button, Card, ErrorText, Screen, Text } from '@/ui/components';
+import { askPermission } from '@/ui/reminders';
 import { OfflineBanner } from '@/ui/OfflineBanner';
 import { useTheme } from '@/ui/theme';
 import { radius, space } from '@/ui/tokens';
@@ -169,6 +171,43 @@ function PreferencesSections() {
         <ErrorText>{error}</ErrorText>
       </Section>
     </>
+  );
+}
+
+/** Reminders from this phone (the weekly check-in is due; a few days without logging). Off until turned on, which is when iOS asks for permission. */
+function RemindersSection() {
+  const { t } = useTranslation();
+  const { colors } = useTheme();
+  const on = useRemindersOn();
+  const [busy, setBusy] = useState(false);
+  const [denied, setDenied] = useState(false);
+
+  const toggle = async () => {
+    setBusy(true);
+    setDenied(false);
+    try {
+      if (on) {
+        await chooseReminders(false);
+      } else if ((await askPermission()) === 'granted') {
+        await chooseReminders(true);
+      } else {
+        setDenied(true);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title={t('app.settings.reminders.title')} sub={t('app.settings.reminders.sub')}>
+      <Line label={t('app.settings.reminders.toggle')}>
+        <Text variant="body" testID="reminders-state" style={{ color: on ? colors.ink.green : colors.textSecondary }}>
+          {on ? t('app.settings.reminders.on') : t('app.settings.reminders.off')}
+        </Text>
+      </Line>
+      <Button title={on ? t('app.settings.reminders.turnOff') : t('app.settings.reminders.turnOn')} tone={on ? 'plain' : 'primary'} loading={busy} onPress={() => void toggle()} />
+      {denied ? <ErrorText>{t('app.settings.reminders.denied')}</ErrorText> : null}
+    </Section>
   );
 }
 
@@ -349,6 +388,7 @@ export default function SettingsScreen() {
       <CoachingSection />
       <PreferencesSections />
       <AiSection />
+      <RemindersSection />
       <BlockedSection />
       <Section title={t('settings.legal.title')}>
         {LEGAL_LINKS.map((link) => (

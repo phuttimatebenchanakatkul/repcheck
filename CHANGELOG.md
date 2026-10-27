@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.40.0.0] - 2026-10-28
+
+### Added
+
+Reminders in the native app. Nothing in the website or the current App Store app changes.
+
+- **Reminders from your phone.** *Settings > Reminders* turns on two: one in the evening when you have gone three days without logging a weight or
+  food, and one on the morning your weekly check-in is due. They come from the phone itself (nothing is sent anywhere), and turning them off cancels them.
+- **Proven:** 2416 app tests, then 65 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change with no observable effect). Not yet run on a phone, which this one most needs: the notifications themselves are
+  mocked in the tests.
+
 ## [0.39.0.0] - 2026-10-28
 
 ### Added

@@ -570,6 +570,30 @@ def test_the_inactivity_nudge_matches_the_website():
     assert "inactivity_notified_on" in migration
 
 
+def test_reminders_are_local_notifications_the_website_cadence_and_words():
+    logic = text(MOBILE / "src" / "logic" / "reminders.ts")
+    inactivity = text(MOBILE / "src" / "logic" / "inactivity.ts")
+    website = text(ROOT / "static" / "coaching.js")
+    assert "INACTIVITY_DAYS = 3;" in inactivity and "if (idle < 3) return;" in website            # the same three days
+    assert "CHECKIN_INTERVAL_DAYS" in logic and "Math.max(0, 7 - daysSince(lastCheck))" in website
+    package = json.loads(text(MOBILE / "package.json"))["dependencies"]
+    assert "expo-notifications" in package
+    plugins = json.loads(text(MOBILE / "app.json"))["expo"]["plugins"]
+    assert "expo-notifications" in plugins
+    en = json.loads(text(MOBILE / "src" / "i18n" / "en.json"))
+    scheduler = text(MOBILE / "src" / "features" / "settings" / "RemindersScheduler.tsx")
+    for key in ("coaching.notify.body", "coaching.checkin.title", "coaching.checkin.sub"):
+        assert key in en and key in scheduler, key
+    # local only: nothing here talks to a server about a device (no push token is kept)
+    device = text(MOBILE / "src" / "ui" / "reminders.ts")
+    assert "getExpoPushTokenAsync" not in device and "getDevicePushTokenAsync" not in device
+    th = json.loads(text(MOBILE / "src" / "i18n" / "app.th.json"))
+    app_en = json.loads(text(MOBILE / "src" / "i18n" / "app.en.json"))
+    for key in app_en:
+        if key.startswith("app.settings.reminders."):
+            assert key in th, key
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 
