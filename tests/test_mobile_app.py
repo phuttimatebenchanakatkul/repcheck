@@ -459,6 +459,43 @@ def test_every_place_another_persons_name_is_shown_can_report_and_block_them():
     assert "BlockedSection" in text(MOBILE / "src" / "features" / "settings" / "SettingsScreen.tsx")
 
 
+# -- the daily challenge and leaderboard agree with the server -------------------------------------------------------------------------
+
+def test_the_challenge_exercises_seconds_and_endpoints_are_the_servers():
+    import video_trimmer
+    from api.routes import social as routes
+    logic = text(MOBILE / "src" / "logic" / "challenges.ts")
+    listed = re.search(r"export const CHALLENGE_EXERCISES = \[(.*?)\] as const;", logic, re.S).group(1)
+    assert re.findall(r"'(\w+)'", listed) == routes.CHALLENGE_ORDER
+    assert f"CHALLENGE_SECONDS = {video_trimmer.CHALLENGE_SECONDS};" in logic
+    api = text(MOBILE / "src" / "api" / "challenges.ts")
+    route = text(ROOT / "api" / "routes" / "social.py")
+    for path in ("/api/challenges/today", "/api/challenges", "/api/leaderboard"):
+        assert f"'{path}'" in api and f'"{path}"' in route, path
+    assert "/api/challenges/${encodeURIComponent(String(challengeId))}/submit" in api and '"/api/challenges/<int:challenge_id>/submit"' in route
+    assert "form.append('video'" in api and 'request.files.get("video")' in route
+    for key in ("limitReached", "total_reps", "totalEntries", "myRank", "attempted"):
+        assert key in api and key in route + text(ROOT / "api" / "social.py"), key
+
+
+def test_the_leaderboard_scopes_and_size_are_the_websites():
+    from api import social
+    logic = text(MOBILE / "src" / "logic" / "challenges.ts")
+    assert re.search(r"export type LeaderboardScope = 'friends' \| 'global';", logic)
+    assert set(social.LEADERBOARD_SCOPES) == {"friends", "global"}
+    assert "LEADERBOARD_LIMIT = 25;" in logic and "const LB_LIMIT = 25;" in text(ROOT / "templates" / "challenges.html")
+    assert "DEFAULT_SCOPE: LeaderboardScope = 'global'" in logic and 'let lbScope = "global";' in text(ROOT / "templates" / "challenges.html")
+
+
+def test_the_challenge_recording_is_muted_and_the_camera_text_says_why():
+    sheet = text(MOBILE / "src" / "features" / "challenges" / "RecordSheet.tsx")
+    assert "mute" in sheet and "maxDuration: CHALLENGE_SECONDS" in sheet
+    camera = json.loads(text(MOBILE / "app.json"))["expo"]["plugins"]
+    permission = next(p[1]["cameraPermission"] for p in camera if isinstance(p, list) and p[0] == "expo-camera")
+    for word in ("barcodes", "QR", "meals", "challenge"):
+        assert word in permission, word
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 

@@ -261,6 +261,14 @@ describe('survivors: today’s workouts line, longest streak', () => {
   });
 });
 
+describe('challenges', () => {
+  it('Home opens them', async () => {
+    await open();
+    await press('Challenges');
+    expect(mockPush).toHaveBeenCalledWith('/challenges');
+  });
+});
+
 describe('friends', () => {
   it('Home opens them', async () => {
     await open();

@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.36.0.0] - 2026-10-27
+
+### Added
+
+The daily challenge and leaderboard in the native app. Nothing in the website or the current App Store app changes.
+
+- **A rep challenge every day.** *Challenges* (on Home) shows today's exercise. *Record an attempt* gives you a countdown to get in
+  position, films up to 25 seconds, counts your reps and shows how many counted.
+- **A leaderboard.** Everybody, or just your friends; your place is pinned at the top and every other name has a *More options* button to
+  report or block them.
+- **Proven:** 2126 app tests, then 148 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change with no observable effect). Not yet run on a phone, which this one most needs: the recorder is mocked in the tests.
+
 ## [0.35.0.0] - 2026-10-27
 
 ### Added

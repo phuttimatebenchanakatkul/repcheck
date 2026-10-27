@@ -9,7 +9,8 @@ import { radius, space } from '@/ui/tokens';
 
 const CLIP_HEIGHT = 360;
 
-function Player({ url, label, onError }: { url: string; label: string; onError: () => void }) {
+/** A clip at a link or on the phone, muted and looping. */
+export function Player({ url, label, onError }: { url: string; label: string; onError: () => void }) {
   // Muted and looped like the website: a few seconds of a set read better on a second pass, and a clip must not shout in a gym.
   const player = useVideoPlayer(url, (p) => {
     p.loop = true;
