@@ -1,11 +1,12 @@
 import * as WebBrowser from 'expo-web-browser';
 import { useState, type ReactNode } from 'react';
+import { useRouter } from 'expo-router';
 import { Alert, Appearance, Pressable, TextInput, View } from 'react-native';
 
 import { ApiError, getApi } from '@/api';
 import { useAuth } from '@/auth/AuthProvider';
 import { signOut } from '@/auth/actions';
-import { useActions, useSettings } from '@/data/hooks';
+import { useActions, useCoachingProfile, useSettings } from '@/data/hooks';
 import { useTranslation } from '@/i18n';
 import { chooseLanguage } from '@/i18n/storage';
 import { ACCOUNT_GRACE_DAYS, colorSchemeOverride, formatDueDate, providerName } from '@/logic/account';
@@ -273,6 +274,18 @@ function DeleteSection() {
   );
 }
 
+/** The questions behind the calorie and macro targets: set them up, or go through them again. */
+function CoachingSection() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const profile = useCoachingProfile();
+  return (
+    <Section title={t('coaching.title')} sub={profile.data ? undefined : t('coaching.setup.lead')}>
+      <Button title={profile.data ? t('coaching.editProfile') : t('coaching.setup.button')} tone={profile.data ? 'plain' : 'primary'} onPress={() => router.push('/coaching-wizard')} />
+    </Section>
+  );
+}
+
 /** Settings: account, appearance, language, units, AI features, legal pages, log out and delete account. */
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -280,6 +293,7 @@ export default function SettingsScreen() {
     <Screen>
       <OfflineBanner />
       <AccountSection />
+      <CoachingSection />
       <PreferencesSections />
       <AiSection />
       <Section title={t('settings.legal.title')}>

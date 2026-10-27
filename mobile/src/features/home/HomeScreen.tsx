@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthProvider';
 import { signOut } from '@/auth/actions';
-import { useGoals, useNutritionDay, useSettings, useStreak, useWeights, useWorkoutDay } from '@/data/hooks';
+import { useCoachingProfile, useGoals, useNutritionDay, useSettings, useStreak, useWeights, useWorkoutDay } from '@/data/hooks';
 import { useTranslation } from '@/i18n';
 import { addDays, parseIso, toIsoDate } from '@/logic/dates';
 import { calorieRing, percentOf, sumMacrosForDay } from '@/logic/macros';
@@ -38,6 +38,7 @@ export default function HomeScreen() {
   const goals = useGoals();
   const workouts = useWorkoutDay(today);
   const settings = useSettings();
+  const coaching = useCoachingProfile();
   const weights = useWeights(addDays(today, -365), today);
 
   const totals = sumMacrosForDay(entries.data);
@@ -51,6 +52,16 @@ export default function HomeScreen() {
     <Screen>
       <OfflineBanner />
       <DeletionBanner />
+      {/* No coaching profile yet (a new account, or one that never finished the questions): offer the targets. */}
+      {!coaching.isLoading && !coaching.isError && coaching.data === null ? (
+        <Card>
+          <Text variant="rowTitle">{t('coaching.setup.lead')}</Text>
+          <Text variant="body" secondary>
+            {t('coaching.setup.body')}
+          </Text>
+          <Button title={t('coaching.setup.button')} onPress={() => router.push('/coaching-wizard')} />
+        </Card>
+      ) : null}
       <Text variant="title" style={{ fontSize: 28 }}>
         {t('home.greeting', { name })}
       </Text>

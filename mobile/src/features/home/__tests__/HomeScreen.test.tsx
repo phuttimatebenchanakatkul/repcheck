@@ -268,3 +268,28 @@ describe('settings', () => {
     expect(mockPush).toHaveBeenCalledWith('/settings');
   });
 });
+
+describe('the coaching targets', () => {
+  const profile = {
+  user_id: USER, aspiration: 'lose', gender: 'female', weight_kg: 70, body_fat_range_id: 'f3', activity_level: 'lift_only', protein_preference: 'high', diet_preference: 'low_carb',
+  goal_weight_kg: 62, height_cm: 165, distribution_mode: 'weekly', loss_rate_pct: 0.5, gain_rate_pct: null, created_on: '2026-01-05', last_adjustment_on: '2026-10-20',
+  last_adjustment_reason: null, last_adjustment_delta: null, last_adjustment_at: null, weekly_distribution: null, goal_achieved_weight_kg: null, goal_achieved_aspiration: null,
+  goal_handled_weight_kg: null, goal_handled_aspiration: null, inactivity_notified_on: null, extra: {},
+};
+
+  it('are offered to someone without a profile, and the button opens the questions', async () => {
+    await open();
+    expect(await screen.findByText('Get a calorie and macro target built for you.')).toBeOnTheScreen();
+    await press('Set up personalized coaching');
+    expect(mockPush).toHaveBeenCalledWith('/coaching-wizard');
+  });
+
+  it('are not offered once there is a profile', async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profile]);
+    await open(h);
+    await waitFor(() => expect(h.db.calls).toContain('read:coaching_profiles'));
+    await act(async () => undefined);
+    expect(screen.queryByText('Get a calorie and macro target built for you.')).toBeNull();
+  });
+});

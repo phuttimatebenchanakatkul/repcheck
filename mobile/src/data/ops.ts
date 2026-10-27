@@ -7,9 +7,11 @@ import type { Operation } from '../store/outbox';
 import type { Json } from '@/supabase/database.types';
 
 import type { ChatTurn } from '../logic/chat';
+import type { CoachingData } from '../logic/coachingProfile';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import {
   analysisTurnToRow,
+  coachingRowFromData,
   workoutTurnToRow,
   coachTurnToRow,
   goalsToRow,
@@ -117,4 +119,9 @@ export const workoutTurnSave = (userId: string, turn: ChatTurn): Operation => ({
 /** "New chat" on a day removes that day's turns only: other days' threads are kept for good. */
 export const workoutChatClear = (userId: string, day: string): Operation => ({
   kind: 'delete', table: 'workout_chat_messages', key: 'user_id,msg_date', match: { user_id: userId, msg_date: day },
+});
+
+/** Saving the coaching profile: one row per person, written whole. */
+export const coachingProfileSave = (userId: string, data: CoachingData, base: Row<'coaching_profiles'> | null | undefined, weeklyDistribution: Json | null): Operation => ({
+  kind: 'upsert', table: 'coaching_profiles', key: 'user_id', row: coachingRowFromData(userId, data, base, weeklyDistribution) as Record<string, unknown>,
 });

@@ -11,6 +11,7 @@ import { createContext, useContext, useMemo } from 'react';
 import type { CustomExercise, CustomFood } from '../api/endpoints';
 import { activeDaySet, currentStreak, longestStreak } from '../logic/streak';
 import type { ChatTurn } from '../logic/chat';
+import { coachingDataFromRow, type CoachingData } from '../logic/coachingProfile';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { QueuedOperation } from '../store/outbox';
 import type { Data, RecentNutrition, RecentWorkout } from './access';
@@ -264,4 +265,17 @@ export function useWorkoutHistory(): Loaded<RecentWorkout[]> {
     [query.data, queue, data.userId],
   );
   return status(query, entries);
+}
+
+/** The person's coaching profile: the stored one with a waiting save laid over it; null until a wizard has been finished. */
+export function useCoachingProfile(): Loaded<CoachingData | null> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.coachingRow(data.userId), queryFn: () => data.fetch.coachingRow() });
+  const profile = useMemo(() => {
+    const ops = waiting(queue, data.userId, 'coaching_profiles');
+    const last = ops[ops.length - 1];
+    const row = last && last.kind === 'upsert' ? (last.row as unknown as Row<'coaching_profiles'>) : (query.data ?? null);
+    return coachingDataFromRow(row);
+  }, [query.data, queue, data.userId]);
+  return status(query, profile);
 }

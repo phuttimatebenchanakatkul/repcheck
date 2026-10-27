@@ -10,6 +10,7 @@
 import type { Database, Json } from '@/supabase/database.types';
 
 import { cleanSources, type ChatTurn } from '../logic/chat';
+import type { CoachingData } from '../logic/coachingProfile';
 import { normaliseGoals, isFoodUnit, num } from '../logic/macros';
 import type { Goals, Ingredient, NutritionEntry, SplitPlan, WorkoutEntry, WorkoutSet } from '../logic/types';
 import { resolveUnits, type UnitPrefs } from '../logic/units';
@@ -331,5 +332,42 @@ export function workoutTurnToRow(userId: string, turn: ChatTurn): NewRow<'workou
     msg_date: turn.date,
     sources: turn.sources === null ? null : (turn.sources as unknown as Json),
     extra: {},
+  };
+}
+
+// -- the coaching profile -----------------------------------------------------------------------------------------------------------
+
+/**
+ * The whole coaching row for a finished wizard. A wizard starts the plan over, so the last adjustment and any reached goal are cleared
+ * (the website clears them too); what this version does not manage (`extra`, the inactivity notice) is carried over from `base`, the row
+ * as last read. `weeklyDistribution` is the week laid out day by day when calories are spread, else null.
+ */
+export function coachingRowFromData(userId: string, data: CoachingData, base: Row<'coaching_profiles'> | null | undefined, weeklyDistribution: Json | null): NewRow<'coaching_profiles'> {
+  return {
+    user_id: userId,
+    aspiration: data.aspiration,
+    gender: data.gender,
+    weight_kg: data.weightKg,
+    body_fat_range_id: data.bodyFatRangeId,
+    activity_level: data.activityLevel,
+    protein_preference: data.proteinPreference,
+    diet_preference: data.dietPreference,
+    goal_weight_kg: data.goalWeightKg,
+    height_cm: data.heightCm,
+    distribution_mode: data.distribution,
+    loss_rate_pct: data.lossRatePct,
+    gain_rate_pct: data.gainRatePct,
+    created_on: data.createdOn,
+    last_adjustment_on: data.lastAdjustmentOn,
+    last_adjustment_reason: null,
+    last_adjustment_delta: null,
+    last_adjustment_at: null,
+    weekly_distribution: weeklyDistribution,
+    goal_achieved_weight_kg: null,
+    goal_achieved_aspiration: null,
+    goal_handled_weight_kg: null,
+    goal_handled_aspiration: null,
+    inactivity_notified_on: base?.inactivity_notified_on ?? null,
+    extra: base?.extra ?? {},
   };
 }

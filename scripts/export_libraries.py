@@ -2,7 +2,7 @@
 website serves (app.py LIBRARY_ASSETS). Generated, never hand-edited: the Python modules stay the source of truth until the website
 is retired.
 
-    python scripts/export_libraries.py            # rewrite mobile/src/data/foods.json and exercises.json
+    python scripts/export_libraries.py            # rewrite mobile/src/data/foods.json, exercises.json and bodyfat.json
     python scripts/export_libraries.py --check    # exit 1 if they are out of date (tests/test_mobile_libraries.py does the same)
 
 No network and no database: it only imports food_library, workout_library and the exercise_details and exercise_videos modules.
@@ -54,12 +54,20 @@ def exercises():
     return {"categories": list(EXERCISE_CATEGORIES), "exercises": records}
 
 
+def body_fat_ranges():
+    """The body-type choices of the coaching wizard, per gender: {male: [{id, label}], female: [...]}. The calorie maths uses each
+    range's midpoint on the server (coaching_engine); the app only needs the id to send and the label to show."""
+    from coaching_engine import FEMALE_BODY_FAT_RANGES, MALE_BODY_FAT_RANGES
+    pick = lambda ranges: [{"id": r["id"], "label": r["label"]} for r in ranges]            # noqa: E731
+    return {"male": pick(MALE_BODY_FAT_RANGES), "female": pick(FEMALE_BODY_FAT_RANGES)}
+
+
 def render(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n"
 
 
 def expected():
-    return {OUT / "foods.json": render(foods()), OUT / "exercises.json": render(exercises())}
+    return {OUT / "foods.json": render(foods()), OUT / "exercises.json": render(exercises()), OUT / "bodyfat.json": render(body_fat_ranges())}
 
 
 def main(argv):

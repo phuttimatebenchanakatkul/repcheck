@@ -1300,3 +1300,13 @@ Worth doing once the app is on TestFlight; until then the system camera is the o
 **Effort:** M
 **Priority:** P3
 **Depends on:** A video-processing library that works with Expo (or vision-camera's recorder)
+
+### Scrolling rulers in the coaching wizard
+
+**What:** The website picks weight and height by flicking a ruler. The app types them in the person's own units (and uses the native slider for the pace).
+
+**Why:** Rulers are a nicer feel but a lot of custom gesture code to get right without a device to try it on; typed fields are accessible and exact.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** A device to tune the feel on

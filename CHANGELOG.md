@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.33.0.0] - 2026-10-27
+
+### Added
+
+The coaching questions in the native app. Nothing in the website or the current App Store app changes.
+
+- **Get a calorie and macro target built for you.** A card on Home (and a row in Settings) opens a short set of questions: your goal,
+  weight, goal weight and pace, height, body type, activity, protein, diet, and whether to spread calories through the week. You see
+  your targets before anything is saved, then *Save & start tracking* sets your daily calories and macros.
+- **A safe pace.** Choosing to lose weight faster than the standard pace shows what that costs and who should not do it alone.
+- **Edit it any time.** *Edit profile* in Settings opens the same questions with your answers already in.
+- **Proven:** 1826 app tests (including a run of the website's own goal-weight and goal-date code against ours), then 307
+  deliberate breakages of the new code (every survivor killed by a new test, removed as redundant, or a change that has no observable
+  effect). Not yet run on a phone.
+
 ## [0.32.0.0] - 2026-10-27
 
 ### Added

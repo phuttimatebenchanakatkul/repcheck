@@ -23,6 +23,8 @@ jest.mock('@/api', () => ({ ...jest.requireActual('@/api/client'), getApi: () =>
 jest.mock('@/auth/AuthProvider', () => ({ useAuth: () => ({ state: mockAuth.state, refreshProfile: mockRefresh }) }));
 jest.mock('@/auth/actions', () => ({ signOut: (...args: unknown[]) => mockSignOut(...args) }));
 jest.mock('@/supabase/client', () => ({ getSupabase: () => ({ marker: 'supabase' }) }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('expo-web-browser', () => ({ openBrowserAsync: jest.fn(async () => ({ type: 'dismiss' })) }));
 jest.mock('@/i18n/storage', () => ({ chooseLanguage: jest.fn(async (language: 'en' | 'th') => require('@/i18n').setLanguage(language)) }));
 
@@ -328,5 +330,30 @@ describe('survivors: busy buttons and who says what', () => {
     mockApi.restoreAccount.mockRejectedValueOnce(new ApiError('boom', 500));
     await press('Keep my account');
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not delete your account. Please try again.');
+  });
+});
+
+describe('the coaching questions', () => {
+  const profile = {
+  user_id: USER, aspiration: 'lose', gender: 'female', weight_kg: 70, body_fat_range_id: 'f3', activity_level: 'lift_only', protein_preference: 'high', diet_preference: 'low_carb',
+  goal_weight_kg: 62, height_cm: 165, distribution_mode: 'weekly', loss_rate_pct: 0.5, gain_rate_pct: null, created_on: '2026-01-05', last_adjustment_on: '2026-10-20',
+  last_adjustment_reason: null, last_adjustment_delta: null, last_adjustment_at: null, weekly_distribution: null, goal_achieved_weight_kg: null, goal_achieved_aspiration: null,
+  goal_handled_weight_kg: null, goal_handled_aspiration: null, inactivity_notified_on: null, extra: {},
+};
+
+  it('are offered to set up when there is no profile', async () => {
+    await open();
+    expect(await screen.findByText('Get a calorie and macro target built for you.')).toBeOnTheScreen();
+    await press('Set up personalized coaching');
+    expect(mockPush).toHaveBeenCalledWith('/coaching-wizard');
+  });
+
+  it('can be gone through again once there is one', async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profile]);
+    await open(h);
+    await press('Edit profile');
+    expect(mockPush).toHaveBeenCalledWith('/coaching-wizard');
+    expect(screen.queryByText('Get a calorie and macro target built for you.')).toBeNull();
   });
 });
