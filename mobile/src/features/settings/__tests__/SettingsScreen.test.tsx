@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { Alert, Appearance } from 'react-native';
 
@@ -8,7 +8,7 @@ import { USER, dataHarness } from '@/testing/dataHarness';
 
 import SettingsScreen from '../SettingsScreen';
 
-const mockApi = { rename: jest.fn(), setAiConsent: jest.fn(), scheduleDeletion: jest.fn(), restoreAccount: jest.fn() };
+const mockApi = { rename: jest.fn(), setAiConsent: jest.fn(), scheduleDeletion: jest.fn(), restoreAccount: jest.fn(), blockedAccounts: jest.fn(), unblockAccount: jest.fn() };
 const mockSignOut = jest.fn();
 const mockRefresh = jest.fn(async () => undefined);
 const mockAuth: { state: Record<string, unknown> } = { state: {} };
@@ -34,6 +34,8 @@ async function open(h = dataHarness()) {
       <SettingsScreen />
     </h.Provider>,
   );
+  await waitFor(() => expect(mockApi.blockedAccounts).toHaveBeenCalled());
+  await act(async () => undefined); // the blocked list settles inside the test, not after it
   return h;
 }
 const press = async (name: string | RegExp) => {
@@ -51,6 +53,8 @@ beforeEach(() => {
   mockApi.setAiConsent.mockResolvedValue(true);
   mockApi.scheduleDeletion.mockResolvedValue({ deleted_at: '2026-10-27T00:00:00+00:00', due_at: '2026-11-26', grace_days: 30 });
   mockApi.restoreAccount.mockResolvedValue(undefined);
+  mockApi.blockedAccounts.mockResolvedValue([]);
+  mockApi.unblockAccount.mockResolvedValue(undefined);
   jest.spyOn(Appearance, 'setColorScheme').mockImplementation(() => undefined);
 });
 
@@ -355,5 +359,57 @@ describe('the coaching questions', () => {
     await press('Edit profile');
     expect(mockPush).toHaveBeenCalledWith('/coaching-wizard');
     expect(screen.queryByText('Get a calorie and macro target built for you.')).toBeNull();
+  });
+});
+
+describe('blocked accounts', () => {
+  const PEOPLE = [{ id: 'u-2', name: 'Alex' }, { id: 'u-3', name: 'Bo' }];
+  const unblockIn = async (id: string) => fireEvent.press(await within(await screen.findByTestId(`blocked-${id}`)).findByRole('button', { name: 'Unblock' }));
+
+  it('says so when nobody is blocked', async () => {
+    await open();
+    expect(await screen.findByTestId('blocked-empty')).toHaveTextContent("You haven't blocked anyone.");
+  });
+
+  it('lists who is blocked, newest first as the server sends them', async () => {
+    mockApi.blockedAccounts.mockResolvedValue(PEOPLE);
+    await open();
+    expect(within(await screen.findByTestId('blocked-u-2')).getByText('Alex')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('blocked-u-3')).getByText('Bo')).toBeOnTheScreen();
+    expect(screen.queryByTestId('blocked-empty')).toBeNull();
+  });
+
+  it('unblocking asks the server, then the list is read again without them', async () => {
+    mockApi.blockedAccounts.mockResolvedValueOnce(PEOPLE).mockResolvedValue([PEOPLE[1]]);
+    await open();
+    await unblockIn('u-2');
+    await waitFor(() => expect(screen.queryByTestId('blocked-u-2')).toBeNull());
+    expect(mockApi.unblockAccount).toHaveBeenCalledWith('u-2');
+    expect(screen.getByTestId('blocked-u-3')).toBeOnTheScreen();
+  });
+
+  it('a failed unblock says so and leaves the list alone', async () => {
+    mockApi.blockedAccounts.mockResolvedValue(PEOPLE);
+    mockApi.unblockAccount.mockRejectedValueOnce(new ApiError('boom', 500));
+    await open();
+    await unblockIn('u-2');
+    expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work. Try again.");
+    expect(screen.getByTestId('blocked-u-2')).toBeOnTheScreen();
+  });
+
+  it('the server’s own words are shown for a refusal', async () => {
+    mockApi.blockedAccounts.mockResolvedValue(PEOPLE);
+    mockApi.unblockAccount.mockRejectedValueOnce(new ApiError('Which account?', 400));
+    await open();
+    await unblockIn('u-3');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Which account?');
+  });
+
+  it('a list that cannot be read offers to try again', async () => {
+    mockApi.blockedAccounts.mockRejectedValueOnce(new ApiError('boom', 500)).mockResolvedValue(PEOPLE);
+    await open();
+    expect(await screen.findByRole('alert')).toHaveTextContent("That didn't work. Try again.");
+    await press('Try again');
+    expect(await screen.findByTestId('blocked-u-2')).toBeOnTheScreen();
   });
 });

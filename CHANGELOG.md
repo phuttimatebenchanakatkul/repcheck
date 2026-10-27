@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.35.0.0] - 2026-10-27
+
+### Added
+
+Friends, with the safety tools App Review asks for, in the native app. Nothing in the website or the current App Store app changes.
+
+- **Add friends.** *Friends* (on Home) shows your code and QR. Type a friend's code, or scan their QR, to add them. Your friends are listed.
+- **Report or block.** Every friend has a *More options* button: report the name (offensive, impersonation, spam, other) or block the account.
+  Reporting also blocks, so you stop seeing them at once.
+- **Undo a block.** *Blocked accounts* in Settings lists who you blocked, with *Unblock*.
+- **Proven:** 2022 app tests, then 74 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change with no observable effect). Not yet run on a phone.
+
 ## [0.34.0.0] - 2026-10-27
 
 ### Added

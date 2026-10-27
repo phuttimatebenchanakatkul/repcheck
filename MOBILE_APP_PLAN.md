@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0.**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -586,6 +586,18 @@ Differences from the website: "handled" is two columns (`goal_handled_weight_kg`
 goal) rather than the website's separate flag, so a goal that moves is simply a new goal; a profile this app wrote is always complete,
 so there is no "fix my profile" step beyond opening the wizard when there is no profile; the week is read from the account, not from
 what this device remembers.
+
+**Added in v0.35.0.0: friends, and report / block (5d).** *Friends* (from Home) shows your friend code and a QR for it, lets you add a
+friend by typing a code or scanning their QR (the camera reads QR codes only; a code in a link or on its own is accepted, anything else
+is ignored), and lists your friends. Each friend has a "more options" button that opens the report / block sheet (Guideline 1.2): report
+the name for one of four reasons (the server blocks them for you at the same time) or just block. *Blocked accounts* in Settings lists
+who you have blocked, with Unblock. These are the server's (`/api/friends`, `/api/safety/*`), so they need a connection; the last list
+read stays on the device. The QR holds the website's own add-friend link (`/friends?add=CODE`) so any camera can read it.
+
+Differences from the website: the app can scan a QR (the website's scanner was removed; the app has a real camera), copy uses the system
+clipboard, and there is no "suggest from contacts" (the website dropped it as a 5.1.2 risk and a test keeps it out). New packages:
+`react-native-qrcode-svg` and `expo-clipboard`. Challenges and leaderboards, the other places another person's name will show, come next
+and will open the same sheet.
 
 Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
 field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.

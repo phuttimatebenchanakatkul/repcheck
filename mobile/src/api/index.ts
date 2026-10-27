@@ -8,8 +8,9 @@ import { createApi } from './client';
 import { endpoints } from './endpoints';
 import { planEndpoints } from './plan';
 import { scanEndpoints } from './scan';
+import { socialEndpoints } from './social';
 
-let instance: (ReturnType<typeof endpoints> & ReturnType<typeof scanEndpoints> & ReturnType<typeof planEndpoints> & ReturnType<typeof analyzeEndpoints> & ReturnType<typeof chatEndpoints> & ReturnType<typeof coachingEndpoints> & ReturnType<typeof checkinEndpoints>) | null = null;
+let instance: (ReturnType<typeof endpoints> & ReturnType<typeof scanEndpoints> & ReturnType<typeof planEndpoints> & ReturnType<typeof analyzeEndpoints> & ReturnType<typeof chatEndpoints> & ReturnType<typeof coachingEndpoints> & ReturnType<typeof checkinEndpoints> & ReturnType<typeof socialEndpoints>) | null = null;
 
 /** The app's API, wired to the Supabase session: the access token is current (the SDK refreshes it) and a 401 triggers one forced refresh. */
 export function getApi() {
@@ -20,7 +21,7 @@ export function getApi() {
       getToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
       refreshToken: async () => (await supabase.auth.refreshSession()).data.session?.access_token ?? null,
     });
-    instance = { ...endpoints(api), ...scanEndpoints(api), ...planEndpoints(api), ...analyzeEndpoints(api), ...chatEndpoints(api), ...coachingEndpoints(api), ...checkinEndpoints(api) };
+    instance = { ...endpoints(api), ...scanEndpoints(api), ...planEndpoints(api), ...analyzeEndpoints(api), ...chatEndpoints(api), ...coachingEndpoints(api), ...checkinEndpoints(api), ...socialEndpoints(api) };
   }
   return instance;
 }

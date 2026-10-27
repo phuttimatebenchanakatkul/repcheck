@@ -418,6 +418,47 @@ def test_the_checkin_saves_into_columns_that_exist():
         assert column in columns, column
 
 
+# -- friends, blocking and reporting agree with the server and the website ------------------------------------------------------------
+
+def test_the_report_reasons_and_endpoints_are_the_servers():
+    from api import social
+    source = text(MOBILE / "src" / "api" / "social.ts")
+    reasons = re.search(r"export const REPORT_REASONS = \[(.*?)\] as const;", source, re.S).group(1)
+    assert tuple(re.findall(r"'(\w+)'", reasons)) == social.REPORT_REASONS
+    route = text(ROOT / "api" / "routes" / "social.py")
+    for path in re.findall(r"'(/api/(?:friends|safety)[^']*)'", source):
+        assert f'"{path}"' in route, path
+    for field in ("user_id", "reason", "code"):
+        assert f"{field}" in source
+    sheet = text(MOBILE / "src" / "features" / "social" / "SafetySheet.tsx")
+    website = text(ROOT / "static" / "safety.js")
+    for key in re.findall(r"'(safety\.reason\.\w+)'", sheet):
+        assert f'"{key}"' in website, key
+
+
+def test_the_friend_qr_is_the_websites_link_and_the_code_limit_is_the_servers():
+    from api import social
+    logic = text(MOBILE / "src" / "logic" / "social.ts")
+    assert f"MAX_FRIEND_CODE_CHARS = {social.MAX_FRIEND_CODE_CHARS};" in logic
+    assert "/friends?add=${encodeURIComponent(code)}" in logic
+    assert 'friends?add={' in text(ROOT / "app.py")        # the website's own QR encodes the same page
+
+
+def test_the_app_never_reads_contacts():
+    """The website dropped 'suggest from contacts' (it read them and did nothing: Guideline 5.1.2); the app must not bring it back."""
+    package = text(MOBILE / "package.json")
+    assert "expo-contacts" not in package
+    assert "NSContactsUsageDescription" not in text(MOBILE / "app.json")
+    assert "suggestFromContacts" not in "".join(p.read_text(encoding="utf-8") for p in (MOBILE / "src" / "features").rglob("*.tsx"))
+
+
+def test_every_place_another_persons_name_is_shown_can_report_and_block_them():
+    """Guideline 1.2: the friends list is the one place another account's name shows so far; it must open the report / block sheet."""
+    screen = text(MOBILE / "src" / "features" / "social" / "FriendsScreen.tsx")
+    assert "<SafetySheet" in screen and "safety.moreActions" in screen
+    assert "BlockedSection" in text(MOBILE / "src" / "features" / "settings" / "SettingsScreen.tsx")
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 
