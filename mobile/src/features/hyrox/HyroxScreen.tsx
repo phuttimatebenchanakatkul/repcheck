@@ -110,6 +110,9 @@ export default function HyroxScreen() {
   // Whose leaderboard: the one chosen (or raced under last), else the profile's gender; null asks.
   const boardGender: Gender | null = prefs.data.leaderboardGender ?? fromProfile;
 
+  // The standard race being run; a hand-made one has no such thing (null).
+  const runConfig = raceType === 'standard' && effective.category && effective.format && effective.gender ? { category: effective.category, format: effective.format, gender: effective.gender, scale: effective.scale, practice } : null;
+
   const finish = async (splits: Split[], totalSeconds: number) => {
     const config = effective as { category: Category; format: Format; gender: Gender; scale: Setup['scale'] };
     const custom = raceType === 'custom';
@@ -209,9 +212,9 @@ export default function HyroxScreen() {
             </>
           ) : null}
 
-          {view === 'running' && (raceType === 'custom' || (effective.category && effective.format && effective.gender)) ? (
+          {view === 'running' && (raceType === 'custom' || runConfig) ? (
             <RunningRace
-              config={raceType === 'custom' || !effective.category || !effective.format || !effective.gender ? null : { category: effective.category, format: effective.format, gender: effective.gender, scale: effective.scale, practice }}
+              config={runConfig}
               custom={raceType === 'custom' ? blocks : null}
               laneM={laneM}
               units={units}

@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.42.1.0] - 2026-10-28
+
+### Fixed
+
+A correction to 0.42.0.0 (the HYROX custom race builder). Nothing in the website or the current App Store app changes.
+
+- **The 0.42.0.0 "proven" line was wrong.** It said every deliberate breakage of the new code was caught; the full run was 142 breakages with
+  20 not caught (I had read a partial result). This release adds the missing tests (the station picker opening and shutting, the selected group,
+  the block numbers, a Doubles setup not leaking into a hand-made race) and removes three checks that could never matter. The re-run: 65 breakages
+  of the changed code, 61 caught, 4 with no observable effect (two are types, two are fallbacks no key can reach).
+- Behaviour is unchanged for anyone using the builder.
+
 ## [0.42.0.0] - 2026-10-28
 
 ### Added
