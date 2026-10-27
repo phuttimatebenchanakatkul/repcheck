@@ -163,6 +163,63 @@ def test_the_camera_and_microphone_are_explained_for_filming_a_set():
     assert "expo-video" in app_config()["plugins"]
 
 
+# -- the chats agree with the server that answers them ---------------------------------------------------------------------------
+
+def chat_source():
+    return text(MOBILE / "src" / "logic" / "chat.ts")
+
+
+def test_the_report_reasons_and_chats_are_the_servers():
+    from api.social import AI_REPORT_FEATURES, AI_REPORT_REASONS
+    source = chat_source()
+    reasons = re.search(r"REPORT_REASONS = \[(.*?)\] as const", source, re.S).group(1)
+    assert tuple(re.findall(r"'(\w+)'", reasons)) == AI_REPORT_REASONS
+    feature = re.search(r"type ReportFeature = (.*?);", source).group(1)
+    assert tuple(re.findall(r"'(\w+)'", feature)) == AI_REPORT_FEATURES
+
+
+def test_the_message_limit_and_citation_rules_are_the_servers_and_the_websites():
+    from api.chat import MAX_MESSAGE_CHARS
+    source = chat_source()
+    assert int(re.search(r"MAX_MESSAGE_CHARS = (\d+)", source).group(1)) == MAX_MESSAGE_CHARS
+    website = text(ROOT / "static" / "ai_sources.js")
+    assert "MAX_SOURCES = 3;" in source and "MAX_SOURCES = 3;" in website
+    link_rule = r"/^https:\/\/[^\s" + "\"'" + r"<>]+$/"
+    assert link_rule in source and link_rule in website, "a citation link is plain https, by the same pattern"
+
+
+def test_the_coach_is_sent_its_own_role_name_and_the_others_theirs():
+    assert 'turn.get("role") == "coach"' in text(ROOT / "coach_chat.py")
+    assert 'turn.get("role") == "assistant"' in text(ROOT / "workout_chat.py")
+    assert 'turn.get("role") == "assistant"' in text(ROOT / "analyze_chat.py")
+    screen = text(MOBILE / "src" / "features" / "chat" / "CoachScreen.tsx")
+    assert "historyForServer(history, 'coach')" in screen
+
+
+def test_every_ai_reply_is_drawn_with_its_sources_disclaimer_and_report_button():
+    """Guidelines 1.4.1 and 4.7.1. The chat view must put the footer under a reply, and the footer must carry all three."""
+    assert "<ReplyFooter" in text(MOBILE / "src" / "features" / "chat" / "ChatView.tsx")
+    footer = text(MOBILE / "src" / "features" / "chat" / "SourcesFooter.tsx")
+    for needed in ("aiSources.label", "aiSources.all", "aiSources.disclaimer", "aiReport.button", "reportReply("):
+        assert needed in footer
+
+
+def test_the_sources_page_the_app_links_to_opens_without_an_account():
+    footer = text(MOBILE / "src" / "features" / "chat" / "SourcesFooter.tsx")
+    assert "https://repcheck-q0m4.onrender.com/sources" in footer
+    assert '"health_sources_page"' in text(ROOT / "app.py")
+    assert '@app.route("/sources"' in text(ROOT / "app.py")
+
+
+def test_the_consent_question_names_chat_messages():
+    assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
+
+
+def test_every_chat_checks_consent_before_it_sends():
+    session = text(MOBILE / "src" / "features" / "chat" / "useChatSession.ts")
+    assert "if (!consented)" in session and session.index("if (!consented)") < session.index("await run(message)")
+
+
 def test_the_consent_question_names_videos_before_a_clip_is_sent():
     """Each kind of thing the app sends to the AI service is listed in the question that gates it (App Review)."""
     question = text(MOBILE / "src" / "ui" / "AiConsent.tsx")

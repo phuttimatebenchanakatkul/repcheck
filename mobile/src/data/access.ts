@@ -9,12 +9,14 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { CustomExercise, CustomFood, NewCustomFood } from '../api/endpoints';
+import type { ChatTurn } from '../logic/chat';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { Operation, Outbox } from '../store/outbox';
 import { addDays, toIsoDate } from '../logic/dates';
 import type { CoachingProfile } from '../logic/splitPlan';
 import { keys } from './keys';
 import {
+  coachTurnFromRow,
   nutritionRowToEntry,
   weightFromRow,
   workoutRowsToEntry,
@@ -24,6 +26,8 @@ import {
 } from './mappers';
 import {
   activityMark,
+  coachClear,
+  coachTurnSave,
   dayStatus,
   exerciseFavorite,
   goalsUpsert,
@@ -38,6 +42,7 @@ import {
   workoutSave,
 } from './ops';
 import {
+  overlayCoachThread,
   overlayDayStatuses,
   overlayNames,
   overlayNutritionDay,
@@ -182,6 +187,12 @@ export function createData(deps: DataDeps) {
     const entries = rowsOf<Row<'workout_entries'>>(await table('workout_entries').order('added_at', { ascending: false }).limit(limit));
     const sets = await setsFor(entries.map((e) => e.id));
     return entries.map((entry) => ({ ...workoutRowsToEntry(entry, sets), day: entry.log_date }));
+  }
+
+  /** The coach's turns for one day, oldest first (the table's own `seq` order). */
+  async function coachThread(day: string): Promise<ChatTurn[]> {
+    const rows = rowsOf<Row<'coach_messages'>>(await table('coach_messages').eq('msg_date', day).order('seq').limit(PAGE_SIZE));
+    return rows.map(coachTurnFromRow);
   }
 
   async function splitPlanRow(): Promise<Row<'split_plans'> | null> {
@@ -371,6 +382,20 @@ export function createData(deps: DataDeps) {
     patch<DayStatuses>(keys.dayStatusPrefix(userId), (old, key) => overlayDayStatuses(old, [op], String(key[3]), String(key[4])));
   }
 
+  /** Adds a turn to the coach's thread (the person's question, then the coach's answer). */
+  async function saveCoachTurn(turn: ChatTurn): Promise<void> {
+    const op = coachTurnSave(userId, turn);
+    await send(op);
+    patch<ChatTurn[]>(keys.coachThreadPrefix(userId), (old, key) => (turn.date === String(key[3]) ? overlayCoachThread(old, [op]) : old));
+  }
+
+  /** Empties the coach's thread: waiting turns are dropped (they would only be deleted), then one delete clears the rest. */
+  async function clearCoach(): Promise<void> {
+    const op = coachClear(userId);
+    await outbox.replace(userId, (queued) => queued.table === 'coach_messages', [op]);
+    patch<ChatTurn[]>(keys.coachThreadPrefix(userId), (old) => overlayCoachThread(old, [op]));
+  }
+
   /** Records an action that has no dated record of its own (coach chat, a split plan edit, ...) as a streak day. */
   async function markActivity(day: string, action: string): Promise<void> {
     await send(activityMark(userId, day, action));
@@ -405,13 +430,13 @@ export function createData(deps: DataDeps) {
     userId,
     fetch: {
       nutritionDay, nutritionRecent, nutritionRange, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
-      weights, settingsRow, dayStatuses, activeDays, coachingProfile,
+      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachThread,
       customFoods: () => api.listCustomFoods(),
       customExercises: () => api.listCustomExercises(),
     },
     actions: {
       saveFood, deleteFood, saveWorkout, deleteWorkout, saveWeight, removeWeight, saveGoals, saveSettings, saveSplitPlan,
-      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity,
+      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach,
       createCustomFood, deleteCustomFood, createCustomExercise, deleteCustomExercise,
     },
   };

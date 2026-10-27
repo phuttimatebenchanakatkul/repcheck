@@ -22,4 +22,6 @@ export const keys = {
   activeDays: (userId: string) => ['data', userId, 'active-days'] as const,
   customFoods: (userId: string) => ['data', userId, 'custom-foods'] as const,
   customExercises: (userId: string) => ['data', userId, 'custom-exercises'] as const,
+  coachThread: (userId: string, day: string) => ['data', userId, 'coach-thread', day] as const,
+  coachThreadPrefix: (userId: string) => ['data', userId, 'coach-thread'] as const,
 };

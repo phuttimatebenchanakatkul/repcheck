@@ -8,7 +8,8 @@
 import type { Operation, QueuedOperation } from '../store/outbox';
 
 import type { NutritionEntry, WorkoutEntry, WorkoutSet } from '../logic/types';
-import { nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, type Row, type WeightEntry } from './mappers';
+import type { ChatTurn } from '../logic/chat';
+import { coachTurnFromRow, nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, type Row, type WeightEntry } from './mappers';
 
 /** The waiting operations of one person on a table, oldest first. */
 export function waiting(queue: readonly QueuedOperation[], userId: string, table: Operation['table']): Operation[] {
@@ -189,4 +190,25 @@ export function overlayDayStatuses(statuses: Readonly<DayStatuses>, ops: readonl
     }
   }
   return out;
+}
+
+// -- the coach's thread ------------------------------------------------------------------------------------------------------------
+
+/**
+ * The server's turns (in its own order) with the waiting writes applied in queue order: a saved turn is added at the end (or replaces
+ * the same turn, which keeps its place), and a clear empties the thread, so a turn saved AFTER the clear is the only one left.
+ */
+export function overlayCoachThread(turns: readonly ChatTurn[], ops: readonly Operation[]): ChatTurn[] {
+  let list = turns.slice();
+  for (const op of ops) {
+    if (op.kind === 'delete') {
+      list = [];
+      continue;
+    }
+    const turn = coachTurnFromRow(op.row as unknown as Row<'coach_messages'>);
+    const at = list.findIndex((t) => t.id === turn.id);
+    if (at >= 0) list[at] = turn;
+    else list.push(turn);
+  }
+  return list;
 }
