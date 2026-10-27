@@ -11,6 +11,7 @@ import type { Json } from '../supabase/database.types';
 
 import type { CustomExercise, CustomFood, NewCustomFood } from '../api/endpoints';
 import type { ChatTurn } from '../logic/chat';
+import type { Adjustment } from '../logic/checkin';
 import type { CoachingData } from '../logic/coachingProfile';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { Operation, Outbox } from '../store/outbox';
@@ -30,6 +31,7 @@ import {
 } from './mappers';
 import {
   activityMark,
+  coachingCheckinSave,
   coachingProfileSave,
   workoutChatClear,
   workoutTurnSave,
@@ -427,6 +429,27 @@ export function createData(deps: DataDeps) {
     patchRow(keys.coachingRow(userId), op);
   }
 
+  /**
+   * Records a finished weekly check-in: the check-in's day on the coaching row (and why the targets moved, or that a reached goal was
+   * acted on), the new protein / fat / carb goals when they changed, and the day as a streak day. Throws when there is no coaching row to
+   * record it on.
+   */
+  async function saveCheckin(result: { adjustment: Adjustment | null; goalReached: boolean }): Promise<void> {
+    const base = queryClient.getQueryData<Row<'coaching_profiles'> | null>(keys.coachingRow(userId));
+    if (!base) throw new DataError('There is no coaching profile to check in on.');
+    const today = toIsoDate(now());
+    const op = coachingCheckinSave(userId, base, {
+      today,
+      nowIso: now().toISOString(),
+      adjustment: result.adjustment ? { reason: result.adjustment.reason, delta: result.adjustment.delta } : null,
+      goalHandled: result.goalReached,
+    });
+    await send(op);
+    patchRow(keys.coachingRow(userId), op);
+    if (result.adjustment) await saveGoals({ protein: result.adjustment.protein, fat: result.adjustment.fat, carbs: result.adjustment.carbs });
+    await markActivity(today, 'checkin');
+  }
+
   /** Adds a turn to a day's workout chat (the day is the turn's own). */
   async function saveWorkoutTurn(turn: ChatTurn): Promise<void> {
     const op = workoutTurnSave(userId, turn);
@@ -495,7 +518,7 @@ export function createData(deps: DataDeps) {
     },
     actions: {
       saveFood, deleteFood, saveWorkout, deleteWorkout, saveWeight, removeWeight, saveGoals, saveSettings, saveSplitPlan,
-      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread, saveCoachingProfile,
+      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread, saveCoachingProfile, saveCheckin,
       createCustomFood, deleteCustomFood, createCustomExercise, deleteCustomExercise,
     },
   };

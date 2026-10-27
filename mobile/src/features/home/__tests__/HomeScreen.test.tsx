@@ -293,3 +293,37 @@ describe('the coaching targets', () => {
     expect(screen.queryByText('Get a calorie and macro target built for you.')).toBeNull();
   });
 });
+
+describe('the weekly check-in', () => {
+  const profile = (lastAdjustmentOn: string) => ({
+    user_id: USER, aspiration: 'lose', gender: 'female', weight_kg: 70, body_fat_range_id: 'f3', activity_level: 'lift_only', protein_preference: 'high', diet_preference: 'low_carb',
+    goal_weight_kg: 62, height_cm: 165, distribution_mode: 'stable', loss_rate_pct: 0.5, gain_rate_pct: null, created_on: addDays(TODAY, -30), last_adjustment_on: lastAdjustmentOn,
+    last_adjustment_reason: null, last_adjustment_delta: null, last_adjustment_at: null, weekly_distribution: null, goal_achieved_weight_kg: null, goal_achieved_aspiration: null,
+    goal_handled_weight_kg: null, goal_handled_aspiration: null, inactivity_notified_on: null, extra: {},
+  });
+
+  it('is offered when it is due, and opens', async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profile(addDays(TODAY, -7))]);
+    await open(h);
+    expect(await screen.findByText('Weekly check-in')).toBeOnTheScreen();
+    await press('Check in');
+    expect(mockPush).toHaveBeenCalledWith('/checkin');
+  });
+
+  it('is not before it is due', async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profile(addDays(TODAY, -6))]);
+    await open(h);
+    await waitFor(() => expect(h.db.calls).toContain('read:coaching_profiles'));
+    await act(async () => undefined);
+    expect(screen.queryByText('Weekly check-in')).toBeNull();
+  });
+
+  it('is not offered with no coaching profile', async () => {
+    const h = await open();
+    await waitFor(() => expect(h.db.calls).toContain('read:coaching_profiles'));
+    await act(async () => undefined);
+    expect(screen.queryByText('Weekly check-in')).toBeNull();
+  });
+});

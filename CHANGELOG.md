@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.34.0.0] - 2026-10-27
+
+### Added
+
+The weekly check-in in the native app. Nothing in the website or the current App Store app changes.
+
+- **Check in once a week.** A week after your last check-in, Home and Nutrition offer it. Correct any day that was incomplete or a fast, add
+  today's weight, and optionally front and back progress photos, then *Complete check-in*.
+- **A target that follows your week.** You see whether you are on track, or your new daily calories, why, and what changed in protein, fat
+  and carbs; the new numbers become your goals.
+- **Reaching your goal is noticed.** Hit your goal weight and the check-in comes early, with *Set new goals* to start the questions again.
+- **Fails safe.** If the check-in cannot be worked out, nothing is saved and you can try again; a photo that cannot be kept never blocks it.
+- **Proven:** 1924 app tests, then 304 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change with no observable effect). Not yet run on a phone.
+
 ## [0.33.0.0] - 2026-10-27
 
 ### Added

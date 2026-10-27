@@ -15,6 +15,8 @@ import { Button, Card, ErrorText, Screen, Text } from '@/ui/components';
 import { OfflineBanner } from '@/ui/OfflineBanner';
 import { space } from '@/ui/tokens';
 
+import { useCheckinStatus } from '@/features/coaching/useCheckin';
+
 import { AddFoodSheet } from './AddFoodSheet';
 import { DateStrip } from '@/ui/DateStrip';
 import { EntryCard } from './EntryCard';
@@ -53,6 +55,7 @@ export default function NutritionScreen() {
   const custom = useCustomFoods();
   const actions = useActions();
   const router = useRouter();
+  const checkin = useCheckinStatus(today);
 
   const loggedDays = new Set(recent.data.map((entry) => entry.day));
   if (entries.data.length) loggedDays.add(day);
@@ -111,6 +114,20 @@ export default function NutritionScreen() {
           <Button tone="plain" title={t('weight.loggingHistoryTitle')} onPress={() => router.push('/logging-history')} />
         </View>
       </View>
+
+      {checkin.daysRemaining === null ? null : checkin.daysRemaining === 0 ? (
+        <Card>
+          <Text variant="rowTitle">{t('coaching.checkin.title')}</Text>
+          <Text variant="body" secondary>
+            {t('coaching.checkin.sub')}
+          </Text>
+          <Button title={t('coaching.checkin.button')} onPress={() => router.push('/checkin')} />
+        </Card>
+      ) : (
+        <Text variant="caption" secondary testID="checkin-wait">
+          {t('coaching.checkin.comeBackIn', { n: checkin.daysRemaining, s: checkin.daysRemaining === 1 ? '' : 's' })}
+        </Text>
+      )}
 
       <View style={{ gap: space.xs }}>
         <Text variant="title" style={{ fontSize: 22 }} accessibilityRole="header">

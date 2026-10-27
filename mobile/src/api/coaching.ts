@@ -1,6 +1,8 @@
 /** The coaching calculation (api/routes/coaching.py): the website's own coaching_engine, run on the server. */
+import { parseAdjustment, type Adjustment } from '../logic/checkin';
 import type { Json } from '../supabase/database.types';
 import { ApiError, type Api } from './client';
+import type { PickedImage } from './scan';
 
 export interface Targets {
   calories: number;
@@ -46,6 +48,41 @@ export function coachingEndpoints(api: Api) {
       const calculation = parseCalculation(body);
       if (!calculation) throw new ApiError("Couldn't read that result. Please try again.", 502, body);
       return calculation;
+    },
+  };
+}
+
+/** The check-in may call a model that reads photos; the server caps that at 30 s, so this leaves room for the upload and the trip. */
+export const CHECKIN_TIMEOUT_MS = 60_000;
+
+export type PhotoAngle = 'front' | 'back';
+
+export function checkinEndpoints(api: Api) {
+  return {
+    /**
+     * The week's calorie adjustment: null when no change is needed ("on track"), else the new targets and why. Throws ApiError: 400 with the
+     * reason in words safe to show (a missing profile field), anything else the general line. An answer that is neither is a 502, never
+     * "on track", so a failed check-in does not spend the week.
+     */
+    async weeklyAdjustment(request: Record<string, unknown>): Promise<Adjustment | null> {
+      const body = await api.request('/api/coaching/weekly-adjustment', { method: 'POST', json: request, timeoutMs: CHECKIN_TIMEOUT_MS });
+      const adjustment = parseAdjustment(body);
+      if (adjustment === undefined) throw new ApiError("Couldn't read that result. Please try again.", 502, body);
+      return adjustment;
+    },
+
+    /** Keeps one progress photo for the check-in; its id, or null if it could not be kept (best effort: the check-in goes on without it). */
+    async uploadCheckinPhoto(image: PickedImage, angle: PhotoAngle, date: string): Promise<number | null> {
+      try {
+        const form = new FormData();
+        form.append('photo', { uri: image.uri, name: image.name ?? 'photo.jpg', type: image.mimeType ?? 'image/jpeg' } as unknown as Blob);
+        form.append('angle', angle);
+        form.append('date', date);
+        const body = await api.upload('/api/checkin/photo', form, CHECKIN_TIMEOUT_MS);
+        return typeof body.id === 'number' ? body.id : null;
+      } catch {
+        return null;
+      }
     },
   };
 }

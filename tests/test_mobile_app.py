@@ -356,6 +356,68 @@ def test_the_wizard_saves_into_columns_that_exist():
     assert "grant update (onboarding_completed) on public.profiles to authenticated" in migration
 
 
+# -- the weekly check-in agrees with the website and the server ---------------------------------------------------------------------
+
+def checkin_source():
+    return text(MOBILE / "src" / "logic" / "checkin.ts")
+
+
+def test_the_checkins_request_has_every_field_the_server_reads():
+    source = checkin_source()
+    body = re.search(r"export function checkinRequest.*?\n}\n", source, re.S).group(0)
+    body = body[body.index("return {"):]
+    sent = set(re.findall(r"^\s+(\w+):", body, re.M))
+    assert sent == {"aspiration", "gender", "weight_kg", "body_fat_range_id", "activity_level", "protein_preference", "diet_preference", "loss_rate_pct", "gain_rate_pct",
+                    "current_targets", "week_weight_entries", "week_calorie_days", "photo_ids"}
+    website = text(ROOT / "static" / "coaching.js")
+    route = text(ROOT / "api" / "routes" / "coaching.py")
+    for field in sent:
+        assert f"{field}:" in website, field
+    for field in ("current_targets", "week_weight_entries", "week_calorie_days", "photo_ids"):
+        assert f'"{field}"' in route, field
+    # the day lists the server averages are { date, kg } / { date, calories }, as the website sends them
+    assert "{ date: w.day, kg: w.kg }" in source and "{ date: d.day, calories: d.calories }" in source
+
+
+def test_the_checkins_cadence_calories_and_streak_are_the_websites():
+    source = checkin_source()
+    website = text(ROOT / "static" / "coaching.js")
+    assert re.search(r"export const CHECKIN_INTERVAL_DAYS = 7;", source) and "Math.max(0, 7 - daysSince(lastCheck))" in website
+    assert "Math.round(goals.protein * 4 + goals.fat * 9 + goals.carbs * 4)" in source
+    assert "Math.round(currentGoals.protein * 4 + currentGoals.fat * 9 + currentGoals.carbs * 4)" in website
+    assert 'RepCheckStreak.mark("checkin")' in website
+    assert "'checkin'" in text(MOBILE / "src" / "data" / "access.ts")
+
+
+def test_the_checkins_photos_are_what_the_server_takes():
+    from api import photos
+    import checkin_analyzer
+    source = text(MOBILE / "src" / "api" / "coaching.ts")
+    angles = re.search(r"export type PhotoAngle = (.*?);", source).group(1)
+    assert tuple(re.findall(r"'(\w+)'", angles)) == photos.ANGLES
+    route = text(ROOT / "api" / "routes" / "photos.py")
+    for field in ("photo", "angle", "date"):
+        assert f"form.append('{field}'" in source, field
+        assert f'"{field}"' in route, field
+    assert "/api/checkin/photo" in source and '"/api/checkin/photo"' in route
+    # the wait leaves room for the model's own cap plus the upload and the trip
+    timeout = int(re.search(r"CHECKIN_TIMEOUT_MS = ([0-9_]+);", source).group(1).replace("_", ""))
+    assert timeout >= checkin_analyzer.CHECKIN_ANALYSIS_TIMEOUT_SECONDS * 1000 + 15_000
+
+
+def test_the_checkin_saves_into_columns_that_exist():
+    migration = "".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "supabase" / "migrations").glob("*.sql")))
+    block = migration[migration.index("create table public.coaching_profiles"):]
+    block = block[:block.index(");")]
+    columns = set(re.findall(r"^\s+(\w+)\s", block, re.M))
+    mapper = text(MOBILE / "src" / "data" / "mappers.ts")
+    written = re.search(r"export function coachingRowAfterCheckin.*?\n}\n", mapper, re.S).group(0)
+    used = set(re.findall(r"\b(last_adjustment_\w+|goal_\w+_(?:weight_kg|aspiration)|[a-z_]+_on)\b", written)) - {"checkin_on"}
+    assert used >= {"last_adjustment_on", "last_adjustment_reason", "last_adjustment_delta", "last_adjustment_at", "goal_handled_weight_kg", "goal_handled_aspiration", "goal_achieved_weight_kg", "goal_achieved_aspiration"}
+    for column in used:
+        assert column in columns, column
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 

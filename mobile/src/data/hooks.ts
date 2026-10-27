@@ -267,15 +267,27 @@ export function useWorkoutHistory(): Loaded<RecentWorkout[]> {
   return status(query, entries);
 }
 
-/** The person's coaching profile: the stored one with a waiting save laid over it; null until a wizard has been finished. */
-export function useCoachingProfile(): Loaded<CoachingData | null> {
+/** The coaching row as stored, with a save still waiting in the queue laid over it. */
+function useCoachingRow(): Loaded<Row<'coaching_profiles'> | null> {
   const { data, queue } = useDataContext();
   const query = useQuery({ queryKey: keys.coachingRow(data.userId), queryFn: () => data.fetch.coachingRow() });
-  const profile = useMemo(() => {
-    const ops = waiting(queue, data.userId, 'coaching_profiles');
-    const last = ops[ops.length - 1];
-    const row = last && last.kind === 'upsert' ? (last.row as unknown as Row<'coaching_profiles'>) : (query.data ?? null);
-    return coachingDataFromRow(row);
+  const row = useMemo(() => {
+    const pending = latestRow<Row<'coaching_profiles'>>(waiting(queue, data.userId, 'coaching_profiles'));
+    return pending ? (pending.deleted ? null : (pending.row ?? null)) : (query.data ?? null);
   }, [query.data, queue, data.userId]);
-  return status(query, profile);
+  return status(query, row);
+}
+
+/** The person's coaching profile: the stored one with a waiting save laid over it; null until a wizard has been finished. */
+export function useCoachingProfile(): Loaded<CoachingData | null> {
+  const row = useCoachingRow();
+  const profile = useMemo(() => coachingDataFromRow(row.data), [row.data]);
+  return { ...row, data: profile };
+}
+
+/** The goal (weight and direction) the person has already checked in on, if any: a reached goal only makes a check-in due once. */
+export function useGoalHandled(): Loaded<{ weightKg: number | null; aspiration: string | null }> {
+  const row = useCoachingRow();
+  const handled = useMemo(() => ({ weightKg: row.data?.goal_handled_weight_kg ?? null, aspiration: row.data?.goal_handled_aspiration ?? null }), [row.data]);
+  return { ...row, data: handled };
 }

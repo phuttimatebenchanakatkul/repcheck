@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0.**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -571,6 +571,21 @@ native slider with the same "slower / standard / faster" badge and the website's
 place of its custom-drawn one; the website's live "estimated daily budget" under the slider is not shown (the result screen has the real
 numbers). The body-type pictures are the website's own files, copied into `assets/bodyfat` and compared byte for byte by a test; the
 ranges are generated into `src/data/bodyfat.json` by `scripts/export_libraries.py`.
+
+**Added in v0.34.0.0: the weekly check-in with progress photos (5c).** Seven days after the last check-in (or after the profile was made) a
+card on Home and on Nutrition offers it; until then Nutrition says how many days are left. It shows the week (tap a day to cycle it
+between logged / incomplete, or not logged / fasting, as the website does), today's weight unless it is already logged, and optional
+front and back photos (camera or library). Completing it uploads the photos (best effort: a photo that cannot be kept does not stop the
+check-in), sends the week to `POST /api/coaching/weekly-adjustment`, and shows the answer: *on track*, or the new daily target, why, and
+each macro's old and new value. The server does the maths (and, with AI consent, lets the model read the photos); a refusal or failure
+keeps the week (nothing is saved, so it can be retried). A new target is saved as the protein / fat / carb goals, the coaching row
+records the day, the reason and the change, and the day counts toward the streak. Reaching the goal weight makes the check-in due at
+once and skips the adjustment: the screen offers *Set new goals* (the wizard) and marks that goal as handled.
+
+Differences from the website: "handled" is two columns (`goal_handled_weight_kg` / `goal_handled_aspiration`, compared with the profile's
+goal) rather than the website's separate flag, so a goal that moves is simply a new goal; a profile this app wrote is always complete,
+so there is no "fix my profile" step beyond opening the wizard when there is no profile; the week is read from the account, not from
+what this device remembers.
 
 Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
 field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.
