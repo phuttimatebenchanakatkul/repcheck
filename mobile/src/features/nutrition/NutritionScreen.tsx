@@ -15,6 +15,7 @@ import { Button, Card, ErrorText, Screen, Text } from '@/ui/components';
 import { OfflineBanner } from '@/ui/OfflineBanner';
 import { space } from '@/ui/tokens';
 
+import { InactivityBanner } from '@/features/coaching/InactivityBanner';
 import { useCheckinStatus } from '@/features/coaching/useCheckin';
 
 import { AddFoodSheet } from './AddFoodSheet';
@@ -103,6 +104,7 @@ export default function NutritionScreen() {
   return (
     <Screen>
       <OfflineBanner />
+      <InactivityBanner />
       <DateStrip selected={day} today={today} loggedDays={loggedDays} loggedLabel={(date) => t('app.nutrition.dayLogged', { day: date })} onSelect={setDay} />
 
       <TotalsCard totals={totals} goals={goals.data} onEditGoals={() => setGoalsOpen(true)} />

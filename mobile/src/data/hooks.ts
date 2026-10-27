@@ -315,3 +315,10 @@ export function useHyroxPrefs(): Loaded<HyroxPrefs> {
   }, [query.data, queue, data.userId]);
   return status(query, prefs);
 }
+
+/** The day the "it's been N days" nudge was last dismissed, or null. */
+export function useInactivityNoticedOn(): Loaded<string | null> {
+  const row = useCoachingRow();
+  const day = useMemo(() => row.data?.inactivity_notified_on ?? null, [row.data]);
+  return { ...row, data: day };
+}

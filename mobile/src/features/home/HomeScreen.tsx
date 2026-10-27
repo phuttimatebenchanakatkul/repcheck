@@ -16,6 +16,7 @@ import { useTheme } from '@/ui/theme';
 import { space } from '@/ui/tokens';
 import { Bar, Ring } from '@/ui/widgets';
 
+import { InactivityBanner } from '../coaching/InactivityBanner';
 import { useCheckinStatus } from '../coaching/useCheckin';
 import { DeletionBanner } from '../settings/DeletionBanner';
 import { WeightForm } from '../history/WeightForm';
@@ -64,6 +65,7 @@ export default function HomeScreen() {
           <Button title={t('coaching.setup.button')} onPress={() => router.push('/coaching-wizard')} />
         </Card>
       ) : null}
+      <InactivityBanner />
       {checkin.daysRemaining === 0 ? (
         <Card>
           <Text variant="rowTitle">{t('coaching.checkin.title')}</Text>

@@ -460,3 +460,8 @@ export function hyroxPrefsFromRow(row: Row<'user_settings'> | null | undefined):
 export function settingsRowWithHyrox(userId: string, prefs: HyroxPrefs, base: Row<'user_settings'> | null | undefined): NewRow<'user_settings'> {
   return { ...settingsToRow(userId, settingsFromRow(base), base), hyrox_facility_lane_m: prefs.laneM, hyrox_leaderboard_gender: prefs.leaderboardGender };
 }
+
+/** The coaching row after the "it's been N days" nudge was dismissed: the same row, noticed today so it does not come back until tomorrow. */
+export function coachingRowWithInactivityNoticed(base: Row<'coaching_profiles'>, today: string): NewRow<'coaching_profiles'> {
+  return { ...base, inactivity_notified_on: today };
+}

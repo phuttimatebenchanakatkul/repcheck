@@ -8,10 +8,10 @@ import { supabaseExecutor } from '../../store/executor';
 import { Outbox, rowIdentity, type KeyValueStorage } from '../../store/outbox';
 import { FakeDatabase } from '../../testing/fakeSupabase';
 import { DataError, createData, type DataApi } from '../access';
-import { DataContext, useCoachingProfile, useGoalHandled } from '../hooks';
+import { DataContext, useCoachingProfile, useGoalHandled, useInactivityNoticedOn } from '../hooks';
 import { keys } from '../keys';
-import { coachingRowAfterCheckin, type Row } from '../mappers';
-import { coachingCheckinSave, coachingProfileSave } from '../ops';
+import { coachingRowAfterCheckin, coachingRowWithInactivityNoticed, type Row } from '../mappers';
+import { coachingCheckinSave, coachingInactivityNoticed, coachingProfileSave } from '../ops';
 
 const U = 'user-1';
 const NOW = new Date(2026, 9, 27, 12);
@@ -150,5 +150,47 @@ describe('what the screens read after a check-in', () => {
     const hook = await renderHook(() => useGoalHandled(), { wrapper: h.wrapper });
     await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
     expect(hook.result.current.data).toEqual({ weightKg: null, aspiration: null });
+  });
+});
+
+describe('dismissing the inactivity nudge', () => {
+  it('notes today on the row and changes nothing else', () => {
+    expect(coachingRowWithInactivityNoticed(storedRow(), '2026-10-27')).toEqual({ ...storedRow(), inactivity_notified_on: '2026-10-27' });
+  });
+
+  it('is the same waiting write as any other save of the coaching row', () => {
+    const op = coachingInactivityNoticed(U, storedRow(), '2026-10-27');
+    expect(op).toMatchObject({ kind: 'upsert', table: 'coaching_profiles', key: 'user_id' });
+    expect(rowIdentity(op)).toBe(rowIdentity(coachingProfileSave(U, dataOf(), null, null)));
+  });
+
+  it('is shown at once, sent as the whole row, and read back by the hook', async () => {
+    const h = setup();
+    h.db.seed('coaching_profiles', [storedRow()]);
+    const hook = await renderHook(() => useInactivityNoticedOn(), { wrapper: h.wrapper });
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+    expect(hook.result.current.data).toBe('2026-10-25');
+    await act(async () => {
+      await h.data.actions.dismissInactivity();
+    });
+    await hook.rerender({});
+    expect(hook.result.current.data).toBe('2026-10-27');
+    await h.outbox.flush(U);
+    expect(h.db.rows('coaching_profiles')[0]).toMatchObject({ inactivity_notified_on: '2026-10-27', extra: { note: 'kept' }, last_adjustment_on: '2026-10-20' });
+  });
+
+  it('with no coaching row there is nothing to record it on, and nothing is sent', async () => {
+    const h = setup();
+    h.queryClient.setQueryData(keys.coachingRow(U), null);
+    await h.data.actions.dismissInactivity();
+    await h.outbox.flush(U);
+    expect(h.db.rows('coaching_profiles')).toEqual([]);
+  });
+
+  it('with no profile the hook says no day', async () => {
+    const h = setup();
+    const hook = await renderHook(() => useInactivityNoticedOn(), { wrapper: h.wrapper });
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+    expect(hook.result.current.data).toBeNull();
   });
 });
