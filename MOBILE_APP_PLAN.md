@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0.**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -598,6 +598,19 @@ Differences from the website: the app can scan a QR (the website's scanner was r
 clipboard, and there is no "suggest from contacts" (the website dropped it as a 5.1.2 risk and a test keeps it out). New packages:
 `react-native-qrcode-svg` and `expo-clipboard`. Challenges and leaderboards, the other places another person's name will show, come next
 and will open the same sheet.
+
+**Added in v0.36.0.0: the daily challenge and leaderboard (5e).** *Challenges* (from Home) shows today's exercise (push-ups, sit-ups and
+pull-ups rotate, one a day for everybody, decided by the server), a *Record an attempt* button (spent after one attempt a day), and the
+leaderboard: total reps across every attempt, Friends or Global (Global first), your own standing pinned above the others, the top 25
+listed with their real rank and how far each is from you, and a "more options" button on every other name that opens the same report /
+block sheet as Friends. Recording is in the app: the front camera with a 10 second countdown to get in position, then up to 25 seconds
+(the server grades the first 25), *Stop & submit* after the first two. The app creates the challenge only when the clip is ready to
+send (the website creates one when the recorder opens, leaving an empty one behind for every abandoned try), the server counts the reps,
+and the result shows reps done, reps counted and a note, with the clip played back. An attempt counts as a day for the streak once the
+server has counted it. The AI consent question comes first. Closing mid-recording throws the clip away.
+
+Differences from the website: the website's decorative "analysing" skeleton over the clip (MediaPipe, cosmetic) is not drawn, and the
+camera is not zoom-normalised. The camera text in `app.json` now also names friend QR codes and the rep challenge.
 
 Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
 field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.

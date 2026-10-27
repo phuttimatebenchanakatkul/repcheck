@@ -35,7 +35,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "RepCheck uses the camera to scan barcodes and photograph meals so it can estimate their calories and macros."
+          "cameraPermission": "RepCheck uses the camera to scan barcodes and friend QR codes, to photograph meals so it can estimate their calories and macros, and to film your daily rep challenge so the reps can be counted."
         }
       ],
       [
