@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { getApi } from '@/api';
 import { useActions, useCoachingProfile, useHyroxPrefs, useHyroxRaces, useSettings } from '@/data/hooks';
 import { useTranslation } from '@/i18n';
-import { STATION_KEYS, allPersonalBests, finishedRace, formatClock, laneOrDefault, leaderboardResult, profileGender, type Category, type Format, type Gender, type Race, type Split } from '@/logic/hyrox';
+import { NO_PRACTICE, STATIONS, STATION_KEYS, allPersonalBests, finishedRace, formatClock, laneOrDefault, leaderboardResult, profileGender, type Category, type Format, type Gender, type Practice, type Race, type Split, practiceAfter } from '@/logic/hyrox';
 import { newId } from '@/logic/ids';
 import { Button, Card, ErrorText, Screen, Text } from '@/ui/components';
 import { OfflineBanner } from '@/ui/OfflineBanner';
@@ -16,12 +16,13 @@ import { LeaderboardCard } from './LeaderboardCard';
 import { RaceSetup, type Setup } from './RaceSetup';
 import { RunningRace } from './RunningRace';
 import { StationIcon } from './StationIcon';
+import { StationInfoSheet } from './StationInfoSheet';
 import { comboLabel } from './labels';
 
 type Page = 'home' | 'setup' | 'running' | 'finished' | 'history' | 'leaderboard';
 
 /** The first screen: your fastest time (or an invitation), the eight stations, and the way in to a race. */
-function Hero({ races, onStart, onHistory }: { races: readonly Race[]; onStart: () => void; onHistory: () => void }) {
+function Hero({ races, onStart, onHistory, onInfo }: { races: readonly Race[]; onStart: () => void; onHistory: () => void; onInfo: (station: string) => void }) {
   const { t } = useTranslation();
   const best = allPersonalBests(races)[0] ?? null;
   return (
@@ -66,7 +67,9 @@ function Hero({ races, onStart, onHistory }: { races: readonly Race[]; onStart: 
       )}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
         {STATION_KEYS.map((key) => (
-          <StationIcon key={key} name={key} size={28} />
+          <Pressable key={key} accessibilityRole="button" accessibilityLabel={STATIONS.find((s) => s.key === key)?.title ?? key} onPress={() => onInfo(key)} hitSlop={space.xs} style={{ minWidth: 40, minHeight: 40, alignItems: 'center', justifyContent: 'center' }}>
+            <StationIcon name={key} size={28} />
+          </Pressable>
         ))}
       </View>
       <Button title={t('hyrox.startRace')} onPress={onStart} />
@@ -90,6 +93,8 @@ export default function HyroxScreen() {
   const [view, setView] = useState<Page>('home');
   const [setup, setSetup] = useState<Setup>({ category: null, format: null, gender: null, scale: 'full' });
   const [finished, setFinished] = useState<Race | null>(null);
+  const [practice, setPractice] = useState<Practice>(NO_PRACTICE);
+  const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // The gender on the coaching profile decides the standard; only someone with no profile is asked.
@@ -141,8 +146,15 @@ export default function HyroxScreen() {
     }
   };
 
+  /** A change to the setup; a practice weight or split measured against what was changed goes with it. */
+  const changeSetup = (next: Setup) => {
+    setPractice((current) => practiceAfter(effective, { ...next, gender: fromProfile ?? next.gender }, current));
+    setSetup(next);
+  };
+
   const reset = () => {
     setSetup({ category: null, format: null, gender: null, scale: 'full' });
+    setPractice(NO_PRACTICE);
     setView('home');
   };
 
@@ -155,7 +167,7 @@ export default function HyroxScreen() {
         <>
           {view === 'home' ? (
             <>
-              <Hero races={races.data} onStart={() => setView('setup')} onHistory={() => setView('history')} />
+              <Hero races={races.data} onStart={() => setView('setup')} onHistory={() => setView('history')} onInfo={setInfo} />
               <LeaderboardCard gender={boardGender} onGender={chooseBoardGender} />
             </>
           ) : null}
@@ -166,17 +178,18 @@ export default function HyroxScreen() {
               <Text variant="title" accessibilityRole="header">
                 {t('hyrox.setupSheet.title')}
               </Text>
-              <RaceSetup setup={effective} onChange={setSetup} needsGender={fromProfile === null} laneM={prefs.data.laneM} units={units} history={races.data} onStart={() => setView('running')} />
+              <RaceSetup setup={effective} onChange={changeSetup} practice={practice} onPractice={setPractice} needsGender={fromProfile === null} laneM={prefs.data.laneM} units={units} history={races.data} onStart={() => setView('running')} />
             </>
           ) : null}
 
           {view === 'running' && effective.category && effective.format && effective.gender ? (
             <RunningRace
-              config={{ category: effective.category, format: effective.format, gender: effective.gender, scale: effective.scale }}
+              config={{ category: effective.category, format: effective.format, gender: effective.gender, scale: effective.scale, practice }}
               laneM={laneM}
               units={units}
               onFinish={(splits, total) => void finish(splits, total)}
               onCancel={reset}
+              onInfo={setInfo}
             />
           ) : null}
 
@@ -186,6 +199,7 @@ export default function HyroxScreen() {
 
           {view === 'history' ? <HistoryView races={races.data} onRemove={(race) => void remove(race)} onBack={reset} onAnalysed={(race) => void analysed(race)} /> : null}
 
+          <StationInfoSheet station={info} onClose={() => setInfo(null)} />
           <ErrorText>{error}</ErrorText>
           <Text variant="caption" secondary testID="trademark">
             {t('hyrox.trademarkNote')}

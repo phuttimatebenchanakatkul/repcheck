@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.41.0.0] - 2026-10-28
+
+### Added
+
+More of the HYROX race tracker in the native app. Nothing in the website or the current App Store app changes.
+
+- **Practise with a lighter weight.** In Pro Singles, the sleds, the farmers carry and the sandbag lunges can be set lighter; the laps grow to keep the
+  work comparable.
+- **Split a Doubles race.** Say how many rounds of each loaded station are yours and how many your partner's; the race shows your share.
+- **How to do each station.** Tap a station for what it is, three steps, the tip that saves most time, and a tutorial video.
+- **Proven:** 2466 app tests (including a run of the website's own scaling and how-to code against ours), then 270 deliberate
+  breakages of the new code (every survivor killed by a new test, removed as redundant, or a change with no observable effect). Not yet run on a phone.
+
 ## [0.40.0.0] - 2026-10-28
 
 ### Added

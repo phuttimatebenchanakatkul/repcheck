@@ -14,6 +14,15 @@ import {
   STATION_KEYS,
   STATION_SPECS,
   BOARD_TABS,
+  NO_PRACTICE,
+  ROUND_STATIONS,
+  cleanRounds,
+  doublesShare,
+  hasPractice,
+  practiceAfter,
+  practiceWeight,
+  scaledDistanceM,
+  sessionWeightKg,
   allPersonalBests,
   analysisFromJson,
   breakdownTotals,
@@ -70,7 +79,7 @@ const site: any = new Function(
    ${slice('const FLAG_THRESHOLD_SECONDS', 'const PB_BOARD_LIMIT')}
    ${slice('function formatClock(', '  function el(html)')}
    function profileGender(profile) { if (!profile || !profile.gender) return null; return profile.gender === "female" ? "women" : "men"; }
-   return { STATIONS, STATION_SPECS, STATION_ORDER, PRO_ADJUSTABLE_STATIONS, RUN_DISTANCE_M, runDistanceM, scaledStationDistanceM, scaledWallBallReps,
+   return { STATIONS, STATION_SPECS, STATION_ORDER, PRO_ADJUSTABLE_STATIONS, RUN_DISTANCE_M, runDistanceM, scaledStationDistanceM, scaledWallBallReps, scaledDistanceM,
             totalRoundUnits, getDefaultStationWeightKg, FLAG_THRESHOLD_SECONDS, formatClock, formatClockPrecise, profileGender };`,
 )((key: string) => key);
 
@@ -100,6 +109,16 @@ describe('against the website', () => {
     for (const scale of SCALES) {
       for (const lane of [1, 2.5, 10, 12.5, 25, 33, 400]) {
         for (const key of site.PRO_ADJUSTABLE_STATIONS) expect(roundsFor(key, scale, lane)).toBe(site.totalRoundUnits(key, lane, scale));
+      }
+    }
+  });
+
+  it('a lighter weight scales the distance the same way, for every weight, with and without quantising', () => {
+    expect([...ROUND_STATIONS]).toEqual(site.PRO_ADJUSTABLE_STATIONS);
+    for (const [distance, standard] of [[50, 202], [50, 152], [200, 32], [100, 30], [25, 78]]) {
+      for (let weight = 0; weight <= standard + 5; weight += 3.7) {
+        expect(scaledDistanceM(distance, standard, weight, 12.5)).toBe(site.scaledDistanceM(distance, standard, weight, 12.5));
+        expect(scaledDistanceM(distance, standard, weight, null)).toBe(site.scaledDistanceM(distance, standard, weight, null));
       }
     }
   });
@@ -457,5 +476,135 @@ describe('the AI’s read, as kept on a race', () => {
     expect(canAnalyze({ flagged: false, category: 'open' })).toBe(true);
     expect(canAnalyze({ flagged: true, category: 'open' })).toBe(false);
     expect(canAnalyze({ flagged: false, category: 'custom' })).toBe(false);
+  });
+});
+
+describe('practice: a lighter weight in Pro Singles', () => {
+  it('is whatever was typed, held between a tenth of the standard and the standard, to 0.1 kg', () => {
+    expect(practiceWeight('150', 202)).toBe(150);
+    expect(practiceWeight('150.46', 202)).toBe(150.5);
+    expect(practiceWeight('250', 202)).toBe(202);
+    expect(practiceWeight('5', 202)).toBe(20.2);
+    expect(practiceWeight(30, 152)).toBe(30);
+  });
+
+  it('a weight under a tenth of the standard is held at a tenth of it, one just above zero too', () => {
+    expect(practiceWeight('0.5', 202)).toBe(20.2);
+    expect(practiceWeight('0.01', 152)).toBe(15.2);
+  });
+
+  it.each([[''], ['abc'], [0], [-5], [NaN], [null], [undefined]])('%j is the standard', (raw) => {
+    expect(practiceWeight(raw, 152)).toBe(152);
+  });
+
+  it('applies only to Pro Singles, and only to a weight lighter than the standard that was chosen', () => {
+    const practice = { weights: { sledPush: 100, lunges: 40, farmersCarry: 0, sledPull: -3 }, doubles: {} };
+    expect(sessionWeightKg('sledPush', 'men', 'pro', 'singles', practice)).toBe(100);
+    expect(sessionWeightKg('sledPush', 'men', 'pro', 'doubles', practice)).toBe(202);
+    expect(sessionWeightKg('sledPush', 'men', 'open', 'singles', practice)).toBe(152);
+    expect(sessionWeightKg('lunges', 'men', 'pro', 'singles', practice)).toBe(30); // heavier than the standard: ignored
+    expect(sessionWeightKg('farmersCarry', 'men', 'pro', 'singles', practice)).toBe(32);
+    expect(sessionWeightKg('sledPull', 'men', 'pro', 'singles', practice)).toBe(152);
+    expect(sessionWeightKg('skierg', 'men', 'pro', 'singles', practice)).toBeNull();
+    expect(sessionWeightKg('sledPush', 'men', 'pro', 'singles', NO_PRACTICE)).toBe(202);
+  });
+
+  it('a chosen weight just above zero is still the chosen weight', () => {
+    expect(sessionWeightKg('sledPush', 'men', 'pro', 'singles', { weights: { sledPush: 0.5 }, doubles: {} })).toBe(0.5);
+    expect(sessionWeightKg('sledPush', 'men', 'pro', 'singles', { weights: { sledPush: 202 }, doubles: {} })).toBe(202);
+  });
+
+  it('makes the laps longer to match: half the weight, about double the laps', () => {
+    expect(roundsFor('sledPush', 'full', 12.5, { standardKg: 202, currentKg: 202 })).toBe(4);
+    expect(roundsFor('sledPush', 'full', 12.5, { standardKg: 202, currentKg: 101 })).toBe(8);
+    expect(roundsFor('farmersCarry', 'full', 12.5, { standardKg: 32, currentKg: 16 })).toBe(32);
+    expect(roundsFor('lunges', 'full', 12.5, { standardKg: 30, currentKg: 20 })).toBe(12);
+    expect(roundsFor('sledPush', 'full', 12.5, { standardKg: 202, currentKg: 250 })).toBe(4); // heavier never shortens it
+  });
+
+  it('keeps a sled to whole segments but not a carry: the odd weights where that matters', () => {
+    expect(roundsFor('sledPush', 'full', 10, { standardKg: 202, currentKg: 150 })).toBe(8); // 67.3 m -> 75 m of segments -> 8 laps of 10 m
+    expect(roundsFor('lunges', 'full', 10, { standardKg: 30, currentKg: 17 })).toBe(18); // 176.5 m exact -> 18 laps of 10 m
+    expect(roundsFor('sledPull', 'full', 10, { standardKg: 152, currentKg: 101 })).toBe(9); // 75.25 m -> 87.5 m of segments, where exact would be 8
+    expect(roundsFor('farmersCarry', 'full', 10, { standardKg: 32, currentKg: 21 })).toBe(31);
+  });
+
+  it('is shown as the rounds to do', () => {
+    const practice = { weights: { sledPush: 101 }, doubles: {} };
+    expect(roundsToDo('sledPush', 'singles', 'full', 12.5, practice, 'men', 'pro')).toBe(8);
+    expect(roundsToDo('sledPush', 'singles', 'full', 12.5, NO_PRACTICE, 'men', 'pro')).toBe(4);
+    expect(roundsToDo('sledPush', 'singles', 'full', 12.5, practice)).toBe(4); // without who it is for, the standard
+    expect(roundsToDo('sledPush', 'singles', 'full', 12.5, practice, 'men')).toBe(4); // half of who it is for is not enough either
+    expect(roundsToDo('sledPush', 'singles', 'full', 12.5, practice, undefined, 'pro')).toBe(4);
+  });
+});
+
+describe('practice: a Doubles split', () => {
+  it('starts as half, the partner has the rest', () => {
+    expect(doublesShare('sledPush', 'full', 12.5, undefined)).toEqual({ total: 4, mine: 2, partner: 2 });
+    expect(doublesShare('farmersCarry', 'full', 12.5, undefined)).toEqual({ total: 16, mine: 8, partner: 8 });
+    expect(doublesShare('lunges', 'full', 40, undefined)).toEqual({ total: 3, mine: 2, partner: 1 });
+  });
+
+  it('is the person’s own when it is a number from none to all', () => {
+    expect(doublesShare('sledPush', 'full', 12.5, 3)).toEqual({ total: 4, mine: 3, partner: 1 });
+    expect(doublesShare('sledPush', 'full', 12.5, 0)).toEqual({ total: 4, mine: 0, partner: 4 });
+    expect(doublesShare('sledPush', 'full', 12.5, 4)).toEqual({ total: 4, mine: 4, partner: 0 });
+    expect(doublesShare('sledPush', 'full', 12.5, 5)).toEqual({ total: 4, mine: 2, partner: 2 });
+    expect(doublesShare('sledPush', 'full', 12.5, -1)).toEqual({ total: 4, mine: 2, partner: 2 });
+  });
+
+  it('follows the length of the race and the lane', () => {
+    expect(doublesShare('sledPush', 'half', 12.5, undefined)).toEqual({ total: 2, mine: 1, partner: 1 });
+    expect(doublesShare('sledPush', 'full', 500, undefined)).toEqual({ total: 1, mine: 1, partner: 0 });
+  });
+
+  it('only for the stations that are done in rounds', () => {
+    for (const key of ['skierg', 'row', 'burpeeBroadJump', 'wallBalls', 'nope']) expect(doublesShare(key, 'full', 12.5, undefined)).toBeNull();
+  });
+
+  it('numbers as typed: whole, from none to the total', () => {
+    expect(cleanRounds('3', 4)).toBe(3);
+    expect(cleanRounds('2.6', 4)).toBe(3);
+    expect(cleanRounds('9', 4)).toBe(4);
+    expect(cleanRounds('-2', 4)).toBe(0);
+    expect(cleanRounds('abc', 4)).toBe(0);
+    expect(cleanRounds('', 4)).toBe(0);
+  });
+
+  it('your share of the rounds is what the race shows, never fewer than one', () => {
+    expect(roundsToDo('sledPush', 'doubles', 'full', 12.5, { weights: {}, doubles: { sledPush: 3 } })).toBe(3);
+    expect(roundsToDo('sledPush', 'doubles', 'full', 12.5, { weights: {}, doubles: { sledPush: 0 } })).toBe(1);
+    expect(roundsToDo('farmersCarry', 'doubles', 'full', 12.5, { weights: {}, doubles: { farmersCarry: 12 } })).toBe(12);
+    expect(roundsToDo('sledPush', 'singles', 'full', 12.5, { weights: {}, doubles: { sledPush: 3 } })).toBe(4); // a Singles race ignores a split
+  });
+});
+
+describe('practice follows the setup', () => {
+  const was = { category: 'pro', format: 'singles', gender: 'men', scale: 'full' };
+  const practice = { weights: { sledPush: 100 }, doubles: { sledPush: 3 } };
+
+  it('is kept while nothing it depends on changes', () => {
+    expect(practiceAfter(was, { ...was }, practice)).toBe(practice);
+  });
+
+  it('weights go with a change of category or gender, not of format or length', () => {
+    expect(practiceAfter(was, { ...was, category: 'open' }, practice).weights).toEqual({});
+    expect(practiceAfter(was, { ...was, gender: 'women' }, practice).weights).toEqual({});
+    expect(practiceAfter(was, { ...was, format: 'doubles' }, practice).weights).toEqual({ sledPush: 100 });
+    expect(practiceAfter(was, { ...was, scale: 'half' }, practice).weights).toEqual({ sledPush: 100 });
+  });
+
+  it('the split goes with a change of format or length, not of category or gender', () => {
+    expect(practiceAfter(was, { ...was, format: 'doubles' }, practice).doubles).toEqual({});
+    expect(practiceAfter(was, { ...was, scale: 'half' }, practice).doubles).toEqual({});
+    expect(practiceAfter(was, { ...was, category: 'open' }, practice).doubles).toEqual({ sledPush: 3 });
+    expect(practiceAfter(was, { ...was, gender: 'women' }, practice).doubles).toEqual({ sledPush: 3 });
+  });
+
+  it('has practice once anything has been moved', () => {
+    expect(hasPractice(NO_PRACTICE)).toBe(false);
+    expect(hasPractice({ weights: { a: 1 }, doubles: {} })).toBe(true);
+    expect(hasPractice({ weights: {}, doubles: { a: 1 } })).toBe(true);
   });
 });

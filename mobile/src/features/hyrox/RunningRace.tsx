@@ -9,11 +9,12 @@ import {
   formatClockPrecise,
   formatWeight,
   roundsToDo,
+  sessionWeightKg,
+  type Practice,
   scaledStationDistanceM,
   scaledWallBallReps,
   segmentTitle,
   stationMeters,
-  stationWeightKg,
   type Category,
   type Format,
   type Gender,
@@ -33,6 +34,8 @@ export interface RaceConfig {
   format: Format;
   gender: Gender;
   scale: Scale;
+  /** A practice session's lighter weights and shares; the standard where nothing was changed. */
+  practice: Practice;
 }
 
 /** What to do at the segment now: the number of reps, or laps (and the load), or the distance. */
@@ -62,8 +65,8 @@ function Now({ segment, config, laneM, units }: { segment: Segment; config: Race
   if (segment.key === 'skierg' || segment.key === 'row') {
     return <View style={{ flexDirection: 'row', justifyContent: 'center' }}>{chip(stationMeters(scaledStationDistanceM(segment.key, config.scale) ?? 0), t('hyrox.space.chip.distance'), 'now-distance')}</View>;
   }
-  const rounds = roundsToDo(segment.key, config.format, config.scale, laneM);
-  const weight = stationWeightKg(segment.key, config.gender, config.category);
+  const rounds = roundsToDo(segment.key, config.format, config.scale, laneM, config.practice, config.gender, config.category);
+  const weight = sessionWeightKg(segment.key, config.gender, config.category, config.format, config.practice);
   const label = segment.key === 'sledPush' || segment.key === 'sledPull' ? t('hyrox.space.chip.sled') : segment.key === 'farmersCarry' ? t('hyrox.space.chip.perHand') : segment.key === 'lunges' ? t('hyrox.space.chip.sandbag') : t('hyrox.space.chip.load');
   return (
     <View style={{ alignItems: 'center', gap: space.xs }}>
@@ -92,12 +95,14 @@ export function RunningRace({
   units,
   onFinish,
   onCancel,
+  onInfo,
 }: {
   config: RaceConfig;
   laneM: number;
   units: UnitPrefs;
   onFinish: (splits: Split[], totalSeconds: number) => void;
   onCancel: () => void;
+  onInfo: (station: string) => void;
 }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -153,6 +158,7 @@ export function RunningRace({
           {segmentTitle(segment, config.scale, units)}
         </Text>
         <Now segment={segment} config={config} laneM={laneM} units={units} />
+        {segment.type === 'station' ? <Button tone="plain" title={t('hyrox.running.howTo')} onPress={() => onInfo(segment.key)} /> : null}
       </View>
 
       <View accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: STATIONS.length, now: index }} style={{ height: 6, borderRadius: radius.pill, backgroundColor: colors.border, overflow: 'hidden' }}>
