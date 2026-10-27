@@ -535,6 +535,29 @@ def test_the_hyrox_leaderboard_post_matches_the_route_and_the_trademark_notice_i
     assert "not affiliated with, endorsed or sponsored by HYROX" in text(MOBILE / "src" / "i18n" / "en.json")
 
 
+def test_the_hyrox_board_and_analysis_calls_match_the_routes():
+    api = text(MOBILE / "src" / "api" / "hyrox.ts")
+    social_route = text(ROOT / "api" / "routes" / "social.py")
+    planning_route = text(ROOT / "api" / "routes" / "planning.py")
+    assert "'/api/hyrox/leaderboard'" in api and '"/api/hyrox/leaderboard"' in social_route
+    assert "'/api/hyrox/analyze'" in api and '"/api/hyrox/analyze"' in planning_route
+    for field in ("gender", "category", "format", "user_id", "best_seconds", "totalEntries"):
+        assert field in api and field in social_route + text(ROOT / "api" / "social.py"), field
+    for field in ("segments", "overall_detail", "tips", "limited"):
+        assert field in api and field in planning_route, field
+    assert "total_seconds" in api and "total_seconds" in text(ROOT / "hyrox_coach.py")
+    logic = text(MOBILE / "src" / "logic" / "hyrox.ts")
+    assert "export const BOARD_TABS" in logic and re.findall(r"\{ category: '(\w+)', format: '(\w+)' \}", logic.split("BOARD_TABS")[1].split("];")[0]) == [("open", "singles"), ("pro", "singles"), ("open", "doubles"), ("pro", "doubles")]
+
+
+def test_the_hyrox_ratings_are_the_coachs():
+    import hyrox_coach
+    logic = text(MOBILE / "src" / "logic" / "hyrox.ts")
+    assert set(re.findall(r"'(\w+)'", re.search(r"export type Rating = (.*?);", logic).group(1))) == set(hyrox_coach.VALID_RATINGS)
+    for name in ("hyrox.analysis.group.focus", "hyrox.analysis.group.strong", "hyrox.analysis.group.solid"):
+        assert name in text(MOBILE / "src" / "features" / "hyrox" / "RaceAnalysisPanel.tsx")
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 

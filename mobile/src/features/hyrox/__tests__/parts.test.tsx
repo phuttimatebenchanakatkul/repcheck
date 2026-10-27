@@ -44,6 +44,7 @@ describe('the breakdown bars', () => {
     );
     const run = flat(screen.getByTestId('bar-0').props.style).backgroundColor;
     const station = flat(screen.getByTestId('bar-1').props.style).backgroundColor;
+    expect(run).toBe('#6b6d78'); // a run is the muted grey
     expect(run).toBeTruthy();
     expect(station).toBeTruthy();
     expect(run).not.toBe(station);

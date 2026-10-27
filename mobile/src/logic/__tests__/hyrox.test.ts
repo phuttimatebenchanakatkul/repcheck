@@ -13,8 +13,11 @@ import {
   STATIONS,
   STATION_KEYS,
   STATION_SPECS,
+  BOARD_TABS,
   allPersonalBests,
+  analysisFromJson,
   breakdownTotals,
+  canAnalyze,
   cleanLane,
   finishedRace,
   flagKey,
@@ -27,6 +30,8 @@ import {
   pbBoards,
   pbKey,
   personalBest,
+  ratingsByKey,
+  tipGroups,
   profileGender,
   roundsFor,
   roundsToDo,
@@ -391,5 +396,66 @@ describe('what goes on the leaderboard', () => {
     ['no format', { format: null }],
   ])('not a %s race', (_name, over) => {
     expect(leaderboardResult(race(over as Partial<Race>))).toBeNull();
+  });
+});
+
+describe('the boards', () => {
+  it('are Open and Pro, Singles and Doubles, Singles first', () => {
+    expect(BOARD_TABS.map((t) => `${t.category}|${t.format}`)).toEqual(['open|singles', 'pro|singles', 'open|doubles', 'pro|doubles']);
+  });
+});
+
+describe('the AI’s read, as kept on a race', () => {
+  const stored = {
+    overall: 'Strong runs.',
+    overallDetail: ['Even pacing.', '', 7, 'Sled cost time.'],
+    tips: [
+      { key: 'sledPush', tip: 'Drive lower.', rating: 'focus', detail: ['Hips down.'] },
+      { key: 'skierg', tip: 'Great pacing.', rating: 'strong' },
+      { key: 'row', tip: 'Fine.', rating: 'weird', detail: 'not a list' },
+      { key: 'lunges', tip: '   ', rating: 'focus' },
+      { key: 5, tip: 'no key', rating: 'focus' },
+      { tip: 'no key either' },
+      null,
+    ],
+  };
+
+  it('is read as the website stores it: bullets that are text, tips that say something, ratings it knows', () => {
+    expect(analysisFromJson(stored)).toEqual({
+      overall: 'Strong runs.',
+      overallDetail: ['Even pacing.', 'Sled cost time.'],
+      tips: [
+        { key: 'sledPush', tip: 'Drive lower.', rating: 'focus', detail: ['Hips down.'] },
+        { key: 'skierg', tip: 'Great pacing.', rating: 'strong', detail: [] },
+        { key: 'row', tip: 'Fine.', rating: 'solid', detail: [] },
+      ],
+    });
+  });
+
+  it('an overall of nothing is still a read, so long as it is text', () => {
+    expect(analysisFromJson({ overall: '' })).toEqual({ overall: '', overallDetail: [], tips: [] });
+    expect(analysisFromJson({ overall: 'x', tips: 'nope' })).toEqual({ overall: 'x', overallDetail: [], tips: [] });
+  });
+
+  it.each([[null], [undefined], ['x'], [5], [[]], [{}], [{ overall: 3 }]])('%j is not a read', (value) => {
+    expect(analysisFromJson(value)).toBeNull();
+  });
+
+  it('groups the tips with the biggest gains first, leaving out an empty group', () => {
+    const tips = analysisFromJson(stored)?.tips ?? [];
+    expect(tipGroups(tips).map((g) => [g.rating, g.tips.map((t) => t.key)])).toEqual([['focus', ['sledPush']], ['strong', ['skierg']], ['solid', ['row']]]);
+    expect(tipGroups(tips.filter((t) => t.rating === 'strong')).map((g) => g.rating)).toEqual(['strong']);
+    expect(tipGroups([])).toEqual([]);
+  });
+
+  it('ratings by station, none without a read', () => {
+    expect(ratingsByKey(analysisFromJson(stored))).toEqual({ sledPush: 'focus', skierg: 'strong', row: 'solid' });
+    expect(ratingsByKey(null)).toEqual({});
+  });
+
+  it('only a real, counting race can be coached', () => {
+    expect(canAnalyze({ flagged: false, category: 'open' })).toBe(true);
+    expect(canAnalyze({ flagged: true, category: 'open' })).toBe(false);
+    expect(canAnalyze({ flagged: false, category: 'custom' })).toBe(false);
   });
 });

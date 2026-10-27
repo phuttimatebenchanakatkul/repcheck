@@ -1,14 +1,20 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
+import { ApiError } from '@/api/client';
+
 import { STATIONS } from '@/logic/hyrox';
 import { USER, dataHarness } from '@/testing/dataHarness';
 
 import HyroxScreen from '../HyroxScreen';
 
-const mockApi = { submitHyroxResult: jest.fn() };
+const mockApi = { submitHyroxResult: jest.fn(), hyroxLeaderboard: jest.fn(), analyzeHyroxRace: jest.fn(), setAiConsent: jest.fn(), blockAccount: jest.fn(), reportAccount: jest.fn() };
+const mockAuth = { consented: false, refresh: jest.fn(async () => undefined) };
 
 jest.mock('@/api', () => ({ ...jest.requireActual('@/api/client'), getApi: () => mockApi }));
+jest.mock('@/auth/AuthProvider', () => ({
+  useAuth: () => ({ state: { status: 'ready', profile: { id: 'user-1', ai_consent: mockAuth.consented } }, refreshProfile: mockAuth.refresh }),
+}));
 
 const profileRow = (gender: string) => ({
   user_id: USER, aspiration: 'lose', gender, weight_kg: 70, body_fat_range_id: 'f3', activity_level: 'lift_only', protein_preference: 'high', diet_preference: 'low_carb',
@@ -24,6 +30,25 @@ const splitRows = (id: string) => [
   { user_id: USER, race_id: id, position: 1, key: 'skierg', title: 'SkiErg', at_seconds: 540, extra: {} },
   { user_id: USER, race_id: id, position: 2, key: 'run2', title: '1km Run', at_seconds: 860, extra: {} },
 ];
+
+const BOARD = {
+  rows: [
+    { userId: 'u-1', name: 'Ann', bestSeconds: 3700 },
+    { userId: 'u-2', name: 'Me', bestSeconds: 4100 },
+    { userId: 'u-3', name: 'Cy', bestSeconds: 4500 },
+  ],
+  total: 3,
+  mine: { rank: 2, bestSeconds: 4100, name: 'Me' },
+};
+const ANALYSIS = {
+  overall: 'Strong runs, slow sleds.',
+  overallDetail: ['Your runs stayed even.', 'The sled push cost you two minutes.'],
+  tips: [
+    { key: 'sledPush', tip: 'Drive lower on the sled.', rating: 'focus' as const, detail: ['Keep your hips down.'] },
+    { key: 'skierg', tip: 'Great pacing on the ski.', rating: 'strong' as const, detail: [] },
+    { key: 'row', tip: 'Fine.', rating: 'solid' as const, detail: [] },
+  ],
+};
 
 type Harness = ReturnType<typeof dataHarness>;
 
@@ -70,6 +95,11 @@ beforeEach(() => {
   jest.setSystemTime(new Date('2026-10-27T08:00:00.000Z'));
   jest.clearAllMocks();
   mockApi.submitHyroxResult.mockResolvedValue(true);
+  mockAuth.consented = false;
+  mockApi.hyroxLeaderboard.mockResolvedValue(BOARD);
+  mockApi.analyzeHyroxRace.mockResolvedValue({ analysis: ANALYSIS, limited: false });
+  mockApi.setAiConsent.mockResolvedValue(true);
+  mockApi.blockAccount.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -633,5 +663,320 @@ describe('the history', () => {
     await openHistory(withRaces());
     await press('Back to setup');
     expect(await screen.findByTestId('hero-time')).toBeOnTheScreen();
+  });
+});
+
+describe('the leaderboard', () => {
+  const male = () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profileRow('male')]);
+    return h;
+  };
+
+  it('is on the first screen, for the profile’s gender, starting with Singles · Open', async () => {
+    await open(male());
+    expect(await screen.findByTestId('board-1')).toHaveTextContent(/Ann/);
+    expect(mockApi.hyroxLeaderboard).toHaveBeenCalledWith('men', 'open', 'singles');
+    expect(screen.getByRole('button', { name: 'Men' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByRole('button', { name: 'Singles · Open' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('board-total')).toHaveTextContent('3 athletes worldwide');
+  });
+
+  it('marks you, with no way to report yourself, and offers it on everyone else', async () => {
+    await open(male());
+    const me = await screen.findByTestId('board-me');
+    expect(me).toHaveTextContent(/Me\s+You/);
+    expect(within(me).queryByRole('button')).toBeNull();
+    expect(screen.getByRole('button', { name: 'More options: Ann' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'More options: Cy' })).toBeOnTheScreen();
+  });
+
+  it('the other boards are a tap away', async () => {
+    await open(male());
+    await screen.findByTestId('board-1');
+    await press('Doubles · Pro');
+    await waitFor(() => expect(mockApi.hyroxLeaderboard).toHaveBeenCalledWith('men', 'pro', 'doubles'));
+    expect(screen.getByRole('button', { name: 'Doubles · Pro' }).props.accessibilityState.selected).toBe(true);
+    await press('Singles · Pro');
+    await waitFor(() => expect(mockApi.hyroxLeaderboard).toHaveBeenCalledWith('men', 'pro', 'singles'));
+    await press('Doubles · Open');
+    await waitFor(() => expect(mockApi.hyroxLeaderboard).toHaveBeenCalledWith('men', 'open', 'doubles'));
+  });
+
+  it('switching to the other gender asks for that board and keeps the choice on the account', async () => {
+    const h = male();
+    await open(h);
+    await screen.findByTestId('board-1');
+    await press('Women');
+    await waitFor(() => expect(mockApi.hyroxLeaderboard).toHaveBeenCalledWith('women', 'open', 'singles'));
+    await settle(h);
+    expect(h.db.rows('user_settings')[0]).toMatchObject({ hyrox_leaderboard_gender: 'women' });
+  });
+
+  it('a chosen gender wins over the profile’s', async () => {
+    const h = male();
+    h.db.seed('user_settings', [{ user_id: USER, theme: null, language: null, units_weight: 'kg', units_height: 'cm', units_distance: 'km', units_clock: '12h', hyrox_leaderboard_gender: 'women', hyrox_facility_lane_m: null, hyrox_history_backfilled: false, extra: {} }]);
+    await open(h);
+    await screen.findByTestId('board-1');
+    expect(mockApi.hyroxLeaderboard).toHaveBeenCalledWith('women', 'open', 'singles');
+    expect(mockApi.hyroxLeaderboard).not.toHaveBeenCalledWith('men', 'open', 'singles');
+  });
+
+  it('with no gender anywhere it asks which board is yours, once', async () => {
+    const h = dataHarness();
+    await open(h);
+    expect(await screen.findByText('Which leaderboard is yours?')).toBeOnTheScreen();
+    expect(mockApi.hyroxLeaderboard).not.toHaveBeenCalled();
+    await press('Women');
+    await waitFor(() => expect(mockApi.hyroxLeaderboard).toHaveBeenCalledWith('women', 'open', 'singles'));
+    await settle(h);
+    expect(h.db.rows('user_settings')[0]).toMatchObject({ hyrox_leaderboard_gender: 'women' });
+  });
+
+  it('you outside the top rows are shown below them', async () => {
+    mockApi.hyroxLeaderboard.mockResolvedValue({ ...BOARD, total: 300, mine: { rank: 120, bestSeconds: 5400, name: 'Me' } });
+    await open(male());
+    expect(await screen.findByTestId('board-me')).toHaveTextContent(/Me\s+You/);
+    expect(within(screen.getByTestId('board-me')).getByText('120')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('board-me')).getByText('1:30:00')).toBeOnTheScreen();
+  });
+
+  it('you at the very end of the listed rows are shown once, not twice', async () => {
+    mockApi.hyroxLeaderboard.mockResolvedValue({ ...BOARD, mine: { rank: 3, bestSeconds: 4500, name: 'Me' } });
+    await open(male());
+    await screen.findByTestId('board-1');
+    expect(screen.getAllByTestId('board-me')).toHaveLength(1);
+  });
+
+  it('when you have not raced it, says so', async () => {
+    mockApi.hyroxLeaderboard.mockResolvedValue({ ...BOARD, mine: null });
+    await open(male());
+    expect(await screen.findByTestId('board-not-competed')).toHaveTextContent("You haven't completed this race yet — finish one to see your global rank.");
+  });
+
+  it('an empty board is an invitation', async () => {
+    mockApi.hyroxLeaderboard.mockResolvedValue({ rows: [], total: 0, mine: null });
+    await open(male());
+    expect(await screen.findByText('No times yet')).toBeOnTheScreen();
+    expect(screen.getByText('Be the first to set one.')).toBeOnTheScreen();
+  });
+
+  it('one athlete is singular', async () => {
+    mockApi.hyroxLeaderboard.mockResolvedValue({ rows: [BOARD.rows[0]], total: 1, mine: null });
+    await open(male());
+    expect(await screen.findByTestId('board-total')).toHaveTextContent('1 athlete worldwide');
+  });
+
+  it('a board that cannot be read offers to try again', async () => {
+    mockApi.hyroxLeaderboard.mockRejectedValueOnce(new ApiError('boom', 500)).mockResolvedValue(BOARD);
+    await open(male());
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load the leaderboard. Try again.");
+    await press('Try again');
+    expect(await screen.findByTestId('board-1')).toBeOnTheScreen();
+  });
+
+  it('blocking a name takes it off the board', async () => {
+    await open(male());
+    await fireEvent.press(await screen.findByRole('button', { name: 'More options: Ann' }));
+    mockApi.hyroxLeaderboard.mockResolvedValue({ ...BOARD, rows: BOARD.rows.slice(1), total: 2, mine: { ...BOARD.mine, rank: 1 } });
+    await press('Block this account');
+    expect(mockApi.blockAccount).toHaveBeenCalledWith('u-1');
+    await press('Done');
+    await waitFor(() => expect(screen.queryByText('Ann')).toBeNull());
+    expect(screen.getByTestId('board-me')).toBeOnTheScreen();
+  });
+
+  it('after a race, the leaderboard button opens it with a way back', async () => {
+    const h = male();
+    await open(h);
+    await startOpenSingles();
+    await runAll(300);
+    await press('Leaderboard');
+    expect(await screen.findByTestId('board-1')).toBeOnTheScreen();
+    await press('Back to setup');
+    expect(await screen.findByTestId('hero-time')).toBeOnTheScreen();
+  });
+});
+
+describe('the AI’s read of a race', () => {
+  const male = () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profileRow('male')]);
+    return h;
+  };
+  const finishRace = async (h: Harness) => {
+    await open(h);
+    await startOpenSingles();
+    await runAll(300);
+    await screen.findByTestId('finish-time');
+  };
+
+  it('with the AI switch on, is read at once and kept on the race', async () => {
+    mockAuth.consented = true;
+    const h = male();
+    await finishRace(h);
+    expect(await screen.findByTestId('analysis-overall')).toHaveTextContent('Strong runs, slow sleds.');
+    expect(mockApi.analyzeHyroxRace).toHaveBeenCalledTimes(1);
+    const sent = mockApi.analyzeHyroxRace.mock.calls[0][0];
+    expect(sent).toMatchObject({ category: 'open', format: 'singles', gender: 'men', totalSeconds: 4800 });
+    expect(screen.getByTestId('group-focus')).toHaveTextContent(/Where to gain time/);
+    expect(screen.getByTestId('tip-sledPush')).toHaveTextContent(/Sled Push/);
+    expect(screen.getByTestId('group-strong')).toHaveTextContent(/Your strengths/);
+    expect(screen.getByTestId('group-solid')).toHaveTextContent(/Already solid/);
+    await settle(h);
+    expect(h.db.rows('hyrox_races')[0].analysis).toEqual({ overall: 'Strong runs, slow sleds.', overallDetail: ANALYSIS.overallDetail, tips: ANALYSIS.tips });
+  });
+
+  it('"Read more" opens the fuller bullets, and "Show less" closes them', async () => {
+    mockAuth.consented = true;
+    await finishRace(male());
+    await screen.findByTestId('analysis-overall');
+    expect(screen.queryByText('• Your runs stayed even.')).toBeNull();
+    expect(screen.queryByText('• Keep your hips down.')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Read more (overall)' }));
+    expect(screen.getByText('• Your runs stayed even.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Show less (overall)' }));
+    expect(screen.queryByText('• Your runs stayed even.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Read more (strong)' })).toBeNull(); // nothing more to say there
+    await fireEvent.press(screen.getByRole('button', { name: 'Read more (focus)' }));
+    expect(screen.getByText('• Keep your hips down.')).toBeOnTheScreen();
+  });
+
+  it('the bars of the breakdown are tinted by the read: amber to gain, green strong', async () => {
+    mockAuth.consented = true;
+    await finishRace(male());
+    await screen.findByTestId('analysis-overall');
+    const colourOf = (id: string) => {
+      const style = screen.getByTestId(id).props.style;
+      return (Array.isArray(style) ? Object.assign({}, ...style) : style).backgroundColor;
+    };
+    const focus = colourOf('bar-3'); // Sled Push
+    const strong = colourOf('bar-1'); // SkiErg
+    const plain = colourOf('bar-5'); // Sled Pull: not rated
+    expect([focus, strong, plain]).toEqual(['#b9832a', '#1fa971', '#2f66e8']); // amber to gain, green strong, the plain station colour
+  });
+
+  it('without consent nothing is sent: a button offers it, and asks first', async () => {
+    mockAuth.consented = false;
+    const h = male();
+    await finishRace(h);
+    expect(mockApi.analyzeHyroxRace).not.toHaveBeenCalled();
+    await press('Analyze my race with AI');
+    expect(await screen.findByText('Allow AI features?')).toBeOnTheScreen();
+    expect(mockApi.analyzeHyroxRace).not.toHaveBeenCalled();
+    await press('Allow');
+    expect(mockApi.setAiConsent).toHaveBeenCalledWith(true);
+    expect(await screen.findByTestId('analysis-overall')).toBeOnTheScreen();
+  });
+
+  it('declining the question goes back to the button', async () => {
+    await finishRace(male());
+    await press('Analyze my race with AI');
+    await press('Not now');
+    expect(await screen.findByRole('button', { name: 'Analyze my race with AI' })).toBeOnTheScreen();
+    expect(mockApi.analyzeHyroxRace).not.toHaveBeenCalled();
+  });
+
+  it('a switch that was on but is off at the server asks the question, then reads', async () => {
+    mockAuth.consented = true;
+    mockApi.analyzeHyroxRace.mockRejectedValueOnce(new ApiError('consent', 403, { needs_ai_consent: true }));
+    await finishRace(male());
+    await press('Allow');
+    expect(await screen.findByTestId('analysis-overall')).toBeOnTheScreen();
+    expect(mockApi.analyzeHyroxRace).toHaveBeenCalledTimes(2);
+  });
+
+  it('a read that fails can be tried again', async () => {
+    mockAuth.consented = true;
+    mockApi.analyzeHyroxRace.mockRejectedValueOnce(new ApiError('boom', 500));
+    await finishRace(male());
+    await press("Couldn't analyze right now — tap to try again");
+    expect(await screen.findByTestId('analysis-overall')).toBeOnTheScreen();
+  });
+
+  it.each([[500], [503], [0]])('a failure with status %i does not show the server’s words, only the general line', async (status) => {
+    mockAuth.consented = true;
+    mockApi.analyzeHyroxRace.mockRejectedValueOnce(new ApiError('internal detail', status));
+    await finishRace(male());
+    await screen.findByRole('alert');
+    expect(screen.queryByText('internal detail')).toBeNull();
+    expect(screen.getAllByText("Couldn't analyze right now — tap to try again").length).toBeGreaterThan(0);
+    expect(screen.queryByText('Personalized tips to finish faster next time')).toBeNull();
+  });
+
+  it('a refusal just under 500 does show its reason', async () => {
+    mockAuth.consented = true;
+    mockApi.analyzeHyroxRace.mockRejectedValueOnce(new ApiError('Not that.', 499));
+    await finishRace(male());
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not that.');
+  });
+
+  it('the button says what it does until something goes wrong', async () => {
+    await finishRace(male());
+    expect(screen.getByText('Personalized tips to finish faster next time')).toBeOnTheScreen();
+  });
+
+  it('a refusal with a reason shows the reason', async () => {
+    mockAuth.consented = true;
+    mockApi.analyzeHyroxRace.mockRejectedValueOnce(new ApiError('Race has no segments to analyze.', 400));
+    await finishRace(male());
+    expect(await screen.findByRole('alert')).toHaveTextContent('Race has no segments to analyze.');
+  });
+
+  it('at the daily limit the notice is shown and nothing is kept', async () => {
+    mockAuth.consented = true;
+    mockApi.analyzeHyroxRace.mockResolvedValueOnce({ analysis: { overall: "You've analyzed 5 races today. Please check back in 3 hours.", overallDetail: [], tips: [] }, limited: true });
+    const h = male();
+    await finishRace(h);
+    expect(await screen.findByTestId('analysis-notice')).toHaveTextContent("You've analyzed 5 races today. Please check back in 3 hours.");
+    await settle(h);
+    expect(h.db.rows('hyrox_races')[0].analysis).toBeNull();
+    expect(screen.getByRole('button', { name: 'Analyze my race with AI' })).toBeOnTheScreen();
+  });
+
+  it('a flagged time is not coached', async () => {
+    mockAuth.consented = true;
+    const h = male();
+    await open(h);
+    await startOpenSingles();
+    await runAll(60);
+    expect(await screen.findByTestId('analysis-flagged')).toHaveTextContent(/AI analysis isn't available for this race/);
+    expect(mockApi.analyzeHyroxRace).not.toHaveBeenCalled();
+  });
+
+  it('a race in the history shows the read it was given, and an older one offers it', async () => {
+    mockAuth.consented = true;
+    const h = dataHarness();
+    h.db.seed('hyrox_races', [
+      raceRow('a', 4200, { analysis: { overall: 'Kept read.', overallDetail: [], tips: [] } }),
+      raceRow('b', 3900, { raced_at: '2026-10-22T08:00:00.000Z' }),
+    ]);
+    h.db.seed('hyrox_race_splits', [...splitRows('a'), ...splitRows('b')]);
+    await open(h);
+    await press('Personal bests');
+    await fireEvent.press(await screen.findByTestId('pb-row-2')); // a: 1:10:00
+    expect(await screen.findByTestId('analysis-overall')).toHaveTextContent('Kept read.');
+    expect(mockApi.analyzeHyroxRace).not.toHaveBeenCalled();
+    await press('Close');
+    await fireEvent.press(await screen.findByTestId('pb-row-1')); // b: 1:05:00, never read
+    expect(await screen.findByRole('button', { name: 'Analyze my race with AI' })).toBeOnTheScreen();
+    expect(mockApi.analyzeHyroxRace).not.toHaveBeenCalled();
+    await press('Analyze my race with AI');
+    expect(await screen.findByTestId('analysis-overall')).toHaveTextContent('Strong runs, slow sleds.');
+    await settle(h);
+    expect(h.db.rows('hyrox_races').find((r) => r.id === 'b')?.analysis).toMatchObject({ overall: 'Strong runs, slow sleds.' });
+  });
+
+  it('a hand-built race gets no analysis section', async () => {
+    mockAuth.consented = true;
+    const h = dataHarness();
+    h.db.seed('hyrox_races', [raceRow('c', 3000, { category: 'custom', format: null, gender: null })]);
+    h.db.seed('hyrox_race_splits', splitRows('c'));
+    await open(h);
+    await press('Personal bests');
+    await fireEvent.press(await screen.findByRole('button', { name: /^50:00, Custom Race/ }));
+    expect(await screen.findByTestId('detail-meta')).toHaveTextContent(/Custom Race/);
+    expect(screen.queryByRole('button', { name: 'Analyze my race with AI' })).toBeNull();
+    expect(screen.queryByTestId('analysis-flagged')).toBeNull();
   });
 });

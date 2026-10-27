@@ -12,12 +12,13 @@ import { space } from '@/ui/tokens';
 
 import { FinishedView } from './FinishedView';
 import { HistoryView } from './HistoryView';
+import { LeaderboardCard } from './LeaderboardCard';
 import { RaceSetup, type Setup } from './RaceSetup';
 import { RunningRace } from './RunningRace';
 import { StationIcon } from './StationIcon';
 import { comboLabel } from './labels';
 
-type Page = 'home' | 'setup' | 'running' | 'finished' | 'history';
+type Page = 'home' | 'setup' | 'running' | 'finished' | 'history' | 'leaderboard';
 
 /** The first screen: your fastest time (or an invitation), the eight stations, and the way in to a race. */
 function Hero({ races, onStart, onHistory }: { races: readonly Race[]; onStart: () => void; onHistory: () => void }) {
@@ -95,6 +96,8 @@ export default function HyroxScreen() {
   const fromProfile = profileGender(coaching.data?.gender);
   const effective: Setup = { ...setup, gender: fromProfile ?? setup.gender };
   const laneM = laneOrDefault(prefs.data.laneM);
+  // Whose leaderboard: the one chosen (or raced under last), else the profile's gender; null asks.
+  const boardGender: Gender | null = prefs.data.leaderboardGender ?? fromProfile;
 
   const finish = async (splits: Split[], totalSeconds: number) => {
     const config = effective as { category: Category; format: Format; gender: Gender; scale: Setup['scale'] };
@@ -113,6 +116,20 @@ export default function HyroxScreen() {
       await actions.saveHyroxPrefs({ leaderboardGender: config.gender }).catch(() => undefined);
       await getApi().submitHyroxResult(result);
     }
+  };
+
+  /** Keeps the AI's read on the race (the history and the finish screen both show it from there). */
+  const analysed = async (race: Race) => {
+    setFinished((current) => (current && current.id === race.id ? race : current));
+    try {
+      await actions.saveHyroxRace(race);
+    } catch {
+      setError(t('hyrox.history.saveError'));
+    }
+  };
+
+  const chooseBoardGender = (gender: Gender) => {
+    void actions.saveHyroxPrefs({ leaderboardGender: gender }).catch(() => undefined);
   };
 
   const remove = async (race: Race) => {
@@ -136,7 +153,12 @@ export default function HyroxScreen() {
         <ActivityIndicator />
       ) : (
         <>
-          {view === 'home' ? <Hero races={races.data} onStart={() => setView('setup')} onHistory={() => setView('history')} /> : null}
+          {view === 'home' ? (
+            <>
+              <Hero races={races.data} onStart={() => setView('setup')} onHistory={() => setView('history')} />
+              <LeaderboardCard gender={boardGender} onGender={chooseBoardGender} />
+            </>
+          ) : null}
 
           {view === 'setup' ? (
             <>
@@ -158,9 +180,11 @@ export default function HyroxScreen() {
             />
           ) : null}
 
-          {view === 'finished' && finished ? <FinishedView race={finished} onAnother={reset} onHistory={() => setView('history')} /> : null}
+          {view === 'finished' && finished ? <FinishedView race={finished} onAnother={reset} onHistory={() => setView('history')} onLeaderboard={() => setView('leaderboard')} onAnalysed={(race) => void analysed(race)} /> : null}
 
-          {view === 'history' ? <HistoryView races={races.data} onRemove={(race) => void remove(race)} onBack={reset} /> : null}
+          {view === 'leaderboard' ? <LeaderboardCard gender={boardGender} onGender={chooseBoardGender} onBack={reset} /> : null}
+
+          {view === 'history' ? <HistoryView races={races.data} onRemove={(race) => void remove(race)} onBack={reset} onAnalysed={(race) => void analysed(race)} /> : null}
 
           <ErrorText>{error}</ErrorText>
           <Text variant="caption" secondary testID="trademark">

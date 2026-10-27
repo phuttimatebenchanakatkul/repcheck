@@ -1,20 +1,24 @@
 import { View } from 'react-native';
 
 import { useTranslation } from '@/i18n';
-import { breakdownTotals, formatClock, formatClockPrecise, segmentDurations, type Race } from '@/logic/hyrox';
+import { analysisFromJson, breakdownTotals, formatClock, formatClockPrecise, ratingsByKey, segmentDurations, type Race } from '@/logic/hyrox';
 import { Text } from '@/ui/components';
 import { useTheme } from '@/ui/theme';
 import { radius, space } from '@/ui/tokens';
 
 import { StationIcon } from './StationIcon';
 
-/** Where a race's time went: time on the runs and on the stations, then a bar for every segment in race order (runs muted, stations bold). */
-export function RaceBreakdown({ race }: { race: Pick<Race, 'splits'> }) {
+/**
+ * Where a race's time went: time on the runs and on the stations, then a bar for every segment in race order (runs muted, stations bold;
+ * once the AI has read the race, a station is green where it was strong and amber where there is time to gain).
+ */
+export function RaceBreakdown({ race }: { race: Pick<Race, 'splits'> & { analysis?: unknown } }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const durations = segmentDurations(race);
   const longest = Math.max(1, ...durations.map((d) => d.seconds));
   const totals = breakdownTotals(durations);
+  const ratings = ratingsByKey(analysisFromJson(race.analysis));
   return (
     <View style={{ gap: space.sm }}>
       <Text variant="rowTitle" accessibilityRole="header">
@@ -47,7 +51,7 @@ export function RaceBreakdown({ race }: { race: Pick<Race, 'splits'> }) {
               {d.title}
             </Text>
             <View style={{ flex: 1, height: 8, borderRadius: radius.pill, backgroundColor: colors.border, overflow: 'hidden' }}>
-              <View testID={`bar-${i}`} style={{ width: `${percent}%`, height: '100%', backgroundColor: d.type === 'run' ? colors.textSecondary : colors.green.fill }} />
+              <View testID={`bar-${i}`} style={{ width: `${percent}%`, height: '100%', backgroundColor: d.type === 'run' ? colors.textSecondary : ratings[d.key] === 'focus' ? colors.amber.fill : ratings[d.key] === 'strong' ? colors.green.fill : colors.blue.fill }} />
             </View>
             <Text variant="caption" style={{ width: 48, textAlign: 'right' }}>
               {formatClockPrecise(d.seconds)}
