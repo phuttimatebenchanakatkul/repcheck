@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { Alert } from 'react-native';
 
 import { ApiError } from '@/api/client';
@@ -11,6 +12,7 @@ import HyroxScreen from '../HyroxScreen';
 const mockApi = { submitHyroxResult: jest.fn(), hyroxLeaderboard: jest.fn(), analyzeHyroxRace: jest.fn(), setAiConsent: jest.fn(), blockAccount: jest.fn(), reportAccount: jest.fn() };
 const mockAuth = { consented: false, refresh: jest.fn(async () => undefined) };
 
+jest.mock('expo-web-browser', () => ({ openBrowserAsync: jest.fn(async () => ({ type: 'dismiss' })) }));
 jest.mock('@/api', () => ({ ...jest.requireActual('@/api/client'), getApi: () => mockApi }));
 jest.mock('@/auth/AuthProvider', () => ({
   useAuth: () => ({ state: { status: 'ready', profile: { id: 'user-1', ai_consent: mockAuth.consented } }, refreshProfile: mockAuth.refresh }),
@@ -978,5 +980,242 @@ describe('the AI’s read of a race', () => {
     expect(await screen.findByTestId('detail-meta')).toHaveTextContent(/Custom Race/);
     expect(screen.queryByRole('button', { name: 'Analyze my race with AI' })).toBeNull();
     expect(screen.queryByTestId('analysis-flagged')).toBeNull();
+  });
+});
+
+const endEditing = async (label: string, text: string) => {
+  await fireEvent.changeText(screen.getByLabelText(label), text);
+  await fireEvent(screen.getByLabelText(label), 'endEditing', { nativeEvent: { text } });
+};
+
+describe('practice weights (Pro Singles)', () => {
+  const pro = async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profileRow('male')]);
+    await open(h);
+    await press('Start race');
+    await press('Pro');
+    await press('Singles');
+    return h;
+  };
+
+  it('are offered for the four loaded stations, at the standard, and only in Pro Singles', async () => {
+    await pro();
+    for (const key of ['sledPush', 'sledPull', 'farmersCarry', 'lunges']) expect(screen.getByTestId(`practice-${key}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText('Sled Push weight (kg)').props.value).toBe('202');
+    expect(screen.getByLabelText('Farmers Carry weight (kg)').props.value).toBe('32');
+    expect(screen.queryByTestId('practice-warning')).toBeNull();
+    await press('Open');
+    expect(screen.queryByTestId('practice-sledPush')).toBeNull();
+    await press('Pro');
+    await press('Doubles');
+    expect(screen.queryByTestId('practice-sledPush')).toBeNull();
+  });
+
+  it('a lighter weight makes the laps longer, and shows the practice-mode warning', async () => {
+    await pro();
+    await endEditing('Sled Push weight (kg)', '101');
+    await waitFor(() => expect(within(screen.getByTestId('agenda-sledPush')).getByText('101 kg weight · 8 laps')).toBeOnTheScreen());
+    expect(screen.getByTestId('practice-warning')).toHaveTextContent(/^⚠ Practice mode only/);
+    expect(within(screen.getByTestId('agenda-sledPull')).getByText('152 kg weight · 4 laps')).toBeOnTheScreen();
+  });
+
+  it('a weight over the standard is held to the standard, and the warning stays away', async () => {
+    await pro();
+    await endEditing('Sled Push weight (kg)', '300');
+    await waitFor(() => expect(screen.getByLabelText('Sled Push weight (kg)').props.value).toBe('202'));
+    expect(screen.queryByTestId('practice-warning')).toBeNull();
+  });
+
+  it('a weight that is not a number is the standard', async () => {
+    await pro();
+    await endEditing('Sandbag Lunges weight (kg)', '15');
+    await waitFor(() => expect(within(screen.getByTestId('agenda-lunges')).getByText('15 kg weight · 16 laps')).toBeOnTheScreen());
+    await endEditing('Sandbag Lunges weight (kg)', 'abc');
+    await waitFor(() => expect(within(screen.getByTestId('agenda-lunges')).getByText('30 kg weight · 8 laps')).toBeOnTheScreen());
+  });
+
+  it('Reset puts the standard back', async () => {
+    await pro();
+    await endEditing('Sled Pull weight (kg)', '76');
+    await screen.findByTestId('practice-warning');
+    await press('Reset to standard');
+    await waitFor(() => expect(screen.queryByTestId('practice-warning')).toBeNull());
+    expect(screen.getByLabelText('Sled Pull weight (kg)').props.value).toBe('152');
+    expect(screen.queryByRole('button', { name: 'Reset to standard' })).toBeNull();
+  });
+
+  it('changing the category takes the weights away', async () => {
+    await pro();
+    await endEditing('Sled Push weight (kg)', '101');
+    await screen.findByTestId('practice-warning');
+    await press('Open');
+    await press('Pro');
+    expect(screen.queryByTestId('practice-warning')).toBeNull();
+    expect(screen.getByLabelText('Sled Push weight (kg)').props.value).toBe('202');
+  });
+
+  it('switching to Doubles and back keeps the weights (they are about the category, not the format)', async () => {
+    await pro();
+    await endEditing('Sled Push weight (kg)', '101');
+    await screen.findByTestId('practice-warning');
+    await press('Doubles');
+    await press('Singles');
+    expect(screen.getByLabelText('Sled Push weight (kg)').props.value).toBe('101');
+  });
+
+  it('are used in the race: the lighter weight and its longer lap count', async () => {
+    await pro();
+    await endEditing('Sled Push weight (kg)', '101');
+    await screen.findByTestId('practice-warning');
+    await press('Start race');
+    await press('Complete');
+    await press('Complete');
+    await press('Complete');
+    expect(screen.getByTestId('now-title')).toHaveTextContent('Sled Push');
+    expect(screen.getByTestId('now-rounds')).toHaveTextContent('8');
+    expect(screen.getByTestId('now-weight')).toHaveTextContent('101 kg sled');
+  });
+
+  it('are gone for the next race', async () => {
+    await pro();
+    await endEditing('Sled Push weight (kg)', '101');
+    await screen.findByTestId('practice-warning');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await press('Start race');
+    await press('Cancel this race');
+    await act(async () => (alert.mock.calls[0][2] ?? [])[1].onPress?.());
+    await press('Start race');
+    await press('Pro');
+    await press('Singles');
+    expect(screen.getByLabelText('Sled Push weight (kg)').props.value).toBe('202');
+    expect(screen.queryByTestId('practice-warning')).toBeNull();
+  });
+});
+
+describe('the Doubles round split', () => {
+  const doubles = async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profileRow('male')]);
+    await open(h);
+    await press('Start race');
+    await press('Open');
+    await press('Doubles');
+    return h;
+  };
+
+  it('is offered for the four stations, half and half to begin with', async () => {
+    await doubles();
+    expect(screen.getByText('Doubles round split')).toBeOnTheScreen();
+    expect(screen.getByLabelText('you (rounds) · Sled Push').props.value).toBe('2');
+    expect(screen.getByLabelText('partner (rounds) · Sled Push').props.value).toBe('2');
+    expect(screen.getByLabelText('you (rounds) · Farmers Carry').props.value).toBe('8');
+    expect(within(screen.getByTestId('split-sledPush')).getByText('152 kg')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Reset to standard' })).toBeNull();
+  });
+
+  it('is not offered in Singles', async () => {
+    await doubles();
+    await press('Singles');
+    expect(screen.queryByText('Doubles round split')).toBeNull();
+  });
+
+  it('your rounds set the partner’s share to the rest, and Reset goes back to half', async () => {
+    await doubles();
+    await endEditing('you (rounds) · Sled Push', '3');
+    await waitFor(() => expect(screen.getByLabelText('partner (rounds) · Sled Push').props.value).toBe('1'));
+    expect(screen.getByLabelText('you (rounds) · Sled Push').props.value).toBe('3');
+    await press('Reset to standard');
+    await waitFor(() => expect(screen.getByLabelText('you (rounds) · Sled Push').props.value).toBe('2'));
+    expect(screen.getByLabelText('partner (rounds) · Sled Push').props.value).toBe('2');
+  });
+
+  it('the partner’s rounds set yours to what is left', async () => {
+    await doubles();
+    await endEditing('partner (rounds) · Farmers Carry', '4');
+    await waitFor(() => expect(screen.getByLabelText('you (rounds) · Farmers Carry').props.value).toBe('12'));
+  });
+
+  it('a number too big is held to the total, a bad one is none', async () => {
+    await doubles();
+    await endEditing('you (rounds) · Sled Push', '99');
+    await waitFor(() => expect(screen.getByLabelText('you (rounds) · Sled Push').props.value).toBe('4'));
+    expect(screen.getByLabelText('partner (rounds) · Sled Push').props.value).toBe('0');
+    await endEditing('you (rounds) · Sled Push', 'x');
+    await waitFor(() => expect(screen.getByLabelText('you (rounds) · Sled Push').props.value).toBe('0'));
+  });
+
+  it('is shown in the race as your share of the rounds', async () => {
+    await doubles();
+    await endEditing('you (rounds) · Sled Push', '3');
+    await waitFor(() => expect(screen.getByLabelText('partner (rounds) · Sled Push').props.value).toBe('1'));
+    await press('Start race');
+    await press('Complete');
+    await press('Complete');
+    await press('Complete');
+    expect(screen.getByTestId('now-rounds')).toHaveTextContent('3');
+    expect(screen.getByText('Your share')).toBeOnTheScreen();
+  });
+
+  it('the split goes when the format changes', async () => {
+    await doubles();
+    await endEditing('you (rounds) · Sled Push', '3');
+    await waitFor(() => expect(screen.getByLabelText('partner (rounds) · Sled Push').props.value).toBe('1'));
+    await press('Singles');
+    await press('Doubles');
+    expect(screen.getByLabelText('you (rounds) · Sled Push').props.value).toBe('2');
+  });
+
+  it('follows the lane', async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profileRow('male')]);
+    h.db.seed('user_settings', [{ user_id: USER, theme: null, language: null, units_weight: 'kg', units_height: 'cm', units_distance: 'km', units_clock: '12h', hyrox_leaderboard_gender: null, hyrox_facility_lane_m: 10, hyrox_history_backfilled: false, extra: {} }]);
+    await open(h);
+    await press('Start race');
+    await press('Open');
+    await press('Doubles');
+    expect(screen.getByLabelText('you (rounds) · Sled Push').props.value).toBe('3');
+    expect(screen.getByLabelText('partner (rounds) · Sled Push').props.value).toBe('2');
+  });
+});
+
+describe('how a station is done', () => {
+  it('a station on the first screen opens how to do it, with the three steps and the tip', async () => {
+    await open();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Sled Push' }));
+    expect(await screen.findByTestId('howto-summary')).toHaveTextContent(/50m pushing a heavy sled/);
+    expect(screen.getByText('Sled Push')).toBeOnTheScreen(); // the sheet is named for the station
+    expect(screen.getByTestId('howto-step-0')).toHaveTextContent(/^1\. Set your hands low on the posts/);
+    expect(screen.getByTestId('howto-step-2')).toHaveTextContent(/^3\. Push in a straight line/);
+    expect(screen.getByTestId('howto-tip')).toHaveTextContent(/Pro tip: It's a leg day, not an arm day/);
+    await press('Close');
+    expect(screen.queryByTestId('howto-summary')).toBeNull();
+  });
+
+  it('every one of the eight stations has one', async () => {
+    await open();
+    for (const name of ['SkiErg', 'Sled Push', 'Sled Pull', 'Burpee Broad Jumps', 'Rowing', 'Farmers Carry', 'Sandbag Lunges', 'Wall Balls']) {
+      await fireEvent.press(await screen.findByRole('button', { name }));
+      expect(await screen.findByTestId('howto-summary')).toBeOnTheScreen();
+      await press('Close');
+    }
+  });
+
+  it('the demo video opens in the in-app browser', async () => {
+    await open();
+    await fireEvent.press(await screen.findByRole('button', { name: 'SkiErg' }));
+    await press('▶ Watch a demo');
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith('https://www.youtube.com/watch?v=9RJiSvgaiJU');
+  });
+
+  it('in the race, the station being done has a how-to; a run does not', async () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profileRow('male')]);
+    await open(h);
+    await startOpenSingles();
+    expect(screen.queryByRole('button', { name: 'How to do it' })).toBeNull();
+    await press('Complete');
+    await press('How to do it');
+    expect(await screen.findByTestId('howto-summary')).toHaveTextContent(/1000m on the SkiErg/);
   });
 });

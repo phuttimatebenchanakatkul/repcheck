@@ -144,5 +144,6 @@
   "app.settings.reminders.turnOn": "Turn on reminders",
   "app.settings.reminders.turnOff": "Turn off reminders",
   "app.settings.reminders.on": "On",
-  "app.settings.reminders.off": "Off"
+  "app.settings.reminders.off": "Off",
+  "app.hyrox.watch": "Watch a demo"
 }

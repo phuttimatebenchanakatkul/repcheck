@@ -144,5 +144,6 @@
   "app.settings.reminders.turnOn": "เปิดการเตือน",
   "app.settings.reminders.turnOff": "ปิดการเตือน",
   "app.settings.reminders.on": "เปิด",
-  "app.settings.reminders.off": "ปิด"
+  "app.settings.reminders.off": "ปิด",
+  "app.hyrox.watch": "ดูวิดีโอสาธิต"
 }

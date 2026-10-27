@@ -119,22 +119,103 @@ export function stationWeightKg(key: string, gender: Gender, category: Category)
   return null;
 }
 
+/**
+ * A lighter practice weight moves less load per metre, so the distance grows in proportion (half the weight, about double the distance)
+ * to keep the total work comparable. `roundToM` keeps a sled's distance to whole 12.5 m segments; null leaves it exact (the carries,
+ * whose laps are rounded once, against the person's own lane).
+ */
+export function scaledDistanceM(defaultDistanceM: number, defaultWeightKg: number, currentWeightKg: number, roundToM: number | null): number {
+  if (!currentWeightKg || currentWeightKg >= defaultWeightKg) return defaultDistanceM;
+  const scaled = defaultDistanceM * (defaultWeightKg / currentWeightKg);
+  return roundToM ? Math.ceil(scaled / roundToM) * roundToM : scaled;
+}
+
 /** How many laps of the person's lane it takes to cover a station: "first line to last line and back counts as one". At least 1. */
-export function roundsFor(key: string, scale: Scale, laneM: number): number | null {
-  const distance = scaledStationDistanceM(key, scale);
-  if (distance === null) return null;
+export function roundsFor(key: string, scale: Scale, laneM: number, weights?: { standardKg: number; currentKg: number }): number | null {
+  const base = scaledStationDistanceM(key, scale);
+  if (base === null) return null;
+  const sled = key === 'sledPush' || key === 'sledPull';
+  const distance = weights ? scaledDistanceM(base, weights.standardKg, weights.currentKg, sled ? (STATION_SPECS[key].splitM ?? null) : null) : base;
   return Math.ceil(distance / laneM); // a positive distance over a positive lane: always at least one
 }
 
+// -- practice: a lighter weight in Pro Singles, an uneven split in Doubles --------------------------------------------------------------
+
+/** What a person has changed from the standard for a practice session. Never part of a saved race. */
+export interface Practice {
+  /** kg per station, Pro Singles only. */
+  weights: Record<string, number>;
+  /** The person's own rounds per station, Doubles only. */
+  doubles: Record<string, number>;
+}
+
+export const NO_PRACTICE: Practice = { weights: {}, doubles: {} };
+
+/** A practice weight as typed: the standard if it is not a number, never above the standard, never below a tenth of it, to 0.1 kg. */
+export function practiceWeight(raw: unknown, standardKg: number): number {
+  let w = Number.parseFloat(String(raw));
+  if (!Number.isFinite(w) || w <= 0) w = standardKg;
+  w = Math.min(w, standardKg);
+  w = Math.max(w, Math.round(standardKg * 0.1 * 10) / 10);
+  return Math.round(w * 10) / 10;
+}
+
+/** The weight at a station for this session: the standard, unless it is Pro Singles at a station with a lighter weight chosen. */
+export function sessionWeightKg(key: string, gender: Gender, category: Category, format: Format | null, practice: Practice): number | null {
+  const standard = stationWeightKg(key, gender, category);
+  if (standard === null) return null;
+  if (category !== 'pro' || format !== 'singles') return standard;
+  const custom = practice.weights[key];
+  return typeof custom === 'number' && custom > 0 && custom <= standard ? custom : standard;
+}
+
+export interface Share {
+  total: number;
+  mine: number;
+  partner: number;
+}
+
+/** A Doubles pair's rounds at a station: the total, the person's own share (half, until changed) and the partner's, what is left. */
+export function doublesShare(key: string, scale: Scale, laneM: number, stored: number | undefined): Share | null {
+  if (!ROUND_STATIONS.includes(key)) return null;
+  const distance = scaledStationDistanceM(key, scale);
+  if (distance === null) return null;
+  const total = Math.max(1, Math.ceil(distance / laneM));
+  const mine = typeof stored === 'number' && stored >= 0 && stored <= total ? stored : Math.round(total / 2);
+  return { total, mine, partner: total - mine };
+}
+
+/** A number of rounds as typed: whole, never below none, never above the total. */
+export function cleanRounds(raw: unknown, total: number): number {
+  let v = Math.round(Number.parseFloat(String(raw)));
+  if (!Number.isFinite(v) || v < 0) v = 0;
+  return Math.min(v, total);
+}
+
 /**
- * What to show as the number of rounds at a station: all of them in Singles; in Doubles the person's share, which starts as half of
- * the total (a Doubles pair does the same total as Singles, split between them).
+ * What changing the setup does to a practice session: weights belong to a category and gender, the split to a format and length, so each
+ * is dropped when what it was measured against changes.
  */
-export function roundsToDo(key: string, format: Format | null, scale: Scale, laneM: number): number | null {
-  const rounds = roundsFor(key, scale, laneM);
+export function practiceAfter(before: { category: string | null; format: string | null; gender: string | null; scale: string }, after: { category: string | null; format: string | null; gender: string | null; scale: string }, practice: Practice): Practice {
+  const weights = before.category !== after.category || before.gender !== after.gender ? {} : practice.weights;
+  const doubles = before.format !== after.format || before.scale !== after.scale ? {} : practice.doubles;
+  return weights === practice.weights && doubles === practice.doubles ? practice : { weights, doubles };
+}
+
+/** True once something has been moved off the standard (drives the practice-mode warning). */
+export const hasPractice = (practice: Practice): boolean => Object.keys(practice.weights).length > 0 || Object.keys(practice.doubles).length > 0;
+
+/**
+ * What to show as the number of rounds at a station: all of them in Singles (more, with a lighter practice weight); in Doubles the person's
+ * share of the total, half until they say otherwise. One round is the least a share can be.
+ */
+export function roundsToDo(key: string, format: Format | null, scale: Scale, laneM: number, practice: Practice = NO_PRACTICE, gender?: Gender, category?: Category): number | null {
+  const standard = gender && category ? stationWeightKg(key, gender, category) : null;
+  const current = gender && category ? sessionWeightKg(key, gender, category, format, practice) : null;
+  const rounds = roundsFor(key, scale, laneM, standard !== null && current !== null ? { standardKg: standard, currentKg: current } : undefined);
   if (rounds === null) return null;
-  if (format !== 'doubles' || !ROUND_STATIONS.includes(key)) return rounds;
-  return Math.round(rounds / 2); // half of the total, the way the website's even split rounds it (one round is one, never none)
+  const share = format === 'doubles' ? doublesShare(key, scale, laneM, practice.doubles[key]) : null;
+  return share ? Math.max(1, share.mine) : rounds; // a Doubles pair does the Singles total, so the share is the person's own rounds
 }
 
 /** Keeps a lane length the person typed inside what makes sense; null (the default lane) for anything that is not a number above zero. */
