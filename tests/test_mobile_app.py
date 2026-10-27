@@ -249,6 +249,36 @@ def test_the_workout_chat_only_takes_questions_on_today():
     assert "isSelectedDateToday" in text(ROOT / "templates" / "workouts.html")
 
 
+# -- settings and the account ------------------------------------------------------------------------------------------------
+
+def test_the_deletion_grace_period_the_app_states_is_the_servers():
+    from api.accounts import GRACE_DAYS
+    assert int(re.search(r"ACCOUNT_GRACE_DAYS = (\d+);", text(MOBILE / "src" / "logic" / "account.ts")).group(1)) == GRACE_DAYS
+
+
+def test_every_page_settings_links_to_opens_without_an_account():
+    """App Review and anyone not signed in must be able to read the policies (App Store Guideline 5.1.1)."""
+    links = text(MOBILE / "src" / "links.ts")
+    endpoints = {"/support": "support", "/privacy": "privacy", "/terms": "terms", "/cookies": "cookies", "/refunds": "refunds", "/sources": "health_sources_page"}
+    app = text(ROOT / "app.py")
+    public = app[app.index("_PUBLIC_ENDPOINTS"):app.index("@app.before_request")]
+    for path, endpoint in endpoints.items():
+        assert f"path: '{path}'" in links, path
+        assert f'"{endpoint}"' in public, f"{endpoint} must be public"
+    assert 'id="ai"' in text(ROOT / "templates" / "privacy.html"), "the AI switch links to #ai on the privacy page"
+
+
+def test_the_app_can_delete_withdraw_and_rename_through_the_servers_routes():
+    endpoints = text(MOBILE / "src" / "api" / "endpoints.ts")
+    for call in ("api.del('/api/account')", "api.post('/api/account/restore')", "api.post('/api/ai-consent'", "api.post('/api/account', { name })"):
+        assert call in endpoints, call
+    account = text(ROOT / "api" / "routes" / "account.py")
+    for route in ('@bp.delete("/api/account")', '@bp.post("/api/account/restore")', '@bp.post("/api/account")'):
+        assert route in account, route
+    settings = text(MOBILE / "src" / "features" / "settings" / "SettingsScreen.tsx")
+    assert "scheduleDeletion" in settings and "restoreAccount" in settings and "setAiConsent(!on)" in settings
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 

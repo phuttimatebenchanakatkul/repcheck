@@ -260,3 +260,11 @@ describe('survivors: today’s workouts line, longest streak', () => {
     expect(await screen.findByText('Longest streak ever: 1')).toBeOnTheScreen();
   });
 });
+
+describe('settings', () => {
+  it('Home opens them', async () => {
+    await open();
+    await press('Settings');
+    expect(mockPush).toHaveBeenCalledWith('/settings');
+  });
+});

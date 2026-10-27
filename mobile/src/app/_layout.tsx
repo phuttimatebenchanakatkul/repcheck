@@ -8,6 +8,7 @@ import { DataProvider } from '@/data/DataProvider';
 import { useTranslation } from '@/i18n';
 import { restoreLanguage } from '@/i18n/storage';
 import { CACHE_MAX_AGE_MS, persister, queryClient } from '@/store';
+import { SettingsApplier } from '@/features/settings/SettingsApplier';
 import { SyncManager } from '@/store/SyncManager';
 import { useTheme } from '@/ui/theme';
 
@@ -31,6 +32,8 @@ function Gate() {
 
   const needsSetup = status === 'setting-up' || status === 'needs-name' || status === 'error';
   return (
+    <>
+    {status === 'ready' ? <SettingsApplier /> : null}
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={status === 'signed-out'}>
         <Stack.Screen name="(auth)" />
@@ -48,11 +51,13 @@ function Gate() {
         <Stack.Screen name="logging-history" options={{ headerShown: true, title: t('weight.loggingHistoryTitle') }} />
         <Stack.Screen name="full-stats" options={{ headerShown: true, title: t('home.macros.fullStats') }} />
         <Stack.Screen name="analysis" options={{ headerShown: true, title: t('app.analyze.resultTitle') }} />
+        <Stack.Screen name="settings" options={{ headerShown: true, title: t('nav.settings') }} />
         <Stack.Screen name="workout-chat" options={{ headerShown: true, title: t('workoutChat.title') }} />
         <Stack.Screen name="analysis-chat" options={{ headerShown: true, title: t('analyzeChat.headerTitle') }} />
         <Stack.Screen name="analysis-history" options={{ headerShown: true, title: t('page.analyzeHistory.heading') }} />
       </Stack.Protected>
     </Stack>
+    </>
   );
 }
 
