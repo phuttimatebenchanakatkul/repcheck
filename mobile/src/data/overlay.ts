@@ -48,6 +48,13 @@ export function overlayNutritionRecent(entries: readonly (NutritionEntry & { day
   return list.sort((a, b) => b.addedAt - a.addedAt);
 }
 
+/** Entries filed under days from `from` to `to`, with the waiting operations applied (an entry moved out of the range leaves it). Oldest first. */
+export function overlayNutritionRange(entries: readonly (NutritionEntry & { day: string })[], ops: readonly Operation[], from: string, to: string): (NutritionEntry & { day: string })[] {
+  return overlayNutritionRecent(entries, ops)
+    .filter((e) => e.day >= from && e.day <= to)
+    .sort((a, b) => a.addedAt - b.addedAt);
+}
+
 // -- workouts: entries and their sets are two tables ------------------------------------------------------------------------------
 
 /** The waiting operations on any of `tables`, oldest first and INTERLEAVED as queued (a save is entry, then sets: order matters). */

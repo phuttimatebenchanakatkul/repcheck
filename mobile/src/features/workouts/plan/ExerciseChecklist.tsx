@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Alert, Pressable, TextInput, View } from 'react-native';
 
 import type { CustomExercise } from '@/api/endpoints';
 import { useTranslation } from '@/i18n';
@@ -21,11 +21,14 @@ export function ExerciseChecklist({
   initial,
   customExercises,
   onCreate,
+  onDelete,
   onDone,
 }: {
   initial: readonly string[];
   customExercises: readonly CustomExercise[];
   onCreate: (name: string) => Promise<CustomExercise>;
+  /** Remove one of the person's own exercises (they confirm first). */
+  onDelete: (exercise: CustomExercise) => Promise<void>;
   onDone: (selected: string[]) => void;
 }) {
   const { t } = useTranslation();
@@ -61,8 +64,36 @@ export function ExerciseChecklist({
         <Text variant="body" style={{ flex: 1 }}>
           {exercise}
         </Text>
+        {customExercises.find((c) => c.name === exercise) && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('common.remove')} ${exercise}`}
+            hitSlop={space.sm}
+            onPress={() => confirmDelete(exercise)}
+            style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Text variant="title" secondary>
+              ×
+            </Text>
+          </Pressable>
+        )}
       </Pressable>
     );
+  };
+
+  const confirmDelete = (exercise: string) => {
+    const mine = customExercises.find((c) => c.name === exercise);
+    if (!mine) return;
+    Alert.alert(t('workouts.deleteConfirm.title'), exercise, [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.remove'),
+        style: 'destructive',
+        onPress: () => {
+          setSelected((now) => now.filter((n) => n !== exercise));
+          void onDelete(mine).catch(() => setError(t('workouts.create.failed')));
+        },
+      },
+    ]);
   };
 
   const create = async () => {

@@ -18,6 +18,7 @@ import {
   overlayNames,
   overlayNutritionDay,
   overlayDayStatuses,
+  overlayNutritionRange,
   overlayNutritionRecent,
   overlayWeights,
   overlayWorkoutDay,
@@ -340,5 +341,24 @@ describe('survivors: ordering and range ends', () => {
   it('a day status on the first or last day of the range is shown', () => {
     const out = overlayDayStatuses({}, [dayStatus(U, '2026-10-01', 'fasting'), dayStatus(U, '2026-10-31', 'incomplete'), dayStatus(U, '2026-09-30', 'fasting'), dayStatus(U, '2026-11-01', 'fasting')], '2026-10-01', '2026-10-31');
     expect(out).toEqual({ '2026-10-01': 'fasting', '2026-10-31': 'incomplete' });
+  });
+});
+
+describe('overlayNutritionRange', () => {
+  const entry = (id: string, addedAt: number, day: string) => ({ ...food(id, addedAt), day });
+
+  it('keeps only the days in the range, oldest first, with waiting entries filed under their own day', () => {
+    const out = overlayNutritionRange([entry('a', T0 + 5, DAY), entry('z', T0, '2026-09-01')], [nutritionUpsert(U, DAY, food('b', T0 + 1)), nutritionUpsert(U, '2026-12-25', food('c', T0))], '2026-10-01', '2026-10-31');
+    expect(out.map((e) => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('range ends are inclusive', () => {
+    const out = overlayNutritionRange([entry('a', T0, '2026-10-01'), entry('b', T0 + 1, '2026-10-31'), entry('c', T0 + 2, '2026-11-01')], [], '2026-10-01', '2026-10-31');
+    expect(out.map((e) => e.id)).toEqual(['a', 'b']);
+  });
+
+  it('a waiting delete removes an entry, and moving one out of the range removes it from the range', () => {
+    const out = overlayNutritionRange([entry('a', T0, DAY), entry('b', T0 + 1, DAY)], [nutritionDelete(U, 'a'), nutritionUpsert(U, '2027-01-01', food('b', T0 + 1))], '2026-10-01', '2026-10-31');
+    expect(out).toEqual([]);
   });
 });

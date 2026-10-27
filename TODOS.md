@@ -1202,16 +1202,15 @@ review).
 
 ## Native app, Phase 3 leftovers
 
-### Logging History, Full stats, managing custom foods and exercises
+### Phase 3 polish
 
-**What:** The Logging History page (the nutrition calendar with fasting / incomplete day statuses: `loggingHistory.*`), Full stats (the week's calories chart: `fullStats.*`), deleting custom foods and exercises (the API and data layer have it, no screen does), swipe-to-delete, exercise videos and photos, per-hour "+" logging.
+**What:** Swipe-to-delete on foods and exercises (the app deletes from the open card today), exercise videos and photos, per-hour "+" logging.
 
-**Why:** The website has them; the first cut of the app does not.
+**Why:** The website has them; the app's first cut does not.
 
 **Effort:** M
-**Priority:** P2
+**Priority:** P3
 **Depends on:** Nothing
-
 ### The streak looks back 400 days
 
 **What:** `STREAK_WINDOW_DAYS` bounds the days the streak reads (so a long history is not paged on every open). A run longer than that shows as the window's length, and "longest streak" is the longest inside it.

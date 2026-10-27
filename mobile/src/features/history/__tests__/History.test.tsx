@@ -262,8 +262,9 @@ describe('survivors: numbers, hints, colours', () => {
     await openStreak(h);
     await screen.findByTestId('streak-current');
     const last = new Date(NOW.getFullYear(), NOW.getMonth() + 1, 0).getDate();
-    for (const n of [1, 9, 10, last]) expect(screen.getByText(String(n), { exact: true })).toBeOnTheScreen();
-    expect(screen.queryByText(String(last + 1), { exact: true })).toBeNull();
+    // (a streak of 1 also prints "1", so look for at least one circle with each number)
+    for (const n of [1, 9, 10, last]) expect(screen.getAllByText(String(n), { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(String(last + 1), { exact: true })).toHaveLength(0);
   });
 
   it('a month with activity has no "nothing logged" hint', async () => {

@@ -447,8 +447,15 @@ and a calendar of the days weight was logged. Tapping a day shows its weight; on
 The weigh-in form is now one shared component (`features/history/WeightForm.tsx`) used by Home and the calendar. Weigh-ins are read a page
 at a time, so a long history is not cut at 1000 rows. Both pages are root-stack screens with a native header and back button.
 
-**Not built yet in Phase 3 (each is its own next slice):** the *Logging History* page (the nutrition calendar with fasting / incomplete
-day statuses) and *Full stats* (the week's calories chart); managing (deleting) custom foods and exercises; swipe-to-delete; exercise videos and photos; per-hour "+" logging.
+**Added in v0.27.0.0: nutrition history and removing your own items.** *Logging History* (from the Nutrition page): a month calendar of
+each day's status, logged / fasting / incomplete / not logged, with the month's counts; tap a day to mark it (a day with food can be
+marked incomplete, one without can be marked fasting, and "logged" clears the mark), offline too. *Full stats*: this week's calories day
+by day against the goal, the average of the days with food, how many fell within 10% of the goal, and a chosen day's macros against the
+goals. Both read a range of food (`nutritionRange`, paged, with the same offline overlay as every other read). Your own foods can be
+removed from the Custom list, and your own exercises from the plan's exercise checklist, each after a confirmation.
+
+**Phase 3 is complete.** What is left is the polish listed in `TODOS.md` (swipe-to-delete, exercise videos and photos, per-hour "+"
+logging) and everything in phases 4-7.
 
 **Not verified, and why:** nothing has run on a phone yet (see Phase 2). The screens are checked by Jest with the real data layer
 over an in-memory Supabase, not by eye: spacing, the sheet presentation and haptics need Expo Go on an iPhone and an iPad. The
