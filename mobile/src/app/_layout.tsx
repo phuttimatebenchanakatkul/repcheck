@@ -53,6 +53,7 @@ function Gate() {
         <Stack.Screen name="analysis" options={{ headerShown: true, title: t('app.analyze.resultTitle') }} />
         <Stack.Screen name="coaching-wizard" options={{ headerShown: true, title: t('coaching.title') }} />
         <Stack.Screen name="settings" options={{ headerShown: true, title: t('nav.settings') }} />
+        <Stack.Screen name="hyrox" options={{ headerShown: true, title: t('nav.hyrox') }} />
         <Stack.Screen name="challenges" options={{ headerShown: true, title: t('page.challenges.heading') }} />
         <Stack.Screen name="friends" options={{ headerShown: true, title: t('nav.friends') }} />
         <Stack.Screen name="checkin" options={{ headerShown: true, title: t('coaching.checkin.title') }} />

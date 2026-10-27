@@ -10,6 +10,7 @@
 import type { Database, Json } from '@/supabase/database.types';
 
 import { cleanSources, type ChatTurn } from '../logic/chat';
+import type { Race, Split } from '../logic/hyrox';
 import type { CoachingData } from '../logic/coachingProfile';
 import { normaliseGoals, isFoodUnit, num } from '../logic/macros';
 import type { Goals, Ingredient, NutritionEntry, SplitPlan, WorkoutEntry, WorkoutSet } from '../logic/types';
@@ -386,4 +387,76 @@ export function coachingRowAfterCheckin(
     ...(checkin.adjustment ? { last_adjustment_reason: checkin.adjustment.reason, last_adjustment_delta: checkin.adjustment.delta, last_adjustment_at: checkin.nowIso } : {}),
     ...(checkin.goalHandled ? { goal_handled_weight_kg: base.goal_weight_kg, goal_handled_aspiration: base.aspiration, goal_achieved_weight_kg: null, goal_achieved_aspiration: null } : {}),
   };
+}
+
+// -- HYROX races: a race row and its splits -------------------------------------------------------------------------------------------
+
+export function hyroxSplitFromRow(row: Row<'hyrox_race_splits'>): Split {
+  const split: Split = { key: row.key, title: row.title ?? '', atSeconds: row.at_seconds };
+  const extra = extraOf(row.extra);
+  if (Object.keys(extra).length) split.extra = extra;
+  return split;
+}
+
+export function hyroxRaceFromRows(row: Row<'hyrox_races'>, splitRows: readonly Row<'hyrox_race_splits'>[]): Race {
+  const race: Race = {
+    id: row.id,
+    date: row.raced_at,
+    category: row.category,
+    format: row.format,
+    gender: row.gender,
+    scale: row.scale,
+    totalSeconds: row.total_seconds,
+    splits: splitRows.filter((s) => s.race_id === row.id).sort((a, b) => a.position - b.position).map(hyroxSplitFromRow),
+    flagged: row.flagged,
+    isNewPb: row.is_new_pb,
+    analysis: row.analysis ?? null,
+  };
+  const extra = extraOf(row.extra);
+  if (Object.keys(extra).length) race.extra = extra;
+  return race;
+}
+
+export function hyroxRaceToRow(userId: string, race: Race): NewRow<'hyrox_races'> {
+  return {
+    user_id: userId,
+    id: race.id,
+    raced_at: race.date,
+    category: race.category,
+    format: race.format,
+    gender: race.gender,
+    scale: race.scale,
+    total_seconds: race.totalSeconds,
+    flagged: race.flagged,
+    is_new_pb: race.isNewPb,
+    analysis: (race.analysis ?? null) as Json | null,
+    extra: (race.extra ?? {}) as Json,
+  };
+}
+
+export function hyroxSplitToRow(userId: string, raceId: string, position: number, split: Split): NewRow<'hyrox_race_splits'> {
+  return { user_id: userId, race_id: raceId, position, key: split.key, title: split.title, at_seconds: split.atSeconds, extra: (split.extra ?? {}) as Json };
+}
+
+// -- HYROX preferences: two columns of the settings row ----------------------------------------------------------------------------------
+
+export interface HyroxPrefs {
+  /** The length of the person's lane in metres, or null for the default. */
+  laneM: number | null;
+  /** Which gender's leaderboard is theirs, or null until chosen. */
+  leaderboardGender: 'men' | 'women' | null;
+}
+
+export function hyroxPrefsFromRow(row: Row<'user_settings'> | null | undefined): HyroxPrefs {
+  const lane = row?.hyrox_facility_lane_m;
+  const gender = row?.hyrox_leaderboard_gender;
+  return {
+    laneM: typeof lane === 'number' && Number.isFinite(lane) && lane > 0 ? lane : null,
+    leaderboardGender: gender === 'men' || gender === 'women' ? gender : null,
+  };
+}
+
+/** The settings row with the HYROX preferences changed and everything else as it was. */
+export function settingsRowWithHyrox(userId: string, prefs: HyroxPrefs, base: Row<'user_settings'> | null | undefined): NewRow<'user_settings'> {
+  return { ...settingsToRow(userId, settingsFromRow(base), base), hyrox_facility_lane_m: prefs.laneM, hyrox_leaderboard_gender: prefs.leaderboardGender };
 }

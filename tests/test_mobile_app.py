@@ -496,6 +496,45 @@ def test_the_challenge_recording_is_muted_and_the_camera_text_says_why():
         assert word in permission, word
 
 
+# -- the HYROX race tracker agrees with the server and the website ---------------------------------------------------------------------
+
+def test_the_hyrox_choices_and_flag_thresholds_are_the_servers():
+    from api import social
+    logic = text(MOBILE / "src" / "logic" / "hyrox.ts")
+
+    def listed(name):
+        return re.findall(r"'(\w+)'", re.search(rf"export const {name} = \[(.*?)\] as const;", logic, re.S).group(1))
+
+    assert tuple(listed("GENDERS")) == social.HYROX_GENDERS
+    assert tuple(listed("CATEGORIES")) == social.HYROX_CATEGORIES
+    assert tuple(listed("FORMATS")) == social.HYROX_FORMATS
+    block = re.search(r"export const FLAG_THRESHOLD_SECONDS.*?\};", logic, re.S).group(0)
+    found = {k: int(a) * 60 for k, a in re.findall(r"'([a-z]+\|[a-z]+)': (\d+) \* 60", block)}
+    assert found == social.HYROX_MIN_PLAUSIBLE_SECONDS      # a time the app flags is exactly a time the server refuses
+
+
+def test_hyrox_races_are_saved_into_columns_that_exist():
+    migration = "".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "supabase" / "migrations").glob("*.sql")))
+    mappers = text(MOBILE / "src" / "data" / "mappers.ts")
+    for table, function in (("hyrox_races", "hyroxRaceToRow"), ("hyrox_race_splits", "hyroxSplitToRow")):
+        block = migration[migration.index(f"create table public.{table}"):]
+        block = block[:block.index(");")]
+        columns = set(re.findall(r"^\s+(\w+)\s", block, re.M)) | ({"extra"} if f"alter table public.{table}" in migration and "add column extra" in migration else set())
+        written = re.search(rf"export function {function}.*?\n}}\n", mappers, re.S).group(0)
+        for column in set(re.findall(r"^\s+(\w+):", written, re.M)):
+            assert column in columns, (table, column)
+
+
+def test_the_hyrox_leaderboard_post_matches_the_route_and_the_trademark_notice_is_shown():
+    api = text(MOBILE / "src" / "api" / "hyrox.ts")
+    route = text(ROOT / "api" / "routes" / "social.py")
+    assert "'/api/hyrox/results'" in api and '"/api/hyrox/results"' in route
+    for field in ("gender", "category", "format", "total_seconds"):
+        assert field in api and f'"{field}"' in text(ROOT / "api" / "social.py"), field
+    assert "hyrox.trademarkNote" in text(MOBILE / "src" / "features" / "hyrox" / "HyroxScreen.tsx")
+    assert "not affiliated with, endorsed or sponsored by HYROX" in text(MOBILE / "src" / "i18n" / "en.json")
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 

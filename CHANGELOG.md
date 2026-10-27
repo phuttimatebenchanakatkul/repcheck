@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.37.0.0] - 2026-10-27
+
+### Added
+
+The HYROX race tracker in the native app. Nothing in the website or the current App Store app changes.
+
+- **Run a HYROX race against the clock.** *HYROX* (on Home): choose Open or Pro, Singles or Doubles, Full or Half; see the race in order with the
+  weight, laps and reps each station asks; then tap through the sixteen segments. You get your time, whether it is a new personal best, and
+  where the time went.
+- **Your races, saved.** Every finished race goes into your history with its splits, and a counting time goes on the leaderboard.
+  *Personal bests* ranks your fastest five for each combo; open a race for its breakdown, or remove it.
+- **Your lane.** Say how long your gym lane is once and every station shows its laps for it.
+- **Proven:** 2271 app tests (including a run of the website's own station, weight, lap and clock code against ours), then 300
+  deliberate breakages of the new code (every survivor killed by a new test, removed as redundant, or a change with no observable effect).
+  Not yet run on a phone.
+
 ## [0.36.0.0] - 2026-10-27
 
 ### Added

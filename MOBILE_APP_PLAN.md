@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0.**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0; 5f-1, the HYROX race tracker, is v0.37.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -611,6 +611,20 @@ server has counted it. The AI consent question comes first. Closing mid-recordin
 
 Differences from the website: the website's decorative "analysing" skeleton over the clip (MediaPipe, cosmetic) is not drawn, and the
 camera is not zoom-normalised. The camera text in `app.json` now also names friend QR codes and the rep challenge.
+
+**Added in v0.37.0.0: the HYROX race tracker (5f-1).** *HYROX* (from Home) is the website's race simulator: pick Open or Pro, Singles or
+Doubles (and Full or Half length for Singles), see the whole race in order with what each station asks of you (the standard weight in the
+person's unit, the laps of their own lane, the reps), then run it by tapping through the sixteen segments against the clock. The clock is the
+time since the start, so it stays right if the screen locks. A finished race shows its time, whether it is a new personal best (or flagged
+as faster than anyone has raced, which the server would refuse too) and where the time went (running against stations, a bar for each
+segment); it is saved to the account (`hyrox_races` and `hyrox_race_splits`, offline-safe like every other log) and its time put on the global
+leaderboard when it counts there (a full-length race that is not flagged). *Personal bests* shows your five fastest for each combo and every race
+you have finished, newest first; each opens its breakdown and can be removed. Gender comes from the coaching profile; only a person with no
+profile is asked. The lane length (and, at the end of a race, which leaderboard is yours) are kept in two columns of the settings row.
+
+Not in this slice, and why: the leaderboard screen, the AI race analysis, the Pro practice weights, the Doubles round split, hand-built custom
+races and the how-to videos each need their own screen or call, and follow. A hand-built race made on the website is shown in the history
+(labelled Custom) but cannot be made here yet. The website's one-off back-fill of old races onto the board is the launch import's job.
 
 Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
 field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.

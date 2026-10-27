@@ -11,16 +11,18 @@ import { createContext, useContext, useMemo } from 'react';
 import type { CustomExercise, CustomFood } from '../api/endpoints';
 import { activeDaySet, currentStreak, longestStreak } from '../logic/streak';
 import type { ChatTurn } from '../logic/chat';
+import type { Race } from '../logic/hyrox';
 import { coachingDataFromRow, type CoachingData } from '../logic/coachingProfile';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { QueuedOperation } from '../store/outbox';
 import type { Data, RecentNutrition, RecentWorkout } from './access';
 import { RECENT_NUTRITION_LIMIT, RECENT_WORKOUT_LIMIT, WORKOUT_HISTORY_LIMIT } from './access';
 import { keys } from './keys';
-import { goalsFromRow, settingsFromRow, splitPlanFromRow, type AppSettings, type Row, type WeightEntry } from './mappers';
+import { goalsFromRow, hyroxPrefsFromRow, settingsFromRow, splitPlanFromRow, type AppSettings, type HyroxPrefs, type Row, type WeightEntry } from './mappers';
 import {
   latestRow,
   overlayDayStatuses,
+  overlayHyroxRaces,
   overlayAnalysisThread,
   overlayWorkoutThread,
   overlayCoachThread,
@@ -290,4 +292,26 @@ export function useGoalHandled(): Loaded<{ weightKg: number | null; aspiration: 
   const row = useCoachingRow();
   const handled = useMemo(() => ({ weightKg: row.data?.goal_handled_weight_kg ?? null, aspiration: row.data?.goal_handled_aspiration ?? null }), [row.data]);
   return { ...row, data: handled };
+}
+
+/** Every HYROX race (newest first) with its splits, and a save or delete still waiting laid over them. */
+export function useHyroxRaces(): Loaded<Race[]> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.hyroxRaces(data.userId), queryFn: () => data.fetch.hyroxRaces() });
+  const races = useMemo(
+    () => overlayHyroxRaces(query.data ?? [], waitingOn(queue, data.userId, ['hyrox_races', 'hyrox_race_splits'])),
+    [query.data, queue, data.userId],
+  );
+  return status(query, races);
+}
+
+/** The HYROX preferences kept in the settings row: the person's lane length and which leaderboard is theirs. */
+export function useHyroxPrefs(): Loaded<HyroxPrefs> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.settings(data.userId), queryFn: () => data.fetch.settingsRow() });
+  const prefs = useMemo(() => {
+    const pending = latestRow<Row<'user_settings'>>(waiting(queue, data.userId, 'user_settings'));
+    return hyroxPrefsFromRow(pending ? (pending.deleted ? null : pending.row) : query.data);
+  }, [query.data, queue, data.userId]);
+  return status(query, prefs);
 }

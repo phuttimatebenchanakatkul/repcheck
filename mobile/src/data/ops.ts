@@ -8,10 +8,15 @@ import type { Json } from '@/supabase/database.types';
 
 import type { ChatTurn } from '../logic/chat';
 import type { CoachingData } from '../logic/coachingProfile';
+import type { Race } from '../logic/hyrox';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import {
   analysisTurnToRow,
   coachingRowAfterCheckin,
+  hyroxRaceToRow,
+  hyroxSplitToRow,
+  settingsRowWithHyrox,
+  type HyroxPrefs,
   coachingRowFromData,
   workoutTurnToRow,
   coachTurnToRow,
@@ -130,4 +135,27 @@ export const coachingProfileSave = (userId: string, data: CoachingData, base: Ro
 /** Saving a finished weekly check-in onto the coaching row. */
 export const coachingCheckinSave = (userId: string, base: Row<'coaching_profiles'>, checkin: Parameters<typeof coachingRowAfterCheckin>[1]): Operation => ({
   kind: 'upsert', table: 'coaching_profiles', key: 'user_id', row: { ...coachingRowAfterCheckin(base, checkin), user_id: userId } as Record<string, unknown>,
+});
+
+/**
+ * Saving a finished HYROX race: the race row, then its splits by position (any left over from an earlier version cleared first). The
+ * race goes first because the splits belong to it; deleting the race needs only the one delete (the splits cascade).
+ */
+export function hyroxRaceSave(userId: string, race: Race): Operation[] {
+  return [
+    { kind: 'upsert', table: 'hyrox_races', key: 'user_id,id', row: hyroxRaceToRow(userId, race) as Record<string, unknown> },
+    { kind: 'delete', table: 'hyrox_race_splits', key: 'user_id,race_id', match: { user_id: userId, race_id: race.id } },
+    ...race.splits.map((split, position): Operation => ({
+      kind: 'upsert', table: 'hyrox_race_splits', key: 'user_id,race_id,position', row: hyroxSplitToRow(userId, race.id, position, split) as Record<string, unknown>,
+    })),
+  ];
+}
+
+export const hyroxRaceDelete = (userId: string, id: string): Operation => ({
+  kind: 'delete', table: 'hyrox_races', key: 'user_id,id', match: { user_id: userId, id },
+});
+
+/** Saving the HYROX preferences (lane length, leaderboard gender): the whole settings row, the rest of it as it was. */
+export const hyroxPrefsSave = (userId: string, prefs: HyroxPrefs, base: Row<'user_settings'> | null | undefined): Operation => ({
+  kind: 'upsert', table: 'user_settings', key: 'user_id', row: settingsRowWithHyrox(userId, prefs, base) as Record<string, unknown>,
 });

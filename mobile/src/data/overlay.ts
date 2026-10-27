@@ -9,7 +9,8 @@ import type { Operation, QueuedOperation } from '../store/outbox';
 
 import type { NutritionEntry, WorkoutEntry, WorkoutSet } from '../logic/types';
 import type { ChatTurn } from '../logic/chat';
-import { analysisTurnFromRow, coachTurnFromRow, nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, workoutTurnFromRow, type Row, type WeightEntry } from './mappers';
+import type { Race, Split } from '../logic/hyrox';
+import { analysisTurnFromRow, coachTurnFromRow, hyroxRaceFromRows, hyroxSplitFromRow, nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, workoutTurnFromRow, type Row, type WeightEntry } from './mappers';
 
 /** The waiting operations of one person on a table, oldest first. */
 export function waiting(queue: readonly QueuedOperation[], userId: string, table: Operation['table']): Operation[] {
@@ -251,4 +252,38 @@ export function overlayWorkoutThread(turns: readonly ChatTurn[], ops: readonly O
     else list.push(turn);
   }
   return list;
+}
+
+// -- HYROX races: a race and its splits are two tables ----------------------------------------------------------------------------------
+
+/**
+ * The race history with the waiting operations applied in queue order (a save is the race, then its splits). A splits delete clears the
+ * race's splits, a split upsert puts one at its position, a race upsert files the race (keeping splits already seen), a race delete
+ * removes it. Newest first.
+ */
+export function overlayHyroxRaces(races: readonly Race[], ops: readonly Operation[]): Race[] {
+  type Working = Omit<Race, 'splits'> & { splits: Map<number, Split> };
+  const state = new Map<string, Working>(races.map((r) => [r.id, { ...r, splits: new Map(r.splits.map((s, i) => [i, s])) }]));
+  for (const op of ops) {
+    if (op.table === 'hyrox_races') {
+      if (op.kind === 'upsert') {
+        const row = op.row as unknown as Row<'hyrox_races'>;
+        const existing = state.get(row.id);
+        const { splits: _ignored, ...fresh } = hyroxRaceFromRows({ ...row, extra: row.extra ?? {}, analysis: row.analysis ?? null }, []);
+        state.set(row.id, { ...fresh, splits: existing?.splits ?? new Map() });
+      } else {
+        state.delete(str(op.match.id));
+      }
+    } else if (op.table === 'hyrox_race_splits') {
+      if (op.kind === 'delete') {
+        state.get(str(op.match.race_id))?.splits.clear();
+      } else {
+        const row = op.row as unknown as Row<'hyrox_race_splits'>;
+        state.get(row.race_id)?.splits.set(row.position, hyroxSplitFromRow({ ...row, extra: row.extra ?? {} }));
+      }
+    }
+  }
+  return Array.from(state.values())
+    .map(({ splits, ...race }): Race => ({ ...race, splits: Array.from(splits.entries()).sort((a, b) => a[0] - b[0]).map(([, split]) => split) }))
+    .sort((a, b) => toMs(b.date) - toMs(a.date));
 }

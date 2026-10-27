@@ -27,6 +27,7 @@ export const keys = {
   workoutThread: (userId: string, day: string) => ['data', userId, 'workout-thread', day] as const,
   workoutThreadPrefix: (userId: string) => ['data', userId, 'workout-thread'] as const,
   workoutHistory: (userId: string) => ['data', userId, 'workout-history'] as const,
+  hyroxRaces: (userId: string) => ['data', userId, 'hyrox-races'] as const,
   coachingRow: (userId: string) => ['data', userId, 'coaching-profile'] as const,
   analysisThread: (userId: string, analysisId: number) => ['data', userId, 'analysis-thread', analysisId] as const,
   analysisThreadPrefix: (userId: string) => ['data', userId, 'analysis-thread'] as const,
