@@ -7,9 +7,11 @@
  * after my action" and "what the screen shows while the action is still queued" can never disagree.
  */
 import type { QueryClient } from '@tanstack/react-query';
+import type { Json } from '../supabase/database.types';
 
 import type { CustomExercise, CustomFood, NewCustomFood } from '../api/endpoints';
 import type { ChatTurn } from '../logic/chat';
+import type { CoachingData } from '../logic/coachingProfile';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { Operation, Outbox } from '../store/outbox';
 import { addDays, toIsoDate } from '../logic/dates';
@@ -28,6 +30,7 @@ import {
 } from './mappers';
 import {
   activityMark,
+  coachingProfileSave,
   workoutChatClear,
   workoutTurnSave,
   analysisTurnSave,
@@ -234,6 +237,11 @@ export function createData(deps: DataDeps) {
     return oneOf<Row<'user_settings'>>(await table('user_settings').maybeSingle());
   }
 
+  /** The stored coaching profile row (every field), or null when there is none. */
+  async function coachingRow(): Promise<Row<'coaching_profiles'> | null> {
+    return oneOf<Row<'coaching_profiles'>>(await table('coaching_profiles').maybeSingle());
+  }
+
   /** What the coach knows about the person, for tailoring a plan. Optional by design: no profile, or any trouble reading it, is just no tailoring. */
   async function coachingProfile(): Promise<CoachingProfile> {
     try {
@@ -411,6 +419,14 @@ export function createData(deps: DataDeps) {
     patch<ChatTurn[]>(keys.coachThreadPrefix(userId), (old, key) => (turn.date === String(key[3]) ? overlayCoachThread(old, [op]) : old));
   }
 
+  /** Saves the coaching profile a wizard produced (with the week laid out when calories are spread). */
+  async function saveCoachingProfile(data: CoachingData, weeklyDistribution: Json | null): Promise<void> {
+    const base = queryClient.getQueryData<Row<'coaching_profiles'> | null>(keys.coachingRow(userId));
+    const op = coachingProfileSave(userId, data, base, weeklyDistribution);
+    await send(op);
+    patchRow(keys.coachingRow(userId), op);
+  }
+
   /** Adds a turn to a day's workout chat (the day is the turn's own). */
   async function saveWorkoutTurn(turn: ChatTurn): Promise<void> {
     const op = workoutTurnSave(userId, turn);
@@ -473,13 +489,13 @@ export function createData(deps: DataDeps) {
     userId,
     fetch: {
       nutritionDay, nutritionRecent, nutritionRange, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
-      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachThread, analysisThread, workoutThread, workoutHistory: () => workoutRecent(WORKOUT_HISTORY_LIMIT),
+      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachingRow, coachThread, analysisThread, workoutThread, workoutHistory: () => workoutRecent(WORKOUT_HISTORY_LIMIT),
       customFoods: () => api.listCustomFoods(),
       customExercises: () => api.listCustomExercises(),
     },
     actions: {
       saveFood, deleteFood, saveWorkout, deleteWorkout, saveWeight, removeWeight, saveGoals, saveSettings, saveSplitPlan,
-      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread,
+      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread, saveCoachingProfile,
       createCustomFood, deleteCustomFood, createCustomExercise, deleteCustomExercise,
     },
   };

@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0.**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -556,6 +556,21 @@ each an existing public website page opened in the in-app browser (`src/links.ts
 *Log out*. *Delete account* (5.1.1(v)): a native confirmation, then the deletion is SCHEDULED (30 days, `ACCOUNT_GRACE_DAYS`, pinned to the
 server's) and the screen shows the date and *Keep my account*; while a deletion is scheduled Home shows a banner that opens Settings,
 as the website's does on every page.
+
+**Added in v0.33.0.0: the coaching profile wizard (5b), the website's onboarding.** The questions behind a calorie and macro target: goal
+(lose, maintain, gain), weight and gender, goal weight and how fast (losing or gaining only), height, body type (pictures, per gender),
+activity, protein, diet, and whether to spread calories through the week. The maths is the server's own (`POST /api/coaching/calculate`,
+the website's `coaching_engine`); the app asks the questions, enforces the website's limits (goal weight on the right side of the current
+one, height 130-230 cm, rate limits), and shows the targets before anything is saved. Saving writes the coaching profile (`coaching_profiles`,
+the whole row, the week laid out when spread), the protein / fat / carb goals, and `profiles.onboarding_completed`. It is offered by a card
+on Home while there is no profile, and by Settings (*Set up* / *Edit profile*, which opens on what is saved); it is not forced on a new
+account.
+
+Differences from the website: weight and height are typed (in the person's own units) instead of scrolled on rulers, and the rate is the
+native slider with the same "slower / standard / faster" badge and the website's warning above the standard pace (Guideline 1.4) in
+place of its custom-drawn one; the website's live "estimated daily budget" under the slider is not shown (the result screen has the real
+numbers). The body-type pictures are the website's own files, copied into `assets/bodyfat` and compared byte for byte by a test; the
+ranges are generated into `src/data/bodyfat.json` by `scripts/export_libraries.py`.
 
 Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
 field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.

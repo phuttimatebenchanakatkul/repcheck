@@ -279,6 +279,83 @@ def test_the_app_can_delete_withdraw_and_rename_through_the_servers_routes():
     assert "scheduleDeletion" in settings and "restoreAccount" in settings and "setAiConsent(!on)" in settings
 
 
+# -- the coaching wizard agrees with the engine that does the maths --------------------------------------------------------------
+
+def coaching_source():
+    return text(MOBILE / "src" / "logic" / "coachingProfile.ts")
+
+
+def test_the_wizards_rate_limits_are_the_engines():
+    import coaching_engine as engine
+    source = coaching_source()
+
+    def number(name):
+        return float(re.search(rf"export const {name} = ([0-9.]+);", source).group(1))
+
+    assert number("LOSS_RATE_MIN_PCT") == engine.LOSS_RATE_MIN_PCT
+    assert number("LOSS_RATE_MAX_PCT") == engine.LOSS_RATE_MAX_PCT
+    assert number("GAIN_RATE_MIN_PCT") == engine.GAIN_RATE_MIN_PCT
+    assert number("GAIN_RATE_DEFAULT_PCT") == engine.GAIN_RATE_DEFAULT_PCT
+    assert number("RATE_REFERENCE_WEIGHT_KG") == 75
+    assert abs(number("LOSS_STANDARD_MIN_KG_PER_WEEK") / 75 * 100 - engine.LOSS_RATE_DEFAULT_PCT) < 1e-9
+    assert abs(number("GAIN_STANDARD_MAX_KG_PER_WEEK") / 75 * 100 - engine.GAIN_RATE_MAX_PCT) < 1e-9
+
+
+def test_the_wizards_choices_are_the_ones_the_server_accepts():
+    from api.coaching import validate_profile
+    source = coaching_source()
+
+    def choices(name):
+        return re.findall(r"'(\w+)'", re.search(rf"export const {name} = \[(.*?)\] as const;", source, re.S).group(1))
+
+    base = {"aspiration": "maintain", "gender": "male", "activity_level": "none", "protein_preference": "moderate", "body_fat_range_id": "m3", "weight_kg": 80}
+    for field, name in (("aspiration", "ASPIRATIONS"), ("gender", "GENDERS"), ("activity_level", "ACTIVITY_LEVELS"), ("protein_preference", "PROTEIN_LEVELS"), ("diet_preference", "DIETS")):
+        options = choices(name)
+        assert options, name
+        for option in options:
+            payload = {**base, field: option}
+            if field == "gender":
+                payload["body_fat_range_id"] = "f3" if option == "female" else "m3"
+            profile, error = validate_profile(payload)
+            assert error is None, (field, option, error)
+        assert validate_profile({**base, field: "not-a-choice"})[1], field
+
+
+def test_the_body_types_and_their_pictures_are_the_engines_and_the_websites():
+    import coaching_engine as engine
+    ranges = json.loads(text(MOBILE / "src" / "data" / "bodyfat.json"))
+    assert [r["id"] for r in ranges["male"]] == [r["id"] for r in engine.MALE_BODY_FAT_RANGES]
+    assert [r["id"] for r in ranges["female"]] == [r["id"] for r in engine.FEMALE_BODY_FAT_RANGES]
+    assert [r["label"] for r in ranges["male"] + ranges["female"]] == [r["label"] for r in engine.MALE_BODY_FAT_RANGES + engine.FEMALE_BODY_FAT_RANGES]
+    pictures = text(MOBILE / "src" / "features" / "coaching" / "bodyImages.ts")
+    for entry in ranges["male"] + ranges["female"]:
+        mine = MOBILE / "assets" / "bodyfat" / f"{entry['id']}.webp"
+        assert mine.read_bytes() == (ROOT / "static" / "bodyfat" / f"{entry['id']}.webp").read_bytes(), entry["id"]
+        assert f"assets/bodyfat/{entry['id']}.webp" in pictures, entry["id"]
+
+
+def test_the_wizards_request_has_every_field_the_server_reads():
+    source = coaching_source()
+    body = re.search(r"export function calculateBody.*?\n}\n", source, re.S).group(0)
+    sent = set(re.findall(r"^\s+(\w+):", body, re.M))
+    assert sent == {"aspiration", "gender", "weight_kg", "height_cm", "body_fat_range_id", "activity_level", "protein_preference", "diet_preference", "distribution", "loss_rate_pct", "gain_rate_pct", "training_days"}
+    website = text(ROOT / "static" / "coaching.js")
+    for field in sent:
+        assert f"{field}:" in website, field
+
+
+def test_the_wizard_saves_into_columns_that_exist():
+    migration = "".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "supabase" / "migrations").glob("*.sql")))
+    block = migration[migration.index("create table public.coaching_profiles"):]
+    block = block[:block.index(");")]
+    columns = set(re.findall(r"^\s+(\w+)\s", block, re.M))
+    mapper = text(MOBILE / "src" / "data" / "mappers.ts")
+    written = re.search(r"export function coachingRowFromData.*?\n}\n", mapper, re.S).group(0)
+    for column in set(re.findall(r"^\s+(\w+):", written, re.M)) - {"user_id"}:
+        assert column in columns, column
+    assert "grant update (onboarding_completed) on public.profiles to authenticated" in migration
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 
