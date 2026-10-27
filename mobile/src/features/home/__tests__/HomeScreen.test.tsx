@@ -261,6 +261,14 @@ describe('survivors: today’s workouts line, longest streak', () => {
   });
 });
 
+describe('hyrox', () => {
+  it('Home opens it', async () => {
+    await open();
+    await press('HYROX');
+    expect(mockPush).toHaveBeenCalledWith('/hyrox');
+  });
+});
+
 describe('challenges', () => {
   it('Home opens them', async () => {
     await open();

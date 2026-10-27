@@ -18,6 +18,9 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 const TODAY = toIsoDate(new Date());
 const todayKey = WEEKDAY_KEYS[new Date().getDay()];
+/** A weekday that is not today, so a schedule naming both never has one overwrite the other (it did, on a Wednesday). */
+const otherKey = WEEKDAY_KEYS[(new Date().getDay() + 3) % 7];
+const otherName = otherKey[0].toUpperCase() + otherKey.slice(1);
 
 const GENERATED = parseGenerated({
   days: [
@@ -315,7 +318,7 @@ describe('the checklist', () => {
 });
 
 describe('looking over and changing a plan', () => {
-  const seed = (h: ReturnType<typeof dataHarness>, schedule: Record<string, string> = { [todayKey]: 'Push', wednesday: 'Pull' }) =>
+  const seed = (h: ReturnType<typeof dataHarness>, schedule: Record<string, string> = { [todayKey]: 'Push', [otherKey]: 'Pull' }) =>
     h.db.seed('split_plans', [{
       user_id: USER, split_type: 'ppl', days_per_week: 2, goal: null,
       days: [{ label: 'Push', exercises: ['Flat Bench Press', 'Overhead Press'] }, { label: 'Pull', exercises: ['Pull-Up'] }],
@@ -338,17 +341,17 @@ describe('looking over and changing a plan', () => {
   });
 
   it('assigning a different day to a weekday is saved', async () => {
-    const h = await openView({ [todayKey]: 'Push', wednesday: 'Pull' });
-    await fireEvent.press(screen.getByRole('button', { name: 'Wednesday, Pull' }));
+    const h = await openView({ [todayKey]: 'Push', [otherKey]: 'Pull' });
+    await fireEvent.press(screen.getByRole('button', { name: `${otherName}, Pull` }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Push', selected: false }));
     await act(async () => {
       await h.flush();
     });
-    expect(planRow(h).schedule.wednesday).toBe('Push');
+    expect(planRow(h).schedule[otherKey]).toBe('Push');
   });
 
   it('a rest day shows the recovery note and no exercises', async () => {
-    await openView({ [todayKey]: 'Rest', wednesday: 'Pull' });
+    await openView({ [todayKey]: 'Rest', [otherKey]: 'Pull' });
     expect(await screen.findByText('Recovery day — nothing scheduled.')).toBeOnTheScreen();
   });
 
@@ -514,7 +517,7 @@ describe('survivors: the editor and the checklist', () => {
 
   it('the chosen weekday is marked, and a rest day says Today’s plan', async () => {
     const h = dataHarness();
-    seed(h, { [todayKey]: 'Rest', wednesday: 'Push' });
+    seed(h, { [todayKey]: 'Rest', [otherKey]: 'Push' });
     await openEditor(h);
     const days = screen.getAllByRole('button', { name: /^(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day, (Push|Pull|Rest)$/ });
     expect(days.filter((d) => d.props.accessibilityState.selected)).toHaveLength(1);
@@ -523,10 +526,10 @@ describe('survivors: the editor and the checklist', () => {
 
   it('a day with no exercises says so; one with exercises does not', async () => {
     const h = dataHarness();
-    seed(h, { [todayKey]: 'Pull', wednesday: 'Push' });
+    seed(h, { [todayKey]: 'Pull', [otherKey]: 'Push' });
     await openEditor(h);
     expect(await screen.findAllByText('No exercises for this day yet.')).toHaveLength(2); // the page's card and the editor
-    await fireEvent.press(screen.getByRole('button', { name: /^Wednesday, Push$/ }));
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${otherName}, Push$`) }));
     expect(screen.queryAllByText('No exercises for this day yet.')).toHaveLength(1); // only the card (today is still Pull)
   });
 
@@ -613,7 +616,7 @@ describe('survivors: the editor and the checklist', () => {
 
   it('a plan with no entry for today (not even Rest) says there are no workouts today', async () => {
     const h = dataHarness();
-    seed(h, { wednesday: 'Push' });
+    seed(h, { [otherKey]: 'Push' });
     await open(h);
     expect(await screen.findByText('No workouts today, have a rest!')).toBeOnTheScreen();
   });

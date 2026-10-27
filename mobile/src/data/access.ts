@@ -12,6 +12,7 @@ import type { Json } from '../supabase/database.types';
 import type { CustomExercise, CustomFood, NewCustomFood } from '../api/endpoints';
 import type { ChatTurn } from '../logic/chat';
 import type { Adjustment } from '../logic/checkin';
+import type { Race } from '../logic/hyrox';
 import type { CoachingData } from '../logic/coachingProfile';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { Operation, Outbox } from '../store/outbox';
@@ -22,16 +23,23 @@ import {
   workoutTurnFromRow,
   analysisTurnFromRow,
   coachTurnFromRow,
+  hyroxPrefsFromRow,
+  hyroxRaceFromRows,
   nutritionRowToEntry,
+  toMs,
   weightFromRow,
   workoutRowsToEntry,
   type AppSettings,
+  type HyroxPrefs,
   type Row,
   type WeightEntry,
 } from './mappers';
 import {
   activityMark,
   coachingCheckinSave,
+  hyroxPrefsSave,
+  hyroxRaceDelete,
+  hyroxRaceSave,
   coachingProfileSave,
   workoutChatClear,
   workoutTurnSave,
@@ -56,6 +64,7 @@ import {
   overlayAnalysisThread,
   overlayCoachThread,
   overlayDayStatuses,
+  overlayHyroxRaces,
   overlayNames,
   overlayNutritionDay,
   overlayNutritionRange,
@@ -139,6 +148,9 @@ function oneOf<T>(result: QueryResult): T | null {
   if (result.error) throw new DataError(result.error.message ?? 'The request failed.', result.status, result.error.code);
   return (result.data as T | null) ?? null;
 }
+
+/** A waiting write to one of this race's splits. */
+const isSplitOf = (raceId: string) => (op: Operation) => op.table === 'hyrox_race_splits' && (op.kind === 'upsert' ? op.row.race_id : op.match.race_id) === raceId;
 
 /** A waiting write to one of this workout entry's sets. */
 const isSetOf = (entryId: string) => (op: Operation) => op.table === 'workout_sets' && (op.kind === 'upsert' ? op.row.entry_id : op.match.entry_id) === entryId;
@@ -233,6 +245,23 @@ export function createData(deps: DataDeps) {
       out.push(...page.map(weightFromRow));
       if (page.length < PAGE_SIZE) return out;
     }
+  }
+
+  /** Every HYROX race with its splits, a page at a time (a race has 16 splits, so a long history is more than one request). */
+  async function hyroxRaces(): Promise<Race[]> {
+    const races: Row<'hyrox_races'>[] = [];
+    for (let start = 0; ; start += PAGE_SIZE) {
+      const page = rowsOf<Row<'hyrox_races'>>(await table('hyrox_races').order('raced_at').range(start, start + PAGE_SIZE - 1));
+      races.push(...page);
+      if (page.length < PAGE_SIZE) break;
+    }
+    const splits: Row<'hyrox_race_splits'>[] = [];
+    for (let start = 0; ; start += PAGE_SIZE) {
+      const page = rowsOf<Row<'hyrox_race_splits'>>(await table('hyrox_race_splits').order('race_id').order('position').range(start, start + PAGE_SIZE - 1));
+      splits.push(...page);
+      if (page.length < PAGE_SIZE) break;
+    }
+    return races.map((row) => hyroxRaceFromRows(row, splits)).sort((a, b) => toMs(b.date) - toMs(a.date));
   }
 
   async function settingsRow(): Promise<Row<'user_settings'> | null> {
@@ -450,6 +479,27 @@ export function createData(deps: DataDeps) {
     await markActivity(today, 'checkin');
   }
 
+  /** Saves a finished HYROX race (the race, then its splits) and shows it at once. */
+  async function saveHyroxRace(race: Race): Promise<void> {
+    const ops = hyroxRaceSave(userId, race);
+    await outbox.replace(userId, isSplitOf(race.id), ops);
+    patchOne<Race[]>(keys.hyroxRaces(userId), (old) => overlayHyroxRaces(old, ops));
+  }
+
+  async function deleteHyroxRace(id: string): Promise<void> {
+    const op = hyroxRaceDelete(userId, id);
+    await outbox.replace(userId, isSplitOf(id), [op]);
+    patchOne<Race[]>(keys.hyroxRaces(userId), (old) => overlayHyroxRaces(old, [op]));
+  }
+
+  /** Changes the HYROX preferences (lane length, leaderboard gender); what is not named stays. The rest of the settings row is untouched. */
+  async function saveHyroxPrefs(change: Partial<HyroxPrefs>): Promise<void> {
+    const base = queryClient.getQueryData<Row<'user_settings'> | null>(keys.settings(userId));
+    const op = hyroxPrefsSave(userId, { ...hyroxPrefsFromRow(base), ...change }, base);
+    await send(op);
+    patchRow(keys.settings(userId), op);
+  }
+
   /** Adds a turn to a day's workout chat (the day is the turn's own). */
   async function saveWorkoutTurn(turn: ChatTurn): Promise<void> {
     const op = workoutTurnSave(userId, turn);
@@ -512,13 +562,13 @@ export function createData(deps: DataDeps) {
     userId,
     fetch: {
       nutritionDay, nutritionRecent, nutritionRange, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
-      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachingRow, coachThread, analysisThread, workoutThread, workoutHistory: () => workoutRecent(WORKOUT_HISTORY_LIMIT),
+      weights, hyroxRaces, settingsRow, dayStatuses, activeDays, coachingProfile, coachingRow, coachThread, analysisThread, workoutThread, workoutHistory: () => workoutRecent(WORKOUT_HISTORY_LIMIT),
       customFoods: () => api.listCustomFoods(),
       customExercises: () => api.listCustomExercises(),
     },
     actions: {
       saveFood, deleteFood, saveWorkout, deleteWorkout, saveWeight, removeWeight, saveGoals, saveSettings, saveSplitPlan,
-      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread, saveCoachingProfile, saveCheckin,
+      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread, saveCoachingProfile, saveCheckin, saveHyroxRace, deleteHyroxRace, saveHyroxPrefs,
       createCustomFood, deleteCustomFood, createCustomExercise, deleteCustomExercise,
     },
   };

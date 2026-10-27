@@ -180,6 +180,7 @@ export default function HomeScreen() {
         <Button tone="plain" title={t('app.history.viewHistory')} onPress={() => router.push('/weight')} />
       </Card>
 
+      <Button tone="plain" title={t('nav.hyrox')} onPress={() => router.push('/hyrox')} />
       <Button tone="plain" title={t('page.challenges.heading')} onPress={() => router.push('/challenges')} />
       <Button tone="plain" title={t('nav.friends')} onPress={() => router.push('/friends')} />
       <Button tone="plain" title={t('nav.settings')} onPress={() => router.push('/settings')} />
