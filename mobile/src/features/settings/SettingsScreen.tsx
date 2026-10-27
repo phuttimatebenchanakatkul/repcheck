@@ -7,6 +7,7 @@ import { ApiError, getApi } from '@/api';
 import { useAuth } from '@/auth/AuthProvider';
 import { signOut } from '@/auth/actions';
 import { useActions, useCoachingProfile, useSettings } from '@/data/hooks';
+import { shownMessage, useBlockedAccounts, useSocialChanged } from '@/features/social/queries';
 import { useTranslation } from '@/i18n';
 import { chooseLanguage } from '@/i18n/storage';
 import { ACCOUNT_GRACE_DAYS, colorSchemeOverride, formatDueDate, providerName } from '@/logic/account';
@@ -286,6 +287,58 @@ function CoachingSection() {
   );
 }
 
+/** The people you have blocked, each with a way to undo it (Guideline 1.2: blocking has to be reversible where it was done). */
+function BlockedSection() {
+  const { t } = useTranslation();
+  const blocked = useBlockedAccounts();
+  const changed = useSocialChanged();
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState<string | null>(null);
+
+  const unblock = async (id: string) => {
+    if (working) return;
+    setWorking(id);
+    setError(null);
+    try {
+      await getApi().unblockAccount(id);
+      await changed();
+    } catch (failure) {
+      setError(shownMessage(failure, t('safety.genericError')));
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  return (
+    <Section title={t('settings.blocked.title')} sub={t('settings.blocked.sub')}>
+      {blocked.isPending ? (
+        <Text variant="body" secondary>
+          {t('common.loading')}
+        </Text>
+      ) : blocked.isError ? (
+        <>
+          <ErrorText>{t('safety.genericError')}</ErrorText>
+          <Button tone="plain" title={t('app.nutrition.retry')} onPress={() => void blocked.refetch()} />
+        </>
+      ) : blocked.data.length === 0 ? (
+        <Text variant="body" secondary testID="blocked-empty">
+          {t('settings.blocked.empty')}
+        </Text>
+      ) : (
+        blocked.data.map((person) => (
+          <View key={person.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }} testID={`blocked-${person.id}`}>
+            <Text variant="rowTitle" style={{ flex: 1 }} numberOfLines={1}>
+              {person.name}
+            </Text>
+            <Button tone="plain" title={t('settings.blocked.unblock')} loading={working === person.id} disabled={working !== null} onPress={() => void unblock(person.id)} />
+          </View>
+        ))
+      )}
+      <ErrorText>{error}</ErrorText>
+    </Section>
+  );
+}
+
 /** Settings: account, appearance, language, units, AI features, legal pages, log out and delete account. */
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -296,6 +349,7 @@ export default function SettingsScreen() {
       <CoachingSection />
       <PreferencesSections />
       <AiSection />
+      <BlockedSection />
       <Section title={t('settings.legal.title')}>
         {LEGAL_LINKS.map((link) => (
           <Row key={link.key} onPress={() => open(`${WEBSITE_URL}${link.path}`)} label={t(link.label)}>
