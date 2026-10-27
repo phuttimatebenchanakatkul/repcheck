@@ -21,6 +21,7 @@ import {
   overlayDayStatuses,
   overlayNames,
   overlayNutritionDay,
+  overlayNutritionRange,
   overlayNutritionRecent,
   overlayWeights,
   overlayWorkoutDay,
@@ -88,6 +89,17 @@ export function useNutritionRecent(): Loaded<RecentNutrition[]> {
   const entries = useMemo(
     () => overlayNutritionRecent(query.data ?? [], waiting(queue, data.userId, 'nutrition_entries')).slice(0, RECENT_NUTRITION_LIMIT),
     [query.data, queue, data.userId],
+  );
+  return status(query, entries);
+}
+
+/** Everything logged on days from `from` to `to` (each entry carries its day), with this device's waiting changes applied. */
+export function useNutritionRange(from: string, to: string): Loaded<RecentNutrition[]> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.nutritionRange(data.userId, from, to), queryFn: () => data.fetch.nutritionRange(from, to) });
+  const entries = useMemo(
+    () => overlayNutritionRange(query.data ?? [], waiting(queue, data.userId, 'nutrition_entries'), from, to),
+    [query.data, queue, data.userId, from, to],
   );
   return status(query, entries);
 }

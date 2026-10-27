@@ -52,6 +52,7 @@ export function MonthCalendar({
   today,
   has,
   activeColor,
+  colorFor,
   describe,
   onPressDay,
 }: {
@@ -59,6 +60,8 @@ export function MonthCalendar({
   today: string;
   has: (day: string) => boolean;
   activeColor: string;
+  /** A colour per day, for calendars with more than two states (null = the plain circle). Overrides `has` / `activeColor`. */
+  colorFor?: (day: string) => string | null;
   describe: (day: string, active: boolean) => string;
   onPressDay?: (day: string) => void;
 }) {
@@ -66,7 +69,8 @@ export function MonthCalendar({
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.md, justifyContent: 'center' }}>
       {monthDays(month).map((day) => {
-        const active = has(day);
+        const fill = colorFor ? colorFor(day) : has(day) ? activeColor : null;
+        const active = fill !== null;
         const future = day > today;
         const press = onPressDay && !future;
         return (
@@ -82,7 +86,7 @@ export function MonthCalendar({
               borderRadius: 22,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: active ? activeColor : colors.border,
+              backgroundColor: fill ?? colors.border,
               borderWidth: day === today ? 2 : 0,
               borderColor: colors.blue.fill,
               opacity: future ? 0.3 : 1,

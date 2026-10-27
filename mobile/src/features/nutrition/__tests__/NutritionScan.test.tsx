@@ -4,9 +4,12 @@ import { USER, dataHarness } from '@/testing/dataHarness';
 
 import NutritionScreen from '../NutritionScreen';
 
+const mockPush = jest.fn();
+
 const mockApi = { analyzeFood: jest.fn(), lookupBarcode: jest.fn(), setAiConsent: jest.fn() };
 const mockCamera = { lastProps: null as Record<string, any> | null };
 
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@/api', () => ({ ...jest.requireActual('@/api/client'), getApi: () => mockApi }));
 jest.mock('@/auth/AuthProvider', () => ({ useAuth: () => ({ state: { status: 'ready', profile: { ai_consent: true } }, refreshProfile: async () => undefined }) }));
 jest.mock('@/ui/photos', () => ({

@@ -5,6 +5,8 @@
 export const keys = {
   all: (userId: string) => ['data', userId] as const,
   nutritionDay: (userId: string, day: string) => ['data', userId, 'nutrition', day] as const,
+  nutritionRange: (userId: string, from: string, to: string) => ['data', userId, 'nutrition-range', from, to] as const,
+  nutritionRangePrefix: (userId: string) => ['data', userId, 'nutrition-range'] as const,
   nutritionRecent: (userId: string) => ['data', userId, 'nutrition-recent'] as const,
   goals: (userId: string) => ['data', userId, 'goals'] as const,
   nutritionFavorites: (userId: string) => ['data', userId, 'nutrition-favorites'] as const,

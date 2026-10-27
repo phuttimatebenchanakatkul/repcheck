@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -51,6 +52,7 @@ export default function NutritionScreen() {
   const settings = useSettings();
   const custom = useCustomFoods();
   const actions = useActions();
+  const router = useRouter();
 
   const loggedDays = new Set(recent.data.map((entry) => entry.day));
   if (entries.data.length) loggedDays.add(day);
@@ -101,6 +103,14 @@ export default function NutritionScreen() {
       <DateStrip selected={day} today={today} loggedDays={loggedDays} loggedLabel={(date) => t('app.nutrition.dayLogged', { day: date })} onSelect={setDay} />
 
       <TotalsCard totals={totals} goals={goals.data} onEditGoals={() => setGoalsOpen(true)} />
+      <View style={{ flexDirection: 'row', gap: space.md }}>
+        <View style={{ flex: 1 }}>
+          <Button tone="plain" title={t('home.macros.fullStats')} onPress={() => router.push('/full-stats')} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button tone="plain" title={t('weight.loggingHistoryTitle')} onPress={() => router.push('/logging-history')} />
+        </View>
+      </View>
 
       <View style={{ gap: space.xs }}>
         <Text variant="title" style={{ fontSize: 22 }} accessibilityRole="header">
@@ -179,6 +189,7 @@ export default function NutritionScreen() {
           setAdding(null);
           setQuickOpen(true);
         }}
+        onDeleteCustomFood={(id) => void run(() => actions.deleteCustomFood(id))}
         onScan={(mode) => {
           setAdding(null);
           setScanning(mode);

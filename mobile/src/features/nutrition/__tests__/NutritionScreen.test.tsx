@@ -6,6 +6,9 @@ import { USER, dataHarness, nutritionRow } from '@/testing/dataHarness';
 
 import NutritionScreen from '../NutritionScreen';
 
+const mockPush = jest.fn();
+
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 const NOW = new Date();
 const TODAY = toIsoDate(NOW);
 const YESTERDAY = addDays(TODAY, -1);
@@ -504,5 +507,48 @@ describe('survivors: sheets close, ingredients, errors, wording', () => {
     await fireEvent.press(screen.getByRole('radio', { name: 'oz' }));
     expect(await screen.findByDisplayValue('3.5')).toBeOnTheScreen();
     expect(screen.getByTestId('preview-kcal').props.children.join('')).toBe(kcal);
+  });
+});
+
+describe('the history pages and removing your own foods', () => {
+  it('the history buttons open the two pages', async () => {
+    await open();
+    await press('Full stats');
+    expect(mockPush).toHaveBeenCalledWith('/full-stats');
+    await press('Logging History');
+    expect(mockPush).toHaveBeenCalledWith('/logging-history');
+  });
+
+  it('a food of your own can be removed from the Custom list, after a confirmation', async () => {
+    const shake = { id: 7, name: 'House shake', emoji: '🥤', calories: 300, protein: 30, fat: 5, carbs: 30, barcode: null, servingLabel: '1 bottle', servingGrams: 400, servings: [] };
+    const deleted: number[] = [];
+    const h = dataHarness({ listCustomFoods: async () => [shake], deleteCustomFood: async (id) => void deleted.push(id) });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await open(h);
+    await press('Log a food');
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Custom' }));
+    await press('Remove House shake');
+    expect(alert).toHaveBeenCalledWith('Delete this food?', 'House shake', expect.any(Array));
+    expect(deleted).toEqual([]);
+    const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
+    await act(async () => {
+      buttons.find((b) => b.text === 'Remove')?.onPress?.();
+    });
+    await waitFor(() => expect(deleted).toEqual([7]));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^House shake/ })).toBeNull());
+  });
+
+  it('cancelling the confirmation keeps the food', async () => {
+    const shake = { id: 7, name: 'House shake', emoji: '🥤', calories: 300, protein: 30, fat: 5, carbs: 30, barcode: null, servingLabel: '1 bottle', servingGrams: 400, servings: [] };
+    const deleted: number[] = [];
+    const h = dataHarness({ listCustomFoods: async () => [shake], deleteCustomFood: async (id) => void deleted.push(id) });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await open(h);
+    await press('Log a food');
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Custom' }));
+    await press('Remove House shake');
+    expect((alert.mock.calls[0][2] as { style?: string }[]).some((b) => b.style === 'cancel')).toBe(true);
+    expect(deleted).toEqual([]);
+    expect(screen.getByRole('button', { name: /^House shake/ })).toBeOnTheScreen();
   });
 });

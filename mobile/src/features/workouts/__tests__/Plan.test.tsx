@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import { parseGenerated } from '@/logic/splitPlan';
@@ -646,5 +647,48 @@ describe('survivors: the checklist lists exactly what belongs', () => {
   it('with some, there is', async () => {
     await checklistWith([{ id: 1, name: 'Sled Drag', emoji: null, mode: 'both' }]);
     expect(await screen.findByText('Custom exercises')).toBeOnTheScreen();
+  });
+});
+
+describe('removing your own exercises in the checklist', () => {
+  async function checklist(deleted: number[]) {
+    const h = dataHarness({ listCustomExercises: async () => [{ id: 4, name: 'Sled Drag', emoji: null, mode: 'both' }], deleteCustomExercise: async (id) => void deleted.push(id) });
+    await open(h);
+    await press('Plan my split');
+    await choose('Build it myself');
+    await press('Next');
+    await choose('Full Body');
+    await fireEvent.press((await screen.findAllByRole('button', { name: 'Pick exercises' }))[0]);
+    await screen.findByRole('checkbox', { name: 'Sled Drag' });
+    return h;
+  }
+
+  it('asks first, then removes it, and it is no longer ticked', async () => {
+    const deleted: number[] = [];
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await checklist(deleted);
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Sled Drag' }));
+    expect(screen.getByRole('button', { name: 'Done (1 selected)' })).toBeOnTheScreen();
+    await press('Remove Sled Drag');
+    expect(alert).toHaveBeenCalledWith('Delete this exercise?', 'Sled Drag', expect.any(Array));
+    expect(deleted).toEqual([]);
+    await act(async () => {
+      (alert.mock.calls[0][2] as { text: string; onPress?: () => void }[]).find((b) => b.text === 'Remove')?.onPress?.();
+    });
+    await waitFor(() => expect(deleted).toEqual([4]));
+    expect(screen.getByRole('button', { name: 'Done' })).toBeOnTheScreen();
+  });
+
+  it('library exercises have no remove button, and cancelling keeps the exercise', async () => {
+    const deleted: number[] = [];
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await checklist(deleted);
+    await fireEvent.changeText(screen.getByLabelText('Search for an exercise...'), 'squat');
+    await screen.findAllByRole('checkbox');
+    expect(screen.queryByRole('button', { name: /^Remove Squat/ })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search for an exercise...'), 'sled');
+    await press('Remove Sled Drag');
+    expect((alert.mock.calls[0][2] as { style?: string }[]).some((b) => b.style === 'cancel')).toBe(true);
+    expect(deleted).toEqual([]);
   });
 });

@@ -20,6 +20,7 @@ import {
   useFoodFavorites,
   useGoals,
   useNutritionDay,
+  useNutritionRange,
   useNutritionRecent,
   useSettings,
   useSplitPlan,
@@ -344,5 +345,20 @@ describe('useActions', () => {
     const h = harness();
     const { result } = await renderHook(() => useActions(), { wrapper: h.wrapper });
     expect(result.current).toBe(h.data.actions);
+  });
+});
+
+describe('a range of food', () => {
+  it('shows the server’s entries plus the ones still waiting to be sent', async () => {
+    const h = harness();
+    h.db.seed('nutrition_entries', [foodRow('a', '2026-10-02', T0)]);
+    h.db.failWhen = (kind) => (kind === 'upsert' ? { status: 0, message: 'offline' } : null);
+    const { result, rerender } = await renderHook(() => useNutritionRange('2026-10-01', '2026-10-31'), { wrapper: h.wrapper });
+    await waitFor(() => expect(result.current.data).toHaveLength(1));
+    await act(async () => {
+      await h.data.actions.saveFood('2026-10-09', food('b', T0 + 1));
+    });
+    await rerender({});
+    expect(result.current.data.map((e) => [e.id, e.day])).toEqual([['a', '2026-10-02'], ['b', '2026-10-09']]);
   });
 });

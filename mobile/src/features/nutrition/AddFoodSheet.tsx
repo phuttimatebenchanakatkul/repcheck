@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Alert, Pressable, TextInput, View } from 'react-native';
 
 import type { CustomFood } from '@/api/endpoints';
 import { useTranslation } from '@/i18n';
@@ -53,6 +53,7 @@ function AddFoodBody({
   onCreateFood,
   onQuickAdd,
   onScan,
+  onDeleteCustomFood,
 }: {
   mode: 'entry' | 'ingredient';
   day: string;
@@ -69,6 +70,8 @@ function AddFoodBody({
   onCreateFood: () => void;
   onQuickAdd: () => void;
   onScan: (mode: 'meal' | 'barcode') => void;
+  /** Remove one of the person's own foods (they confirm first). */
+  onDeleteCustomFood: (id: number) => void;
 }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -240,7 +243,23 @@ function AddFoodBody({
                   {t('nutrition.custom.empty')}
                 </Text>
               )}
-              {scope === 'custom' && entryMode && customFoods.map((food) => candidateRow({ kind: 'custom', name: food.name, food }, `own-${food.id}`))}
+              {scope === 'custom' &&
+                entryMode &&
+                customFoods.map((food) => (
+                  <View key={`own-${food.id}`} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                    <View style={{ flex: 1 }}>{candidateRow({ kind: 'custom', name: food.name, food }, `own-row-${food.id}`)}</View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t('common.remove')} ${food.name}`}
+                      hitSlop={space.sm}
+                      onPress={() => Alert.alert(t('nutrition.deleteConfirm.title'), food.name, [{ text: t('common.cancel'), style: 'cancel' }, { text: t('common.remove'), style: 'destructive', onPress: () => onDeleteCustomFood(food.id) }])}
+                      style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text variant="title" secondary>
+                        ×
+                      </Text>
+                    </Pressable>
+                  </View>
+                ))}
               {sections.length === 0 && scope === 'all' && (
                 <Text variant="body" secondary>
                   {t('nutrition.searchToAdd')}

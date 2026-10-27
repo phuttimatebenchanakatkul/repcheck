@@ -589,3 +589,28 @@ describe('weigh-ins past one page', () => {
     expect(db.calls.filter((c) => c === 'read:weight_entries')).toHaveLength(2);
   });
 });
+
+describe('a range of food', () => {
+  it('is that person’s entries from those days only, each carrying its day, oldest first', async () => {
+    const { db, data } = setup();
+    db.seed('nutrition_entries', [foodRow('b', '2026-10-05', T0 + 9), foodRow('a', '2026-10-02', T0), foodRow('x', '2026-09-30', T0), foodRow('y', '2026-11-01', T0), foodRow('o', '2026-10-03', T0, OTHER)]);
+    const range = await data.fetch.nutritionRange('2026-10-01', '2026-10-31');
+    expect(range.map((e) => [e.id, e.day])).toEqual([['a', '2026-10-02'], ['b', '2026-10-05']]);
+  });
+
+  it('is read past one page', async () => {
+    const { db, data } = setup();
+    db.maxRows = PAGE_SIZE;
+    db.seed('nutrition_entries', Array.from({ length: PAGE_SIZE + 40 }, (_, i) => foodRow(`n${i}`, '2026-10-02', T0 + i)));
+    expect(await data.fetch.nutritionRange('2026-10-01', '2026-10-31')).toHaveLength(PAGE_SIZE + 40);
+  });
+
+  it('a log made now lands in a cached range that covers its day, and not in one that does not', async () => {
+    const { queryClient, data } = setup();
+    queryClient.setQueryData(keys.nutritionRange(U, '2026-10-01', '2026-10-31'), []);
+    queryClient.setQueryData(keys.nutritionRange(U, '2026-09-01', '2026-09-30'), []);
+    await data.actions.saveFood('2026-10-05', food('a', T0));
+    expect((queryClient.getQueryData<{ id: string; day: string }[]>(keys.nutritionRange(U, '2026-10-01', '2026-10-31')) ?? []).map((e) => [e.id, e.day])).toEqual([['a', '2026-10-05']]);
+    expect(queryClient.getQueryData(keys.nutritionRange(U, '2026-09-01', '2026-09-30'))).toEqual([]);
+  });
+});

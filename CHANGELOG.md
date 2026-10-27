@@ -2,6 +2,24 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.27.0.0] - 2026-10-27
+
+### Added
+
+Nutrition history in the native app, and a way to remove your own foods and exercises. Nothing in the
+website or the current App Store app changes.
+
+- **Logging History.** Open it from the Nutrition page: a calendar of the month with each day as
+  logged, fasting, incomplete or not logged, and the month's counts. Tap a day to mark it fasting
+  (a day with no food) or incomplete (a day with food), or put it back to automatic. Works offline.
+- **Full stats.** This week's calories day by day against your goal, your daily average, how many
+  days landed within 10% of the goal, and any day's protein, fat and carbs against your goals.
+- **Remove your own items.** A × beside a food you created (in the Custom list) or an exercise you
+  created (in the plan's exercise list); each asks first.
+- **Proven:** 1181 app tests, then 165 deliberate breakages of the new code (every survivor killed
+  by a new test, removed as redundant, or a change that has no observable effect). That is the end of
+  Phase 3. Not yet run on a phone; the new Thai strings need a native read.
+
 ## [0.26.0.0] - 2026-10-26
 
 ### Added

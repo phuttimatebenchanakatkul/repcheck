@@ -41,6 +41,7 @@ import {
   overlayDayStatuses,
   overlayNames,
   overlayNutritionDay,
+  overlayNutritionRange,
   overlayNutritionRecent,
   overlayWeights,
   overlayWorkoutDay,
@@ -140,6 +141,18 @@ export function createData(deps: DataDeps) {
   async function nutritionRecent(limit = RECENT_NUTRITION_LIMIT): Promise<RecentNutrition[]> {
     const rows = rowsOf<Row<'nutrition_entries'>>(await table('nutrition_entries').order('added_at', { ascending: false }).limit(limit));
     return rows.map((row) => ({ ...nutritionRowToEntry(row), day: row.log_date }));
+  }
+
+  /** Every entry filed under days from `from` to `to`, a page at a time (a month of food is a few hundred rows). */
+  async function nutritionRange(from: string, to: string): Promise<RecentNutrition[]> {
+    const out: RecentNutrition[] = [];
+    for (let start = 0; ; start += PAGE_SIZE) {
+      const page = rowsOf<Row<'nutrition_entries'>>(
+        await table('nutrition_entries').gte('log_date', from).lte('log_date', to).order('added_at').range(start, start + PAGE_SIZE - 1),
+      );
+      out.push(...page.map((row) => ({ ...nutritionRowToEntry(row), day: row.log_date })));
+      if (page.length < PAGE_SIZE) return out;
+    }
   }
 
   async function goalsRow(): Promise<Row<'nutrition_goals'> | null> {
@@ -252,6 +265,7 @@ export function createData(deps: DataDeps) {
   function patchNutrition(ops: readonly Operation[]): void {
     patch<NutritionEntry[]>([...keys.all(userId), 'nutrition'], (old, key) => overlayNutritionDay(old, ops, String(key[3])));
     patchOne<RecentNutrition[]>(keys.nutritionRecent(userId), (old) => overlayNutritionRecent(old, ops).slice(0, RECENT_NUTRITION_LIMIT));
+    patch<RecentNutrition[]>(keys.nutritionRangePrefix(userId), (old, key) => overlayNutritionRange(old, ops, String(key[3]), String(key[4])));
   }
 
   function patchWorkouts(ops: readonly Operation[]): void {
@@ -390,7 +404,7 @@ export function createData(deps: DataDeps) {
   return {
     userId,
     fetch: {
-      nutritionDay, nutritionRecent, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
+      nutritionDay, nutritionRecent, nutritionRange, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
       weights, settingsRow, dayStatuses, activeDays, coachingProfile,
       customFoods: () => api.listCustomFoods(),
       customExercises: () => api.listCustomExercises(),

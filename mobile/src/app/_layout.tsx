@@ -45,6 +45,8 @@ function Gate() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="streaks" options={{ headerShown: true, title: t('streaks.calendarTitle') }} />
         <Stack.Screen name="weight" options={{ headerShown: true, title: t('app.weight.title') }} />
+        <Stack.Screen name="logging-history" options={{ headerShown: true, title: t('weight.loggingHistoryTitle') }} />
+        <Stack.Screen name="full-stats" options={{ headerShown: true, title: t('home.macros.fullStats') }} />
       </Stack.Protected>
     </Stack>
   );

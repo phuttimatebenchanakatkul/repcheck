@@ -310,6 +310,7 @@ function PlanBody({ saved, onSave, onClose }: { saved: SplitPlan | null; onSave:
           initial={exercisesFor(s)}
           customExercises={customExercises.data}
           onCreate={(name) => actions.createCustomExercise({ name })}
+          onDelete={(exercise) => actions.deleteCustomExercise(exercise.id)}
           onDone={(selected) => {
             if (s.target === 'wizard') {
               set(setDayExercises(wizard, s.day, selected));
