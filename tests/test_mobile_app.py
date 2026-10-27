@@ -123,3 +123,49 @@ def test_the_types_only_cover_tables_the_app_may_read_and_name_no_server_only_ta
     for server_only in ("rate_limits", "usage_events", "content_reports", "ai_reports", "waitlist", "auth_throttle", "legacy_password_hashes", "friends", "challenges", "challenge_submissions"):
         assert not re.search(rf"^\s+{server_only}: \{{", generated, re.M), f"{server_only} is server-only: the app goes through the API"
     assert re.search(r"^\s+nutrition_entries: \{", generated, re.M)
+
+
+# -- the analyze screens agree with the server that grades the clip ------------------------------------------------------------
+
+def test_the_feedback_fixtures_are_what_the_servers_splitter_produces_now():
+    """The app's report reader is tested against these; if the server's markdown output changes, the reader must be re-checked."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "export_feedback_fixtures.py"), "--check"], cwd=ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_the_app_names_the_extensions_the_server_accepts():
+    from api.analyze import ALLOWED_EXTENSIONS, RECORDED_EXTENSIONS
+    source = text(MOBILE / "src" / "api" / "analyze.ts")
+    listed = re.search(r"const EXTENSIONS = \[(.*?)\] as const", source, re.S).group(1)
+    assert {f".{name}" for name in re.findall(r"'(\w+)'", listed)} == ALLOWED_EXTENSIONS | RECORDED_EXTENSIONS
+
+
+def test_the_app_never_films_longer_than_the_server_will_grade():
+    from trim_video import DURATION_SECONDS, START_SECONDS
+    source = text(MOBILE / "src" / "ui" / "videos.ts")
+    seconds = int(re.search(r"MAX_RECORD_SECONDS = (\d+)", source).group(1))
+    assert seconds == START_SECONDS + DURATION_SECONDS
+
+
+def test_the_app_says_how_many_analyses_the_server_keeps():
+    from api.analyze import HISTORY_KEEP
+    en = json.loads(text(MOBILE / "src" / "i18n" / "app.en.json"))
+    th = json.loads(text(MOBILE / "src" / "i18n" / "app.th.json"))
+    assert str(HISTORY_KEEP) in en["app.analyze.notFound"] and str(HISTORY_KEEP) in th["app.analyze.notFound"]
+
+
+def test_the_camera_and_microphone_are_explained_for_filming_a_set():
+    """Guideline 5.1.1: each permission prompt must say what it is for. The picker records sound with a video, so it needs the microphone text."""
+    picker = next(p for p in app_config()["plugins"] if isinstance(p, list) and p[0] == "expo-image-picker")[1]
+    for key in ("photosPermission", "cameraPermission", "microphonePermission"):
+        assert picker.get(key), f"expo-image-picker needs {key}"
+    assert "form" in picker["cameraPermission"] and "form" in picker["photosPermission"]
+    assert "expo-video" in app_config()["plugins"]
+
+
+def test_the_consent_question_names_videos_before_a_clip_is_sent():
+    """Each kind of thing the app sends to the AI service is listed in the question that gates it (App Review)."""
+    question = text(MOBILE / "src" / "ui" / "AiConsent.tsx")
+    assert "aiConsent.item2" in question
+    screen = text(MOBILE / "src" / "features" / "analyze" / "AnalyzeScreen.tsx")
+    assert "if (!consented)" in screen and screen.index("if (!consented)") < screen.index("void run()"), "consent is checked before the upload starts"

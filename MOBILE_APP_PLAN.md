@@ -461,6 +461,45 @@ logging) and everything in phases 4-7.
 over an in-memory Supabase, not by eye: spacing, the sheet presentation and haptics need Expo Go on an iPhone and an iPad. The
 Thai `app.*` strings added here are mine and want a native read.
 
+## Phase 4 status: Analyze and the AI coach (`mobile/`)
+
+Phase 4 ships in slices. **4a, the Analyze tab, is v0.28.0.0.** The three chats, the Report button and the Coach tab are next.
+
+**Added in v0.28.0.0: Analyze.** Choose an exercise (the last one analyzed is already chosen; the picker offers recent, favourites and a
+starter set, and searches the library and your own exercises), film a set or choose a clip, send it, read the result. The result is the
+website's: the form score in its bucket's colour (80 and up, 50 and up, below), the one-line verdict, the stretch / squeeze note, the reps
+counted (hidden at zero), a link to the how-to video or a YouTube search, *What went well* and *Your next step* up front and the other
+sections behind *Full report*, each card showing its first point and the rest on request, and the "AI estimates, not medical advice"
+note. The clip plays back muted and looping. *Recent analyses* (the newest five) and *Analysis History* (all that the server keeps, by
+month) open any past analysis; each shows its saved report with no signal and fetches a new clip link when opened.
+
+Decisions made here, so they are not re-opened:
+
+- **A multipart upload to Flask, not a Storage INSERT.** `POST /api/analyze` already trims, grades, stores the clip, refunds a failed use
+  and prunes to 20. Uploading straight to the bucket would need a new INSERT policy and a second set of isolation tests for no gain.
+  The upload is given ten minutes (`ANALYZE_VIDEO_TIMEOUT_MS`).
+- **`expo-image-picker`, not `react-native-vision-camera`.** It runs in Expo Go (no development build is needed to try the app), uses the
+  system camera, and exports a 720p H.264 file (`videoExportPreset`), which keeps a minute of footage in the tens of megabytes (the server
+  refuses more than 300 MB). It films at most 65 seconds: the server skips the first 5 and grades the next 60 (`trim_video.py`;
+  `tests/test_mobile_app.py` fails if the two drift). What it gives up is the website's live pose-skeleton overlay while recording; that
+  needs vision-camera and a development build (see `TODOS.md`).
+- **The report is drawn as native text.** The server sends small HTML (`api/feedback.py`: markdown after `html.escape`, a summary
+  paragraph and a bullet list). `logic/richText.ts` reads only the tags that can occur and drops every other tag, so nothing in a
+  model's answer can render as markup or load anything. It is tested against the server's real output
+  (`scripts/export_feedback_fixtures.py` writes the fixtures; `tests/test_mobile_app.py` fails when they go stale).
+- **Consent comes before the clip leaves the phone.** With no consent on file the question is asked first and nothing is sent, not even
+  to be refused; a 403 from the server (consent withdrawn on another device) leads to the same question. The question now lists videos
+  (`aiConsent.item2`) beside photos, and the picker's permission texts say what the camera, library and microphone are for (it records
+  sound with a video).
+- **No `muted` dimming.** The website dims a "muted" section on a strong set, but those are always behind *Full report*, where it forces
+  full brightness; the app simply never dims.
+- **The status lines stay on the last one.** The website cycles the seven lines round and round; grading can take minutes, and
+  "Loading video..." returning after "Drafting your form report..." reads as a restart.
+
+**Not verified, and why:** nothing has run on a phone. The camera, the picker's export, `expo-video` playback and a real 60-second
+upload over mobile data need Expo Go on an iPhone. `npx expo export --platform ios` compiles it; Jest covers the logic and the screens
+with a mocked API, picker and player. The new Thai strings are mine and want a native read.
+
 ## Deploying `api/` (Render)
 
 `Dockerfile.api` is the API's own image (the website's is `Dockerfile`, untouched). It installs `requirements-api.txt`,

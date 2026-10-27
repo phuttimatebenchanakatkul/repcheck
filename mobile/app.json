@@ -41,8 +41,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "RepCheck reads a photo you choose so it can estimate a meal's calories and macros.",
-          "cameraPermission": "RepCheck uses the camera to photograph a meal so it can estimate its calories and macros."
+          "photosPermission": "RepCheck reads a photo or video you choose so it can estimate a meal's calories and macros, or grade your form on a set.",
+          "cameraPermission": "RepCheck uses the camera to photograph a meal, or to film a set so it can grade your form.",
+          "microphonePermission": "RepCheck records sound along with the video when you film a set to have your form graded."
         }
       ],
       [
@@ -55,7 +56,8 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
