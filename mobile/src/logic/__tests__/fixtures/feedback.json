@@ -1,0 +1,347 @@
+{
+  "cases": [
+    {
+      "name": "a mixed set",
+      "score": 65,
+      "report": "## Movement Summary\n- You performed 8 controlled **back squats** at a steady tempo.\n- Depth was *just* above parallel on reps 3 & 4.\n- Bar path stayed over mid-foot.\n\n## Positives\n- Excellent bracing & **chest position** throughout.\n- Consistent tempo: ~2s down, 1s up.\n\n## Negatives\n- Knees caved in on the last two reps (<valgus>).\n- Heels lifted slightly at the bottom.\n\n## Improvements\n1. Drive the knees out (\"spread the floor\").\n2. Add a 1-second pause at the bottom.\n\n## Injury Prevention\nStop the set if you feel a pinch in the **hip crease**.\n\n## How to Progress\n- Add 2.5 kg when all reps hit parallel.\n- Film from the side for depth.\n",
+      "sections": [
+        {
+          "heading": "Movement Summary",
+          "css_class": "summary",
+          "emphasis": "featured",
+          "title_key": "analyze.section.summary",
+          "summary_html": "<p>You performed 8 controlled <strong>back squats</strong> at a steady tempo.</p>",
+          "detail_html": "<ul><li>Depth was <em>just</em> above parallel on reps 3 &amp; 4.</li><li>Bar path stayed over mid-foot.</li></ul>",
+          "summary_text": "You performed 8 controlled back squats at a steady tempo.",
+          "detail_text": "Depth was just above parallel on reps 3 & 4.\nBar path stayed over mid-foot.",
+          "bold": 1,
+          "italic": 1
+        },
+        {
+          "heading": "Positives",
+          "css_class": "positives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.positives",
+          "summary_html": "<p>Excellent bracing &amp; <strong>chest position</strong> throughout.</p>",
+          "detail_html": "<ul><li>Consistent tempo: ~2s down, 1s up.</li></ul>",
+          "summary_text": "Excellent bracing & chest position throughout.",
+          "detail_text": "Consistent tempo: ~2s down, 1s up.",
+          "bold": 1,
+          "italic": 0
+        },
+        {
+          "heading": "Negatives",
+          "css_class": "negatives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.negatives",
+          "summary_html": "<p>Knees caved in on the last two reps (&lt;valgus&gt;).</p>",
+          "detail_html": "<ul><li>Heels lifted slightly at the bottom.</li></ul>",
+          "summary_text": "Knees caved in on the last two reps (<valgus>).",
+          "detail_text": "Heels lifted slightly at the bottom.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Improvements",
+          "css_class": "improvements",
+          "emphasis": "featured",
+          "title_key": "analyze.section.improvements",
+          "summary_html": "<p>Drive the knees out (&quot;spread the floor&quot;).</p>",
+          "detail_html": "<ul><li>Add a 1-second pause at the bottom.</li></ul>",
+          "summary_text": "Drive the knees out (\"spread the floor\").",
+          "detail_text": "Add a 1-second pause at the bottom.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Injury Prevention",
+          "css_class": "injury",
+          "emphasis": "featured",
+          "title_key": "analyze.section.injury",
+          "summary_html": "<p>Stop the set if you feel a pinch in the <strong>hip crease</strong>.</p>",
+          "detail_html": null,
+          "summary_text": "Stop the set if you feel a pinch in the hip crease.",
+          "detail_text": null,
+          "bold": 1,
+          "italic": 0
+        },
+        {
+          "heading": "How to Progress",
+          "css_class": "progress",
+          "emphasis": "featured",
+          "title_key": "analyze.section.progress",
+          "summary_html": "<p>Add 2.5 kg when all reps hit parallel.</p>",
+          "detail_html": "<ul><li>Film from the side for depth.</li></ul>",
+          "summary_text": "Add 2.5 kg when all reps hit parallel.",
+          "detail_text": "Film from the side for depth.",
+          "bold": 0,
+          "italic": 0
+        }
+      ]
+    },
+    {
+      "name": "a strong set",
+      "score": 91,
+      "report": "## Movement Summary\n- You performed 8 controlled **back squats** at a steady tempo.\n- Depth was *just* above parallel on reps 3 & 4.\n- Bar path stayed over mid-foot.\n\n## Positives\n- Excellent bracing & **chest position** throughout.\n- Consistent tempo: ~2s down, 1s up.\n\n## Negatives\n- Knees caved in on the last two reps (<valgus>).\n- Heels lifted slightly at the bottom.\n\n## Improvements\n1. Drive the knees out (\"spread the floor\").\n2. Add a 1-second pause at the bottom.\n\n## Injury Prevention\nStop the set if you feel a pinch in the **hip crease**.\n\n## How to Progress\n- Add 2.5 kg when all reps hit parallel.\n- Film from the side for depth.\n",
+      "sections": [
+        {
+          "heading": "Positives",
+          "css_class": "positives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.positives",
+          "summary_html": "<p>Excellent bracing &amp; <strong>chest position</strong> throughout.</p>",
+          "detail_html": "<ul><li>Consistent tempo: ~2s down, 1s up.</li></ul>",
+          "summary_text": "Excellent bracing & chest position throughout.",
+          "detail_text": "Consistent tempo: ~2s down, 1s up.",
+          "bold": 1,
+          "italic": 0
+        },
+        {
+          "heading": "How to Progress",
+          "css_class": "progress",
+          "emphasis": "featured",
+          "title_key": "analyze.section.progress",
+          "summary_html": "<p>Add 2.5 kg when all reps hit parallel.</p>",
+          "detail_html": "<ul><li>Film from the side for depth.</li></ul>",
+          "summary_text": "Add 2.5 kg when all reps hit parallel.",
+          "detail_text": "Film from the side for depth.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Movement Summary",
+          "css_class": "summary",
+          "emphasis": "muted",
+          "title_key": "analyze.section.summary",
+          "summary_html": "<p>You performed 8 controlled <strong>back squats</strong> at a steady tempo.</p>",
+          "detail_html": "<ul><li>Depth was <em>just</em> above parallel on reps 3 &amp; 4.</li><li>Bar path stayed over mid-foot.</li></ul>",
+          "summary_text": "You performed 8 controlled back squats at a steady tempo.",
+          "detail_text": "Depth was just above parallel on reps 3 & 4.\nBar path stayed over mid-foot.",
+          "bold": 1,
+          "italic": 1
+        },
+        {
+          "heading": "Negatives",
+          "css_class": "negatives",
+          "emphasis": "muted",
+          "title_key": "analyze.section.negatives",
+          "summary_html": "<p>Knees caved in on the last two reps (&lt;valgus&gt;).</p>",
+          "detail_html": "<ul><li>Heels lifted slightly at the bottom.</li></ul>",
+          "summary_text": "Knees caved in on the last two reps (<valgus>).",
+          "detail_text": "Heels lifted slightly at the bottom.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Improvements",
+          "css_class": "improvements",
+          "emphasis": "muted",
+          "title_key": "analyze.section.improvements",
+          "summary_html": "<p>Drive the knees out (&quot;spread the floor&quot;).</p>",
+          "detail_html": "<ul><li>Add a 1-second pause at the bottom.</li></ul>",
+          "summary_text": "Drive the knees out (\"spread the floor\").",
+          "detail_text": "Add a 1-second pause at the bottom.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Injury Prevention",
+          "css_class": "injury",
+          "emphasis": "muted",
+          "title_key": "analyze.section.injury",
+          "summary_html": "<p>Stop the set if you feel a pinch in the <strong>hip crease</strong>.</p>",
+          "detail_html": null,
+          "summary_text": "Stop the set if you feel a pinch in the hip crease.",
+          "detail_text": null,
+          "bold": 1,
+          "italic": 0
+        }
+      ]
+    },
+    {
+      "name": "a poor set",
+      "score": 32,
+      "report": "## Movement Summary\n- You performed 8 controlled **back squats** at a steady tempo.\n- Depth was *just* above parallel on reps 3 & 4.\n- Bar path stayed over mid-foot.\n\n## Positives\n- Excellent bracing & **chest position** throughout.\n- Consistent tempo: ~2s down, 1s up.\n\n## Negatives\n- Knees caved in on the last two reps (<valgus>).\n- Heels lifted slightly at the bottom.\n\n## Improvements\n1. Drive the knees out (\"spread the floor\").\n2. Add a 1-second pause at the bottom.\n\n## Injury Prevention\nStop the set if you feel a pinch in the **hip crease**.\n\n## How to Progress\n- Add 2.5 kg when all reps hit parallel.\n- Film from the side for depth.\n",
+      "sections": [
+        {
+          "heading": "Negatives",
+          "css_class": "negatives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.negatives",
+          "summary_html": "<p>Knees caved in on the last two reps (&lt;valgus&gt;).</p>",
+          "detail_html": "<ul><li>Heels lifted slightly at the bottom.</li></ul>",
+          "summary_text": "Knees caved in on the last two reps (<valgus>).",
+          "detail_text": "Heels lifted slightly at the bottom.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Injury Prevention",
+          "css_class": "injury",
+          "emphasis": "featured",
+          "title_key": "analyze.section.injury",
+          "summary_html": "<p>Stop the set if you feel a pinch in the <strong>hip crease</strong>.</p>",
+          "detail_html": null,
+          "summary_text": "Stop the set if you feel a pinch in the hip crease.",
+          "detail_text": null,
+          "bold": 1,
+          "italic": 0
+        }
+      ]
+    },
+    {
+      "name": "no score",
+      "score": null,
+      "report": "## Movement Summary\n- You performed 8 controlled **back squats** at a steady tempo.\n- Depth was *just* above parallel on reps 3 & 4.\n- Bar path stayed over mid-foot.\n\n## Positives\n- Excellent bracing & **chest position** throughout.\n- Consistent tempo: ~2s down, 1s up.\n\n## Negatives\n- Knees caved in on the last two reps (<valgus>).\n- Heels lifted slightly at the bottom.\n\n## Improvements\n1. Drive the knees out (\"spread the floor\").\n2. Add a 1-second pause at the bottom.\n\n## Injury Prevention\nStop the set if you feel a pinch in the **hip crease**.\n\n## How to Progress\n- Add 2.5 kg when all reps hit parallel.\n- Film from the side for depth.\n",
+      "sections": [
+        {
+          "heading": "Movement Summary",
+          "css_class": "summary",
+          "emphasis": "featured",
+          "title_key": "analyze.section.summary",
+          "summary_html": "<p>You performed 8 controlled <strong>back squats</strong> at a steady tempo.</p>",
+          "detail_html": "<ul><li>Depth was <em>just</em> above parallel on reps 3 &amp; 4.</li><li>Bar path stayed over mid-foot.</li></ul>",
+          "summary_text": "You performed 8 controlled back squats at a steady tempo.",
+          "detail_text": "Depth was just above parallel on reps 3 & 4.\nBar path stayed over mid-foot.",
+          "bold": 1,
+          "italic": 1
+        },
+        {
+          "heading": "Positives",
+          "css_class": "positives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.positives",
+          "summary_html": "<p>Excellent bracing &amp; <strong>chest position</strong> throughout.</p>",
+          "detail_html": "<ul><li>Consistent tempo: ~2s down, 1s up.</li></ul>",
+          "summary_text": "Excellent bracing & chest position throughout.",
+          "detail_text": "Consistent tempo: ~2s down, 1s up.",
+          "bold": 1,
+          "italic": 0
+        },
+        {
+          "heading": "Negatives",
+          "css_class": "negatives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.negatives",
+          "summary_html": "<p>Knees caved in on the last two reps (&lt;valgus&gt;).</p>",
+          "detail_html": "<ul><li>Heels lifted slightly at the bottom.</li></ul>",
+          "summary_text": "Knees caved in on the last two reps (<valgus>).",
+          "detail_text": "Heels lifted slightly at the bottom.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Improvements",
+          "css_class": "improvements",
+          "emphasis": "featured",
+          "title_key": "analyze.section.improvements",
+          "summary_html": "<p>Drive the knees out (&quot;spread the floor&quot;).</p>",
+          "detail_html": "<ul><li>Add a 1-second pause at the bottom.</li></ul>",
+          "summary_text": "Drive the knees out (\"spread the floor\").",
+          "detail_text": "Add a 1-second pause at the bottom.",
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Injury Prevention",
+          "css_class": "injury",
+          "emphasis": "featured",
+          "title_key": "analyze.section.injury",
+          "summary_html": "<p>Stop the set if you feel a pinch in the <strong>hip crease</strong>.</p>",
+          "detail_html": null,
+          "summary_text": "Stop the set if you feel a pinch in the hip crease.",
+          "detail_text": null,
+          "bold": 1,
+          "italic": 0
+        },
+        {
+          "heading": "How to Progress",
+          "css_class": "progress",
+          "emphasis": "featured",
+          "title_key": "analyze.section.progress",
+          "summary_html": "<p>Add 2.5 kg when all reps hit parallel.</p>",
+          "detail_html": "<ul><li>Film from the side for depth.</li></ul>",
+          "summary_text": "Add 2.5 kg when all reps hit parallel.",
+          "detail_text": "Film from the side for depth.",
+          "bold": 0,
+          "italic": 0
+        }
+      ]
+    },
+    {
+      "name": "a single bullet and a paragraph",
+      "score": 70,
+      "report": "## Positives\n- Only one thing.\n\n## Negatives\nA plain paragraph with `code` and a <script>alert(1)</script> tag.\n",
+      "sections": [
+        {
+          "heading": "Positives",
+          "css_class": "positives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.positives",
+          "summary_html": "<p>Only one thing.</p>",
+          "detail_html": null,
+          "summary_text": "Only one thing.",
+          "detail_text": null,
+          "bold": 0,
+          "italic": 0
+        },
+        {
+          "heading": "Negatives",
+          "css_class": "negatives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.negatives",
+          "summary_html": "<p>A plain paragraph with <code>code</code> and a &lt;script&gt;alert(1)&lt;/script&gt; tag.</p>",
+          "detail_html": null,
+          "summary_text": "A plain paragraph with code and a <script>alert(1)</script> tag.",
+          "detail_text": null,
+          "bold": 0,
+          "italic": 0
+        }
+      ]
+    },
+    {
+      "name": "an unknown heading",
+      "score": 70,
+      "report": "## Something Else\n- Falls back to improvements.\n- Second.\n",
+      "sections": [
+        {
+          "heading": "Something Else",
+          "css_class": "improvements",
+          "emphasis": "featured",
+          "title_key": "analyze.section.improvements",
+          "summary_html": "<p>Falls back to improvements.</p>",
+          "detail_html": "<ul><li>Second.</li></ul>",
+          "summary_text": "Falls back to improvements.",
+          "detail_text": "Second.",
+          "bold": 0,
+          "italic": 0
+        }
+      ]
+    },
+    {
+      "name": "text before any heading",
+      "score": 70,
+      "report": "Preamble.\n\n## Positives\n- Kept.\n",
+      "sections": [
+        {
+          "heading": "Positives",
+          "css_class": "positives",
+          "emphasis": "featured",
+          "title_key": "analyze.section.positives",
+          "summary_html": "<p>Kept.</p>",
+          "detail_html": null,
+          "summary_text": "Kept.",
+          "detail_text": null,
+          "bold": 0,
+          "italic": 0
+        }
+      ]
+    },
+    {
+      "name": "no headings at all",
+      "score": 70,
+      "report": "Just a sentence.",
+      "sections": []
+    }
+  ]
+}

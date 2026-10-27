@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.28.0.0] - 2026-10-27
+
+### Added
+
+The Analyze tab in the native app. Nothing in the website or the current App Store app changes.
+
+- **Analyze a set.** Choose the exercise, film your set or choose a clip from your library, and send it. While it is graded you see the
+  same progress lines the website shows. The result has your form score, a one-line verdict, the reps counted, what went well and your
+  next step up front, the rest under *Full report*, a link to a how-to video, and your clip playing back.
+- **Recent analyses and history.** The five latest are on the Analyze tab; *View full logs* lists everything the server keeps (your last
+  20), by month. Open any of them to read its report again, with your clip.
+- **Ask first.** Before the first clip leaves your phone you are asked to allow AI features, and the question now names videos.
+- **Proven:** 1378 app tests, then 363 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change that has no observable effect). Not yet run on a phone; the camera, playback and a real upload need Expo Go,
+  and the new Thai strings need a native read.
+
 ## [0.27.0.0] - 2026-10-27
 
 ### Added

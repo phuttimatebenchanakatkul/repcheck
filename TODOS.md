@@ -1276,3 +1276,27 @@ if these ever become controls the page genuinely offers.)
 `static/account_sync.js`'s post-hydration `location.reload()` now only fires when no page claims the cancelable `repcheck:data-hydrated` event it dispatches instead. Every page rendering synced data (nutrition, workouts, home, hyrox, coach, weight/logging history, streaks, challenges, the coaching card, analyze) now listens and re-renders in place; the reload survives as a guarded fallback for anything that doesn't. Source-level coverage in `tests/test_hydration_rerender_coverage.py` fails if a page reads a rendered key without a handler, or has a handler that never calls `preventDefault()`, or claims the event but never re-reads the changed key.
 
 **Completed:** v0.4.10.3 (2026-08-29)
+
+## Native app, Phase 4 leftovers
+
+### Live pose overlay and an in-app recorder for Analyze
+
+**What:** The website draws the pose skeleton over the camera while a set is filmed and has its own recorder with a flip button. The app
+opens the system camera instead (`expo-image-picker`), so there is no overlay and no live feedback while filming.
+
+**Why:** The overlay needs `react-native-vision-camera` with a frame processor, and so a development build (it does not run in Expo Go).
+Worth doing once the app is on TestFlight; until then the system camera is the only thing that runs everywhere.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** An EAS development build
+
+### Trim the clip on the phone before it uploads
+
+**What:** The server keeps 5 s to 65 s of a clip and discards the rest, but the whole file is uploaded (a 720p export is tens of megabytes).
+
+**Why:** On mobile data a long clip is the slowest part of an analysis. Trimming client-side would cut the upload to the part that is graded.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** A video-processing library that works with Expo (or vision-camera's recorder)
