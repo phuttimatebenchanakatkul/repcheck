@@ -277,3 +277,33 @@ export function coachTurnToRow(userId: string, turn: ChatTurn): NewRow<'coach_me
     extra: {},
   };
 }
+
+// -- an analysis's chat thread -------------------------------------------------------------------------------------------------------
+
+function isoDay(value: unknown): string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
+/** One saved turn of an analysis's chat. The table has no date column, so the day a turn was made on rides in `extra`. */
+export function analysisTurnFromRow(row: Row<'analyze_chat_messages'>): ChatTurn {
+  return {
+    id: row.client_id,
+    role: row.role === 'user' ? 'user' : 'assistant',
+    text: row.body,
+    sources: Array.isArray(row.sources) ? cleanSources(row.sources) : null,
+    date: isoDay(extraOf(row.extra).date),
+  };
+}
+
+/** The whole row for `analysisId`'s thread. `seq` is the database's own ordering (generated always), so it is never written. */
+export function analysisTurnToRow(userId: string, analysisId: number, turn: ChatTurn): NewRow<'analyze_chat_messages'> {
+  return {
+    user_id: userId,
+    analyze_result_id: analysisId,
+    client_id: turn.id,
+    role: turn.role,
+    body: turn.text,
+    sources: turn.sources === null ? null : (turn.sources as unknown as Json),
+    extra: { date: turn.date },
+  };
+}

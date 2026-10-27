@@ -159,3 +159,11 @@ describe('RichText', () => {
     await render(<RichText html={null} />);
   });
 });
+
+describe('asking about a past analysis', () => {
+  it('opens the chat for that analysis', async () => {
+    await open(AnalysisScreen);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ask about this analysis' }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/analysis-chat', params: { id: '7' } });
+  });
+});

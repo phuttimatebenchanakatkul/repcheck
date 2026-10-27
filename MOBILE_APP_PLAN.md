@@ -463,8 +463,8 @@ Thai `app.*` strings added here are mine and want a native read.
 
 ## Phase 4 status: Analyze and the AI coach (`mobile/`)
 
-Phase 4 ships in slices. **4a, the Analyze tab, is v0.28.0.0; 4b-1, the Coach tab, is v0.29.0.0.** The analysis chat and the workout
-chat (both reuse 4b-1's chat view, session hook and reply footer) are next.
+Phase 4 ships in slices. **4a, the Analyze tab, is v0.28.0.0; 4b-1, the Coach tab, is v0.29.0.0; 4b-2, the analysis chat, is v0.30.0.0.** The workout
+chat (which reuses the chat view, session hook and reply footer) is next.
 
 **Added in v0.28.0.0: Analyze.** Choose an exercise (the last one analyzed is already chosen; the picker offers recent, favourites and a
 starter set, and searches the library and your own exercises), film a set or choose a clip, send it, read the result. The result is the
@@ -515,6 +515,14 @@ Deliberate differences from the website's chat:
 - **A notice is not a reply.** Errors and the limit notice are shown, never saved, never sent back as history, and carry no AI footer; the
   website saved them as turns and put the Report button under the limit notice.
 - **Streak.** An answered question marks the day (`activity_days`, action `coach_chat`), offline-safe like every other write.
+
+**Added in v0.30.0.0: ask about an analysis (4b-2).** *Ask about this analysis* on a result (fresh from the Analyze tab, or opened from
+the history) opens a chat about THAT analysis (`/analysis-chat?id=7`): its scores, rep count and report are told to the AI service with
+each question (the website's context, field for field; `tests/test_mobile_app.py` compares them). One thread per analysis, kept in
+`analyze_chat_messages` (the table has no date column, so the day a turn was made on rides in `extra.date`), read back with the analysis
+and gone with it when the server prunes to the newest 20. A chat closes 24 hours after its analysis was made, as on the website: the
+thread stays readable and the box says so. Same footer, report button, limit countdown and consent question as the coach. An answered
+question marks the day (`activity_days`, action `analyze_chat`).
 
 **Not verified, and why:** nothing has run on a phone. The camera, the picker's export, `expo-video` playback and a real 60-second
 upload over mobile data need Expo Go on an iPhone. `npx expo export --platform ios` compiles it; Jest covers the logic and the screens

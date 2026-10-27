@@ -9,6 +9,7 @@ import type { Json } from '@/supabase/database.types';
 import type { ChatTurn } from '../logic/chat';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import {
+  analysisTurnToRow,
   coachTurnToRow,
   goalsToRow,
   nutritionEntryToRow,
@@ -100,4 +101,9 @@ export const coachTurnSave = (userId: string, turn: ChatTurn): Operation => ({
 /** Clearing the coach's thread removes every one of the person's turns (the website's "clear" empties the whole thread). */
 export const coachClear = (userId: string): Operation => ({
   kind: 'delete', table: 'coach_messages', key: 'user_id', match: { user_id: userId },
+});
+
+/** Saving one turn of an analysis's chat: an upsert on (user, client id), so a retried send is the same send. */
+export const analysisTurnSave = (userId: string, analysisId: number, turn: ChatTurn): Operation => ({
+  kind: 'upsert', table: 'analyze_chat_messages', key: 'user_id,client_id', row: analysisTurnToRow(userId, analysisId, turn) as Record<string, unknown>,
 });

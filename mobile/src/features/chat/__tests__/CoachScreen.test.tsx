@@ -14,6 +14,7 @@ const mockAuth = { state: { status: 'ready', profile: { id: USER, ai_consent: tr
 
 jest.mock('@/api', () => ({ ...jest.requireActual('@/api/client'), getApi: () => mockApi }));
 jest.mock('@/auth/AuthProvider', () => ({ useAuth: () => mockAuth }));
+jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
 jest.mock('expo-web-browser', () => ({ openBrowserAsync: jest.fn(async () => ({ type: 'dismiss' })) }));
 
 const TODAY = toIsoDate(new Date());

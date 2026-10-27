@@ -20,6 +20,7 @@ import { goalsFromRow, settingsFromRow, splitPlanFromRow, type AppSettings, type
 import {
   latestRow,
   overlayDayStatuses,
+  overlayAnalysisThread,
   overlayCoachThread,
   overlayNames,
   overlayNutritionDay,
@@ -234,5 +235,13 @@ export function useCoachThread(day: string): Loaded<ChatTurn[]> {
     const own = ops.filter((op) => op.kind === 'delete' || op.row.msg_date === day);
     return overlayCoachThread(query.data ?? [], own);
   }, [query.data, queue, data.userId, day]);
+  return status(query, turns);
+}
+
+/** One analysis's chat: the server's turns with this device's waiting turns for it. */
+export function useAnalysisThread(analysisId: number): Loaded<ChatTurn[]> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.analysisThread(data.userId, analysisId), queryFn: () => data.fetch.analysisThread(analysisId), enabled: Number.isInteger(analysisId) && analysisId > 0 });
+  const turns = useMemo(() => overlayAnalysisThread(query.data ?? [], waiting(queue, data.userId, 'analyze_chat_messages'), analysisId), [query.data, queue, data.userId, analysisId]);
   return status(query, turns);
 }

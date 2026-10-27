@@ -77,7 +77,8 @@ export default function AnalyzeScreen() {
     try {
       const analysis = await getApi().analyzeVideo(video, exercise);
       success();
-      void queryClient.invalidateQueries({ queryKey: analyzeKeys.all(userId) });
+      void queryClient.invalidateQueries({ queryKey: analyzeKeys.history(userId) });
+      queryClient.setQueryData(analyzeKeys.detail(userId, analysis.id), analysis);
       setStage({ kind: 'result', analysis });
     } catch (error) {
       if (error instanceof ApiError && error.needsAiConsent) setStage({ kind: 'consent' });
@@ -119,7 +120,7 @@ export default function AnalyzeScreen() {
   if (stage.kind === 'result') {
     return (
       <Screen>
-        <AnalysisView analysis={stage.analysis} fresh onAnother={another} />
+        <AnalysisView analysis={stage.analysis} fresh onAnother={another} onAsk={() => router.push({ pathname: '/analysis-chat', params: { id: String(stage.analysis.id) } })} />
       </Screen>
     );
   }

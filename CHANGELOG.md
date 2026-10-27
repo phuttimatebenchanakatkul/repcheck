@@ -2,6 +2,20 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.30.0.0] - 2026-10-27
+
+### Added
+
+Ask about an analysis, in the native app. Nothing in the website or the current App Store app changes.
+
+- **Ask about this analysis.** A button on every result and every past analysis opens a chat about that one: ask why a score was low,
+  what to focus on next, whether to add weight. The AI is told the scores, the rep count and the report.
+- **Same safeguards as the coach.** Sources under every answer, the AI-generated line, *Report this reply*, the daily limit countdown,
+  and the question about allowing AI features before anything is sent.
+- **Closes after a day.** As on the website, a chat takes new questions for 24 hours after the analysis; after that you can still read it.
+- **Proven:** 1549 app tests, then 29 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change that has no observable effect). Not yet run on a phone.
+
 ## [0.29.0.0] - 2026-10-27
 
 ### Added

@@ -52,6 +52,7 @@ export function ChatView({
   closedText,
   closedPlaceholder,
   header,
+  keyboardOffset = 0,
 }: {
   turns: readonly ChatTurn[];
   session: ChatSession;
@@ -67,6 +68,8 @@ export function ChatView({
   closedText?: string;
   closedPlaceholder?: string;
   header?: ReactNode;
+  /** How far down the screen the chat starts (the top inset, plus a header if there is one): the keyboard has to clear this much more. */
+  keyboardOffset?: number;
 }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -91,7 +94,7 @@ export function ChatView({
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={keyboardOffset}>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: space.lg, gap: space.md }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         {header}
         {!hasThread ? (
