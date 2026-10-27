@@ -542,6 +542,24 @@ marks nothing.
 upload over mobile data need Expo Go on an iPhone. `npx expo export --platform ios` compiles it; Jest covers the logic and the screens
 with a mocked API, picker and player. The new Thai strings are mine and want a native read.
 
+## Phase 5 status: everything else (`mobile/`)
+
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0.**
+
+**Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
+`/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
+dark. *Language*: English or Thai. *Units*: weight, height, distance and clock. Theme, language and units are ACCOUNT settings
+(`user_settings`, written through the offline queue like every other write), applied at once; `SettingsApplier` puts the saved theme
+(`Appearance.setColorScheme`) and language to work as they load, so they follow the person to another device. *AI features*: on or off,
+as easy to withdraw as to give (5.1.2(i)), with the link to what is sent. *Legal*: contact, privacy, terms, cookies, refunds and sources,
+each an existing public website page opened in the in-app browser (`src/links.ts`; a test checks every one is in `_PUBLIC_ENDPOINTS`).
+*Log out*. *Delete account* (5.1.1(v)): a native confirmation, then the deletion is SCHEDULED (30 days, `ACCOUNT_GRACE_DAYS`, pinned to the
+server's) and the screen shows the date and *Keep my account*; while a deletion is scheduled Home shows a banner that opens Settings,
+as the website's does on every page.
+
+Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
+field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.
+
 ## Deploying `api/` (Render)
 
 `Dockerfile.api` is the API's own image (the website's is `Dockerfile`, untouched). It installs `requirements-api.txt`,

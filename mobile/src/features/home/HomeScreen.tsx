@@ -16,6 +16,7 @@ import { useTheme } from '@/ui/theme';
 import { space } from '@/ui/tokens';
 import { Bar, Ring } from '@/ui/widgets';
 
+import { DeletionBanner } from '../settings/DeletionBanner';
 import { WeightForm } from '../history/WeightForm';
 
 /**
@@ -49,6 +50,7 @@ export default function HomeScreen() {
   return (
     <Screen>
       <OfflineBanner />
+      <DeletionBanner />
       <Text variant="title" style={{ fontSize: 28 }}>
         {t('home.greeting', { name })}
       </Text>
@@ -156,6 +158,7 @@ export default function HomeScreen() {
         <Button tone="plain" title={t('app.history.viewHistory')} onPress={() => router.push('/weight')} />
       </Card>
 
+      <Button tone="plain" title={t('nav.settings')} onPress={() => router.push('/settings')} />
       <Button tone="plain" title={t('app.setup.signOut')} onPress={() => void signOut(getSupabase())} />
     </Screen>
   );

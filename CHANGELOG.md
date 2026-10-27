@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.32.0.0] - 2026-10-27
+
+### Added
+
+Settings in the native app. Nothing in the website or the current App Store app changes.
+
+- **Settings.** Open it from Home. Change your name; choose light, dark or the device's appearance; English or Thai; kilograms or pounds,
+  centimetres or feet and inches, kilometres or metres, a 12- or 24-hour clock. They are saved to your account, so they follow you to
+  another device, and apply at once.
+- **AI features switch.** See whether you have allowed AI processing and turn it off, or back on, in one tap, with a link to what is sent.
+- **Delete your account.** Ask, confirm, and it is scheduled for deletion in 30 days; *Keep my account* undoes it any time before. Home
+  shows a banner while a deletion is scheduled.
+- **Legal and help links** (contact, privacy, terms, cookies, refunds, sources) open inside the app. **Log out** is here too.
+- **Proven:** 1666 app tests, then 48 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change that has no observable effect). Not yet run on a phone.
+
 ## [0.31.0.0] - 2026-10-27
 
 ### Added

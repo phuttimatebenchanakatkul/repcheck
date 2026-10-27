@@ -135,5 +135,6 @@
   "app.analyze.noRecent": "No analyses yet.",
   "app.chat.send": "Send",
   "app.chat.thinking": "Thinking…",
-  "app.chat.sourceOpen": "Open source: {title}"
+  "app.chat.sourceOpen": "Open source: {title}",
+  "app.settings.system": "System"
 }

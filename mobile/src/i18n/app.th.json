@@ -135,5 +135,6 @@
   "app.analyze.noRecent": "ยังไม่มีการวิเคราะห์",
   "app.chat.send": "ส่ง",
   "app.chat.thinking": "กำลังคิด…",
-  "app.chat.sourceOpen": "เปิดแหล่งอ้างอิง: {title}"
+  "app.chat.sourceOpen": "เปิดแหล่งอ้างอิง: {title}",
+  "app.settings.system": "ตามระบบ"
 }
