@@ -16,6 +16,7 @@ import { addDays, toIsoDate } from '../logic/dates';
 import type { CoachingProfile } from '../logic/splitPlan';
 import { keys } from './keys';
 import {
+  analysisTurnFromRow,
   coachTurnFromRow,
   nutritionRowToEntry,
   weightFromRow,
@@ -26,6 +27,7 @@ import {
 } from './mappers';
 import {
   activityMark,
+  analysisTurnSave,
   coachClear,
   coachTurnSave,
   dayStatus,
@@ -42,6 +44,7 @@ import {
   workoutSave,
 } from './ops';
 import {
+  overlayAnalysisThread,
   overlayCoachThread,
   overlayDayStatuses,
   overlayNames,
@@ -193,6 +196,12 @@ export function createData(deps: DataDeps) {
   async function coachThread(day: string): Promise<ChatTurn[]> {
     const rows = rowsOf<Row<'coach_messages'>>(await table('coach_messages').eq('msg_date', day).order('seq').limit(PAGE_SIZE));
     return rows.map(coachTurnFromRow);
+  }
+
+  /** One analysis's chat, oldest first (the table's own `seq` order). */
+  async function analysisThread(analysisId: number): Promise<ChatTurn[]> {
+    const rows = rowsOf<Row<'analyze_chat_messages'>>(await table('analyze_chat_messages').eq('analyze_result_id', analysisId).order('seq').limit(PAGE_SIZE));
+    return rows.map(analysisTurnFromRow);
   }
 
   async function splitPlanRow(): Promise<Row<'split_plans'> | null> {
@@ -389,6 +398,13 @@ export function createData(deps: DataDeps) {
     patch<ChatTurn[]>(keys.coachThreadPrefix(userId), (old, key) => (turn.date === String(key[3]) ? overlayCoachThread(old, [op]) : old));
   }
 
+  /** Adds a turn to one analysis's chat. */
+  async function saveAnalysisTurn(analysisId: number, turn: ChatTurn): Promise<void> {
+    const op = analysisTurnSave(userId, analysisId, turn);
+    await send(op);
+    patch<ChatTurn[]>(keys.analysisThreadPrefix(userId), (old, key) => overlayAnalysisThread(old, [op], Number(key[3])));
+  }
+
   /** Empties the coach's thread: waiting turns are dropped (they would only be deleted), then one delete clears the rest. */
   async function clearCoach(): Promise<void> {
     const op = coachClear(userId);
@@ -430,13 +446,13 @@ export function createData(deps: DataDeps) {
     userId,
     fetch: {
       nutritionDay, nutritionRecent, nutritionRange, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
-      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachThread,
+      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachThread, analysisThread,
       customFoods: () => api.listCustomFoods(),
       customExercises: () => api.listCustomExercises(),
     },
     actions: {
       saveFood, deleteFood, saveWorkout, deleteWorkout, saveWeight, removeWeight, saveGoals, saveSettings, saveSplitPlan,
-      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach,
+      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn,
       createCustomFood, deleteCustomFood, createCustomExercise, deleteCustomExercise,
     },
   };

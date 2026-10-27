@@ -133,3 +133,26 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
 
 /** Which chat a reply came from, as the report names it (api/social.py AI_REPORT_FEATURES). */
 export type ReportFeature = 'coach' | 'workout_chat' | 'analyze_chat';
+
+/** What the analysis chat is told about the analysis a question is about: the website's `AnalyzeChatWidget.init` context, field for field. */
+export function analysisChatContext(analysis: {
+  id: number;
+  created_at_ms: number;
+  exercise_label: string;
+  overall_score: number | null;
+  stretch_score: number | null;
+  squeeze_score: number | null;
+  reps: number | null;
+  feedback_text: string;
+}): Record<string, unknown> {
+  return {
+    id: analysis.id,
+    created_at_ms: analysis.created_at_ms,
+    exercise_label: analysis.exercise_label,
+    overall_score: analysis.overall_score,
+    stretch_score: analysis.stretch_score,
+    squeeze_score: analysis.squeeze_score,
+    reps: analysis.reps,
+    feedback_text: analysis.feedback_text,
+  };
+}

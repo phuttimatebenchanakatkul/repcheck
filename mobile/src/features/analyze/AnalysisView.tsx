@@ -54,7 +54,7 @@ function SectionCard({ section }: { section: FormSection }) {
  * The website's result screen (sectionsHtml in templates/index.html) rule for rule. `fresh` is for a result that has only just come
  * back (its clip link is still good); a stored one asks for a new link. `onAnother` adds the "Analyze another video" button.
  */
-export function AnalysisView({ analysis, fresh = false, onAnother }: { analysis: Analysis; fresh?: boolean; onAnother?: () => void }) {
+export function AnalysisView({ analysis, fresh = false, onAnother, onAsk }: { analysis: Analysis; fresh?: boolean; onAnother?: () => void; onAsk?: () => void }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const [showAll, setShowAll] = useState(false);
@@ -99,6 +99,8 @@ export function AnalysisView({ analysis, fresh = false, onAnother }: { analysis:
           </Text>
         ) : null}
       </Card>
+
+      {onAsk ? <Button title={t('analyzeChat.headerTitle')} onPress={onAsk} /> : null}
 
       <Button tone="plain" title={tutorial.known ? t('analyze.howToTitle') : t('analyze.watchOnYoutube')} onPress={() => void Linking.openURL(tutorial.url)} />
 

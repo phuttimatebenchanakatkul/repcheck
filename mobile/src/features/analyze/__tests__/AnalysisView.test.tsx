@@ -208,3 +208,14 @@ describe('the clip', () => {
     expect(mockApi.analysisVideoUrl).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('asking about the analysis', () => {
+  it('offers the chat only where the screen can open it, and opens it', async () => {
+    const onAsk = jest.fn();
+    const view = await show(base());
+    expect(screen.queryByRole('button', { name: 'Ask about this analysis' })).toBeNull();
+    await view.rerender(<AnalysisView analysis={base()} onAsk={onAsk} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Ask about this analysis' }));
+    expect(onAsk).toHaveBeenCalledTimes(1);
+  });
+});

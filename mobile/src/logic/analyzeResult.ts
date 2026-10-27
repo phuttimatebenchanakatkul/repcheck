@@ -27,7 +27,11 @@ export interface Analysis {
   favored: Favored | null;
   reps: number | null;
   sections: FormSection[];
+  /** The whole report as the model wrote it (the analysis chat is told it). */
+  feedback_text: string;
   created_at: string;
+  /** When it was made, in milliseconds; NaN when the server's date cannot be read. */
+  created_at_ms: number;
   /** A short-lived signed link; null when no clip was kept (or it could not be signed just now). */
   video_url: string | null;
 }
@@ -79,7 +83,9 @@ export function parseAnalysis(raw: unknown): Analysis | null {
     // The website hides a count of zero: an explicit 0 reads as "we watched and you did nothing" next to a grade.
     reps: reps !== null && reps > 0 ? reps : null,
     sections: (Array.isArray(raw.sections) ? raw.sections : []).map(parseSection).filter((s): s is FormSection => s !== null),
+    feedback_text: text(raw.feedback_text),
     created_at: text(raw.created_at),
+    created_at_ms: numberOrNull(raw.created_at_ms) ?? createdMs(text(raw.created_at)),
     video_url: typeof raw.video_url === 'string' && raw.video_url ? raw.video_url : null,
   };
 }

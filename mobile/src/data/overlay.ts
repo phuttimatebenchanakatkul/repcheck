@@ -9,7 +9,7 @@ import type { Operation, QueuedOperation } from '../store/outbox';
 
 import type { NutritionEntry, WorkoutEntry, WorkoutSet } from '../logic/types';
 import type { ChatTurn } from '../logic/chat';
-import { coachTurnFromRow, nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, type Row, type WeightEntry } from './mappers';
+import { analysisTurnFromRow, coachTurnFromRow, nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, type Row, type WeightEntry } from './mappers';
 
 /** The waiting operations of one person on a table, oldest first. */
 export function waiting(queue: readonly QueuedOperation[], userId: string, table: Operation['table']): Operation[] {
@@ -206,6 +206,23 @@ export function overlayCoachThread(turns: readonly ChatTurn[], ops: readonly Ope
       continue;
     }
     const turn = coachTurnFromRow(op.row as unknown as Row<'coach_messages'>);
+    const at = list.findIndex((t) => t.id === turn.id);
+    if (at >= 0) list[at] = turn;
+    else list.push(turn);
+  }
+  return list;
+}
+
+// -- an analysis's chat thread -------------------------------------------------------------------------------------------------------
+
+/** The server's turns for one analysis with this device's waiting turns for THAT analysis added (or replacing the same turn). */
+export function overlayAnalysisThread(turns: readonly ChatTurn[], ops: readonly Operation[], analysisId: number): ChatTurn[] {
+  const list = turns.slice();
+  for (const op of ops) {
+    if (op.kind !== 'upsert') continue;
+    const row = op.row as unknown as Row<'analyze_chat_messages'>;
+    if (row.analyze_result_id !== analysisId) continue;
+    const turn = analysisTurnFromRow(row);
     const at = list.findIndex((t) => t.id === turn.id);
     if (at >= 0) list[at] = turn;
     else list.push(turn);

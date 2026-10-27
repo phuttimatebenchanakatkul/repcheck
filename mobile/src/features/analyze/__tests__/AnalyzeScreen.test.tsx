@@ -324,3 +324,15 @@ describe('recent analyses', () => {
     expect(await screen.findByText("Couldn't load your analyses. Check your connection and try again.")).toBeOnTheScreen();
   });
 });
+
+describe('asking about a fresh result', () => {
+  it('opens the chat for the new analysis, and its result is already known to the chat screen', async () => {
+    const h = await open();
+    await pickExercise('Front Squat');
+    await press('Choose a video');
+    await press('Analyze workout');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ask about this analysis' }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/analysis-chat', params: { id: '31' } });
+    expect(h.queryClient.getQueryData(['analyze', 'user-1', 'detail', 31])).toMatchObject({ id: 31, exercise_label: 'Front Squat' });
+  });
+});

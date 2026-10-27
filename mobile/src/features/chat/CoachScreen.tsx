@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getApi } from '@/api';
 import { useActions, useCoachThread } from '@/data/hooks';
@@ -23,6 +23,7 @@ import { useChatSession } from './useChatSession';
 export default function CoachScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const today = toIsoDate(new Date());
   const thread = useCoachThread(today);
   const actions = useActions();
@@ -42,6 +43,7 @@ export default function CoachScreen() {
         turns={turns}
         session={session}
         feature="coach"
+        keyboardOffset={insets.top}
         placeholder={t('coach.inputPlaceholder')}
         suggestions={[t('coach.suggestion1'), t('coach.suggestion2')]}
         limitText={(time) => t('coach.limitReached', { time })}

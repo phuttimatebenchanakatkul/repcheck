@@ -1,7 +1,7 @@
 import { ALWAYS_VISIBLE, STATUS_KEYS, createdMs, favoredNote, groupByMonth, parseAnalysis, parseHistory, relativeDay, scoreTone, splitSections, statusKeyAt, tutorialLink, verdictKey, type FormSection, type HistoryEntry } from '../analyzeResult';
 
 const section = (css_class: string, extra: object = {}) => ({ heading: css_class, css_class, emphasis: 'featured', title_key: `analyze.section.${css_class}`, summary_html: '<p>x</p>', detail_html: null, ...extra });
-const ok = (extra: object = {}) => ({ ok: true, id: 7, exercise_label: 'Flat Bench Press', overall_score: 72, stretch_score: 70, squeeze_score: 80, favored: 'squeeze', reps: 8, sections: [section('positives')], created_at: '2026-10-27T10:00:00+00:00', video_url: 'https://x/v.mp4', ...extra });
+const ok = (extra: object = {}) => ({ ok: true, id: 7, exercise_label: 'Flat Bench Press', overall_score: 72, stretch_score: 70, squeeze_score: 80, favored: 'squeeze', reps: 8, sections: [section('positives')], feedback_text: '## Positives\n- Good.', created_at: '2026-10-27T10:00:00+00:00', created_at_ms: Date.UTC(2026, 9, 27, 10), video_url: 'https://x/v.mp4', ...extra });
 
 describe('parseAnalysis', () => {
   it('reads a full answer', () => {
@@ -14,7 +14,9 @@ describe('parseAnalysis', () => {
       favored: 'squeeze',
       reps: 8,
       sections: [{ heading: 'positives', css_class: 'positives', emphasis: 'featured', title_key: 'analyze.section.positives', summary_html: '<p>x</p>', detail_html: null }],
+      feedback_text: '## Positives\n- Good.',
       created_at: '2026-10-27T10:00:00+00:00',
+      created_at_ms: Date.UTC(2026, 9, 27, 10),
       video_url: 'https://x/v.mp4',
     });
   });
@@ -32,6 +34,17 @@ describe('parseAnalysis', () => {
     expect(parseAnalysis(ok({ reps: 0 }))!.reps).toBeNull();
     expect(parseAnalysis(ok({ reps: -2 }))!.reps).toBeNull();
     expect(parseAnalysis(ok({ reps: 1 }))!.reps).toBe(1);
+  });
+
+  it('takes the time from the server’s milliseconds, else from its date text, else NaN', () => {
+    expect(parseAnalysis(ok({ created_at_ms: 5 }))!.created_at_ms).toBe(5);
+    expect(parseAnalysis(ok({ created_at_ms: 'x' }))!.created_at_ms).toBe(Date.UTC(2026, 9, 27, 10));
+    expect(parseAnalysis(ok({ created_at_ms: undefined, created_at: 'soon' }))!.created_at_ms).toBeNaN();
+  });
+
+  it('the report text is kept as written, or empty', () => {
+    expect(parseAnalysis(ok({ feedback_text: 5 }))!.feedback_text).toBe('');
+    expect(parseAnalysis(ok({ feedback_text: undefined }))!.feedback_text).toBe('');
   });
 
   it('keeps the score zero: it is a grade, not a missing one', () => {

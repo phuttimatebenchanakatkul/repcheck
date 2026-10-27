@@ -211,6 +211,26 @@ def test_the_sources_page_the_app_links_to_opens_without_an_account():
     assert '@app.route("/sources"' in text(ROOT / "app.py")
 
 
+def test_the_analysis_chat_is_told_what_the_website_tells_it():
+    """The context the model gets about an analysis is the website's, field for field, and the server really sends every field."""
+    website = re.search(r"AnalyzeChatWidget\.init\(\{(.*?)\}\);", text(ROOT / "templates" / "index.html"), re.S).group(1)
+    sent = set(re.findall(r"^\s*(\w+):", website, re.M))
+    source = chat_source()
+    ours = set(re.findall(r"^\s+(\w+): analysis\.", re.search(r"function analysisChatContext.*?\n}\n", source, re.S).group(0), re.M))
+    assert ours == sent == {"id", "created_at_ms", "exercise_label", "overall_score", "stretch_score", "squeeze_score", "reps", "feedback_text"}
+    import datetime
+    from api.analyze import result_json
+    row = {"id": 1, "exercise_label": "x", "overall_score": 1, "stretch_score": 1, "squeeze_score": 1, "favored": "balanced", "reps": 1,
+           "feedback_text": "## Positives\n- ok", "created_at": datetime.datetime(2026, 10, 27, tzinfo=datetime.timezone.utc)}
+    assert sent <= set(result_json(row, None))
+
+
+def test_an_analysis_chat_closes_when_the_website_closes_it():
+    widget = text(ROOT / "static" / "analyze_chat_widget.js")
+    assert "LOCK_AFTER_MS = 24 * 60 * 60 * 1000" in widget
+    assert "ANALYSIS_CHAT_WINDOW_MS = 24 * 60 * 60 * 1000" in chat_source()
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 
