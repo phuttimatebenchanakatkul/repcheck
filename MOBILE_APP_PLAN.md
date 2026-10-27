@@ -463,8 +463,10 @@ Thai `app.*` strings added here are mine and want a native read.
 
 ## Phase 4 status: Analyze and the AI coach (`mobile/`)
 
-Phase 4 ships in slices. **4a, the Analyze tab, is v0.28.0.0; 4b-1, the Coach tab, is v0.29.0.0; 4b-2, the analysis chat, is v0.30.0.0.** The workout
-chat (which reuses the chat view, session hook and reply footer) is next.
+Phase 4 ships in slices. **4a, the Analyze tab, is v0.28.0.0; 4b-1, the Coach tab, is v0.29.0.0; 4b-2, the analysis chat, is v0.30.0.0; 4b-3, the workout
+chat, is v0.31.0.0.** That is all of Phase 4 as scoped here: analyze, results, history and playback, and the three chats with their
+citations, Report button and consent gate. The coaching calculators and the weekly check-in (`/api/coaching/*`) belong with the
+profile and check-in photos in Phase 5.
 
 **Added in v0.28.0.0: Analyze.** Choose an exercise (the last one analyzed is already chosen; the picker offers recent, favourites and a
 starter set, and searches the library and your own exercises), film a set or choose a clip, send it, read the result. The result is the
@@ -523,6 +525,18 @@ each question (the website's context, field for field; `tests/test_mobile_app.py
 and gone with it when the server prunes to the newest 20. A chat closes 24 hours after its analysis was made, as on the website: the
 thread stays readable and the box says so. Same footer, report button, limit countdown and consent question as the coach. An answered
 question marks the day (`activity_days`, action `analyze_chat`).
+
+**Added in v0.31.0.0: the workout chat (4b-3).** On the Workouts tab, a *Workout AI Chat* card appears once something is logged on the day
+you are looking at (as on the website) and opens that day's chat (`/workout-chat?day=2026-10-27`). Ask about progressive overload, form or
+whether you are training a muscle enough. Each question is sent with `workout_summary`, built by `logic/workoutSummary.ts` from the
+website's own functions, line for line (a test runs the website's code on the same seeded histories, in kilograms and pounds, English and
+Thai): the last seven calendar days, then each exercise's last four sessions with every set (the 30 trained most recently), in the
+person's units. One thread per day in `workout_chat_messages`, kept for good; only TODAY's takes questions (a past day is read-only, as on
+the website) and *New chat* empties one day only. The same footer, Report button, limit countdown and consent question as the other chats.
+
+Deliberate difference: the summary is built from the newest 300 workouts (`WORKOUT_HISTORY_LIMIT`), where the website used the whole log,
+so an exercise not trained for months can be missing from "last four sessions". The workout itself is the streak activity, so the chat
+marks nothing.
 
 **Not verified, and why:** nothing has run on a phone. The camera, the picker's export, `expo-video` playback and a real 60-second
 upload over mobile data need Expo Go on an iPhone. `npx expo export --platform ios` compiles it; Jest covers the logic and the screens

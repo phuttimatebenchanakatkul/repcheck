@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -10,6 +11,7 @@ import type { CustomExerciseMode, SplitPlan, WorkoutEntry } from '@/logic/types'
 import { localeFor } from '@/logic/units';
 import { newWorkoutEntry, todaysSplit, type CustomExerciseMeta } from '@/logic/workouts';
 import { Button, Card, ErrorText, Screen, Text } from '@/ui/components';
+import { Row } from '@/ui/widgets';
 import { DateStrip } from '@/ui/DateStrip';
 import { success } from '@/ui/haptics';
 import { OfflineBanner } from '@/ui/OfflineBanner';
@@ -27,6 +29,7 @@ import { WorkoutCard } from './WorkoutCard';
 export default function WorkoutsScreen() {
   const { t, language } = useTranslation();
   const locale = localeFor(language);
+  const router = useRouter();
   const today = toIsoDate(new Date());
   const [day, setDay] = useState(today);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -152,6 +155,21 @@ export default function WorkoutsScreen() {
           />
         ))
       )}
+
+      {/* Nothing logged on the day you are looking at, nothing to ask about: the card follows the selected day, as on the website. */}
+      {entries.data.length > 0 ? (
+        <Row onPress={() => router.push({ pathname: '/workout-chat', params: { day } })} label={t('workoutChat.title')}>
+          <Text style={{ fontSize: 28 }} accessibilityElementsHidden importantForAccessibility="no">
+            🤖
+          </Text>
+          <View style={{ flex: 1 }}>
+            <Text variant="rowTitle">{t('workoutChat.title')}</Text>
+            <Text variant="caption" secondary>
+              {t('workoutChat.subtitle')}
+            </Text>
+          </View>
+        </Row>
+      ) : null}
 
       <ExercisePicker
         visible={picking}

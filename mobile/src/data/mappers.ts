@@ -307,3 +307,29 @@ export function analysisTurnToRow(userId: string, analysisId: number, turn: Chat
     extra: { date: turn.date },
   };
 }
+
+// -- the workout chat's thread (one per day) ---------------------------------------------------------------------------------------
+
+/** One saved turn of a day's workout chat. */
+export function workoutTurnFromRow(row: Row<'workout_chat_messages'>): ChatTurn {
+  return {
+    id: row.client_id,
+    role: row.role === 'user' ? 'user' : 'assistant',
+    text: row.body,
+    sources: Array.isArray(row.sources) ? cleanSources(row.sources) : null,
+    date: row.msg_date,
+  };
+}
+
+/** The whole row, filed under the turn's day. `seq` is the database's own ordering (generated always), so it is never written. */
+export function workoutTurnToRow(userId: string, turn: ChatTurn): NewRow<'workout_chat_messages'> {
+  return {
+    user_id: userId,
+    client_id: turn.id,
+    role: turn.role,
+    body: turn.text,
+    msg_date: turn.date,
+    sources: turn.sources === null ? null : (turn.sources as unknown as Json),
+    extra: {},
+  };
+}

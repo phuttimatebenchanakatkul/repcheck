@@ -24,6 +24,9 @@ export const keys = {
   customExercises: (userId: string) => ['data', userId, 'custom-exercises'] as const,
   coachThread: (userId: string, day: string) => ['data', userId, 'coach-thread', day] as const,
   coachThreadPrefix: (userId: string) => ['data', userId, 'coach-thread'] as const,
+  workoutThread: (userId: string, day: string) => ['data', userId, 'workout-thread', day] as const,
+  workoutThreadPrefix: (userId: string) => ['data', userId, 'workout-thread'] as const,
+  workoutHistory: (userId: string) => ['data', userId, 'workout-history'] as const,
   analysisThread: (userId: string, analysisId: number) => ['data', userId, 'analysis-thread', analysisId] as const,
   analysisThreadPrefix: (userId: string) => ['data', userId, 'analysis-thread'] as const,
 };

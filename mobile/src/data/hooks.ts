@@ -14,13 +14,14 @@ import type { ChatTurn } from '../logic/chat';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import type { QueuedOperation } from '../store/outbox';
 import type { Data, RecentNutrition, RecentWorkout } from './access';
-import { RECENT_NUTRITION_LIMIT, RECENT_WORKOUT_LIMIT } from './access';
+import { RECENT_NUTRITION_LIMIT, RECENT_WORKOUT_LIMIT, WORKOUT_HISTORY_LIMIT } from './access';
 import { keys } from './keys';
 import { goalsFromRow, settingsFromRow, splitPlanFromRow, type AppSettings, type Row, type WeightEntry } from './mappers';
 import {
   latestRow,
   overlayDayStatuses,
   overlayAnalysisThread,
+  overlayWorkoutThread,
   overlayCoachThread,
   overlayNames,
   overlayNutritionDay,
@@ -244,4 +245,23 @@ export function useAnalysisThread(analysisId: number): Loaded<ChatTurn[]> {
   const query = useQuery({ queryKey: keys.analysisThread(data.userId, analysisId), queryFn: () => data.fetch.analysisThread(analysisId), enabled: Number.isInteger(analysisId) && analysisId > 0 });
   const turns = useMemo(() => overlayAnalysisThread(query.data ?? [], waiting(queue, data.userId, 'analyze_chat_messages'), analysisId), [query.data, queue, data.userId, analysisId]);
   return status(query, turns);
+}
+
+/** One day's workout chat: the server's turns with this device's waiting turns (and a waiting clear) for that day. */
+export function useWorkoutThread(day: string): Loaded<ChatTurn[]> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.workoutThread(data.userId, day), queryFn: () => data.fetch.workoutThread(day) });
+  const turns = useMemo(() => overlayWorkoutThread(query.data ?? [], waiting(queue, data.userId, 'workout_chat_messages'), day), [query.data, queue, data.userId, day]);
+  return status(query, turns);
+}
+
+/** The newest workouts (a few hundred), for what the workout chat is told: the same entries as `useWorkoutRecent`, further back. */
+export function useWorkoutHistory(): Loaded<RecentWorkout[]> {
+  const { data, queue } = useDataContext();
+  const query = useQuery({ queryKey: keys.workoutHistory(data.userId), queryFn: () => data.fetch.workoutHistory() });
+  const entries = useMemo(
+    () => overlayWorkoutRecent(query.data ?? [], waitingOn(queue, data.userId, ['workout_entries', 'workout_sets']), WORKOUT_HISTORY_LIMIT),
+    [query.data, queue, data.userId],
+  );
+  return status(query, entries);
 }
