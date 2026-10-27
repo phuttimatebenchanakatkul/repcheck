@@ -136,5 +136,13 @@
   "app.chat.send": "ส่ง",
   "app.chat.thinking": "กำลังคิด…",
   "app.chat.sourceOpen": "เปิดแหล่งอ้างอิง: {title}",
-  "app.settings.system": "ตามระบบ"
+  "app.settings.system": "ตามระบบ",
+  "app.settings.reminders.title": "การแจ้งเตือน",
+  "app.settings.reminders.sub": "ระบบจะแจ้งเตือนเมื่อถึงเวลาเช็กอินประจำสัปดาห์ และเมื่อคุณไม่ได้บันทึกข้อมูลมาหลายวัน การแจ้งเตือนมาจากโทรศัพท์เครื่องนี้ และปิดได้ทุกเมื่อ",
+  "app.settings.reminders.toggle": "เตือนฉัน",
+  "app.settings.reminders.denied": "การแจ้งเตือนของ RepCheck ปิดอยู่ เปิดได้ในการตั้งค่าของโทรศัพท์เพื่อรับการเตือน",
+  "app.settings.reminders.turnOn": "เปิดการเตือน",
+  "app.settings.reminders.turnOff": "ปิดการเตือน",
+  "app.settings.reminders.on": "เปิด",
+  "app.settings.reminders.off": "ปิด"
 }

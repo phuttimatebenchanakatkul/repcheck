@@ -32,6 +32,7 @@
       "expo-secure-store",
       "expo-apple-authentication",
       "expo-localization",
+      "expo-notifications",
       [
         "expo-camera",
         {

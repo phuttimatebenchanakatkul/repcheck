@@ -136,5 +136,13 @@
   "app.chat.send": "Send",
   "app.chat.thinking": "Thinking…",
   "app.chat.sourceOpen": "Open source: {title}",
-  "app.settings.system": "System"
+  "app.settings.system": "System",
+  "app.settings.reminders.title": "Reminders",
+  "app.settings.reminders.sub": "A notification when your weekly check-in is due, and when you've gone a few days without logging. They come from this phone, and you can turn them off any time.",
+  "app.settings.reminders.toggle": "Remind me",
+  "app.settings.reminders.denied": "Notifications are off for RepCheck. Turn them on in your phone's Settings to get reminders.",
+  "app.settings.reminders.turnOn": "Turn on reminders",
+  "app.settings.reminders.turnOff": "Turn off reminders",
+  "app.settings.reminders.on": "On",
+  "app.settings.reminders.off": "Off"
 }
