@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.38.0.0] - 2026-10-28
+
+### Added
+
+The HYROX leaderboard and AI race analysis in the native app. Nothing in the website or the current App Store app changes.
+
+- **The HYROX leaderboard.** Everyone's fastest time for each of the four boards (Open or Pro, Singles or Doubles), for men or women, with your
+  place marked. Every other name has a *More options* button to report or block it.
+- **A coach for your race.** After a race the AI says where to gain time, what was strong and what is already solid, station by station, and
+  your breakdown's bars show it. It is saved with the race. You are asked before anything is sent to the AI.
+- **Proven:** 2336 app tests, then 135 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change with no observable effect). Not yet run on a phone.
+
 ## [0.37.0.0] - 2026-10-27
 
 ### Added

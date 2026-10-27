@@ -9,6 +9,7 @@ import { useTheme } from '@/ui/theme';
 import { radius, space } from '@/ui/tokens';
 import { Chip, Row, Sheet } from '@/ui/widgets';
 
+import { RaceAnalysisPanel } from './RaceAnalysisPanel';
 import { RaceBreakdown } from './RaceBreakdown';
 import { comboLabel, raceDate } from './labels';
 
@@ -92,7 +93,7 @@ function PbBoard({ races, onOpen }: { races: readonly Race[]; onOpen: (race: Rac
 }
 
 /** One race: its time, combo and date, and where the time went. */
-export function RaceDetailSheet({ race, onClose }: { race: Race | null; onClose: () => void }) {
+export function RaceDetailSheet({ race, onClose, onAnalysed }: { race: Race | null; onClose: () => void; onAnalysed: (race: Race) => void }) {
   const { t, language } = useTranslation();
   return (
     <Sheet visible={race !== null} title={race ? formatClock(race.totalSeconds) : ''} closeLabel={t('common.close')} onClose={onClose}>
@@ -102,6 +103,7 @@ export function RaceDetailSheet({ race, onClose }: { race: Race | null; onClose:
             {comboLabel(t as never, race.gender, race.category, race.format)} · {raceDate(race.date, localeFor(language))}
           </Text>
           <RaceBreakdown race={race} />
+          <RaceAnalysisPanel key={race.id} race={race} autoRun={false} onAnalysed={onAnalysed} />
         </>
       ) : null}
     </Sheet>
@@ -109,7 +111,7 @@ export function RaceDetailSheet({ race, onClose }: { race: Race | null; onClose:
 }
 
 /** Your personal bests, and every race you have finished, newest first (each opens its breakdown; each can be removed). */
-export function HistoryView({ races, onRemove, onBack }: { races: readonly Race[]; onRemove: (race: Race) => void; onBack: () => void }) {
+export function HistoryView({ races, onRemove, onBack, onAnalysed }: { races: readonly Race[]; onRemove: (race: Race) => void; onBack: () => void; onAnalysed: (race: Race) => void }) {
   const { t, language } = useTranslation();
   const [open, setOpen] = useState<string | null>(null);
   const locale = localeFor(language);
@@ -162,7 +164,7 @@ export function HistoryView({ races, onRemove, onBack }: { races: readonly Race[
         )}
         <Button tone="plain" title={t('hyrox.backToSetup')} onPress={onBack} />
       </Card>
-      <RaceDetailSheet race={opened} onClose={() => setOpen(null)} />
+      <RaceDetailSheet race={opened} onClose={() => setOpen(null)} onAnalysed={onAnalysed} />
     </View>
   );
 }

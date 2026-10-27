@@ -343,3 +343,80 @@ export function leaderboardResult(race: Race): { gender: string; category: strin
   if (race.flagged || race.scale === 'half' || race.category === 'custom' || !race.gender || !race.format) return null;
   return { gender: race.gender, category: race.category, format: race.format, total_seconds: race.totalSeconds };
 }
+
+// -- the leaderboard --------------------------------------------------------------------------------------------------------------
+
+/** The four boards: Open and Pro, Singles and Doubles (each is for one gender at a time). Singles first, as the website lists them. */
+export const BOARD_TABS: readonly { category: Category; format: Format }[] = [
+  { category: 'open', format: 'singles' },
+  { category: 'pro', format: 'singles' },
+  { category: 'open', format: 'doubles' },
+  { category: 'pro', format: 'doubles' },
+];
+
+export interface BoardStanding {
+  userId: string;
+  name: string;
+  bestSeconds: number;
+}
+
+export interface HyroxBoard {
+  /** The fastest of everybody, best first (as many as the server sends: 50). */
+  rows: BoardStanding[];
+  /** How many athletes are on this board in all. */
+  total: number;
+  /** Where you stand, or null when you have not finished this race. */
+  mine: { rank: number; bestSeconds: number; name: string } | null;
+}
+
+// -- the AI's read of a race ------------------------------------------------------------------------------------------------------
+
+export type Rating = 'focus' | 'strong' | 'solid';
+
+export interface Tip {
+  key: string;
+  tip: string;
+  rating: Rating;
+  detail: string[];
+}
+
+export interface RaceAnalysis {
+  overall: string;
+  overallDetail: string[];
+  tips: Tip[];
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const words = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : []);
+
+/**
+ * An analysis out of what is stored on a race (the website's own shape: overall, overallDetail, tips), or null when it is not one.
+ * A tip with no text is dropped; an unknown rating is "solid".
+ */
+export function analysisFromJson(value: unknown): RaceAnalysis | null {
+  if (!isRecord(value) || typeof value.overall !== 'string') return null;
+  const tips: Tip[] = [];
+  if (Array.isArray(value.tips)) {
+    for (const entry of value.tips) {
+      if (!isRecord(entry) || typeof entry.key !== 'string' || typeof entry.tip !== 'string' || !entry.tip.trim()) continue;
+      const rating: Rating = entry.rating === 'focus' || entry.rating === 'strong' ? entry.rating : 'solid';
+      tips.push({ key: entry.key, tip: entry.tip, rating, detail: words(entry.detail) });
+    }
+  }
+  return { overall: value.overall, overallDetail: words(value.overallDetail), tips };
+}
+
+/** The tips grouped as the website does, the biggest gains first: where to gain time, then strengths, then what is already solid. */
+export function tipGroups(tips: readonly Tip[]): { rating: Rating; tips: Tip[] }[] {
+  return (['focus', 'strong', 'solid'] as const).map((rating) => ({ rating, tips: tips.filter((t) => t.rating === rating) })).filter((g) => g.tips.length > 0);
+}
+
+/** A tip's rating by station, to tint the breakdown's bars. */
+export function ratingsByKey(analysis: RaceAnalysis | null): Record<string, Rating> {
+  const out: Record<string, Rating> = {};
+  for (const tip of analysis?.tips ?? []) out[tip.key] = tip.rating;
+  return out;
+}
+
+/** Whether a race can be coached at all: not a flagged time (its splits are not a real performance), and not a hand-built race (no standard to coach against). */
+export const canAnalyze = (race: Pick<Race, 'flagged' | 'category'>): boolean => !race.flagged && race.category !== 'custom';

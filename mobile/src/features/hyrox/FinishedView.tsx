@@ -6,11 +6,12 @@ import { Button, Card, Text } from '@/ui/components';
 import { useTheme } from '@/ui/theme';
 import { radius, space } from '@/ui/tokens';
 
+import { RaceAnalysisPanel } from './RaceAnalysisPanel';
 import { RaceBreakdown } from './RaceBreakdown';
 import { comboLabel } from './labels';
 
 /** The result: the time, whether it was flagged or a new best, and where the time went. It is already saved when this shows. */
-export function FinishedView({ race, onAnother, onHistory }: { race: Race; onAnother: () => void; onHistory: () => void }) {
+export function FinishedView({ race, onAnother, onHistory, onLeaderboard, onAnalysed }: { race: Race; onAnother: () => void; onHistory: () => void; onLeaderboard: () => void; onAnalysed: (race: Race) => void }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const combo = comboLabel(t as never, race.gender, race.category, race.format);
@@ -31,8 +32,10 @@ export function FinishedView({ race, onAnother, onHistory }: { race: Race; onAno
         </Text>
       </View>
       <RaceBreakdown race={race} />
+      <RaceAnalysisPanel race={race} autoRun onAnalysed={onAnalysed} />
       <Button title={t('hyrox.logAnother')} onPress={onAnother} />
       <Button tone="plain" title={t('hyrox.viewPersonalBests')} onPress={onHistory} />
+      <Button tone="plain" title={t('hyrox.leaderboard.button')} onPress={onLeaderboard} />
     </Card>
   );
 }

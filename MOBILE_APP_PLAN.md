@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0; 5f-1, the HYROX race tracker, is v0.37.0.0.**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0; 5f-1, the HYROX race tracker, is v0.37.0.0; 5f-2, the HYROX leaderboard and AI race analysis, is v0.38.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -622,7 +622,16 @@ leaderboard when it counts there (a full-length race that is not flagged). *Pers
 you have finished, newest first; each opens its breakdown and can be removed. Gender comes from the coaching profile; only a person with no
 profile is asked. The lane length (and, at the end of a race, which leaderboard is yours) are kept in two columns of the settings row.
 
-Not in this slice, and why: the leaderboard screen, the AI race analysis, the Pro practice weights, the Doubles round split, hand-built custom
+**Added in v0.38.0.0: the HYROX leaderboard and the AI's read of a race (5f-2).** The HYROX page now carries the global leaderboard (also
+from the finish screen): one gender at a time (the one chosen, else the one raced under last, else the profile's; a person with none is asked
+once and the answer is kept on the account) and one of four boards, Open and Pro, Singles and Doubles, with your own place marked or shown
+below the listed rows, and report / block on every other name (Guideline 1.2). After a race the AI reads the splits and says where to gain time,
+what was strong and what is already solid, station by station, each section short with "Read more" for the fuller bullets; the breakdown's bars
+turn green or amber to match. The read is kept on the race, so reopening one from the history shows it with no wait. With the AI switch on
+it runs at once on a fresh race; otherwise (and for older races) a button offers it and the consent question comes first. A flagged time is
+not coached; at the day's limit the server's notice is shown and nothing is kept (the website keeps the notice as if it were a read).
+
+Not in this slice, and why: the Pro practice weights, the Doubles round split, hand-built custom
 races and the how-to videos each need their own screen or call, and follow. A hand-built race made on the website is shown in the history
 (labelled Custom) but cannot be made here yet. The website's one-off back-fill of old races onto the board is the launch import's job.
 
