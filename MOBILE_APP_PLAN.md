@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0; 5f-1, the HYROX race tracker, is v0.37.0.0; 5f-2, the HYROX leaderboard and AI race analysis, is v0.38.0.0.**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0; 5f-1, the HYROX race tracker, is v0.37.0.0; 5f-2, the HYROX leaderboard and AI race analysis, is v0.38.0.0; 5g, the "it's been N days" nudge, is v0.39.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -634,6 +634,12 @@ not coached; at the day's limit the server's notice is shown and nothing is kept
 Not in this slice, and why: the Pro practice weights, the Doubles round split, hand-built custom
 races and the how-to videos each need their own screen or call, and follow. A hand-built race made on the website is shown in the history
 (labelled Custom) but cannot be made here yet. The website's one-off back-fill of old races onto the board is the launch import's job.
+
+**Added in v0.39.0.0: the inactivity nudge (5g).** A card on Home and on Nutrition for someone with a coaching profile who has not logged a
+weight or any food for three days (counting from the profile's first day when they never have): "It's been N days since you logged ...",
+with Dismiss. Dismissing records today on the coaching row (`inactivity_notified_on`), so it stays away for the day and is back tomorrow if
+they are still away; on the website, dismissing did not hide the banner. It waits for the weigh-ins and food to load before it speaks. The
+website also raised a browser notification for the same thing; that is a push notification here and belongs to Phase 6.
 
 Not in 5a, and why: *Blocked accounts* waits for friends and leaderboards (it lists what you blocked there); *Gender* is a coaching-profile
 field that belongs with onboarding; *Replay the tour* is the website's guided tour, which the app does not have.

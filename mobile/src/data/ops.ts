@@ -13,6 +13,7 @@ import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/ty
 import {
   analysisTurnToRow,
   coachingRowAfterCheckin,
+  coachingRowWithInactivityNoticed,
   hyroxRaceToRow,
   hyroxSplitToRow,
   settingsRowWithHyrox,
@@ -158,4 +159,9 @@ export const hyroxRaceDelete = (userId: string, id: string): Operation => ({
 /** Saving the HYROX preferences (lane length, leaderboard gender): the whole settings row, the rest of it as it was. */
 export const hyroxPrefsSave = (userId: string, prefs: HyroxPrefs, base: Row<'user_settings'> | null | undefined): Operation => ({
   kind: 'upsert', table: 'user_settings', key: 'user_id', row: settingsRowWithHyrox(userId, prefs, base) as Record<string, unknown>,
+});
+
+/** Dismissing the inactivity nudge for the day. */
+export const coachingInactivityNoticed = (userId: string, base: Row<'coaching_profiles'>, today: string): Operation => ({
+  kind: 'upsert', table: 'coaching_profiles', key: 'user_id', row: { ...coachingRowWithInactivityNoticed(base, today), user_id: userId } as Record<string, unknown>,
 });

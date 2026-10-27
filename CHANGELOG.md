@@ -2,6 +2,17 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.39.0.0] - 2026-10-28
+
+### Added
+
+The "it's been N days" nudge in the native app. Nothing in the website or the current App Store app changes.
+
+- **A nudge when you have been away.** After three days without logging a weight or food, Home and Nutrition say how long it has been and why it matters
+  for your calorie target. *Dismiss* hides it for the day.
+- **Proven:** 2360 app tests, then 28 deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change with no observable effect). Not yet run on a phone.
+
 ## [0.38.0.0] - 2026-10-28
 
 ### Added

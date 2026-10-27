@@ -558,6 +558,18 @@ def test_the_hyrox_ratings_are_the_coachs():
         assert name in text(MOBILE / "src" / "features" / "hyrox" / "RaceAnalysisPanel.tsx")
 
 
+def test_the_inactivity_nudge_matches_the_website():
+    logic = text(MOBILE / "src" / "logic" / "inactivity.ts")
+    website = text(ROOT / "static" / "coaching.js")
+    assert "INACTIVITY_DAYS = 3;" in logic and "if (idle < 3) return null;" in website
+    for key in ("coaching.inactivity", "coaching.dismiss"):
+        assert f'"{key}"' in text(MOBILE / "src" / "i18n" / "en.json"), key
+        assert key in text(MOBILE / "src" / "features" / "coaching" / "InactivityBanner.tsx"), key
+    assert "inactivity_notified_on" in text(MOBILE / "src" / "data" / "mappers.ts")
+    migration = "".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "supabase" / "migrations").glob("*.sql")))
+    assert "inactivity_notified_on" in migration
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 

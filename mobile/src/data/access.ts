@@ -37,6 +37,7 @@ import {
 import {
   activityMark,
   coachingCheckinSave,
+  coachingInactivityNoticed,
   hyroxPrefsSave,
   hyroxRaceDelete,
   hyroxRaceSave,
@@ -500,6 +501,15 @@ export function createData(deps: DataDeps) {
     patchRow(keys.settings(userId), op);
   }
 
+  /** Dismisses the "it's been N days" nudge for today. Nothing to record on without a coaching row. */
+  async function dismissInactivity(): Promise<void> {
+    const base = queryClient.getQueryData<Row<'coaching_profiles'> | null>(keys.coachingRow(userId));
+    if (!base) return;
+    const op = coachingInactivityNoticed(userId, base, toIsoDate(now()));
+    await send(op);
+    patchRow(keys.coachingRow(userId), op);
+  }
+
   /** Adds a turn to a day's workout chat (the day is the turn's own). */
   async function saveWorkoutTurn(turn: ChatTurn): Promise<void> {
     const op = workoutTurnSave(userId, turn);
@@ -568,7 +578,7 @@ export function createData(deps: DataDeps) {
     },
     actions: {
       saveFood, deleteFood, saveWorkout, deleteWorkout, saveWeight, removeWeight, saveGoals, saveSettings, saveSplitPlan,
-      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread, saveCoachingProfile, saveCheckin, saveHyroxRace, deleteHyroxRace, saveHyroxPrefs,
+      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread, saveCoachingProfile, saveCheckin, dismissInactivity, saveHyroxRace, deleteHyroxRace, saveHyroxPrefs,
       createCustomFood, deleteCustomFood, createCustomExercise, deleteCustomExercise,
     },
   };
