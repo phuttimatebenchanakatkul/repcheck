@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.42.0.0] - 2026-10-28
+
+### Added
+
+The HYROX custom race builder in the native app. Nothing in the website or the current App Store app changes.
+
+- **Build your own race.** Choose Custom when setting up a race: start from the whole standard race or from nothing, add any station any number
+  of times, move blocks up and down, remove them, and set each one's distance (or wall-ball reps). The race runs block by block with the laps for
+  each sled or carry, and is saved to your history as a Custom Race. It never counts as a personal best or goes on the leaderboard.
+- **Proven:** app tests for the builder and the run, a check of the station list and defaults against the website's own, then deliberate
+  breakages of the new code (every survivor killed by a new test, removed as redundant, or a change with no observable effect). Not yet run on a phone.
+
 ## [0.41.0.0] - 2026-10-28
 
 ### Added

@@ -501,3 +501,94 @@ export function ratingsByKey(analysis: RaceAnalysis | null): Record<string, Rati
 
 /** Whether a race can be coached at all: not a flagged time (its splits are not a real performance), and not a hand-built race (no standard to coach against). */
 export const canAnalyze = (race: Pick<Race, 'flagged' | 'category'>): boolean => !race.flagged && race.category !== 'custom';
+
+// -- a race built by hand ------------------------------------------------------------------------------------------------------
+
+/** The building blocks of a hand-made race: a run, or any station, any number of times, in any order. */
+export const CUSTOM_KEYS = ['run', 'skierg', 'sledPush', 'sledPull', 'burpeeBroadJump', 'row', 'farmersCarry', 'lunges', 'wallBalls'] as const;
+export type CustomKey = (typeof CUSTOM_KEYS)[number];
+
+/** The blocks whose amount is a distance covered in lengths of the person's lane, so the race shows laps (as the standard race does). */
+export const CUSTOM_ROUND_KEYS: readonly string[] = ['sledPush', 'sledPull', 'burpeeBroadJump', 'farmersCarry', 'lunges'];
+
+/** Wall balls are counted in reps, not metres; a hand-made race has no gender to take the standard from, so this is the flat starting point. */
+export const CUSTOM_WALL_BALL_REPS = 75;
+
+/** The blocks to pick from, grouped as the website's picker groups them. */
+export const CUSTOM_PICKER: readonly { key: 'cardio' | 'sled' | 'carry' | 'explosive'; keys: readonly CustomKey[] }[] = [
+  { key: 'cardio', keys: ['run', 'skierg', 'row'] },
+  { key: 'sled', keys: ['sledPush', 'sledPull'] },
+  { key: 'carry', keys: ['farmersCarry', 'lunges'] },
+  { key: 'explosive', keys: ['burpeeBroadJump', 'wallBalls'] },
+];
+
+export interface CustomBlock {
+  /** Its own id, so the same station can be in the race twice. */
+  id: string;
+  key: CustomKey;
+  /** Metres, or reps for wall balls. */
+  amount: number;
+}
+
+export function customTitle(key: string): string {
+  return key === 'run' ? 'Run' : (STATIONS.find((s) => s.key === key)?.title ?? key);
+}
+
+/** What a block starts at: 1 km for a run, the real standard distance for a station, 75 reps for wall balls. */
+export function customDefaultAmount(key: CustomKey): number {
+  if (key === 'run') return RUN_DISTANCE_M;
+  if (key === 'wallBalls') return CUSTOM_WALL_BALL_REPS;
+  return STATION_SPECS[key]?.distanceM ?? 0;
+}
+
+/** The starting point of the builder: the whole standard race, one block per segment, every amount at its default. */
+export function defaultCustomRace(newId: () => string): CustomBlock[] {
+  return STATIONS.map((segment) => {
+    const key = (segment.type === 'run' ? 'run' : segment.key) as CustomKey;
+    return { id: newId(), key, amount: customDefaultAmount(key) };
+  });
+}
+
+/** An amount as typed: its default if it is not a number above zero; reps whole, distances to a tenth. */
+export function cleanCustomAmount(key: CustomKey, raw: unknown): number {
+  const v = Number.parseFloat(String(raw));
+  if (!Number.isFinite(v) || v <= 0) return customDefaultAmount(key);
+  return key === 'wallBalls' ? Math.max(1, Math.round(v)) : Math.max(0.1, Math.round(v * 10) / 10);
+}
+
+export const addBlock = (blocks: readonly CustomBlock[], key: CustomKey, id: string): CustomBlock[] => [...blocks, { id, key, amount: customDefaultAmount(key) }];
+
+export const removeBlock = (blocks: readonly CustomBlock[], id: string): CustomBlock[] => blocks.filter((b) => b.id !== id);
+
+/** Moves a block one place earlier (-1) or later (1); the top one cannot go up nor the bottom one down, and nothing wraps round. */
+export function moveBlock(blocks: readonly CustomBlock[], id: string, direction: -1 | 1): CustomBlock[] {
+  const from = blocks.findIndex((b) => b.id === id);
+  const to = from + direction;
+  if (from === -1 || to < 0 || to >= blocks.length) return blocks.slice();
+  const next = blocks.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+export const setBlockAmount = (blocks: readonly CustomBlock[], id: string, raw: unknown): CustomBlock[] =>
+  blocks.map((b) => (b.id === id ? { ...b, amount: cleanCustomAmount(b.key, raw) } : b));
+
+/** The race to run: a segment per block, each carrying its amount. */
+export function customSequence(blocks: readonly CustomBlock[]): (Segment & { amount: number })[] {
+  return blocks.map((b) => ({ type: b.key === 'run' ? 'run' : 'station', key: b.key, title: customTitle(b.key), amount: b.amount }));
+}
+
+/** Laps of the person's lane for a block's distance. At least one. */
+export const customLaps = (amount: number, laneM: number): number => Math.max(1, Math.ceil(amount / laneM));
+
+/** The amount as shown: reps, or metres as HYROX states them. */
+export const formatCustomAmount = (key: string, amount: number): string => (key === 'wallBalls' ? String(amount) : stationMeters(amount));
+
+/**
+ * A hand-made race, finished. It has no standard to be faster than or slower than, so it is never flagged, never a personal best, never on a
+ * leaderboard and never coached; it is kept in the history as a "Custom Race".
+ */
+export function finishedCustomRace(splits: Split[], totalSeconds: number, id: string, date: string): Race {
+  return { id, date, category: 'custom', format: null, gender: null, scale: 'full', totalSeconds, splits, flagged: false, isNewPb: false, analysis: null };
+}

@@ -14,6 +14,22 @@ import {
   STATION_KEYS,
   STATION_SPECS,
   BOARD_TABS,
+  CUSTOM_KEYS,
+  CUSTOM_PICKER,
+  CUSTOM_ROUND_KEYS,
+  CUSTOM_WALL_BALL_REPS,
+  addBlock,
+  cleanCustomAmount,
+  customDefaultAmount,
+  customLaps,
+  customSequence,
+  customTitle,
+  defaultCustomRace,
+  finishedCustomRace,
+  formatCustomAmount,
+  moveBlock,
+  removeBlock,
+  setBlockAmount,
   NO_PRACTICE,
   ROUND_STATIONS,
   cleanRounds,
@@ -606,5 +622,114 @@ describe('practice follows the setup', () => {
     expect(hasPractice(NO_PRACTICE)).toBe(false);
     expect(hasPractice({ weights: { a: 1 }, doubles: {} })).toBe(true);
     expect(hasPractice({ weights: {}, doubles: { a: 1 } })).toBe(true);
+  });
+});
+
+describe('a race built by hand', () => {
+  let counter = 0;
+  const id = () => `b${(counter += 1)}`;
+  const three = () => [
+    { id: 'a', key: 'run' as const, amount: 1000 },
+    { id: 'b', key: 'sledPush' as const, amount: 50 },
+    { id: 'c', key: 'wallBalls' as const, amount: 75 },
+  ];
+
+  it('has nine kinds of block, in four groups', () => {
+    expect([...CUSTOM_KEYS]).toEqual(['run', 'skierg', 'sledPush', 'sledPull', 'burpeeBroadJump', 'row', 'farmersCarry', 'lunges', 'wallBalls']);
+    expect(CUSTOM_PICKER.map((g) => g.key)).toEqual(['cardio', 'sled', 'carry', 'explosive']);
+    expect(CUSTOM_PICKER.flatMap((g) => [...g.keys]).sort()).toEqual([...CUSTOM_KEYS].sort());
+    expect([...CUSTOM_ROUND_KEYS]).toEqual(['sledPush', 'sledPull', 'burpeeBroadJump', 'farmersCarry', 'lunges']);
+  });
+
+  it('a block starts at a kilometre, the real distance, or 75 reps', () => {
+    expect(customDefaultAmount('run')).toBe(1000);
+    expect(customDefaultAmount('skierg')).toBe(1000);
+    expect(customDefaultAmount('sledPush')).toBe(50);
+    expect(customDefaultAmount('farmersCarry')).toBe(200);
+    expect(customDefaultAmount('burpeeBroadJump')).toBe(80);
+    expect(customDefaultAmount('wallBalls')).toBe(CUSTOM_WALL_BALL_REPS);
+    expect(CUSTOM_WALL_BALL_REPS).toBe(75);
+  });
+
+  it('is named as the website names it', () => {
+    expect(customTitle('run')).toBe('Run');
+    expect(customTitle('wallBalls')).toBe('Wall Balls');
+    expect(customTitle('row')).toBe('Rowing');
+    expect(customTitle('mystery')).toBe('mystery');
+  });
+
+  it('starts as the whole standard race, a block each, with its own ids', () => {
+    const race = defaultCustomRace(id);
+    expect(race).toHaveLength(16);
+    expect(race.map((b) => b.key).slice(0, 4)).toEqual(['run', 'skierg', 'run', 'sledPush']);
+    expect(new Set(race.map((b) => b.id)).size).toBe(16);
+    expect(race[15]).toMatchObject({ key: 'wallBalls', amount: 75 });
+    expect(race[0]).toMatchObject({ key: 'run', amount: 1000 });
+  });
+
+  it('amounts as typed: the default for nothing sensible, reps whole, distances to a tenth', () => {
+    expect(cleanCustomAmount('run', '5000')).toBe(5000);
+    expect(cleanCustomAmount('run', '1.26')).toBe(1.3);
+    expect(cleanCustomAmount('wallBalls', '30.6')).toBe(31);
+    expect(cleanCustomAmount('wallBalls', '0.4')).toBe(1);
+    expect(cleanCustomAmount('skierg', '0.01')).toBe(0.1);
+    for (const raw of ['', 'abc', 0, -4, NaN, null, undefined]) {
+      expect(cleanCustomAmount('sledPull', raw)).toBe(50);
+      expect(cleanCustomAmount('wallBalls', raw)).toBe(75);
+    }
+  });
+
+  it('blocks are added at the end, removed by id, and an amount is set on one', () => {
+    expect(addBlock(three(), 'lunges', 'z').map((b) => [b.id, b.key, b.amount]).slice(3)).toEqual([['z', 'lunges', 100]]);
+    expect(removeBlock(three(), 'b').map((b) => b.id)).toEqual(['a', 'c']);
+    expect(removeBlock(three(), 'nope')).toHaveLength(3);
+    expect(setBlockAmount(three(), 'b', '75').map((b) => b.amount)).toEqual([1000, 75, 75]);
+    expect(setBlockAmount(three(), 'b', 'x')[1].amount).toBe(50);
+    expect(setBlockAmount(three(), 'nope', '9').map((b) => b.amount)).toEqual([1000, 50, 75]);
+  });
+
+  it('a block moves one place and stops at the ends', () => {
+    expect(moveBlock(three(), 'b', -1).map((b) => b.id)).toEqual(['b', 'a', 'c']);
+    expect(moveBlock(three(), 'b', 1).map((b) => b.id)).toEqual(['a', 'c', 'b']);
+    expect(moveBlock(three(), 'a', -1).map((b) => b.id)).toEqual(['a', 'b', 'c']);
+    expect(moveBlock(three(), 'c', 1).map((b) => b.id)).toEqual(['a', 'b', 'c']);
+    expect(moveBlock(three(), 'nope', 1).map((b) => b.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('moving does not change what it was given', () => {
+    const before = three();
+    moveBlock(before, 'b', 1);
+    removeBlock(before, 'b');
+    setBlockAmount(before, 'b', '9');
+    expect(before.map((b) => b.id)).toEqual(['a', 'b', 'c']);
+    expect(before[1].amount).toBe(50);
+  });
+
+  it('is run as segments carrying their amounts, runs as runs', () => {
+    expect(customSequence(three())).toEqual([
+      { type: 'run', key: 'run', title: 'Run', amount: 1000 },
+      { type: 'station', key: 'sledPush', title: 'Sled Push', amount: 50 },
+      { type: 'station', key: 'wallBalls', title: 'Wall Balls', amount: 75 },
+    ]);
+  });
+
+  it('laps are of the lane, at least one', () => {
+    expect(customLaps(50, 12.5)).toBe(4);
+    expect(customLaps(60, 12.5)).toBe(5);
+    expect(customLaps(1, 500)).toBe(1);
+  });
+
+  it('an amount is shown as reps or as metres', () => {
+    expect(formatCustomAmount('wallBalls', 75)).toBe('75');
+    expect(formatCustomAmount('sledPush', 50)).toBe('50m');
+    expect(formatCustomAmount('run', 2500)).toBe('2500m');
+  });
+
+  it('when finished is never flagged, a best, or on a board', () => {
+    const race = finishedCustomRace([{ key: 'run', title: 'Run', atSeconds: 60 }], 60, 'r1', '2026-10-28T08:00:00.000Z');
+    expect(race).toEqual({ id: 'r1', date: '2026-10-28T08:00:00.000Z', category: 'custom', format: null, gender: null, scale: 'full', totalSeconds: 60, splits: [{ key: 'run', title: 'Run', atSeconds: 60 }], flagged: false, isNewPb: false, analysis: null });
+    expect(leaderboardResult(race)).toBeNull();
+    expect(canAnalyze(race)).toBe(false);
+    expect(personalBest([race], 'custom', null, null, 'full')).toBeNull();
   });
 });

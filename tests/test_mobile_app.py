@@ -609,3 +609,17 @@ def test_the_consent_question_names_videos_before_a_clip_is_sent():
     assert "aiConsent.item2" in question
     screen = text(MOBILE / "src" / "features" / "analyze" / "AnalyzeScreen.tsx")
     assert "if (!consented)" in screen and screen.index("if (!consented)") < screen.index("void run()"), "consent is checked before the upload starts"
+
+
+def test_the_hyrox_custom_race_building_blocks_are_the_websites():
+    site = text(ROOT / "static" / "hyrox.js")
+    logic = text(MOBILE / "src" / "logic" / "hyrox.ts")
+
+    def listed(source, pattern):
+        return re.findall(r"['\"](\w+)['\"]", re.search(pattern, source, re.S).group(1))
+
+    assert listed(logic, r"export const CUSTOM_KEYS = \[(.*?)\] as const;") == listed(site, r"const CUSTOM_STATION_KEYS = \[(.*?)\];")
+    assert listed(logic, r"export const CUSTOM_ROUND_KEYS[^=]*= \[(.*?)\];") == listed(site, r"const CUSTOM_ROUND_BASED_KEYS = \[(.*?)\];")
+    assert re.search(r"CUSTOM_WALL_BALL_REPS = (\d+)", logic).group(1) == re.search(r"CUSTOM_DEFAULT_WALL_BALL_REPS = (\d+)", site).group(1)
+    # a hand-built race is a practice, never a result: the screen builds it with finishedCustomRace, which has no standard to post against
+    assert "finishedCustomRace(" in text(MOBILE / "src" / "features" / "hyrox" / "HyroxScreen.tsx")

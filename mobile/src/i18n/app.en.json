@@ -145,5 +145,9 @@
   "app.settings.reminders.turnOff": "Turn off reminders",
   "app.settings.reminders.on": "On",
   "app.settings.reminders.off": "Off",
-  "app.hyrox.watch": "Watch a demo"
+  "app.hyrox.watch": "Watch a demo",
+  "app.hyrox.group.cardio": "Cardio",
+  "app.hyrox.group.sled": "Sled Work",
+  "app.hyrox.group.carry": "Carry & Lunge",
+  "app.hyrox.group.explosive": "Explosive"
 }
