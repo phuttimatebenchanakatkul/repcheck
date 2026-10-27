@@ -1370,6 +1370,42 @@ describe('a race built by hand', () => {
     expect(await screen.findByTestId('block-14')).toBeOnTheScreen();
   });
 
+  it('numbers the blocks from one', async () => {
+    await custom();
+    expect(await screen.findByTestId('block-0')).toHaveTextContent(/^1\D/);
+    expect(screen.getByTestId('block-1')).toHaveTextContent(/^2\D/);
+    expect(screen.getByTestId('block-15')).toHaveTextContent(/^16\D/);
+  });
+
+  it('the picker is shut until asked for, shows the first group, and shuts again after a pick or Close', async () => {
+    await custom();
+    expect(screen.queryByText('Cardio')).toBeNull();
+    await press('Add a station');
+    expect(screen.getByRole('button', { name: 'Cardio' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByRole('button', { name: 'Sled Work' }).props.accessibilityState.selected).toBe(false);
+    await press('Sled Work');
+    expect(screen.getByRole('button', { name: 'Sled Work' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByRole('button', { name: 'Cardio' }).props.accessibilityState.selected).toBe(false);
+    await press('Sled Pull');
+    expect(screen.queryByText('Cardio')).toBeNull();
+    await press('Add a station');
+    expect(screen.getByText('Cardio')).toBeOnTheScreen();
+    await press('Close');
+    expect(screen.queryByText('Cardio')).toBeNull();
+    expect(screen.queryByTestId('block-17')).toBeNull();
+  });
+
+  it('a Doubles standard setup does not leak into a hand-made race', async () => {
+    await open(male());
+    await press('Start race');
+    await press('Open');
+    await press('Doubles');
+    await press('Custom');
+    await press('Start race');
+    expect(await screen.findByTestId('count')).toHaveTextContent('1/16');
+    expect(screen.queryByText(/Doubles/)).toBeNull();
+  });
+
   it('is in the history as a Custom Race and on no personal-best board', async () => {
     const h = male();
     h.db.seed('hyrox_races', [raceRow('c', 3000, { category: 'custom', format: null, gender: null })]);

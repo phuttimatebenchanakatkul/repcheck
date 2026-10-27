@@ -564,7 +564,7 @@ export const removeBlock = (blocks: readonly CustomBlock[], id: string): CustomB
 export function moveBlock(blocks: readonly CustomBlock[], id: string, direction: -1 | 1): CustomBlock[] {
   const from = blocks.findIndex((b) => b.id === id);
   const to = from + direction;
-  if (from === -1 || to < 0 || to >= blocks.length) return blocks.slice();
+  if (from === -1 || to < 0) return blocks.slice(); // past the end, the splice puts the last block back where it was
   const next = blocks.slice();
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
@@ -579,8 +579,8 @@ export function customSequence(blocks: readonly CustomBlock[]): (Segment & { amo
   return blocks.map((b) => ({ type: b.key === 'run' ? 'run' : 'station', key: b.key, title: customTitle(b.key), amount: b.amount }));
 }
 
-/** Laps of the person's lane for a block's distance. At least one. */
-export const customLaps = (amount: number, laneM: number): number => Math.max(1, Math.ceil(amount / laneM));
+/** Laps of the person's lane for a block's distance (an amount is always above zero, see cleanCustomAmount). */
+export const customLaps = (amount: number, laneM: number): number => Math.ceil(amount / laneM);
 
 /** The amount as shown: reps, or metres as HYROX states them. */
 export const formatCustomAmount = (key: string, amount: number): string => (key === 'wallBalls' ? String(amount) : stationMeters(amount));
