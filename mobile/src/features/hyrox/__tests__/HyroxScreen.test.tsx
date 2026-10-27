@@ -1219,3 +1219,164 @@ describe('how a station is done', () => {
     expect(await screen.findByTestId('howto-summary')).toHaveTextContent(/1000m on the SkiErg/);
   });
 });
+
+describe('a race built by hand', () => {
+  const male = () => {
+    const h = dataHarness();
+    h.db.seed('coaching_profiles', [profileRow('male')]);
+    return h;
+  };
+  const custom = async (h: Harness = male()) => {
+    await open(h);
+    await press('Start race');
+    await press('Custom');
+    return h;
+  };
+
+  it('starts as the whole standard race, nothing asked but the blocks and the lane', async () => {
+    await custom();
+    expect(await screen.findByTestId('block-0')).toHaveTextContent(/Run/);
+    expect(screen.getByTestId('block-15')).toHaveTextContent(/Wall Balls/);
+    expect(screen.queryByTestId('block-16')).toBeNull();
+    expect(screen.getByLabelText('Wall Balls Reps (Reps)').props.value).toBe('75');
+    expect(screen.getByLabelText('Sled Push distance (m)').props.value).toBe('50');
+    expect(screen.queryByRole('button', { name: 'Open' })).toBeNull();
+    expect(screen.getByLabelText('Your lane (m)')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Custom' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByRole('button', { name: 'Standard' }).props.accessibilityState.selected).toBe(false);
+  });
+
+  it('a block can be added from the picker, in any of four groups', async () => {
+    await custom();
+    await press('Add a station');
+    expect(await screen.findByRole('button', { name: 'Run' })).toBeOnTheScreen();
+    await press('Sled Work');
+    await press('Sled Pull');
+    const last = await screen.findByTestId('block-16');
+    expect(last).toHaveTextContent(/Sled Pull/);
+    expect(screen.getAllByLabelText('Sled Pull distance (m)').length).toBeGreaterThan(0);
+    await press('Add a station');
+    await press('Explosive');
+    await press('Burpee Broad Jumps');
+    expect(await screen.findByTestId('block-17')).toHaveTextContent(/Burpee Broad Jumps/);
+    await press('Add a station');
+    await press('Carry & Lunge');
+    await press('Farmers Carry');
+    expect(await screen.findByTestId('block-18')).toHaveTextContent(/Farmers Carry/);
+  });
+
+  it('a block moves up and down, and the ends cannot go further', async () => {
+    await custom();
+    await screen.findByTestId('block-0');
+    expect(screen.getAllByRole('button', { name: 'Move up: Run' })[0].props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Move down: Run' })[0]);
+    expect(screen.getByTestId('block-0')).toHaveTextContent(/SkiErg/);
+    expect(screen.getByTestId('block-1')).toHaveTextContent(/Run/);
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Move up: Run' })[0]);
+    expect(screen.getByTestId('block-0')).toHaveTextContent(/Run/);
+    expect(screen.getByRole('button', { name: 'Move down: Wall Balls' }).props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('a block is removed, and an empty race cannot start', async () => {
+    await custom();
+    for (let i = 0; i < 16; i += 1) await fireEvent.press((await screen.findAllByRole('button', { name: /^Remove: / }))[0]);
+    expect(await screen.findByTestId('custom-empty')).toHaveTextContent('Add a station below to build your race.');
+    expect(screen.getByRole('button', { name: 'Start race' }).props.accessibilityState.disabled).toBe(true);
+    await press('Reset to standard');
+    expect(await screen.findByTestId('block-15')).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: 'Start race' })[0].props.accessibilityState.disabled).toBeFalsy();
+  });
+
+  it('an amount is changed, and an unreadable one is the default', async () => {
+    await custom();
+    await endEditing('Sled Push distance (m)', '75');
+    await waitFor(() => expect(screen.getByLabelText('Sled Push distance (m)').props.value).toBe('75'));
+    await endEditing('Sled Push distance (m)', 'abc');
+    await waitFor(() => expect(screen.getByLabelText('Sled Push distance (m)').props.value).toBe('50'));
+  });
+
+  it('what was built is kept when going to Standard and back', async () => {
+    await custom();
+    await fireEvent.press(screen.getAllByRole('button', { name: /^Remove: / })[0]);
+    await press('Standard');
+    await press('Custom');
+    expect(screen.queryByTestId('block-15')).toBeNull();
+    expect(await screen.findByTestId('block-14')).toBeOnTheScreen();
+  });
+
+  it('is run block by block: laps for the distances, reps, and a plain distance', async () => {
+    await custom();
+    await endEditing('Sled Push distance (m)', '100');
+    await endEditing('Sled Pull distance (m)', '60');
+    await press('Start race');
+    expect(await screen.findByTestId('now-title')).toHaveTextContent('Run');
+    expect(screen.getByTestId('now-amount')).toHaveTextContent('1000m');
+    expect(screen.getByTestId('count')).toHaveTextContent('1/16');
+    await press('Complete');
+    expect(screen.getByTestId('now-title')).toHaveTextContent('SkiErg');
+    expect(screen.getByTestId('now-amount')).toHaveTextContent('1000m');
+    await press('Complete');
+    await press('Complete');
+    expect(screen.getByTestId('now-title')).toHaveTextContent('Sled Push');
+    expect(screen.getByTestId('now-rounds')).toHaveTextContent('8');
+    expect(screen.getByTestId('now-amount')).toHaveTextContent('100m');
+    for (let i = 0; i < 12; i += 1) await press('Complete');
+    expect(screen.getByTestId('now-title')).toHaveTextContent('Wall Balls');
+    expect(screen.getByTestId('now-amount')).toHaveTextContent('75');
+    expect(screen.getByText('Reps')).toBeOnTheScreen();
+  });
+
+  it('follows the lane', async () => {
+    const h = male();
+    h.db.seed('user_settings', [{ user_id: USER, theme: null, language: null, units_weight: 'kg', units_height: 'cm', units_distance: 'km', units_clock: '12h', hyrox_leaderboard_gender: null, hyrox_facility_lane_m: 10, hyrox_history_backfilled: false, extra: {} }]);
+    await custom(h);
+    await press('Start race');
+    await press('Complete');
+    await press('Complete');
+    await press('Complete');
+    expect(screen.getByTestId('now-rounds')).toHaveTextContent('5');
+  });
+
+  it('finishing keeps it as a Custom Race: never flagged or a best, not on the board, and not coached', async () => {
+    mockAuth.consented = true;
+    const h = await custom();
+    await press('Start race');
+    await runAll(60);
+    expect(await screen.findByTestId('finish-time')).toHaveTextContent('16:00');
+    expect(screen.getByTestId('finish-combo')).toHaveTextContent('Custom Race');
+    expect(screen.getByTestId('finish-banner')).toHaveTextContent('Saved to your history.');
+    expect(screen.queryByTestId('analysis-flagged')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Analyze my race with AI' })).toBeNull();
+    await settle(h);
+    expect(h.db.rows('hyrox_races')).toEqual([expect.objectContaining({ category: 'custom', format: null, gender: null, scale: 'full', total_seconds: 960, flagged: false, is_new_pb: false })]);
+    expect(h.db.rows('hyrox_race_splits')).toHaveLength(16);
+    expect(mockApi.submitHyroxResult).not.toHaveBeenCalled();
+    expect(mockApi.analyzeHyroxRace).not.toHaveBeenCalled();
+    expect(h.db.rows('user_settings')).toEqual([]);
+  });
+
+  it('cancelling goes back to the standard setup, with the build kept for next time', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await custom();
+    await fireEvent.press(screen.getAllByRole('button', { name: /^Remove: / })[0]);
+    await press('Start race');
+    await press('Cancel this race');
+    await act(async () => (alert.mock.calls[0][2] ?? [])[1].onPress?.());
+    expect(await screen.findByTestId('hero-title')).toBeOnTheScreen();
+    await press('Start race');
+    expect(screen.getByRole('button', { name: 'Standard' }).props.accessibilityState.selected).toBe(true);
+    await press('Custom');
+    expect(screen.queryByTestId('block-15')).toBeNull();
+    expect(await screen.findByTestId('block-14')).toBeOnTheScreen();
+  });
+
+  it('is in the history as a Custom Race and on no personal-best board', async () => {
+    const h = male();
+    h.db.seed('hyrox_races', [raceRow('c', 3000, { category: 'custom', format: null, gender: null })]);
+    h.db.seed('hyrox_race_splits', splitRows('c'));
+    await open(h);
+    await press('Personal bests');
+    expect(await screen.findByTestId('pb-empty')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('history-c')).getByText('Custom Race')).toBeOnTheScreen();
+  });
+});

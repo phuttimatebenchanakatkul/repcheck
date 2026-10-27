@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { useActions } from '@/data/hooks';
 import { useTranslation } from '@/i18n';
 import {
   CATEGORIES,
@@ -11,7 +10,6 @@ import {
   SCALES,
   STATIONS,
   STATION_SPECS,
-  cleanLane,
   cleanRounds,
   doublesShare,
   formatClock,
@@ -36,11 +34,12 @@ import {
   type Scale,
 } from '@/logic/hyrox';
 import { formatDistanceKm, localeFor, type UnitPrefs } from '@/logic/units';
-import { Button, Card, ErrorText, Field, Text } from '@/ui/components';
+import { Button, Card, Field, Text } from '@/ui/components';
 import { useTheme } from '@/ui/theme';
 import { space } from '@/ui/tokens';
 import { Row } from '@/ui/widgets';
 
+import { LaneCard } from './LaneCard';
 import { StationIcon } from './StationIcon';
 import { comboLabel, raceDate } from './labels';
 
@@ -223,10 +222,7 @@ export function RaceSetup({
 }) {
   const { t, language } = useTranslation();
   const { colors } = useTheme();
-  const actions = useActions();
   const lane = laneOrDefault(laneM);
-  const [laneText, setLaneText] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const ready = setup.category !== null && setup.format !== null && setup.gender !== null;
   const best = ready ? personalBest(history, setup.category as Category, setup.format as Format, setup.gender as Gender, setup.scale) : null;
@@ -236,16 +232,6 @@ export function RaceSetup({
     // Half is Singles-only: switching to Doubles drops it rather than silently racing a half-length Doubles nobody picked.
     if (next.format !== 'singles') next.scale = 'full';
     onChange(next);
-  };
-
-  const saveLane = async (text: string) => {
-    setError(null);
-    try {
-      await actions.saveHyroxPrefs({ laneM: cleanLane(text) });
-    } catch {
-      setError(t('nutrition.log.saveError'));
-    }
-    setLaneText(null);
   };
 
   const runM = runDistanceM(setup.scale);
@@ -284,27 +270,7 @@ export function RaceSetup({
 
       {ready ? (
         <>
-          <Card>
-            <Text variant="rowTitle" accessibilityRole="header">
-              {t('hyrox.space.title')}
-            </Text>
-            <Text variant="body" secondary>
-              {t('hyrox.space.intro')}
-            </Text>
-            <Text variant="caption" secondary>
-              {t('hyrox.space.measureStep1Title')} {t('hyrox.space.measureStep1Body')} {t('hyrox.space.measureStep2Title')} {t('hyrox.space.measureStep2Body')}
-            </Text>
-            <Field
-              label={`${t('hyrox.space.laneLabel')} (m)`}
-              value={laneText ?? String(lane)}
-              onChangeText={setLaneText}
-              onEndEditing={(event) => void saveLane(event.nativeEvent.text)}
-              keyboardType="decimal-pad"
-              selectTextOnFocus
-            />
-            {laneM !== null ? <Button tone="plain" title={t('hyrox.weightAdjust.reset')} onPress={() => void saveLane('')} /> : null}
-            <ErrorText>{error}</ErrorText>
-          </Card>
+          <LaneCard laneM={laneM} />
 
           {setup.category === 'pro' && setup.format === 'singles' ? <PracticeWeights setup={setup as Ready} practice={practice} onPractice={onPractice} /> : null}
           {setup.format === 'doubles' ? <DoublesSplit setup={setup as Ready} laneM={lane} units={units} practice={practice} onPractice={onPractice} /> : null}

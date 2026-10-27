@@ -145,5 +145,9 @@
   "app.settings.reminders.turnOff": "ปิดการเตือน",
   "app.settings.reminders.on": "เปิด",
   "app.settings.reminders.off": "ปิด",
-  "app.hyrox.watch": "ดูวิดีโอสาธิต"
+  "app.hyrox.watch": "ดูวิดีโอสาธิต",
+  "app.hyrox.group.cardio": "คาร์ดิโอ",
+  "app.hyrox.group.sled": "ลากเลื่อน",
+  "app.hyrox.group.carry": "แบกและลันจ์",
+  "app.hyrox.group.explosive": "ระเบิดพลัง"
 }

@@ -3,8 +3,12 @@ import { Alert, View } from 'react-native';
 
 import { useTranslation } from '@/i18n';
 import {
+  CUSTOM_ROUND_KEYS,
   STATIONS,
   STATION_SPECS,
+  customLaps,
+  customSequence,
+  formatCustomAmount,
   formatClock,
   formatClockPrecise,
   formatWeight,
@@ -16,6 +20,7 @@ import {
   segmentTitle,
   stationMeters,
   type Category,
+  type CustomBlock,
   type Format,
   type Gender,
   type Scale,
@@ -36,6 +41,36 @@ export interface RaceConfig {
   scale: Scale;
   /** A practice session's lighter weights and shares; the standard where nothing was changed. */
   practice: Practice;
+}
+
+/** What to do at a hand-made race's segment: its laps (and the distance they come to), or the reps, or the distance. */
+function CustomNow({ segment, laneM }: { segment: Segment & { amount: number }; laneM: number }) {
+  const { t } = useTranslation();
+  if (CUSTOM_ROUND_KEYS.includes(segment.key)) {
+    return (
+      <View style={{ alignItems: 'center', gap: space.xs }}>
+        <Text style={{ fontSize: 56, lineHeight: 64, fontWeight: '800' }} testID="now-rounds">
+          {customLaps(segment.amount, laneM)}
+        </Text>
+        <Text variant="label" secondary>
+          {t('hyrox.running.roundsLabel')}
+        </Text>
+        <Text variant="body" testID="now-amount">
+          {formatCustomAmount(segment.key, segment.amount)}
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Text variant="title" testID="now-amount">
+        {formatCustomAmount(segment.key, segment.amount)}
+      </Text>
+      <Text variant="caption" secondary>
+        {segment.key === 'wallBalls' ? t('hyrox.space.chip.reps') : t('hyrox.standards.chip.distance')}
+      </Text>
+    </View>
+  );
 }
 
 /** What to do at the segment now: the number of reps, or laps (and the load), or the distance. */
@@ -91,13 +126,17 @@ function Now({ segment, config, laneM, units }: { segment: Segment; config: Race
  */
 export function RunningRace({
   config,
+  custom,
   laneM,
   units,
   onFinish,
   onCancel,
   onInfo,
 }: {
-  config: RaceConfig;
+  /** The standard race being run; null for a hand-made one. */
+  config: RaceConfig | null;
+  /** The blocks of a hand-made race; null for the standard one. */
+  custom: readonly CustomBlock[] | null;
   laneM: number;
   units: UnitPrefs;
   onFinish: (splits: Split[], totalSeconds: number) => void;
@@ -116,12 +155,14 @@ export function RunningRace({
     return () => clearInterval(timer);
   }, [start]);
 
-  const segment = STATIONS[index];
-  const isLast = index >= STATIONS.length - 1;
+  const sequence: readonly (Segment & { amount?: number })[] = custom ? customSequence(custom) : STATIONS;
+  const segment = sequence[index];
+  const isLast = index >= sequence.length - 1;
+  const titleOf = (s: Segment): string => (custom || !config ? (s.title ?? s.key) : segmentTitle(s, config.scale, units));
 
   const complete = () => {
     const at = (new Date().getTime() - start) / 1000;
-    const next = [...splits, { key: segment.key, title: segmentTitle(segment, config.scale, units), atSeconds: at }];
+    const next = [...splits, { key: segment.key, title: titleOf(segment), atSeconds: at }];
     if (isLast) return onFinish(next, at);
     setSplits(next);
     setIndex(index + 1);
@@ -140,11 +181,11 @@ export function RunningRace({
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text variant="title" testID="count">
-            {index + 1}/{STATIONS.length}
+            {index + 1}/{sequence.length}
           </Text>
           <Text variant="caption" secondary>
             {t('hyrox.running.segmentLabel')}
-            {config.format === 'doubles' ? ` · ${t('hyrox.running.doublesBadge')}` : ''}
+            {config?.format === 'doubles' ? ` · ${t('hyrox.running.doublesBadge')}` : ''}
           </Text>
         </View>
       </View>
@@ -155,14 +196,14 @@ export function RunningRace({
         </Text>
         <StationIcon name={segment.key} size={64} />
         <Text variant="title" testID="now-title" accessibilityRole="header">
-          {segmentTitle(segment, config.scale, units)}
+          {titleOf(segment)}
         </Text>
-        <Now segment={segment} config={config} laneM={laneM} units={units} />
+        {custom ? <CustomNow segment={segment as Segment & { amount: number }} laneM={laneM} /> : config ? <Now segment={segment} config={config} laneM={laneM} units={units} /> : null}
         {segment.type === 'station' ? <Button tone="plain" title={t('hyrox.running.howTo')} onPress={() => onInfo(segment.key)} /> : null}
       </View>
 
-      <View accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: STATIONS.length, now: index }} style={{ height: 6, borderRadius: radius.pill, backgroundColor: colors.border, overflow: 'hidden' }}>
-        <View style={{ width: `${Math.round((index / STATIONS.length) * 100)}%`, height: '100%', backgroundColor: colors.green.fill }} />
+      <View accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: sequence.length, now: index }} style={{ height: 6, borderRadius: radius.pill, backgroundColor: colors.border, overflow: 'hidden' }}>
+        <View style={{ width: `${Math.round((index / sequence.length) * 100)}%`, height: '100%', backgroundColor: colors.green.fill }} />
       </View>
 
       <Button title={isLast ? t('hyrox.finishRace') : t('hyrox.complete.generic')} onPress={complete} />

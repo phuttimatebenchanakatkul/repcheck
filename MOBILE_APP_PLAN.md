@@ -544,7 +544,7 @@ with a mocked API, picker and player. The new Thai strings are mine and want a n
 
 ## Phase 5 status: everything else (`mobile/`)
 
-Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0; 5f-1, the HYROX race tracker, is v0.37.0.0; 5f-2, the HYROX leaderboard and AI race analysis, is v0.38.0.0; 5g, the "it's been N days" nudge, is v0.39.0.0; 5h, HYROX practice and how-to, is v0.41.0.0 (v0.40.0.0 was Phase 6a, reminders).**
+Phase 5 ships in slices, most App-Review-critical first. **5a, Settings, is v0.32.0.0; 5b, the coaching profile wizard, is v0.33.0.0; 5c, the weekly check-in, is v0.34.0.0; 5d, friends and report / block, is v0.35.0.0; 5e, the daily challenge and leaderboard, is v0.36.0.0; 5f-1, the HYROX race tracker, is v0.37.0.0; 5f-2, the HYROX leaderboard and AI race analysis, is v0.38.0.0; 5g, the "it's been N days" nudge, is v0.39.0.0; 5h, HYROX practice and how-to, is v0.41.0.0 (v0.40.0.0 was Phase 6a, reminders); 5j, the HYROX custom race builder, is v0.42.0.0.**
 
 **Added in v0.32.0.0: Settings (5a).** Home has a *Settings* button (a root-stack screen, `/settings`). *Account*: your name (saved through
 `/api/account`) and your email, with "Signed in with Apple/Google, email is managed there" for those accounts. *Appearance*: system, light or
@@ -641,8 +641,17 @@ go when what they were measured against changes (category or gender for weights,
 HYROX page, or *How to do it* in the race, shows what it is, three steps and the tip that saves most time, with the tutorial video opening in the
 in-app browser (the website embeds it). The how-to text is the website's, English only there too. A test runs the website's own copy.
 
-Not in this slice, and why: hand-built custom races need a builder screen of their own, and follow. A hand-built race made on the website is shown in the history
-(labelled Custom) but cannot be made here yet. The website's one-off back-fill of old races onto the board is the launch import's job.
+Not in this slice, and why: hand-built custom races follow in 5j (below). The website's one-off back-fill of old races onto the board is the launch import's job.
+
+**Added in v0.42.0.0: the HYROX custom race builder (5j).** Setting up a race now asks Standard or Custom first. Custom starts as the whole
+standard race, sixteen blocks, and lets the athlete add any of nine stations (run, SkiErg, sled push and pull, burpee broad jumps, row, farmers carry,
+lunges, wall balls) in four picker groups, any number of times, remove any, reorder with up and down arrows, and give each its own amount
+(metres, or reps for wall balls; distances to a tenth, reps whole, an unreadable entry the station's own default). The website also lets a block be
+dragged by press-and-hold; here the arrows do it, which a screen reader can also use. The lane-length card is shared with the standard setup. The race
+runs block by block: the loaded stations show laps of the lane and the distance they come to, wall balls the reps, a run or erg the distance. It is
+saved in the same tables as any race, as category `custom` with no format or gender, never flagged, never a personal best, and never posted to the
+leaderboard or sent to the coach (neither has a standard to measure it against). The blocks being built are kept for the visit when
+switching back to Standard. A test checks the nine stations, the five lap-based ones and the 75-rep wall-ball default against `static/hyrox.js`.
 
 **Added in v0.39.0.0: the inactivity nudge (5g).** A card on Home and on Nutrition for someone with a coaching profile who has not logged a
 weight or any food for three days (counting from the profile's first day when they never have): "It's been N days since you logged ...",
