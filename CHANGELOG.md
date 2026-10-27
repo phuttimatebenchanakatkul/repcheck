@@ -2,6 +2,23 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.31.0.0] - 2026-10-27
+
+### Added
+
+The workout chat in the native app. That completes Phase 4 (Analyze and the AI chats). Nothing in the website or the current App
+Store app changes.
+
+- **Workout AI Chat.** On the Workouts tab, once you have logged something on the day you are looking at, a card opens a chat about your
+  training: progressive overload, form, whether you are training a muscle enough. The AI is told your last week and your last four
+  sessions of each exercise, in your own units (kg or lb).
+- **One conversation per day.** Today's takes questions; earlier days can be read but not added to. *New chat* clears one day only.
+- **Same safeguards as the other chats.** Sources under every answer, the AI-generated line, *Report this reply*, the daily limit
+  countdown, and the question about allowing AI features before anything is sent.
+- **Proven:** 1616 app tests, including a run of the website's own summary code against ours on seeded histories, then 63
+  deliberate breakages of the new code (every survivor killed by a new test, removed as redundant, or a change that has no observable
+  effect). Not yet run on a phone.
+
 ## [0.30.0.0] - 2026-10-27
 
 ### Added

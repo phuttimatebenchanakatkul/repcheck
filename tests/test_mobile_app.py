@@ -231,6 +231,24 @@ def test_an_analysis_chat_closes_when_the_website_closes_it():
     assert "ANALYSIS_CHAT_WINDOW_MS = 24 * 60 * 60 * 1000" in chat_source()
 
 
+def test_the_workout_chat_is_told_the_summary_the_server_reads_in_the_websites_proportions():
+    summary = text(MOBILE / "src" / "logic" / "workoutSummary.ts")
+    website = text(ROOT / "templates" / "workouts.html")
+    for name in ("RECENT_DAYS", "EXERCISE_HISTORY_SESSIONS", "MAX_EXERCISES_IN_HISTORY"):
+        ours = re.search(rf"export const {name} = (\d+);", summary).group(1)
+        theirs = re.search(rf"const {name} = (\d+);", website).group(1)
+        assert ours == theirs, name
+    assert "workout_summary" in text(ROOT / "workout_chat.py")
+    assert "workout_summary" in text(MOBILE / "src" / "features" / "chat" / "WorkoutChatScreen.tsx")
+    assert "workout_summary: buildRecentWorkoutSummary()" in website
+
+
+def test_the_workout_chat_only_takes_questions_on_today():
+    screen = text(MOBILE / "src" / "features" / "chat" / "WorkoutChatScreen.tsx")
+    assert "closedText={isToday ? undefined" in screen
+    assert "isSelectedDateToday" in text(ROOT / "templates" / "workouts.html")
+
+
 def test_the_consent_question_names_chat_messages():
     assert "aiConsent.item3" in text(MOBILE / "src" / "ui" / "AiConsent.tsx")
 

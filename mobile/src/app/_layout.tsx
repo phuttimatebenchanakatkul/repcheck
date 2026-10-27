@@ -48,6 +48,7 @@ function Gate() {
         <Stack.Screen name="logging-history" options={{ headerShown: true, title: t('weight.loggingHistoryTitle') }} />
         <Stack.Screen name="full-stats" options={{ headerShown: true, title: t('home.macros.fullStats') }} />
         <Stack.Screen name="analysis" options={{ headerShown: true, title: t('app.analyze.resultTitle') }} />
+        <Stack.Screen name="workout-chat" options={{ headerShown: true, title: t('workoutChat.title') }} />
         <Stack.Screen name="analysis-chat" options={{ headerShown: true, title: t('analyzeChat.headerTitle') }} />
         <Stack.Screen name="analysis-history" options={{ headerShown: true, title: t('page.analyzeHistory.heading') }} />
       </Stack.Protected>

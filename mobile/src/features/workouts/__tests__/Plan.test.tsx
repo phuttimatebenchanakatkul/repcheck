@@ -14,6 +14,7 @@ const mockAuth = { state: { status: 'ready', profile: { ai_consent: true } } as 
 
 jest.mock('@/api', () => ({ ...jest.requireActual('@/api/client'), getApi: () => mockApi }));
 jest.mock('@/auth/AuthProvider', () => ({ useAuth: () => mockAuth }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 const TODAY = toIsoDate(new Date());
 const todayKey = WEEKDAY_KEYS[new Date().getDay()];

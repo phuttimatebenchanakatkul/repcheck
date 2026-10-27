@@ -10,6 +10,7 @@ import type { ChatTurn } from '../logic/chat';
 import type { Goals, NutritionEntry, SplitPlan, WorkoutEntry } from '../logic/types';
 import {
   analysisTurnToRow,
+  workoutTurnToRow,
   coachTurnToRow,
   goalsToRow,
   nutritionEntryToRow,
@@ -106,4 +107,14 @@ export const coachClear = (userId: string): Operation => ({
 /** Saving one turn of an analysis's chat: an upsert on (user, client id), so a retried send is the same send. */
 export const analysisTurnSave = (userId: string, analysisId: number, turn: ChatTurn): Operation => ({
   kind: 'upsert', table: 'analyze_chat_messages', key: 'user_id,client_id', row: analysisTurnToRow(userId, analysisId, turn) as Record<string, unknown>,
+});
+
+/** Saving one turn of a day's workout chat: an upsert on (user, client id), so a retried send is the same send. */
+export const workoutTurnSave = (userId: string, turn: ChatTurn): Operation => ({
+  kind: 'upsert', table: 'workout_chat_messages', key: 'user_id,client_id', row: workoutTurnToRow(userId, turn) as Record<string, unknown>,
+});
+
+/** "New chat" on a day removes that day's turns only: other days' threads are kept for good. */
+export const workoutChatClear = (userId: string, day: string): Operation => ({
+  kind: 'delete', table: 'workout_chat_messages', key: 'user_id,msg_date', match: { user_id: userId, msg_date: day },
 });

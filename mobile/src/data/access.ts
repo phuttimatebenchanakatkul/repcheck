@@ -16,6 +16,7 @@ import { addDays, toIsoDate } from '../logic/dates';
 import type { CoachingProfile } from '../logic/splitPlan';
 import { keys } from './keys';
 import {
+  workoutTurnFromRow,
   analysisTurnFromRow,
   coachTurnFromRow,
   nutritionRowToEntry,
@@ -27,6 +28,8 @@ import {
 } from './mappers';
 import {
   activityMark,
+  workoutChatClear,
+  workoutTurnSave,
   analysisTurnSave,
   coachClear,
   coachTurnSave,
@@ -44,6 +47,7 @@ import {
   workoutSave,
 } from './ops';
 import {
+  overlayWorkoutThread,
   overlayAnalysisThread,
   overlayCoachThread,
   overlayDayStatuses,
@@ -106,6 +110,8 @@ export interface DataDeps {
 export const PAGE_SIZE = 1000;
 export const RECENT_NUTRITION_LIMIT = 400;
 export const RECENT_WORKOUT_LIMIT = 60;
+/** The workout chat recites each exercise's last sessions from this many of the newest entries (the website used the whole log). */
+export const WORKOUT_HISTORY_LIMIT = 300;
 /** The streak looks at this many days back; a run longer than this is shown as the window's length. */
 export const STREAK_WINDOW_DAYS = 400;
 
@@ -196,6 +202,12 @@ export function createData(deps: DataDeps) {
   async function coachThread(day: string): Promise<ChatTurn[]> {
     const rows = rowsOf<Row<'coach_messages'>>(await table('coach_messages').eq('msg_date', day).order('seq').limit(PAGE_SIZE));
     return rows.map(coachTurnFromRow);
+  }
+
+  /** One day's workout chat, oldest first (the table's own `seq` order). */
+  async function workoutThread(day: string): Promise<ChatTurn[]> {
+    const rows = rowsOf<Row<'workout_chat_messages'>>(await table('workout_chat_messages').eq('msg_date', day).order('seq').limit(PAGE_SIZE));
+    return rows.map(workoutTurnFromRow);
   }
 
   /** One analysis's chat, oldest first (the table's own `seq` order). */
@@ -291,6 +303,7 @@ export function createData(deps: DataDeps) {
   function patchWorkouts(ops: readonly Operation[]): void {
     patch<WorkoutEntry[]>([...keys.all(userId), 'workouts'], (old, key) => overlayWorkoutDay(old, ops, String(key[3])));
     patchOne<RecentWorkout[]>(keys.workoutRecent(userId), (old) => overlayWorkoutRecent(old, ops, RECENT_WORKOUT_LIMIT));
+    patchOne<RecentWorkout[]>(keys.workoutHistory(userId), (old) => overlayWorkoutRecent(old, ops, WORKOUT_HISTORY_LIMIT));
   }
 
   function addActiveDays(days: readonly string[]): void {
@@ -398,6 +411,20 @@ export function createData(deps: DataDeps) {
     patch<ChatTurn[]>(keys.coachThreadPrefix(userId), (old, key) => (turn.date === String(key[3]) ? overlayCoachThread(old, [op]) : old));
   }
 
+  /** Adds a turn to a day's workout chat (the day is the turn's own). */
+  async function saveWorkoutTurn(turn: ChatTurn): Promise<void> {
+    const op = workoutTurnSave(userId, turn);
+    await send(op);
+    patch<ChatTurn[]>(keys.workoutThreadPrefix(userId), (old, key) => overlayWorkoutThread(old, [op], String(key[3])));
+  }
+
+  /** Empties one day's workout chat; turns of that day still waiting are dropped first (they would only be deleted). */
+  async function clearWorkoutThread(day: string): Promise<void> {
+    const op = workoutChatClear(userId, day);
+    await outbox.replace(userId, (queued) => queued.table === 'workout_chat_messages' && (queued.kind === 'upsert' ? queued.row.msg_date : queued.match.msg_date) === day, [op]);
+    patch<ChatTurn[]>(keys.workoutThreadPrefix(userId), (old, key) => overlayWorkoutThread(old, [op], String(key[3])));
+  }
+
   /** Adds a turn to one analysis's chat. */
   async function saveAnalysisTurn(analysisId: number, turn: ChatTurn): Promise<void> {
     const op = analysisTurnSave(userId, analysisId, turn);
@@ -446,13 +473,13 @@ export function createData(deps: DataDeps) {
     userId,
     fetch: {
       nutritionDay, nutritionRecent, nutritionRange, goalsRow, foodFavorites, exerciseFavorites, workoutDay, workoutRecent, splitPlanRow,
-      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachThread, analysisThread,
+      weights, settingsRow, dayStatuses, activeDays, coachingProfile, coachThread, analysisThread, workoutThread, workoutHistory: () => workoutRecent(WORKOUT_HISTORY_LIMIT),
       customFoods: () => api.listCustomFoods(),
       customExercises: () => api.listCustomExercises(),
     },
     actions: {
       saveFood, deleteFood, saveWorkout, deleteWorkout, saveWeight, removeWeight, saveGoals, saveSettings, saveSplitPlan,
-      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn,
+      setFoodFavorite, setExerciseFavorite, setDayStatus, markActivity, saveCoachTurn, clearCoach, saveAnalysisTurn, saveWorkoutTurn, clearWorkoutThread,
       createCustomFood, deleteCustomFood, createCustomExercise, deleteCustomExercise,
     },
   };

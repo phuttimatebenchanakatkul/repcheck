@@ -9,7 +9,7 @@ import type { Operation, QueuedOperation } from '../store/outbox';
 
 import type { NutritionEntry, WorkoutEntry, WorkoutSet } from '../logic/types';
 import type { ChatTurn } from '../logic/chat';
-import { analysisTurnFromRow, coachTurnFromRow, nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, type Row, type WeightEntry } from './mappers';
+import { analysisTurnFromRow, coachTurnFromRow, nutritionRowToEntry, toMs, weightFromRow, workoutSetFromRow, workoutTurnFromRow, type Row, type WeightEntry } from './mappers';
 
 /** The waiting operations of one person on a table, oldest first. */
 export function waiting(queue: readonly QueuedOperation[], userId: string, table: Operation['table']): Operation[] {
@@ -223,6 +223,29 @@ export function overlayAnalysisThread(turns: readonly ChatTurn[], ops: readonly 
     const row = op.row as unknown as Row<'analyze_chat_messages'>;
     if (row.analyze_result_id !== analysisId) continue;
     const turn = analysisTurnFromRow(row);
+    const at = list.findIndex((t) => t.id === turn.id);
+    if (at >= 0) list[at] = turn;
+    else list.push(turn);
+  }
+  return list;
+}
+
+// -- the workout chat's thread for one day -------------------------------------------------------------------------------------------
+
+/**
+ * The server's turns for `day` with this device's waiting writes for THAT day applied in queue order: a saved turn is added (or
+ * replaces the same turn), a clear of the day empties it.
+ */
+export function overlayWorkoutThread(turns: readonly ChatTurn[], ops: readonly Operation[], day: string): ChatTurn[] {
+  let list = turns.slice();
+  for (const op of ops) {
+    if (op.kind === 'delete') {
+      if (op.match.msg_date === day) list = [];
+      continue;
+    }
+    const row = op.row as unknown as Row<'workout_chat_messages'>;
+    if (row.msg_date !== day) continue;
+    const turn = workoutTurnFromRow(row);
     const at = list.findIndex((t) => t.id === turn.id);
     if (at >= 0) list[at] = turn;
     else list.push(turn);

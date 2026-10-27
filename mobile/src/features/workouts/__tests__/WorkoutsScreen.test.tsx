@@ -8,6 +8,9 @@ import { USER, dataHarness } from '@/testing/dataHarness';
 import WorkoutsScreen from '../WorkoutsScreen';
 import { parseReps, parseWeight } from '../WorkoutCard';
 
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+
 const NOW = new Date();
 const TODAY = toIsoDate(NOW);
 const at = (day: string, hour: number) => {
@@ -411,5 +414,33 @@ describe('survivors: parsing, closing, wording', () => {
     await press('Log an exercise');
     await fireEvent.press(await screen.findByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByPlaceholderText('Search for an exercise...')).toBeNull());
+  });
+});
+
+describe('the workout chat card', () => {
+  it('is offered once something is logged on the day you are looking at, and opens that day’s chat', async () => {
+    const h = dataHarness();
+    h.db.seed('workout_entries', [entryRow('w1', TODAY, 'Squat')]);
+    await open(h);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Workout AI Chat' }));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/workout-chat', params: { day: TODAY } });
+    expect(screen.getByText("Ask about progressive overload on anything you've logged")).toBeOnTheScreen();
+  });
+
+  it('is not there on a day with nothing logged', async () => {
+    await open();
+    await screen.findByText('Nothing logged yet');
+    expect(screen.queryByRole('button', { name: 'Workout AI Chat' })).toBeNull();
+  });
+
+  it('follows the selected day', async () => {
+    const yesterday = addDays(TODAY, -1);
+    const h = dataHarness();
+    h.db.seed('workout_entries', [entryRow('w1', yesterday, 'Squat')]);
+    await open(h);
+    expect(screen.queryByRole('button', { name: 'Workout AI Chat' })).toBeNull();
+    await fireEvent.press(await screen.findByRole('button', { name: new RegExp(`${Number(yesterday.slice(8))}`) }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Workout AI Chat' }));
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/workout-chat', params: { day: yesterday } });
   });
 });
