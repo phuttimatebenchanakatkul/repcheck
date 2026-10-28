@@ -701,6 +701,43 @@ What is still yours, in order (none of it can be done from here):
 4. Supabase dashboard: Apple provider, `repcheck://auth-callback` and `repcheck://reset-password` in the redirect URLs, custom SMTP (see "Passwords").
 5. For TestFlight and the store: `npx eas-cli build --profile production --platform ios`, then `npx eas-cli submit --profile production --platform ios`.
 
+## Phase 8: leaving Render (decided 2026-10-28)
+
+**The decision.** The app's server-side work (about forty endpoints: AI, food lookup, friends, leaderboards, account deletion) moves from the Flask
+`api/` on Render into **Supabase Edge Functions**, so the native app depends on Supabase alone. The Terms, Privacy and Sources pages stop being
+pages on the Render website and become screens inside the app (James said they should "live in an IDE", read here as: inside the app; correct this if
+it meant something else). The website (`templates/`, `static/`, `app.py`) stays frozen and on Render until launch day, then is retired as already planned.
+
+**Shape.** One function, `supabase/functions/api`, with a small route table. Its address is `<project>/functions/v1/api/...`, so the app's existing
+paths (`/api/profile`, ...) work against a base of `<project>/functions/v1` with no change to any screen. It is deployed with `--no-verify-jwt`
+because Supabase's built-in check is for the legacy HS256 secret; the function verifies the project's ES256 token itself (JWKS), exactly as
+`api/auth.py` does. Postgres is reached with the connection string Supabase gives every function; like Flask, it connects as the owner, so every query
+scopes itself to the caller by hand. Code in `supabase/functions/_shared/` takes its collaborators (database, Gemini, Storage, clock) as arguments, so
+the tests (`deno test`, run through `npx deno`) use fakes and need no network.
+
+**Slices.** Each lands as code with tests but stays UNROUTED (the app still talks to Flask) until the last one, which flips the base URL and deletes
+`api/`, `Dockerfile.api`, `requirements-api.txt` and the Render notes. That keeps every merge safe and lets the cut-over be rehearsed once.
+
+- **8a, foundations (v0.44.0.0, done):** the router, token check, database, rate limits, AI-consent check, and the health and consent routes. The profile
+  routes need the display-name filter and move with the accounts in 8b. 49 Deno tests, a live check against the real project
+  (`npx deno task test:live`: one throwaway user, removed afterwards), and `tests/test_edge_functions.py` pinning the limits, messages and routes to Flask's.
+- **8b, accounts and files:** account delete / restore and the purge sweep (a `pg_cron` job calling the function), progress photos, the legacy-password login, the waitlist.
+- **8c, social:** friends, report and block, the daily challenge and both leaderboards.
+- **8d, AI text:** the coach / analysis / workout chats, the split generator, the weekly check-in, HYROX analysis, coaching targets (`coaching_engine` ported to TypeScript, with a run against the Python one).
+- **8e, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
+- **8f, lift video:** see "The one hard part" below.
+- **8g, cut-over:** in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
+
+**The one hard part.** The form grader (`pipeline.py`, `rep_form_analyzer.py`, `pose_landmarker.py`, `people_detector.py`, `trim_video.py`) trims with
+ffmpeg and counts reps with OpenCV and MediaPipe. An Edge Function has neither. The replacement is to give Gemini the whole clip (uploaded to
+Storage by the app, passed on through Gemini's file upload) and let it grade and count. That trades the deterministic rep count for the model's,
+so it needs a side-by-side run on real lifts before it replaces anything; it is slice 8f for that reason, and 8a-8e do not depend on it. If the
+comparison is bad, the alternative is on-device pose detection in the app (MediaPipe), which is a larger piece of native work.
+
+**What only James can do**, once the slices are in: `supabase login`; `supabase secrets set GEMINI_API_KEY=... ADMIN_EMAILS=... REVIEW_ACCOUNT_EMAILS=...`
+(and the FatSecret keys); `supabase functions deploy api --no-verify-jwt --project-ref edktymiqqgqmzaxckfzc`. Supabase supplies `SUPABASE_URL`,
+the service key and `SUPABASE_DB_URL` to every function itself.
+
 ## Deploying `api/` (Render)
 
 `Dockerfile.api` is the API's own image (the website's is `Dockerfile`, untouched). It installs `requirements-api.txt`,
