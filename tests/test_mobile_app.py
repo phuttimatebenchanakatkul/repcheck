@@ -623,3 +623,15 @@ def test_the_hyrox_custom_race_building_blocks_are_the_websites():
     assert re.search(r"CUSTOM_WALL_BALL_REPS = (\d+)", logic).group(1) == re.search(r"CUSTOM_DEFAULT_WALL_BALL_REPS = (\d+)", site).group(1)
     # a hand-built race is a practice, never a result: the screen builds it with finishedCustomRace, which has no standard to post against
     assert "finishedCustomRace(" in text(MOBILE / "src" / "features" / "hyrox" / "HyroxScreen.tsx")
+
+
+def test_the_eas_build_profiles_ship_a_store_build_and_hold_no_secrets():
+    eas = json.loads(text(MOBILE / "eas.json"))
+    builds = eas["build"]
+    assert set(builds) == {"development", "preview", "production"}
+    assert builds["development"]["developmentClient"] is True and builds["development"]["distribution"] == "internal"
+    assert not builds["production"].get("developmentClient") and "distribution" not in builds["production"], "the store build is neither a dev client nor internal"
+    assert builds["production"]["autoIncrement"] is True and eas["cli"]["appVersionSource"] == "remote", "the store refuses a build number it has already seen"
+    raw = text(MOBILE / "eas.json")
+    assert not re.search(r"sb_secret_|service_role|SECRET|PRIVATE KEY|password", raw, re.I), "values belong in EAS environment variables, never in this file"
+    assert "env" not in builds["production"], "EXPO_PUBLIC_* values are set as EAS environment variables, named in .env.example"

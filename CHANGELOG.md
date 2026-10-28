@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.43.0.0] - 2026-10-28
+
+### Added
+
+Build configuration for the native app. Nothing in the website or the current App Store app changes.
+
+- **Ready for EAS.** `mobile/eas.json` defines a development client, an internal preview and the App Store build (build numbers counted up by EAS), with
+  the app's three public settings kept out of the file. The steps that need your Expo and Apple accounts are written down in the plan.
+- **Packages level with the SDK.** Five Expo packages were a patch version behind; they are now the ones SDK 58 pins, and `expo-doctor` passes 20 of 20.
+- **Proven:** 2492 app tests, a build export for iOS, and a test that fails if a secret reaches `eas.json` or the store profile stops being a store build.
+  Not yet built on EAS or run on a phone: it needs your Expo account.
+
 ## [0.42.1.0] - 2026-10-28
 
 ### Fixed

@@ -10,6 +10,9 @@ npx expo start           # scan the QR code with Expo Go on your iPhone
 npm run check            # tsc --noEmit, expo lint, Jest
 ```
 
+Building for a phone or the store goes through EAS (`eas.json`: development, preview, production); the steps, and what needs your Expo and Apple
+accounts, are in "Phase 7a status" in the plan.
+
 - Add packages with `npx expo install <name>`, not `npm add`: it picks the version that matches the SDK.
 - `src/i18n/en.json` and `th.json` are generated from the website's `static/i18n.js`: `npm run i18n:export`.
 - `src/supabase/database.types.ts` is generated from the live schema: `python ../scripts/gen_supabase_types.py`.
