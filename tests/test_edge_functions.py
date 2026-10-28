@@ -497,3 +497,58 @@ def test_the_chats_read_requests_cite_sources_and_write_prompts_in_typescript_ex
     assert sum(1 for r in expected_requests if isinstance(r, str)) > 10 and sum(1 for r in expected_requests if isinstance(r, list)) > 30
     assert answers["analysisPrompts"] == [analyze_chat._build_system_prompt(c) for c in contexts]
     assert answers["workoutPrompts"] == [workout_chat._build_system_prompt(c) for c in contexts]
+
+
+def test_the_generated_coaching_data_is_fresh():
+    """coachingData.ts (the body-fat ranges and tuning constants) is written from coaching_engine.py."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_coaching_data.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "run `python scripts/gen_edge_coaching_data.py` to regenerate supabase/functions/_shared/coachingData.ts"
+
+
+def test_the_coaching_numbers_messages_and_routes_are_the_flask_apis():
+    from api import coaching as flask_coaching
+    source = text("_shared", "coaching.ts")
+    assert int(re.search(r"MAX_LOG_ENTRIES = (\d+)", source).group(1)) == flask_coaching.MAX_LOG_ENTRIES
+    assert int(re.search(r"MAX_CHECKIN_PHOTOS = (\d+)", source).group(1)) == flask_coaching.MAX_CHECKIN_PHOTOS
+    messages = re.findall(r'"(Please [^"]+)"', source)
+    flask_text = (ROOT / "api" / "coaching.py").read_text(encoding="utf-8")
+    assert len(messages) >= 9 and all(m in flask_text for m in messages), [m for m in messages if m not in flask_text]
+    assert list(flask_coaching.WEEKDAYS) == re.findall(r'"(\w+day)"', re.search(r"WEEKDAYS = \[(.*?)\] as const", text("_shared", "coachingEngine.ts")).group(1))
+    import checkin_analyzer
+    checkin = text("_shared", "checkin.ts")
+    assert re.search(r'CHECKIN_MODEL = "([^"]+)"', checkin).group(1) == checkin_analyzer.GEMINI_MODEL
+    assert int(re.search(r"CHECKIN_TIMEOUT_MS = ([\d_]+)", checkin).group(1).replace("_", "")) == checkin_analyzer.CHECKIN_ANALYSIS_TIMEOUT_SECONDS * 1000
+    assert int(re.search(r"MAX_REASON_CHARS = (\d+)", checkin).group(1)) == 400
+    route = text("api", "routes", "coaching.ts")
+    assert 'FEATURE = "checkin_analysis"' in route and 'PHOTO_BUCKET = "progress-photos"' in route
+    assert "checkin_ai_analysis" in route and "checkin_ai_analysis" in (ROOT / "api" / "routes" / "coaching.py").read_text(encoding="utf-8")
+
+
+def _golden():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("edge_golden", ROOT / "scripts" / "edge_golden.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_golden_files_are_fresh():
+    """supabase/functions/tests/fixtures/*_golden.json hold the Python's answers for the TypeScript's own offline tests; run `python scripts/edge_golden.py` to rewrite them."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "edge_golden.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "a golden file is stale: run `python scripts/edge_golden.py`"
+
+
+def test_the_coaching_engine_answers_in_typescript_exactly_as_in_python(tmp_path):
+    """Profile checking, the target calculation, the weekly spread, the weekly tune, an applied delta, the check-in prompt and the model-answer parser: the same answer from both languages over seeded corpora, including the ties where Python rounds to even.
+    (The TypeScript's own `deno task test` checks the same cases against the golden file; this runs the two side by side, live.)"""
+    g = _golden().build_coaching()
+    assert sum(1 for _, p in g["profiles"] if p[0]) > 200 and sum(1 for _, p in g["profiles"] if p[1]) > 20
+    assert sum(1 for _, w in g["weekly"] if isinstance(w, dict)) > 60 and sum(1 for _, w in g["weekly"] if w is None) > 10 and any(w == "ERR" for _, w in g["weekly"])
+    assert any(isinstance(a, dict) for _, a in g["applied"]) and any(a is None for _, a in g["applied"])
+    inputs = {"profiles": [i for i, _ in g["profiles"]], "targets": [i for i, _ in g["targets"]], "distributions": [i for i, _ in g["distributions"]], "weekly": [i for i, _ in g["weekly"]],
+              "applied": [i for i, _ in g["applied"]], "checkinPrompts": [i for i, _ in g["prompts"]], "extracted": [i for i, _ in g["extracted"]], "rounds": [i for i, _ in g["rounds"]], "ints": [i for i, _ in g["ints"]]}
+    answers = _run_edge_parity(tmp_path, inputs)
+    for ours, theirs in (("profiles", "profiles"), ("targets", "targets"), ("distributions", "distributions"), ("weekly", "weekly"), ("applied", "applied"), ("checkinPrompts", "prompts"),
+                         ("extracted", "extracted"), ("rounds", "rounds"), ("ints", "ints")):
+        expected = [e for _, e in g[theirs]]
+        assert answers[ours] == expected, ours

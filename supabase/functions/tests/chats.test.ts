@@ -342,8 +342,8 @@ Deno.test("chat: a reply spends one use, is counted, and carries its sources", a
   await ask(db, model, "/api/analyze-chat", { message: "why?", context: { exercise_label: "Squat" } });
   await ask(db, model, "/api/workout-chat", { message: "next?", context: { workout_summary: "s" } });
   assert(db.calls.some((c) => c.params[1] === "feature:analyze_chat_message") && db.calls.some((c) => c.params[1] === "feature:workout_chat_message"));
-  assertStringIncludes(model.requests[1].system, "a set of Squat analyzed");
-  assertStringIncludes(model.requests[2].system, "The user's logged workout data:\ns");
+  assertStringIncludes(model.requests[1].system ?? "", "a set of Squat analyzed");
+  assertStringIncludes(model.requests[2].system ?? "", "The user's logged workout data:\ns");
 });
 
 Deno.test("chat: the fourth message of the day is a friendly reply, not an error, and never reaches the model", async () => {
