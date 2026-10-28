@@ -721,12 +721,16 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
 - **8a, foundations (v0.44.0.0, done):** the router, token check, database, rate limits, AI-consent check, and the health and consent routes. The profile
   routes need the display-name filter and move with the accounts in 8b. 49 Deno tests, a live check against the real project
   (`npx deno task test:live`: one throwaway user, removed afterwards), and `tests/test_edge_functions.py` pinning the limits, messages and routes to Flask's.
-- **8b, accounts and files:** account delete / restore and the purge sweep (a `pg_cron` job calling the function), progress photos, the legacy-password login, the waitlist.
-- **8c, social:** friends, report and block, the daily challenge and both leaderboards.
-- **8d, AI text:** the coach / analysis / workout chats, the split generator, the weekly check-in, HYROX analysis, coaching targets (`coaching_engine` ported to TypeScript, with a run against the Python one).
-- **8e, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
-- **8f, lift video:** see "The one hard part" below.
-- **8g, cut-over:** in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
+- **8b, accounts (v0.45.0.0, done):** the profile routes, rename, delete / restore, and the purge of accounts past their 30 days (run from a request, at most hourly,
+  in the background: there is no scheduler). With them come the display-name filter (generated from `name_filter.py`, and run against ~1,600 names beside the
+  Python one) and the Auth and Storage clients. 112 Deno tests; the live check now also makes two throwaway accounts, uploads a file for each, schedules both,
+  purges only the one that is due and proves the other's file and profile are still there.
+- **8c, files and sign-in:** progress photos, the legacy-password login, the waitlist, the owner's admin routes.
+- **8d, social:** friends, report and block, the daily challenge and both leaderboards.
+- **8e, AI text:** the coach / analysis / workout chats, the split generator, the weekly check-in, HYROX analysis, coaching targets (`coaching_engine` ported to TypeScript, with a run against the Python one).
+- **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
+- **8g, lift video:** see "The one hard part" below.
+- **8h, cut-over:** in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
 
 **The one hard part.** The form grader (`pipeline.py`, `rep_form_analyzer.py`, `pose_landmarker.py`, `people_detector.py`, `trim_video.py`) trims with
 ffmpeg and counts reps with OpenCV and MediaPipe. An Edge Function has neither. The replacement is to give Gemini the whole clip (uploaded to

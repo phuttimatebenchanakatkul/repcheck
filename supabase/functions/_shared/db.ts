@@ -18,6 +18,9 @@ export interface Tx {
   one<T = Row>(sql: string, params?: Params): Promise<T | null>;
   /** Run a statement and return how many rows it touched. */
   exec(sql: string, params?: Params): Promise<number>;
+  /** Run `fn` in a savepoint: if it throws, only its own statements are undone and the transaction stays usable
+   *  (a unique violation inside the savepoint does not poison the rest). */
+  savepoint<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
 }
 
 export interface Db {
@@ -27,6 +30,7 @@ export interface Db {
 
 // deno-lint-ignore no-explicit-any
 const adapt = (sql: any): Tx => ({
+  savepoint: (fn) => sql.savepoint((sp: any) => fn(adapt(sp))),
   async all(text, params = []) {
     return [...await sql.unsafe(text, params as unknown[])];
   },

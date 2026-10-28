@@ -4,6 +4,7 @@ import type { KeyLike } from "jose";
 
 import { createHandler, Router, type Services } from "../_shared/app.ts";
 import { Verifier } from "../_shared/auth.ts";
+import { AuthAdmin, Storage, type Transport } from "../_shared/supabaseAdmin.ts";
 import type { Db, Params, Row, Tx } from "../_shared/db.ts";
 import { fromEnv, issuer, type Settings } from "../_shared/settings.ts";
 import { buildRouter } from "../api/router.ts";
@@ -65,6 +66,7 @@ export class FakeDb implements Db {
   transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     this.transactions += 1;
     const tx: Tx = {
+      savepoint: (fn) => fn(tx),
       all: (sql, params = []) => {
         const out = this.answer(sql, params);
         return Promise.resolve((Array.isArray(out) ? out : []) as never);
@@ -82,13 +84,46 @@ export class FakeDb implements Db {
   }
 }
 
-export function services(db: Db = new FakeDb(), env: Record<string, string> = {}): Services {
-  const s = settings(env);
-  return { settings: s, db, verifier: new Verifier(s, publicKey) };
+/** A transport that records every request and answers from `answer(url, init)` (default: 200 with `{}`); it never sleeps. */
+export function fakeTransport(answer: (url: string, init: RequestInit) => Response | Promise<Response> | Error = () => new Response("{}")) {
+  const requests: { url: string; method: string; body: unknown; headers: Record<string, string> }[] = [];
+  const transport: Transport = {
+    fetch: (input, init = {}) => {
+      const url = String(input);
+      const headers = Object.fromEntries(new Headers(init.headers).entries());
+      let body: unknown = init.body ?? null;
+      if (typeof body === "string") {
+        try {
+          body = JSON.parse(body);
+        } catch { /* keep the text */ }
+      }
+      requests.push({ url, method: String(init.method), body, headers });
+      const out = answer(url, init);
+      if (out instanceof Error) return Promise.reject(out);
+      return Promise.resolve(out);
+    },
+    sleep: () => Promise.resolve(),
+  };
+  return { transport, requests };
 }
 
-export function app(db: Db = new FakeDb(), env: Record<string, string> = {}, router: Router = buildRouter()) {
-  const handler = createHandler(services(db, env), router);
+export function services(db: Db = new FakeDb(), env: Record<string, string> = {}, transport: Transport = fakeTransport().transport): Services & { collected: Promise<unknown>[] } {
+  const s = settings(env);
+  const collected: Promise<unknown>[] = [];
+  return {
+    settings: s,
+    db,
+    verifier: new Verifier(s, publicKey),
+    storage: new Storage(PROJECT, "service-key", transport),
+    authAdmin: new AuthAdmin(PROJECT, "service-key", transport),
+    background: (work) => void collected.push(work),
+    sweep: false,
+    collected,
+  };
+}
+
+export function app(db: Db = new FakeDb(), env: Record<string, string> = {}, router: Router = buildRouter(), transport?: Transport) {
+  const handler = createHandler(services(db, env, transport), router);
   return (path: string, init: RequestInit & { json?: unknown } = {}) => {
     const headers = new Headers(init.headers);
     let body = init.body;

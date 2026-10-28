@@ -1,9 +1,11 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 
 import { Verifier } from "../_shared/auth.ts";
 import { boundedJsonBody, DEFAULT_MAX_BODY, jsonBody, Stop } from "../_shared/http.ts";
 import { DAY, EXEMPT, friendlyWait, reserve } from "../_shared/limits.ts";
-import { app, bearer, FakeDb, publicKey, settings, token, USER } from "./support.ts";
+import { SWEEP_INTERVAL_MS } from "../_shared/app.ts";
+import { AuthAdmin, SupabaseError, Storage, WeakPassword } from "../_shared/supabaseAdmin.ts";
+import { app, bearer, FakeDb, fakeTransport, publicKey, settings, token, USER } from "./support.ts";
 
 const post = (body: BodyInit | null, headers: Record<string, string> = {}) =>
   new Request("https://x.test/", { method: "POST", body, headers });
@@ -90,5 +92,73 @@ Deno.test("an unexpected failure answers ok:false with the generic message", asy
     assertEquals([r.status, await r.json()], [500, { ok: false, error: "Something went wrong. Please try again." }]);
   } finally {
     console.error = logged;
+  }
+});
+
+Deno.test("the sweep interval is one hour", () => {
+  assertEquals(SWEEP_INTERVAL_MS, 3_600_000);
+});
+
+Deno.test("a 504 is retried like the other gateway errors", async () => {
+  const answers = [new Response("", { status: 504 }), new Response("{}")];
+  const t = fakeTransport(() => answers.shift()!);
+  await new AuthAdmin("https://abc.supabase.co", "k", t.transport).deleteUser("u1");
+  assertEquals(t.requests.length, 2);
+});
+
+Deno.test("a JSON null from Storage or Auth is read as an empty answer, not crashed on", async () => {
+  const nulls = () => fakeTransport(() => new Response("null", { status: 422 })).transport;
+  const e = await assertRejects(() => new AuthAdmin("https://abc.supabase.co", "k", nulls()).setPassword("u1", "x"), SupabaseError);
+  assertEquals(e.message, "setting a password answered 422");
+  assert(!(e instanceof WeakPassword));
+  const f = await assertRejects(() => new Storage("https://abc.supabase.co", "k", nulls()).download("b", "u/k"), SupabaseError);
+  assertEquals(f.message, "downloading from b answered 422");
+});
+
+Deno.test("POST /api/profile: a provider account that sends no name, or a null one, still gets the provider's name", async () => {
+  for (const body of [{}, { name: null }]) {
+    const db = new FakeDb((sql) => sql.startsWith("select") ? [] : [{ id: USER, name: "Gina Google", friend_code: "RC-ABC123", onboarding_completed: false, ai_consent_at: null, deleted_at: null, created_at: new Date() }]);
+    const r = await app(db)("/api/profile", {
+      method: "POST",
+      headers: await bearer({ app_metadata: { provider: "google" }, user_metadata: { full_name: "Gina Google" } }),
+      json: body,
+    });
+    const answer = await r.json();
+    assertEquals([r.status, answer.ok, answer.created], [201, true, true], JSON.stringify(body));
+    assertEquals(db.calls[1].params[1], "Gina Google");
+  }
+});
+
+Deno.test("POST /api/profile: ok is true on both the create and the already-there answers", async () => {
+  const row = { id: USER, name: "Sam", friend_code: "RC-ABC123", onboarding_completed: false, ai_consent_at: null, deleted_at: null, created_at: new Date() };
+  const there = await app(new FakeDb(() => [row]))("/api/profile", { method: "POST", headers: await bearer(), json: { name: "Sam" } });
+  assertEquals((await there.json()).ok, true);
+});
+
+Deno.test("a sweep that purges someone says so in the log, and a quiet one says nothing", async () => {
+  const { createHandler, Router } = await import("../_shared/app.ts");
+  const { services } = await import("./support.ts");
+  const logs: string[] = [];
+  const realLog = console.log;
+  console.log = (...a: unknown[]) => void logs.push(a.join(" "));
+  const real = Date.now;
+  let clock = 5_000_000_000_000;
+  Date.now = () => clock;
+  try {
+    const run = async (due: string[]) => {
+      const s = services(new FakeDb((sql) => sql.includes("make_interval") ? due.map((id) => ({ id })) : []));
+      s.sweep = true;
+      const h = createHandler(s, new Router().get("/api/x", () => new Response("ok"), { auth: false }));
+      await h(new Request("https://abc.supabase.co/functions/v1/api/x"));
+      await Promise.all(s.collected);
+      clock += SWEEP_INTERVAL_MS;
+    };
+    await run([]);
+    assertEquals(logs, []);
+    await run([USER]);
+    assertEquals(logs, ["account purge: 1 purged, 0 to retry"]);
+  } finally {
+    console.log = realLog;
+    Date.now = real;
   }
 });
