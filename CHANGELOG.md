@@ -2,6 +2,18 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.44.0.0] - 2026-10-28
+
+### Added
+
+The first step of moving the native app's server off Render, onto Supabase. Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **The foundations of the new server.** `supabase/functions/` holds the start of the app's API as a Supabase Edge Function: the sign-in check (the same
+  ES256 token rules as before), the database connection, the per-account AI limits, the AI-consent check, and the first two routes (health and AI consent).
+- **Proven:** 49 tests in Deno, a live run against the real database with one throwaway account (removed afterwards), 6 checks that the limits, messages and routes
+  match the Flask server's, then deliberate breakages of the new code (every survivor killed by a new test, removed as redundant, or a change with no
+  observable effect). Not deployed: that needs your Supabase login.
+
 ## [0.43.0.0] - 2026-10-28
 
 ### Added

@@ -54,6 +54,14 @@ to the caller by hand, and a live test must scope any purge or sweep to the ids 
 (`purge_due(..., only=[...])`) so it can never touch a real account that happens to be due. The analyze tests hand the app a
 fake grader (`create_app(analyzer=...)`), so they call neither Gemini nor ffmpeg; a real run is a manual smoke test.
 
+`supabase/functions/` is `api/` being ported to Supabase Edge Functions so the native app can leave Render (MOBILE_APP_PLAN.md,
+"Phase 8"). Until the last slice flips the app's base URL, the Flask `api/` above is still what the app talks to, and a route is ported by
+adding it to `supabase/functions/api/routes/` AND keeping the Flask one. Code that touches the database, Gemini or Storage takes it as an
+argument (`Db`/`Tx` in `_shared/db.ts`), so its tests use fakes: `cd supabase/functions && npx deno task test` (a fourth suite; Deno comes
+from npm, no install). `npx deno task test:live` runs the database code against the real project with ONE throwaway user, removed in a
+`finally`. `tests/test_edge_functions.py` pins what must match Flask (limits, messages, every route and method). Placeholders are `$1, $2`
+(not `%s`); like Flask the function connects as `postgres`, so every query scopes itself to the caller by hand.
+
 `mobile/` is the native app (Expo SDK 58 / React Native / TypeScript, expo-router), NOT the website: the website
 never imports it and neither Docker image ships it (`.dockerignore`). It has its own checks, run from `mobile/`:
 `npm run check` (tsc --noEmit, `expo lint`, Jest). A third suite, then, beside the two above. `npm install` first. Never
