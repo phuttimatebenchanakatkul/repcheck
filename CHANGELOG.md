@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.50.0.0] - 2026-10-29
+
+### Added
+
+The workout-split generator on the new Supabase server (step 8e3 of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **Build a split** (Push/Pull/Legs, Upper/Lower, Full Body, Bro, or your own days) with the same rules as before: your goal words can add a mobility, athletic, balance or low-impact day, pregnancy makes every day low-impact, a "hybrid" gym adds conditioning, and an exercise you picked by hand is never changed. If the model is down or sends something unusable, the plan without it is returned.
+- **"Let AI build it"** picks the split type for a beginner, in the shorter sessions that suit how many days a week you train, and returns it in the shape the model is held to.
+- **One plan a day** is kept, with the same 429 and "check back in" message.
+- **Proven:** 334 Deno tests, including ~3,800 cases whose answers the old Python code gave (plans, prompts, a model's answer broken in many ways, the weight lines), run offline against saved answers and side by side with the Python; a live run in which the real model built a plan through the real schema; then deliberate breakages of the new code (every survivor either killed by a new test or a change with no observable effect). Not deployed: that needs your Supabase login.
+
+### Fixed
+
+- The same split request could give the model a differently ordered list of your hand-picked exercises from one run to the next; the order is now the one you gave.
+- The size check on chat context counted the DEL character as one character where the old server counted six.
+
 ## [0.49.0.0] - 2026-10-29
 
 ### Added

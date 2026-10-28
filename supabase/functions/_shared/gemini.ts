@@ -31,6 +31,8 @@ export interface GenerateRequest {
   attempts?: number;
   /** Block medium-and-above harassment, hate, sexual and dangerous content (App Review 4.7.1). The three free-text chats ask for it. */
   safe?: boolean;
+  /** Make the model answer in JSON of this shape (the REST API's schema, type names in upper case: "OBJECT", "STRING"). */
+  responseSchema?: Record<string, unknown>;
 }
 
 export interface Gemini {
@@ -78,6 +80,7 @@ export class GeminiClient implements Gemini {
       })),
     };
     if (request.system) body.systemInstruction = { parts: [{ text: request.system }] };
+    if (request.responseSchema) body.generationConfig = { responseMimeType: "application/json", responseSchema: request.responseSchema };
     const attempts = request.attempts ?? ATTEMPTS;
     if (request.safe) body.safetySettings = CATEGORIES.map((category) => ({ category, threshold: "BLOCK_MEDIUM_AND_ABOVE" }));
     let response: Response | undefined;

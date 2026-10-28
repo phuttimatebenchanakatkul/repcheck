@@ -585,3 +585,100 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: "live: the split generator, with the real model's answer held to the schema (or, if Google is busy, the plan without it)",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const { SUGGEST_GEMINI_MODEL, SUGGEST_RESPONSE_SCHEMA, buildSuggestPrompt, extractJson, validatePlan } = await import("../_shared/splitPlanner.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const gemini = new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini,
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+
+    // the schema the Python sends through its SDK, sent as REST: the API must accept it and answer in that shape
+    try {
+      const prompt = buildSuggestPrompt(3, "get stronger", "female", 70, 75, "gym");
+      const text = await gemini.generate({ model: SUGGEST_GEMINI_MODEL, contents: [{ role: "user", text: prompt }], responseSchema: SUGGEST_RESPONSE_SCHEMA });
+      assert(text !== null, "the model answered with nothing");
+      const parsed = extractJson(text) as Record<string, unknown>;
+      assertEquals(Object.keys(parsed).sort(), ["days", "rationale", "schedule", "split_type"]);
+      const plan = validatePlan(parsed, 3, null, "gym", { minExercises: 4, maxExercises: 6, topUpShortDays: true });
+      console.log("  (the model built:", parsed.split_type, "with", plan.days.map((d) => d.label).join(" / "), ")");
+    } catch (e) {
+      if (!(e instanceof Error && e.name === "GeminiError")) throw e;
+      console.log("  (Google was busy, the schema call was not checked:", e.message, ")");
+    }
+
+    const withUser = async (run: (post: (path: string, body: unknown) => Promise<Response>, id: string) => Promise<void>) => {
+      const email = `edge-${crypto.randomUUID()}@example.invalid`;
+      const password = crypto.randomUUID() + "Aa1!";
+      const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+      assertEquals(created.status, 200);
+      const id = (await created.json()).id as string;
+      try {
+        const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+        const headers = { Authorization: `Bearer ${(await r.json()).access_token}`, "Content-Type": "application/json" };
+        const post = (path: string, body: unknown) => call(path, { method: "POST", headers, body: JSON.stringify(body) });
+        await post("/api/profile", { name: "Edge Split" });
+        await run(post, id);
+      } finally {
+        const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+        assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+      }
+    };
+    const suggestions = async (id: string) =>
+      Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.usage_events where user_id = $1 and event = 'feature:split_ai_suggested'", [id])))!.n);
+
+    await withUser(async (post, id) => {
+      // without consent the model-built path is refused and nothing is spent
+      const refused = await post("/api/generate-split", { split_type: "ai_suggest", days_per_week: 3 });
+      assertEquals([refused.status, (await refused.json()).needs_ai_consent], [403, true]);
+      await post("/api/ai-consent", { granted: true });
+      const out = await (await post("/api/generate-split", { split_type: "ai_suggest", days_per_week: 3, goal: "get stronger", gender: "female", current_weight_kg: 75, goal_weight_kg: 70, location: "gym" })).json();
+      assertEquals(out.ok, true);
+      assert(["ppl", "upper_lower", "full_body", "bro_split"].includes(out.split_type), out.split_type);
+      assertEquals(out.days.length, 3);
+      assert(out.days.every((d: { exercises: string[] }) => d.exercises.length >= 4 && d.exercises.length <= 6));
+      assertEquals(Object.keys(out.schedule), ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+      assertEquals(await suggestions(id), 1);
+      // one plan a day: the second is a 429 that says when to come back
+      const again = await post("/api/generate-split", { split_type: "ppl", days_per_week: 3 });
+      assertEquals(again.status, 429);
+      const limited = await again.json();
+      assertEquals([limited.ok, limited.limited], [false, true]);
+      assert(limited.retry_after_seconds > 80000 && limited.retry_after_seconds <= 86400, String(limited.retry_after_seconds));
+      assertEquals(again.headers.get("Retry-After"), String(limited.retry_after_seconds));
+    });
+
+    await withUser(async (post, id) => {
+      // a picked split, with the person's own exercises for one day, through the real model (or the plan without it)
+      const picked = { Push: ["Squat", "Plank", "Pull-Up", "Bicep Curl"] };
+      const out = await (await post("/api/generate-split", { split_type: "ppl", days_per_week: 3, goal: "some mobility too", location: "gym", custom_days_exercises: picked })).json();
+      assertEquals(out.ok, true);
+      assertEquals(out.days.length, 3);
+      const push = out.days.find((d: { label: string }) => d.label === "Push");
+      if (push) assertEquals(push.exercises, picked.Push, "the person's own exercises for a day are never changed");
+      assertEquals(await suggestions(id), 0, "a picked split is not a suggestion");
+      // a custom split never reaches the model, but still counts against the day's allowance
+      const custom = await post("/api/generate-split", { split_type: "custom", days_per_week: 2, custom_days: ["Chest Day"] });
+      assertEquals(custom.status, 429);
+    });
+  },
+});

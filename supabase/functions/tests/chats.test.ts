@@ -168,7 +168,7 @@ Deno.test("pyJsonLength counts what Python's json.dumps writes", () => {
   assertEquals(pyJsonLength('a"b\\c\nd\u0001é\u{1F3CB}'), '"a\\"b\\\\c\\nd\\u0001\\u00e9\\ud83c\\udfcb"'.length);
   assertEquals(pyJsonLength(false), 5);
   assertEquals(pyJsonLength(-12.5), 5);
-  assertEquals(pyJsonLength("\u007f"), 3, "DEL is written as is");
+  assertEquals(pyJsonLength("\u007f"), 8, "DEL is written \\u007f, like any other control character");
 });
 
 Deno.test("the over-limit reply is a normal-looking message with the flags the widgets lock on", () => {
@@ -452,7 +452,7 @@ Deno.test("a made-up id in our format goes with its line whatever punctuation th
 
 Deno.test("the size Python would write is exact at every character class boundary", () => {
   const quoted = (cp: number) => pyJsonLength(String.fromCodePoint(cp));
-  assertEquals([quoted(0x1f), quoted(0x20), quoted(0x7e), quoted(0x7f), quoted(0x80), quoted(0xffff), quoted(0x10000)], [8, 3, 3, 3, 8, 8, 14]);
+  assertEquals([quoted(0x1f), quoted(0x20), quoted(0x7e), quoted(0x7f), quoted(0x80), quoted(0xffff), quoted(0x10000)], [8, 3, 3, 8, 8, 8, 14]);
   assertEquals([quoted(0x0a), quoted(0x22), quoted(0x5c), quoted(0x08), quoted(0x0c), quoted(0x0d), quoted(0x09)], [4, 4, 4, 4, 4, 4, 4]);
   assertEquals(quoted(0x00), 8);
 });
