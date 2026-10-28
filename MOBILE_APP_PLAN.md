@@ -725,7 +725,17 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   in the background: there is no scheduler). With them come the display-name filter (generated from `name_filter.py`, and run against ~1,600 names beside the
   Python one) and the Auth and Storage clients. 112 Deno tests; the live check now also makes two throwaway accounts, uploads a file for each, schedules both,
   purges only the one that is due and proves the other's file and profile are still there.
-- **8c, files and sign-in:** progress photos, the legacy-password login, the waitlist, the owner's admin routes.
+- **8c, files and sign-in (v0.46.0.0, done):** progress photos (upload, list, a short-lived link, delete) and the legacy-password login. Photos are checked
+  without Pillow: the bytes are read as PNG (every chunk's CRC), JPEG or WebP, with the picture-size ceiling Pillow had, and a seeded run of Pillow-made pictures
+  and damaged copies gets the same verdict from both. The old password hashes (Werkzeug scrypt and pbkdf2) verify through `node:crypto`, checked against hashes
+  Werkzeug itself wrote. 179 Deno tests, and a live test that signs in as a throwaway person with a REAL token (so the project's real keys do the verifying) and
+  walks profile, consent, a photo up and back down through its signed link, an imported password moving across and then signing in on Supabase, and deletion
+  and restore.
+- **8c2, owner tools (not started):** the waitlist (the marketing site posts to the website's own endpoint today, which goes when the website does, so this one
+  must be ready before then) and the owner-only admin routes. The app does not call either.
+- **Unchecked until deployed:** which request header carries the caller's address on Supabase's edge. The legacy login limits tries per address and per caller, and
+  uses the LAST `X-Forwarded-For` entry (the one the proxy added), falling back to `X-Real-IP`. If the caller's address turns out to be somewhere else, only the per-caller
+  budget is weakened; the per-address one is not touched.
 - **8d, social:** friends, report and block, the daily challenge and both leaderboards.
 - **8e, AI text:** the coach / analysis / workout chats, the split generator, the weekly check-in, HYROX analysis, coaching targets (`coaching_engine` ported to TypeScript, with a run against the Python one).
 - **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.

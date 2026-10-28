@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.46.0.0] - 2026-10-28
+
+### Added
+
+Photos and the old-password sign-in on the new Supabase server (step 8c of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **Check-in photos.** Upload (with the same date, size and 500-photo rules), list, a five-minute link to your own photo, and delete (the file goes first, so a failure
+  leaves the photo in place to try again). Pictures are checked from their bytes: PNG, JPEG and WebP are taken, GIF, BMP and TIFF are "unsupported", anything else is
+  "not a readable image", as before.
+- **The imported-password sign-in.** People whose accounts came from the website still get their old password carried across on first sign-in, with the same limits per
+  address and per caller, and the same single answer whether or not the address exists.
+- **Proven:** 179 Deno tests; the images and password hashes run through both the old and new code and agree (Pillow-made pictures and damaged copies of them; hashes
+  Werkzeug wrote, of every kind and cost); a live run that signs in with a real token and does all of the above against the real project, then removes its throwaway
+  account; then deliberate breakages of the new code (every survivor killed by a new test, removed as redundant, or a change with no observable effect). Not deployed:
+  that needs your Supabase login.
+
 ## [0.45.0.0] - 2026-10-28
 
 ### Added
