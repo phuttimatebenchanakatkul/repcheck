@@ -384,7 +384,7 @@ being sent and been lost; the SDK re-announcing `SIGNED_IN` on returning to the 
 - **Google sign-in is written but OFF** (`EXPO_PUBLIC_GOOGLE_SIGN_IN=1` turns it on): it needs the Google provider and
   `repcheck://auth-callback` in Supabase's redirect URLs, and has not met a real Google account.
 - **Email confirmation** must stay ON in Supabase and needs custom SMTP before launch (see "Passwords").
-- **EAS**: no `eas.json` yet; `npx eas-cli init` needs your Expo account.
+- **EAS**: `mobile/eas.json` exists since v0.43.0.0 (see "Phase 7a status"); linking it to your Expo account (`npx eas-cli init`) is still yours.
 - **Added in v0.22.0.0 (same caveat: nothing has run on a device):** the legacy-password fallback, "resend confirmation email",
   and password reset by email. A reset link needs `repcheck://reset-password` (and, in development, the `exp://...` address Expo
   Go shows) in Supabase's allowed redirect URLs and the **Site URL** set to a page that tells the reader to go back to the app;
@@ -678,6 +678,28 @@ for its next occasion only, and replaced whenever the person's data changes, the
 Both need a coaching profile. Signing out cancels them. Not done in Phase 6 yet, and why: real push (needs the APNs key and an Expo or
 Apple account, plus a Flask sender), Apple Health (a native module: needs an EAS development build to try) and the home-screen widget
 (Swift via `expo-apple-targets`, built by EAS) are all things that cannot be tried here, and follow once there is a device to run them on.
+
+## Phase 7a status: build configuration (`mobile/`, v0.43.0.0)
+
+`mobile/eas.json` has three profiles. **development** is a development client for internal distribution (what Expo Go cannot be: Sign in with Apple,
+and later Apple Health and the widget, need native code); **preview** is an internal build of the real app for testers; **production** is the App
+Store build, with the build number counted up by EAS (`appVersionSource: remote`, `autoIncrement`) because the store refuses a number it has seen.
+Each profile reads the EAS environment of the same name, so the three public values (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY`,
+`EXPO_PUBLIC_API_URL`, named in `mobile/.env.example`) are set once per environment on expo.dev, never in the file. A test fails if a secret turns up in
+`eas.json`, if the store profile becomes a development client, or if the build number stops counting up.
+
+`npx expo-doctor` now passes 20 of 20: five Expo packages were a patch behind the SDK's pinned versions (`expo`, `expo-camera`, `expo-router`,
+`expo-web-browser`, `@expo/ui`), which is the first thing an EAS build would have flagged. `npx expo install --fix` brought them level.
+
+What is still yours, in order (none of it can be done from here):
+
+1. `npx eas-cli login`, then `npx eas-cli init` in `mobile/` (writes the project id into `app.json`; commit it).
+2. On expo.dev, create the three variables above in the **development**, **preview** and **production** environments (the URL and publishable key
+   are public by design; the API URL needs the Render API service from "Deploying `api/` (Render)").
+3. `npx eas-cli build --profile development --platform ios`, install it on your phone (an internal build needs the phone registered with
+   `eas device:create` and an Apple Developer account signed in to EAS), then `npx expo start --dev-client`.
+4. Supabase dashboard: Apple provider, `repcheck://auth-callback` and `repcheck://reset-password` in the redirect URLs, custom SMTP (see "Passwords").
+5. For TestFlight and the store: `npx eas-cli build --profile production --platform ios`, then `npx eas-cli submit --profile production --platform ios`.
 
 ## Deploying `api/` (Render)
 
