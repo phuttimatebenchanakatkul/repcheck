@@ -26,7 +26,9 @@ import {
 import { RUNNERS } from "./split_runners.ts";
 
 type Pair = [unknown, unknown];
-const golden: Record<string, Pair[]> = JSON.parse(Deno.readTextFileSync(new URL("./fixtures/split_golden.json", import.meta.url)));
+const golden: Record<string, Pair[]> = JSON.parse(
+  await new Response((await Deno.open(new URL("./fixtures/split_golden.json.gz", import.meta.url))).readable.pipeThrough(new DecompressionStream("gzip"))).text(),
+);
 
 /** JSON has no -0 and no undefined: compare what would survive a round trip. */
 const clean = (v: unknown): unknown => JSON.parse(JSON.stringify(v, (_k, x) => (x === 0 ? 0 : x)));

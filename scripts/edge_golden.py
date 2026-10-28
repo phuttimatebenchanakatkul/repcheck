@@ -9,6 +9,7 @@ A test fails when a file is stale, so the golden answers can never drift from th
     python scripts/edge_golden.py --check    # exit 1 if one is stale
 """
 
+import gzip
 import json
 import random
 import sys
@@ -426,22 +427,38 @@ def build_split():
 
 
 GOLDEN = {"coaching": build_coaching, "split": build_split}
+# a big file is kept compressed (the split generator's is several MB of prompts and plans); the tests decompress it
+COMPRESSED = {"split"}
 
 
 def render(name):
     return json.dumps(GOLDEN[name](), sort_keys=True, separators=(",", ":"))
 
 
+def path_of(name):
+    return FIXTURES / (f"{name}_golden.json.gz" if name in COMPRESSED else f"{name}_golden.json")
+
+
+def read_back(target, name):
+    if not target.exists():
+        return ""
+    if name in COMPRESSED:
+        return gzip.decompress(target.read_bytes()).decode("utf-8")
+    return target.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+
 if __name__ == "__main__":
     stale = False
     for name in GOLDEN:
-        target = FIXTURES / f"{name}_golden.json"
+        target = path_of(name)
         text = render(name)
         if "--check" in sys.argv:
-            current = target.read_text(encoding="utf-8").replace("\r\n", "\n") if target.exists() else ""
-            stale |= current != text
+            stale |= read_back(target, name) != text
         else:
             FIXTURES.mkdir(parents=True, exist_ok=True)
-            target.write_text(text, encoding="utf-8", newline="\n")
-            print(f"wrote {target.relative_to(ROOT)} ({len(text) // 1024} KB)")
+            if name in COMPRESSED:
+                target.write_bytes(gzip.compress(text.encode("utf-8"), 9, mtime=0))
+            else:
+                target.write_text(text, encoding="utf-8", newline="\n")
+            print(f"wrote {target.relative_to(ROOT)} ({len(text) // 1024} KB of JSON, {target.stat().st_size // 1024} KB on disk)")
     sys.exit(1 if stale else 0)
