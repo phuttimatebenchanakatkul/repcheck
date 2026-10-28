@@ -25,6 +25,8 @@ export interface Context {
   services: Services;
   /** The caller, for a route registered with `auth: true`. */
   identity: Identity;
+  /** The values of `<name>` / `<int:name>` in the route's path. */
+  params: Record<string, string>;
 }
 
 export type Handler = (ctx: Context) => Promise<Response> | Response;
@@ -32,15 +34,31 @@ export type Handler = (ctx: Context) => Promise<Response> | Response;
 interface Route {
   method: string;
   path: string;
+  /** Matches the path; null for a path with nothing variable in it. */
+  pattern: RegExp | null;
+  names: string[];
   auth: boolean;
   handler: Handler;
+}
+
+/** `/api/x/<int:id>` (digits only, like Flask's converter) and `/api/x/<name>` (anything but a slash) become a pattern. */
+function compile(path: string): { pattern: RegExp | null; names: string[] } {
+  const names: string[] = [];
+  if (!path.includes("<")) return { pattern: null, names };
+  const source = path.split(/(<[^>]+>)/).map((part) => {
+    const m = /^<(?:(int):)?(\w+)>$/.exec(part);
+    if (!m) return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    names.push(m[2]);
+    return m[1] ? "(\\d+)" : "([^/]+)";
+  }).join("");
+  return { pattern: new RegExp(`^${source}$`), names };
 }
 
 export class Router {
   private readonly routes: Route[] = [];
 
   add(method: string, path: string, handler: Handler, options: { auth?: boolean } = {}): this {
-    this.routes.push({ method, path, auth: options.auth ?? true, handler });
+    this.routes.push({ method, path, ...compile(path), auth: options.auth ?? true, handler });
     return this;
   }
 
@@ -56,9 +74,14 @@ export class Router {
     return this.add("DELETE", path, handler, options);
   }
 
-  find(method: string, path: string): { route: Route | null; pathKnown: boolean } {
-    const onPath = this.routes.filter((r) => r.path === path);
-    return { route: onPath.find((r) => r.method === method) ?? null, pathKnown: onPath.length > 0 };
+  find(method: string, path: string): { route: Route | null; pathKnown: boolean; params: Record<string, string> } {
+    const matches = this.routes.flatMap((route) => {
+      if (route.pattern === null) return route.path === path ? [{ route, params: {} }] : [];
+      const m = route.pattern.exec(path);
+      return m ? [{ route, params: Object.fromEntries(route.names.map((n, i) => [n, decodeURIComponent(m[i + 1])])) }] : [];
+    });
+    const hit = matches.find((x) => x.route.method === method);
+    return { route: hit?.route ?? null, pathKnown: matches.length > 0, params: hit?.params ?? {} };
   }
 }
 
@@ -90,10 +113,10 @@ export function createHandler(services: Services, router: Router): (request: Req
   return async (request) => {
     sweep();
     try {
-      const { route, pathKnown } = router.find(request.method, routePath(request.url));
+      const { route, pathKnown, params } = router.find(request.method, routePath(request.url));
       if (!route) return pathKnown ? fail("Method not allowed.", 405) : fail("Not found.", 404);
       const identity = route.auth ? await requireIdentity(request, services.verifier) : undefined;
-      return await route.handler({ request, services, identity: identity as Identity });
+      return await route.handler({ request, services, identity: identity as Identity, params });
     } catch (e) {
       if (e instanceof Stop) return e.response;
       // Never leak a driver message, a query or a path to the client.

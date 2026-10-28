@@ -42,7 +42,7 @@ export function containsBadWord(name: string): boolean {
 }
 
 /** Python's str.strip(): its whitespace set, not JavaScript's (JS trims U+FEFF, Python does not; Python trims U+001C-001F and U+0085, JS does not). */
-const PY_SPACE = "\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+export const PY_SPACE = "\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
 const STRIP = new RegExp(`^[${PY_SPACE}]+|[${PY_SPACE}]+$`, "g");
 export const pyStrip = (s: string): string => s.replace(STRIP, "");
 

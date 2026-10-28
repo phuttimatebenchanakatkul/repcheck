@@ -36,6 +36,39 @@ function parseObject(text: string): Record<string, unknown> {
   }
 }
 
+/** The form a multipart request carries, refused with a 413 past `limit` bytes: by its declared length before any of it is
+ *  read, and again as it streams in (the header can lie, and a chunked body declares nothing). */
+export async function readFormBounded(request: Request, limit: number): Promise<FormData> {
+  const tooLarge = () => new Stop(fail("That request is too large.", 413));
+  if (Number(request.headers.get("content-length") ?? 0) > limit) throw tooLarge();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  if (request.body) {
+    const reader = request.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > limit) {
+        await reader.cancel();
+        throw tooLarge();
+      }
+      chunks.push(value);
+    }
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.length;
+  }
+  try {
+    return await new Response(bytes, { headers: { "Content-Type": request.headers.get("content-type") ?? "" } }).formData();
+  } catch {
+    return new FormData(); // not a form at all: every field is simply missing
+  }
+}
+
 /** A JSON body, refused past `limit` bytes before it is read whole (the header can lie, so the text is measured too). */
 export const DEFAULT_MAX_BODY = 1 * 1024 * 1024;
 

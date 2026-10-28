@@ -180,3 +180,115 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: "live: the whole API, signed in with a real token: profile, photo round trip, consent, deletion, and an imported password moving across",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings), // the project's REAL keys, fetched over the network
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    const signIn = async (pw: string) => {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password: pw }) });
+      return r.status === 200 ? (await r.json()).access_token as string : null;
+    };
+    try {
+      const token = (await signIn(password))!;
+      assert(token, "the throwaway user could not sign in");
+      const auth = { Authorization: `Bearer ${token}` };
+      const getJson = async (r: Response) => await r.json();
+
+      // a forged token is refused by the real key set
+      assertEquals((await call("/api/profile", { headers: { Authorization: `Bearer ${token.slice(0, -4)}AAAA` } })).status, 401);
+      assertEquals((await call("/api/profile")).status, 401);
+      assertEquals((await call("/api/health")).status, 200);
+
+      // profile
+      assertEquals((await call("/api/profile", { headers: auth })).status, 404);
+      const made = await call("/api/profile", { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify({ name: "Edge Http" }) });
+      const madeBody = await getJson(made);
+      assertEquals([made.status, madeBody.created, madeBody.profile.name, madeBody.profile.id], [201, true, "Edge Http", id]);
+      assertEquals((await getJson(await call("/api/profile", { headers: auth }))).profile.friend_code, madeBody.profile.friend_code);
+
+      // consent
+      const consent = await call("/api/ai-consent", { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify({ granted: true }) });
+      assertEquals(await getJson(consent), { ok: true, granted: true });
+      assertEquals((await getJson(await call("/api/profile", { headers: auth }))).profile.ai_consent, true);
+
+      // a photo makes the whole round trip: upload, list, signed link that serves the same bytes, delete
+      const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+      const form = new FormData();
+      form.set("angle", "front");
+      form.set("date", new Date().toISOString().slice(0, 10));
+      form.set("photo", new File([png], "mine.png", { type: "image/png" }));
+      const up = await call("/api/checkin/photo", { method: "POST", headers: auth, body: form });
+      const upBody = await getJson(up);
+      assertEquals([up.status, upBody.ok], [200, true]);
+      const listed = (await getJson(await call("/api/checkin/photos", { headers: auth }))).photos;
+      assertEquals(listed.length, 1);
+      assertEquals([listed[0].id, listed[0].angle], [upBody.id, "front"]);
+      const link = await getJson(await call(`/api/checkin/photo/${upBody.id}`, { headers: auth }));
+      assertEquals(link.expires_in, 300);
+      const served = new Uint8Array(await (await fetch(link.url)).arrayBuffer());
+      assertEquals(served, png, "the signed link serves the stored bytes");
+      const notPng = new FormData();
+      notPng.set("angle", "back");
+      notPng.set("date", new Date().toISOString().slice(0, 10));
+      notPng.set("photo", new File([new TextEncoder().encode("not an image")], "x.png", { type: "image/png" }));
+      assertEquals((await call("/api/checkin/photo", { method: "POST", headers: auth, body: notPng })).status, 400);
+      const del = await call(`/api/checkin/photo/${upBody.id}`, { method: "DELETE", headers: auth });
+      assertEquals([del.status, (await getJson(del)).ok], [200, true]);
+      assertEquals((await getJson(await call("/api/checkin/photos", { headers: auth }))).photos, []);
+      assertEquals((await db.transaction((tx) => tx.all("select name from storage.objects where bucket_id = 'progress-photos' and split_part(name, '/', 1) = $1", [id]))).length, 0, "the file is gone too");
+      assertEquals((await call(`/api/checkin/photo/${upBody.id}`, { headers: auth })).status, 404);
+
+      // an imported account's old password moves across and then works as the real one
+      const OLD = "old-password-1";
+      const OLD_HASH = "scrypt:32768:8:1$jG9tzm50OwcoCAWB$e23b30f057ac0c7ff0728868264e7a0d590ea80885fec59923e0eefef5dc91de801e0ac05fb72c10eb7e71c1c9924496e3d8fc0adbbab5c016438dda6e095035";
+      await db.transaction((tx) => tx.exec("insert into public.legacy_password_hashes (user_id, password_hash) values ($1, $2)", [id, OLD_HASH]));
+      const asJson = { "Content-Type": "application/json", "X-Forwarded-For": `10.0.0.${Math.floor(Math.random() * 250)}` };
+      const wrong = await call("/api/auth/legacy-login", { method: "POST", headers: asJson, body: JSON.stringify({ email, password: "wrong" }) });
+      assertEquals(wrong.status, 401);
+      assertEquals(await signIn(OLD), null, "a wrong try moved nothing");
+      const moved = await call("/api/auth/legacy-login", { method: "POST", headers: asJson, body: JSON.stringify({ email: email.toUpperCase(), password: OLD }) });
+      assertEquals([moved.status, (await getJson(moved)).ok], [200, true]);
+      assert(await signIn(OLD), "the old password now signs in on Supabase");
+      assertEquals((await db.transaction((tx) => tx.all("select 1 from public.legacy_password_hashes where user_id = $1", [id]))).length, 0, "the old hash is gone");
+      const again = await call("/api/auth/legacy-login", { method: "POST", headers: asJson, body: JSON.stringify({ email, password: OLD }) });
+      assertEquals(again.status, 401, "it can be done only once");
+
+      // deletion is scheduled once, and can be undone
+      const token2 = (await signIn(OLD))!;
+      const auth2 = { Authorization: `Bearer ${token2}` };
+      const scheduled = await getJson(await call("/api/account", { method: "DELETE", headers: auth2 }));
+      assertEquals([scheduled.ok, scheduled.grace_days, /^\d{4}-\d\d-\d\d$/.test(scheduled.due_at)], [true, 30, true]);
+      assertEquals((await getJson(await call("/api/account/restore", { method: "POST", headers: auth2 }))).ok, true);
+      assertEquals((await getJson(await call("/api/profile", { headers: auth2 }))).profile.deleted_at, null);
+    } finally {
+      await db.transaction((tx) => tx.exec("delete from public.auth_throttle where key = $1", [`legacy:${email}`])).catch(() => 0);
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+    }
+  },
+});
