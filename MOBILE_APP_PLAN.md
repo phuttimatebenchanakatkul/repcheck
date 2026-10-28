@@ -750,7 +750,13 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   **The model:** the code defaults to the website's `gemini-3.1-flash-lite`, and the `GEMINI_MODEL` secret overrides it without a redeploy. On 2026-10-28 that
   model answered every request with HTTP 503 "high demand" (so the website's chat was likely failing too) while `gemini-3.5-flash-lite` answered, slowly (~20 s);
   which to use is James's call.
-- **8e2, coaching targets and the weekly check-in:** `coaching_engine` ported to TypeScript (run against the Python one), the coaching routes, the check-in photo analysis.
+- **8e2, coaching targets and the weekly check-in (v0.49.0.0, done):** `coaching_engine` ported to TypeScript (its ranges and constants GENERATED from the Python, its
+  rounding Python's: a tie goes to the even number), the profile check, the weekly spread and tune, the check-in photo review and the three coaching routes. The
+  check-in review uses `gemini-3.5-flash` as before, with one try and a 30 s limit, and any failure leaves the deterministic number (and gives the use back).
+  **New: golden files.** `scripts/edge_golden.py` runs seeded and hand-picked cases through the PYTHON and writes the answers to
+  `supabase/functions/tests/fixtures/*_golden.json`; the TypeScript's own offline tests check them (so a mutation run needs no Python), and a Python test fails
+  if a file is stale. **One deliberate fix:** the Python check-in prompt told the model the person weighed "None kg" (it read a key the profile never has);
+  this tells it the real weight. 296 Deno tests; the live check has a real photo reviewed by the real model.
 - **8e3, the split generator:** `split_planner` and `workout_library`.
 - **8e4, HYROX analysis.**
 - **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.

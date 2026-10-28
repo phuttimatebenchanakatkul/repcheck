@@ -509,3 +509,79 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: "live: coaching targets, and the weekly check-in with a real photo through the real model (or, if Google is busy, the deterministic number)",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    try {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const headers = { Authorization: `Bearer ${(await r.json()).access_token}`, "Content-Type": "application/json" };
+      const post = (path: string, body: unknown) => call(path, { method: "POST", headers, body: JSON.stringify(body) });
+      await post("/api/profile", { name: "Edge Coach" });
+      await post("/api/ai-consent", { granted: true });
+
+      const profile = { aspiration: "lose", gender: "male", activity_level: "lift_and_cardio", protein_preference: "high", body_fat_range_id: "m3", weight_kg: 80, loss_rate_pct: 1 };
+      const calc = await (await post("/api/coaching/calculate", { ...profile, distribution: "weekly", training_days: ["monday", "wednesday"] })).json();
+      assertEquals(calc.targets, { bmr: 1796, tdee: 2783, calories: 2238, protein: 185, fat: 62, carbs: 235 });
+      assertEquals(calc.distribution.monday.calories, 2462);
+
+      // a real photo through the real upload route, then a check-in that uses it
+      const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+      const form = new FormData();
+      form.set("angle", "front");
+      form.set("date", new Date().toISOString().slice(0, 10));
+      form.set("photo", new File([png], "p.png", { type: "image/png" }));
+      const up = await (await call("/api/checkin/photo", { method: "POST", headers: { Authorization: headers.Authorization }, body: form })).json();
+      assertEquals(up.ok, true);
+      const week = {
+        ...profile,
+        current_targets: calc.targets,
+        week_weight_entries: [{ date: "2026-10-21", kg: 80 }, { date: "2026-10-28", kg: 79.9 }],
+        week_calorie_days: [{ date: "2026-10-22", calories: 2600 }, { date: "2026-10-23", calories: 2650 }, { date: "2026-10-24", calories: 2550 }],
+        photo_ids: [up.id],
+      };
+      const out = await (await post("/api/coaching/weekly-adjustment", week)).json();
+      assertEquals(out.ok, true);
+      assert(out.adjustment !== null, "a stalled loss at 2600 against a 2238 target always changes something");
+      assert(Math.abs(out.adjustment.delta) <= 150 && out.adjustment.calories >= 1500 && typeof out.adjustment.reason === "string" && out.adjustment.reason.length > 0);
+      const usedModel = Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.usage_events where user_id = $1 and event = 'feature:checkin_ai_analysis'", [id])))!.n);
+      console.log(usedModel ? "  (the model reviewed the check-in: " + JSON.stringify(out.adjustment) + ")" : "  (the model was unavailable: the deterministic number was used)");
+      if (usedModel) {
+        assertEquals(out.adjustment.protein, 185);
+      } else {
+        assertEquals(out.adjustment.delta, -150);
+      }
+      // without a photo or a profile the deterministic answer is the same shape
+      const plain = await (await post("/api/coaching/weekly-adjustment", { ...week, photo_ids: [] })).json();
+      assertEquals(plain.ok, true);
+    } finally {
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+    }
+  },
+});

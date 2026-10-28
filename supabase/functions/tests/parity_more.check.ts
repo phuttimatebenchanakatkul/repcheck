@@ -9,6 +9,10 @@ import { inspectImage, PhotoRejected } from "../_shared/photos.ts";
 import { cleanText } from "../_shared/rows.ts";
 import { buildAnalysisPrompt, buildWorkoutPrompt, ChatRejected, cleanRequest } from "../_shared/chats.ts";
 import { attachSources, promptInstruction } from "../_shared/healthSources.ts";
+import { buildPrompt, extractJson } from "../_shared/checkin.ts";
+import { validateProfile } from "../_shared/coaching.ts";
+import { type Adjustment, applyCalorieDelta, BadCheckin, calculateTargets, distributeWeeklyCalories, type Profile, type Targets, weeklyAdjustment } from "../_shared/coachingEngine.ts";
+import { pyInt, pyRound, pyRound2 } from "../_shared/pyNumbers.ts";
 import { cleanCode, cleanHyroxResult, offsetMinutes, parseUserId, Rejected, todaysExercise } from "../_shared/social.ts";
 
 const input = JSON.parse(Deno.readTextFileSync(Deno.args[0]));
@@ -60,4 +64,42 @@ const analysisPrompts = (input.analysisPrompts ?? []).map((c: Record<string, unk
 const workoutPrompts = (input.workoutPrompts ?? []).map((c: Record<string, unknown>) => buildWorkoutPrompt(c));
 const instruction = input.instruction ? promptInstruction() : null;
 
-console.log(JSON.stringify({ hashes, emails, images, userIds, codes, offsets, hyrox, days, texts, sources, requests, analysisPrompts, workoutPrompts, instruction }));
+const profiles = (input.profiles ?? []).map((payload: Record<string, unknown>) => validateProfile(payload));
+const targets = (input.targets ?? []).map((profile: Profile) => calculateTargets(profile));
+const distributions = (input.distributions ?? []).map(([t, days]: [Record<string, number>, string[]]) =>
+  distributeWeeklyCalories(t.calories, t.protein, t.fat, t.carbs, new Set(days))
+);
+const weekly = (input.weekly ?? []).map(([profile, current, weights, calorieDays]: [Profile, Targets, Record<string, unknown>[], Record<string, unknown>[]]) => {
+  try {
+    return weeklyAdjustment(profile, current, weights, calorieDays);
+  } catch (e) {
+    if (!(e instanceof BadCheckin)) throw e;
+    return "ERR";
+  }
+});
+const applied = (input.applied ?? []).map(([profile, current, delta, reason]: [Profile, Targets, number, string]) => {
+  try {
+    return applyCalorieDelta(profile, current, delta, reason);
+  } catch (e) {
+    if (!(e instanceof BadCheckin)) throw e;
+    return "ERR";
+  }
+});
+const checkinPrompts = (input.checkinPrompts ?? []).map(([profile, current, weights, calorieDays, baseline, front, back]: [Profile, Targets | null, Record<string, unknown>[], Record<string, unknown>[], Adjustment | null, boolean, boolean]) =>
+  buildPrompt(profile, current, weights, calorieDays, baseline, front, back)
+);
+const extracted = (input.extracted ?? []).map((text: string) => {
+  try {
+    return { ok: extractJson(text) };
+  } catch {
+    return "ERR";
+  }
+});
+const rounds = (input.rounds ?? []).map((x: number) => [pyRound(x), pyRound2(x)]);
+const ints = (input.ints ?? []).map((x: unknown) => {
+  const n = pyInt(x);
+  return Number.isNaN(n) ? "ERR" : n;
+});
+const photoIds = input.photoIds ? input.photoIds.map(([raw]: [unknown]) => pyInt(raw)).map((n: number) => (Number.isNaN(n) ? "ERR" : n)) : [];
+
+console.log(JSON.stringify({ hashes, emails, images, userIds, codes, offsets, hyrox, days, texts, sources, requests, analysisPrompts, workoutPrompts, instruction, profiles, targets, distributions, weekly, applied, checkinPrompts, extracted, rounds, ints, photoIds }));

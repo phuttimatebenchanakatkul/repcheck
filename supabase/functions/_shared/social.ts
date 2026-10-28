@@ -13,6 +13,7 @@
 import type { Tx } from "./db.ts";
 import { friendlyWait } from "./limits.ts";
 import { pyStrip } from "./nameFilter.ts";
+import { pyFloat } from "./pyNumbers.ts";
 import { lock, overLimitMessage } from "./rows.ts";
 
 export const FRIEND_CODE_GUESS_LIMIT = 30; // wrong codes one person may try ...
@@ -374,22 +375,12 @@ export function myRank<T extends { user_id: string; name: string }>(rows: readon
 export const hyroxCombo = (gender: string, category: string, format: string): boolean =>
   HYROX_GENDERS.includes(gender) && HYROX_CATEGORIES.includes(category) && HYROX_FORMATS.includes(format);
 
-/** A number the way Python's float() reads it (a number, or text like " 3600.5 " or "1e3"); NaN for anything else. */
-function pyFloat(value: unknown): number {
-  if (typeof value === "number") return value;
-  if (typeof value !== "string") return NaN;
-  const text = pyStrip(value);
-  // digits may be grouped with single underscores ("3_600"), as Python allows; nothing else (no "0x10", no "inf") is a number here
-  const digits = "[0-9](?:_?[0-9])*";
-  return new RegExp(`^[+-]?(?:${digits}(?:\\.(?:${digits})?)?|\\.${digits})(?:[eE][+-]?${digits})?$`).test(text) ? Number(text.replaceAll("_", "")) : NaN;
-}
-
 /** [gender, category, format, totalSeconds] from a posted result, or a Rejected. */
 export function cleanHyroxResult(payload: Record<string, unknown>): [string, string, string, number] {
   const read = (k: string) => pyStrip(String(payload[k] || ""));
   const [gender, category, format] = [read("gender"), read("category"), read("format")];
   const seconds = pyFloat(payload.total_seconds);
-  if (!Number.isFinite(seconds)) throw new Rejected("Invalid time.");
+  if (!Number.isFinite(seconds) || typeof payload.total_seconds === "boolean") throw new Rejected("Invalid time."); // True is a number to Python, but not a time
   if (!hyroxCombo(gender, category, format)) throw new Rejected("Invalid gender, category, or format.");
   if (seconds < HYROX_MIN_PLAUSIBLE_SECONDS[`${gender}|${format}`] || seconds > HYROX_MAX_SECONDS) throw new Rejected("That time isn't a plausible race finish.");
   return [gender, category, format, seconds];

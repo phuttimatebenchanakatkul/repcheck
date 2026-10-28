@@ -8,15 +8,27 @@ export const GEMINI_MODEL = "gemini-3.1-flash-lite";
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const TIMEOUT_MS = 60_000;
 
+export interface Image {
+  data: Uint8Array;
+  mimeType: string;
+}
+
 export interface Turn {
   role: "user" | "model";
   text: string;
+  /** Pictures sent with the text, inline. */
+  images?: readonly Image[];
 }
 
 export interface GenerateRequest {
   model?: string;
-  system: string;
+  /** The standing instructions; the photo reviews send none. */
+  system?: string;
   contents: readonly Turn[];
+  /** How long one attempt may take (default 60 s). */
+  timeoutMs?: number;
+  /** How many times to try when the model says "busy" (default 3). A check-in a person is waiting on tries once. */
+  attempts?: number;
   /** Block medium-and-above harassment, hate, sexual and dangerous content (App Review 4.7.1). The three free-text chats ask for it. */
   safe?: boolean;
 }
@@ -37,6 +49,13 @@ const CATEGORIES = ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HA
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
 const ATTEMPTS = 3;
 
+/** Bytes as base64, in pieces (one String.fromCharCode over a whole photo overflows the call stack). */
+export function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
 export class GeminiClient implements Gemini {
   readonly configured: boolean;
 
@@ -53,23 +72,27 @@ export class GeminiClient implements Gemini {
   async generate(request: GenerateRequest): Promise<string | null> {
     if (!this.apiKey) throw new GeminiError("no Gemini key");
     const body: Record<string, unknown> = {
-      contents: request.contents.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
-      systemInstruction: { parts: [{ text: request.system }] },
+      contents: request.contents.map((t) => ({
+        role: t.role,
+        parts: [{ text: t.text }, ...(t.images ?? []).map((i) => ({ inlineData: { mimeType: i.mimeType, data: toBase64(i.data) } }))],
+      })),
     };
+    if (request.system) body.systemInstruction = { parts: [{ text: request.system }] };
+    const attempts = request.attempts ?? ATTEMPTS;
     if (request.safe) body.safetySettings = CATEGORIES.map((category) => ({ category, threshold: "BLOCK_MEDIUM_AND_ABOVE" }));
     let response: Response | undefined;
-    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         response = await this.send(`${ENDPOINT}/${request.model ?? this.model}:generateContent`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": this.apiKey },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
+          signal: AbortSignal.timeout(request.timeoutMs ?? TIMEOUT_MS),
         });
       } catch (e) {
         throw new GeminiError(e instanceof Error ? e.name : "unreachable"); // no network, or it timed out: not retried
       }
-      if (response.ok || !RETRY_STATUSES.has(response.status) || attempt === ATTEMPTS) break;
+      if (response.ok || !RETRY_STATUSES.has(response.status) || attempt === attempts) break;
       await this.sleep(attempt * 1000);
     }
     const answer = response as Response; // the loop always runs at least once and either sets it or throws

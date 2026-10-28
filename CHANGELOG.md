@@ -2,6 +2,20 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.49.0.0] - 2026-10-29
+
+### Added
+
+The coaching targets and the weekly check-in on the new Supabase server (step 8e2 of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **Calorie and macro targets, the weekly spread and the weekly tune** on the new server, with the same arithmetic as before, down to how a .5 is rounded (Python rounds to the even number, JavaScript does not).
+- **The weekly check-in review.** The trend-based number is always worked out first; with consent the model may refine it, looking at your front and back photos, and if it cannot the trend-based
+  number stands and your use is given back.
+- **A fix on the way:** the old check-in told the model your bodyweight was "None kg" because it looked for it under the wrong name. It is now told your real weight.
+- **Proven:** 296 Deno tests, including ~1,000 cases whose answers the old Python code gave (profiles, targets, weekly spreads and tunes at the edges of every band, applied deltas, prompts, rounding, number reading), run both
+  beside the Python and offline against saved answers; a live run in which the real model reviewed a real photo; then deliberate breakages of the new code (every survivor killed by a new test, removed as
+  redundant, or a change with no observable effect). Not deployed: that needs your Supabase login.
+
 ## [0.48.0.0] - 2026-10-28
 
 ### Added
