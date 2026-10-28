@@ -8,6 +8,7 @@
 import { assert, assertEquals } from "@std/assert";
 
 import { connect } from "../_shared/db.ts";
+import { GeminiClient } from "../_shared/gemini.ts";
 import { reserve, refund, reserveDailyAttempt, trackUsage } from "../_shared/limits.ts";
 import { setConsent } from "../_shared/consent.ts";
 
@@ -198,6 +199,7 @@ Deno.test({
       verifier: new Verifier(settings), // the project's REAL keys, fetched over the network
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY")),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -311,6 +313,7 @@ Deno.test({
       verifier: new Verifier(settings),
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY")),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -427,6 +430,82 @@ Deno.test({
         const gone = await fetch(`${url}/auth/v1/admin/users/${p.id}`, { method: "DELETE", headers: admin });
         assert(gone.ok || gone.status === 404, "a throwaway user was not removed: delete " + p.id + " by hand");
       }
+    }
+  },
+});
+
+Deno.test({
+  name: "live: the three AI chats answer through the real model, cite real sources, and the fourth message of the day is limited",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY") || !env("GEMINI_API_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const { SOURCES_BY_ID } = await import("../_shared/healthSources.ts");
+    const { fallbackReply } = await import("../_shared/chats.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    try {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const headers = { Authorization: `Bearer ${(await r.json()).access_token}`, "Content-Type": "application/json" };
+      const post = (path: string, body: unknown) => call(path, { method: "POST", headers, body: JSON.stringify(body) });
+      await post("/api/profile", { name: "Edge Chat" });
+
+      // without consent the model is never asked
+      const refused = await post("/api/coach-chat", { message: "hi" });
+      assertEquals([refused.status, (await refused.json()).needs_ai_consent], [403, true]);
+      await post("/api/ai-consent", { granted: true });
+
+      const check = async (path: string, body: unknown, fallback: string) => {
+        const res = await post(path, body);
+        const out = await res.json();
+        assertEquals([res.status, out.ok, out.limited], [200, true, false], JSON.stringify(out));
+        assert(out.reply.length > 0 && out.reply !== fallback, "the model did not answer: " + out.reply);
+        assert(!/SOURCES\s*:/i.test(out.reply), "the citation line was not taken off: " + out.reply);
+        assert(out.sources.length >= 1 && out.sources.length <= 3);
+        for (const s of out.sources) assert(SOURCES_BY_ID.has(s.id) && s.url.startsWith("https://"), JSON.stringify(s));
+        return out;
+      };
+      const coach = await check("/api/coach-chat", { message: "In one short sentence: how much protein should a lifter eat a day?", history: [] }, fallbackReply("coach"));
+      assert(coach.reply.length < 2000);
+      await check("/api/analyze-chat", {
+        message: "Why was my squeeze score lower?",
+        history: [],
+        context: { exercise_label: "Bicep curl", overall_score: 78, stretch_score: 80, squeeze_score: 65, reps: 10, feedback_text: "Good control on the way down. You swing slightly at the top, which reduces the squeeze." },
+      }, fallbackReply("analysis"));
+      await check("/api/workout-chat", {
+        message: "How do I progress my squat?",
+        history: [],
+        context: { workout_summary: "Exercise history (last 4 sessions each):\nSquat: 2026-10-20 3x5 @ 100 kg; 2026-10-23 3x5 @ 102.5 kg; 2026-10-27 3x5 @ 105 kg" },
+      }, fallbackReply("workout"));
+
+      // the three shared one budget, so the fourth is a friendly reply that never reached the model
+      const fourth = await (await post("/api/coach-chat", { message: "one more" })).json();
+      assertEquals([fourth.ok, fourth.limited, fourth.sources], [true, true, []]);
+      assert(fourth.reply.startsWith("You've reached your 3 chat messages for now."));
+      assertEquals(Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.usage_events where user_id = $1 and event like 'feature:%_chat_message'", [id])))!.n), 3);
+    } finally {
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
     }
   },
 });

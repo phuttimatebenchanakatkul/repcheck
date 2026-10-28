@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.48.0.0] - 2026-10-28
+
+### Added
+
+The three AI chats on the new Supabase server (step 8e1 of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **Coach, analysis follow-up and workout chat** on the new server, with the same rules: consent first, one shared budget of three messages a day (given back when
+  the model cannot be reached), every reply ending in real, checked sources, and the same input limits.
+- **A model client that tries again.** When Google says the model is busy (the common "high demand" answer), it now tries up to three times before telling the person
+  the coach is unreachable. The model can be changed without a code change by setting the `GEMINI_MODEL` secret.
+- **Proven:** 252 Deno tests; the sources, request checks and prompts give identical answers from the old and new code over seeded corpora; a live run asks the real
+  model all three chats and checks the cited sources; then deliberate breakages of the new code (every survivor killed by a new test, removed as redundant, or a
+  change with no observable effect). Not deployed: that needs your Supabase login.
+- **A warning found on the way:** on 2026-10-28 the website's model (`gemini-3.1-flash-lite`) answered every request with "high demand" (503), so the website's chats were
+  probably failing as well; `gemini-3.5-flash-lite` answered.
+
 ## [0.47.0.0] - 2026-10-28
 
 ### Added

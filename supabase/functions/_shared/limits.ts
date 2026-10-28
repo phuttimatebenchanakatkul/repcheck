@@ -135,6 +135,21 @@ export async function trackUsage(tx: Tx, userId: string, event: string): Promise
   );
 }
 
+/** Spend one use of `feature` for this person (nothing for an exempt account). */
+export async function reserveUse(db: Db, settings: Settings, identity: Identity, feature: Feature): Promise<Reservation> {
+  if (isExempt(settings, identity)) return EXEMPT;
+  return await db.transaction((tx) => reserve(tx, identity.id, feature));
+}
+
+/** Give a reserved use back. Never throws: a failed refund must not mask the failure that caused it. */
+export async function release(db: Db, userId: string, feature: Feature | string, reservation: Reservation): Promise<void> {
+  try {
+    await db.transaction((tx) => refund(tx, userId, feature, reservation));
+  } catch {
+    console.error("could not refund a", feature, "use");
+  }
+}
+
 /** Lifetime counter for the admin view, in a transaction of its own. Best-effort: losing a counter must not fail a request that succeeded. */
 export async function track(db: Db, userId: string, event: string): Promise<void> {
   try {

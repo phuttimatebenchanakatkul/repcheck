@@ -7,6 +7,7 @@ import { createHandler } from "../_shared/app.ts";
 import { Verifier } from "../_shared/auth.ts";
 import { connect } from "../_shared/db.ts";
 import { fromEnv } from "../_shared/settings.ts";
+import { GeminiClient } from "../_shared/gemini.ts";
 import { AuthAdmin, Storage } from "../_shared/supabaseAdmin.ts";
 import { buildRouter } from "./router.ts";
 
@@ -26,6 +27,7 @@ Deno.serve(createHandler({
   verifier: new Verifier(settings),
   storage: new Storage(settings.supabaseUrl, serviceKey),
   authAdmin: new AuthAdmin(settings.supabaseUrl, serviceKey),
+  gemini: new GeminiClient(Deno.env.get("GEMINI_API_KEY"), undefined, undefined, Deno.env.get("GEMINI_MODEL") || undefined),
   background: (work) => runtime?.waitUntil(work),
   sweep: true,
 }, buildRouter()));
