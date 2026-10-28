@@ -4,6 +4,7 @@ import type { KeyLike } from "jose";
 
 import { createHandler, Router, type Services } from "../_shared/app.ts";
 import { Verifier } from "../_shared/auth.ts";
+import type { Gemini, GenerateRequest } from "../_shared/gemini.ts";
 import { AuthAdmin, Storage, type Transport } from "../_shared/supabaseAdmin.ts";
 import type { Db, Params, Row, Tx } from "../_shared/db.ts";
 import { fromEnv, issuer, type Settings } from "../_shared/settings.ts";
@@ -107,7 +108,18 @@ export function fakeTransport(answer: (url: string, init: RequestInit) => Respon
   return { transport, requests };
 }
 
-export function services(db: Db = new FakeDb(), env: Record<string, string> = {}, transport: Transport = fakeTransport().transport): Services & { collected: Promise<unknown>[] } {
+/** A model that answers from `answer(request)` (a string, null for "gave nothing", or an Error to throw) and remembers what it was asked. */
+export class FakeGemini implements Gemini {
+  requests: GenerateRequest[] = [];
+  constructor(private readonly answer: (request: GenerateRequest) => string | null | Error = () => "Sure.\nSOURCES: none", readonly configured = true) {}
+  generate(request: GenerateRequest): Promise<string | null> {
+    this.requests.push(request);
+    const out = this.answer(request);
+    return out instanceof Error ? Promise.reject(out) : Promise.resolve(out);
+  }
+}
+
+export function services(db: Db = new FakeDb(), env: Record<string, string> = {}, transport: Transport = fakeTransport().transport, gemini: Gemini = new FakeGemini()): Services & { collected: Promise<unknown>[] } {
   const s = settings(env);
   const collected: Promise<unknown>[] = [];
   return {
@@ -116,14 +128,15 @@ export function services(db: Db = new FakeDb(), env: Record<string, string> = {}
     verifier: new Verifier(s, publicKey),
     storage: new Storage(PROJECT, "service-key", transport),
     authAdmin: new AuthAdmin(PROJECT, "service-key", transport),
+    gemini,
     background: (work) => void collected.push(work),
     sweep: false,
     collected,
   };
 }
 
-export function app(db: Db = new FakeDb(), env: Record<string, string> = {}, router: Router = buildRouter(), transport?: Transport) {
-  const handler = createHandler(services(db, env, transport), router);
+export function app(db: Db = new FakeDb(), env: Record<string, string> = {}, router: Router = buildRouter(), transport?: Transport, gemini?: Gemini) {
+  const handler = createHandler(services(db, env, transport, gemini), router);
   return (path: string, init: RequestInit & { json?: unknown } = {}) => {
     const headers = new Headers(init.headers);
     let body = init.body;

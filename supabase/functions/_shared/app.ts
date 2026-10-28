@@ -4,6 +4,7 @@ import { Verifier, requireIdentity, type Identity } from "./auth.ts";
 import type { Db } from "./db.ts";
 import { fail, json, Stop } from "./http.ts";
 import type { Settings } from "./settings.ts";
+import type { Gemini } from "./gemini.ts";
 import type { AuthAdmin, Storage } from "./supabaseAdmin.ts";
 
 export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
@@ -14,6 +15,7 @@ export interface Services {
   verifier: Verifier;
   storage: Storage;
   authAdmin: AuthAdmin;
+  gemini: Gemini;
   /** Keep `work` running after the response has gone (EdgeRuntime.waitUntil); the tests hand in one that collects it. */
   background: (work: Promise<unknown>) => void;
   /** Purge accounts past their grace period on requests, at most hourly. Off in tests, so they can never touch a real account that happens to be due. */

@@ -742,7 +742,17 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   two real people befriend, challenge, score, report and block each other and checks what each can and cannot see afterwards; and helpers that read text (user ids,
   friend codes, UTC offsets, HYROX times, the day's exercise) are run through Python and TypeScript over seeded corpora, which found one real difference (Python
   accepts `3_600` as a number) before it shipped. Timestamps now end in `Z` (`2026-10-28T10:00:00.000Z`) where Flask wrote `+00:00`; the app reads both.
-- **8e, AI text:** the coach / analysis / workout chats, the split generator, the weekly check-in, HYROX analysis, coaching targets (`coaching_engine` ported to TypeScript, with a run against the Python one).
+- **8e1, the three AI chats (v0.48.0.0, done):** coach, analysis follow-up and workout chat, with the health-source citations App Review asked for, the shared
+  3-a-day budget (a failed or unreachable model gives the use back), and a Gemini client over its REST API that tries up to three times when Google says it is
+  busy. The Coach's prompt and the source catalog are GENERATED from the Python (`scripts/gen_edge_chat_data.py`); the analysis and workout prompts, the
+  citation parser, and the request checks (message, history, context and its Python-written size) are run through both languages over seeded corpora and
+  agree. 252 Deno tests; the live check asks the real model all three chats and checks the sources it cites, then that the fourth message is limited.
+  **The model:** the code defaults to the website's `gemini-3.1-flash-lite`, and the `GEMINI_MODEL` secret overrides it without a redeploy. On 2026-10-28 that
+  model answered every request with HTTP 503 "high demand" (so the website's chat was likely failing too) while `gemini-3.5-flash-lite` answered, slowly (~20 s);
+  which to use is James's call.
+- **8e2, coaching targets and the weekly check-in:** `coaching_engine` ported to TypeScript (run against the Python one), the coaching routes, the check-in photo analysis.
+- **8e3, the split generator:** `split_planner` and `workout_library`.
+- **8e4, HYROX analysis.**
 - **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
 - **8g, lift video:** see "The one hard part" below.
 - **8h, cut-over:** in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.

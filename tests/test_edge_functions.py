@@ -405,3 +405,95 @@ def test_the_social_helpers_answer_in_typescript_exactly_as_in_python(tmp_path):
     assert answers["days"] == [social.todays_exercise(flask_route.CHALLENGE_ORDER, dt.date.fromisoformat(d)) for d in days]
     assert answers["texts"] == [foods.clean_text(raw, limit) for raw, limit in texts]
     assert sum(1 for a in answers["userIds"] if a) >= 200 and sum(1 for h in expected_hyrox if isinstance(h, list)) >= 30
+
+
+def test_the_generated_chat_data_is_fresh():
+    """chatData.ts (the Coach's prompt and the health-source catalog) is written from coach_chat.py and health_sources.py."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_chat_data.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "run `python scripts/gen_edge_chat_data.py` to regenerate supabase/functions/_shared/chatData.ts"
+
+
+def test_the_chat_numbers_model_and_messages_are_the_flask_apis():
+    import analyze_chat
+    import coach_chat
+    import workout_chat
+    from api import chat
+    source = text("_shared", "chats.ts")
+    for name in ("MAX_MESSAGE_CHARS", "MAX_HISTORY_TURNS", "MAX_TURN_CHARS"):
+        assert int(re.search(rf"{name} = (\d+)", source).group(1)) == getattr(chat, name), name
+    assert int(re.search(r"MAX_CONTEXT_CHARS = ([\d_]+)", source).group(1).replace("_", "")) == chat.MAX_CONTEXT_CHARS
+    assert int(re.search(r"HISTORY_TURNS_SENT = (\d+)", source).group(1)) == coach_chat.MAX_HISTORY_TURNS == analyze_chat.MAX_HISTORY_TURNS == workout_chat.MAX_HISTORY_TURNS
+    assert int(re.search(r"MAX_FEEDBACK_CHARS = (\d+)", source).group(1)) == analyze_chat.MAX_FEEDBACK_CHARS
+    assert int(re.search(r"MAX_SUMMARY_CHARS = ([\d_]+)", source).group(1).replace("_", "")) == workout_chat.MAX_SUMMARY_CHARS
+    assert re.search(r'GEMINI_MODEL = "([^"]+)"', text("_shared", "gemini.ts")).group(1) == coach_chat.GEMINI_MODEL == analyze_chat.GEMINI_MODEL == workout_chat.GEMINI_MODEL
+    for kind, module in (("coach", coach_chat), ("analysis", analyze_chat), ("workout", workout_chat)):
+        assert re.search(rf'{kind}: "([^"]+)"', source).group(1) == module._fallback_reply(), kind
+    assert "Sorry, I couldn't come up with a reply there — could you try asking that again?" in source
+    route = text("api", "routes", "chat.ts")
+    assert 'FEATURE = "ai_chat"' in route
+    for event in ("coach_chat_message", "analyze_chat_message", "workout_chat_message"):
+        assert event in route and event in (ROOT / "api" / "routes" / "chat.py").read_text(encoding="utf-8")
+    safety = text("_shared", "gemini.ts")
+    import ai_safety
+    assert re.findall(r'"(HARM_CATEGORY_\w+)"', safety) == [c.name for c in ai_safety.chat_safety_settings()[0:0]] or len(re.findall(r'"(HARM_CATEGORY_\w+)"', safety)) == len(ai_safety.chat_safety_settings())
+    assert {s.category.name for s in ai_safety.chat_safety_settings()} == set(re.findall(r'"(HARM_CATEGORY_\w+)"', safety))
+    assert {s.threshold.name for s in ai_safety.chat_safety_settings()} == {"BLOCK_MEDIUM_AND_ABOVE"} and '"BLOCK_MEDIUM_AND_ABOVE"' in safety
+
+
+def test_the_chats_read_requests_cite_sources_and_write_prompts_in_typescript_exactly_as_in_python(tmp_path):
+    import analyze_chat
+    import health_sources
+    import workout_chat
+    from api import chat
+    rng = random.Random(33)
+    words = ["protein", "squat", "creatine", "rest between sets", "my knee hurts", "sleep", "stretching", "build muscle", "hello", "joke", "volume", "cardio", "lose fat", "calories", "deload",
+             "โปรตีน", "café protein", "creatineé", "écreatine", "form", "reps", "walking", "sweat", "coffee"]
+    ids = [s["id"] for s in health_sources.SOURCES]
+    lines = ["SOURCES: {}", "**Sources:** {}", "sources - {}", "> SOURCES: [{}]", "  Sources : {}  ", "Sources: {}.", "*sources*: {}", "SOURCES: none", "Sources: N/A", "sources: **None**", "SOURCES: fake_study_2020", "Sources: eggs, chicken", "SOURCES: {} , fake_one"]
+    sources = []
+    for _ in range(600):
+        body = rng.choice(["Eat more.", "- one\n- two", "Rest 3 minutes.\r\nThen go.", "", "  ", "Sources: eggs, chicken\nthen more", "Do this.\n\n", "x\ry"])
+        picked = ", ".join(rng.sample(ids, rng.randint(1, 4)))
+        line = rng.choice(lines).format(picked)
+        trailing = rng.choice(["", "\n", "  \n \n", " ", "\r\n"])
+        reply = body + ("\n" if body and not body.endswith("\n") else "") + line + trailing
+        if rng.random() < .15:
+            reply = reply + "\nmore text"
+        sources.append([reply, " ".join(rng.sample(words, rng.randint(0, 3)))])
+    sources += [["no line at all", w] for w in words] + [["", ""], ["SOURCES: none", ""], ["a\rSOURCES: acsm_2009", ""]]
+
+    long_ctx = {"k": "x" * 39990}
+    requests = []
+    for takes in (False, True):
+        for payload in [{}, {"message": ""}, {"message": "  hi  "}, {"message": 5}, {"message": True}, {"message": None}, {"message": "a" * 1000}, {"message": "a" * 1001}, {"message": "\U0001f3cb" * 1000},
+                        {"message": "m", "history": "x"}, {"message": "m", "history": [5]}, {"message": "m", "history": [{"role": "user", "text": 5}]}, {"message": "m", "history": [{"role": 5, "text": "a"}]},
+                        {"message": "m", "history": [{"role": "coach"}]}, {"message": "m", "history": [{"role": "r" * 30, "text": "t" * 4100}]}, {"message": "m", "history": [{"role": "user", "text": str(i)} for i in range(60)]},
+                        {"message": "m", "history": {}}, {"message": "m", "history": 0}, {"message": "m", "context": "x"}, {"message": "m", "context": [1]}, {"message": "m", "context": {"a": 1}},
+                        {"message": "m", "context": long_ctx}, {"message": "m", "context": {"k": "x" * 39991}}, {"message": "m", "context": {"k": "ก" * 6600}}, {"message": "m", "context": {"k": "ก" * 6700}},
+                        {"message": "m", "context": {"a": [1, 2.5, None, True, "é", {"b": "\U0001f3cb"}]}}, {"message": "m", "context": 0}, {"message": "m", "context": {}}]:
+            requests.append([payload, takes])
+
+    contexts = [{}, {"exercise_label": " Bench Press "}, {"exercise_label": ""}, {"exercise_label": 7}, {"overall_score": 82, "stretch_score": 70.5, "squeeze_score": "x", "reps": 8.9, "feedback_text": "  Keep your back flat.  "},
+                {"reps": 0}, {"reps": -3}, {"overall_score": 0}, {"overall_score": 99.25, "reps": 12}, {"feedback_text": "x" * 7000}, {"feedback_text": "\U0001f3cb" * 6100}, {"workout_summary": " Mon: squat 100kg "},
+                {"workout_summary": ""}, {"workout_summary": "   "}, {"workout_summary": "y" * 15000}, {"workout_summary": 5}, {"exercise_label": "Squat", "feedback_text": "ok", "workout_summary": "s"}, {"exercise_label": None, "feedback_text": None}]
+    answers = _run_edge_parity(tmp_path, {"sources": sources, "requests": requests, "analysisPrompts": contexts, "workoutPrompts": contexts, "instruction": True})
+
+    expected_sources = []
+    for reply, question in sources:
+        text_, found = health_sources.attach_sources(reply, question)
+        expected_sources.append([text_, [s["id"] for s in found]])
+    assert answers["sources"] == expected_sources
+    assert sum(1 for t in expected_sources if t[1]) > 500
+    assert answers["instruction"] == health_sources.prompt_instruction()
+
+    expected_requests = []
+    for payload, takes in requests:
+        try:
+            m, h, c = chat.clean_request(payload, takes_context=takes)
+            expected_requests.append([m, h, c])
+        except chat.ChatRejected as rejected:
+            expected_requests.append(f"ERR:{rejected}")
+    assert answers["requests"] == expected_requests
+    assert sum(1 for r in expected_requests if isinstance(r, str)) > 10 and sum(1 for r in expected_requests if isinstance(r, list)) > 30
+    assert answers["analysisPrompts"] == [analyze_chat._build_system_prompt(c) for c in contexts]
+    assert answers["workoutPrompts"] == [workout_chat._build_system_prompt(c) for c in contexts]

@@ -45,6 +45,9 @@ export function containsBadWord(name: string): boolean {
 export const PY_SPACE = "\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
 const STRIP = new RegExp(`^[${PY_SPACE}]+|[${PY_SPACE}]+$`, "g");
 export const pyStrip = (s: string): string => s.replace(STRIP, "");
+const RSTRIP = new RegExp(`[${PY_SPACE}]+$`);
+/** Python's str.rstrip(). */
+export const pyRstrip = (s: string): string => s.replace(RSTRIP, "");
 
 /** An error string if `name` isn't acceptable as a display name shown to other people, else null. */
 export function validateDisplayName(name: string | null | undefined): string | null {
