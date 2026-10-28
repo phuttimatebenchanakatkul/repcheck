@@ -292,3 +292,141 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: "live: friends, blocks, reports, challenges, the leaderboards and HYROX results between two real people",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const { todaysExercise } = await import("../_shared/social.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+
+    const people: { id: string; headers: Record<string, string>; name: string }[] = [];
+    const make = async (name: string) => {
+      const email = `edge-${crypto.randomUUID()}@example.invalid`;
+      const password = crypto.randomUUID() + "Aa1!";
+      const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+      assertEquals(created.status, 200);
+      const id = (await created.json()).id as string;
+      const person = { id, headers: {} as Record<string, string>, name };
+      people.push(person);
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      person.headers = { Authorization: `Bearer ${(await r.json()).access_token}`, "Content-Type": "application/json" };
+      const made = await call("/api/profile", { method: "POST", headers: person.headers, body: JSON.stringify({ name }) });
+      assertEquals(made.status, 201);
+      return person;
+    };
+    const json = async (r: Response) => await r.json();
+    try {
+      const ann = await make("Ann Edge");
+      const bob = await make("Bob Edge");
+      const post = (who: typeof ann, path: string, body: unknown) => call(path, { method: "POST", headers: who.headers, body: JSON.stringify(body) });
+      const get = (who: typeof ann, path: string) => call(path, { headers: who.headers });
+
+      // friends by code: a wrong code is a miss, a right one links both ways, your own is refused
+      const annCode = (await json(await get(ann, "/api/friends"))).code as string;
+      const bobCode = (await json(await get(bob, "/api/friends"))).code as string;
+      assert(/^RC-[0-9A-F]{6}$/.test(annCode));
+      assertEquals((await post(ann, "/api/friends/add", { code: "RC-000000" })).status, 404);
+      assertEquals((await post(ann, "/api/friends/add", { code: annCode })).status, 400);
+      const added = await json(await post(ann, "/api/friends/add", { code: ` ${bobCode.toLowerCase()} ` }));
+      assertEquals([added.ok, added.friend.id, added.friend.name], [true, bob.id, "Bob Edge"]);
+      assertEquals((await json(await get(ann, "/api/friends"))).friends, [{ id: bob.id, name: "Bob Edge" }]);
+      assertEquals((await json(await get(bob, "/api/friends"))).friends, [{ id: ann.id, name: "Ann Edge" }]);
+      assertEquals((await post(ann, "/api/friends/add", { code: bobCode })).status, 200, "adding a friend twice is harmless");
+      assertEquals(Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.auth_throttle where key = $1", [`friendcode:${ann.id}`])))!.n), 1, "only the one wrong code was counted");
+
+      // a challenge: Ann makes today's; Bob (a friend) sees it; a stranger would not
+      const made = await json(await post(ann, "/api/challenges", {}));
+      assertEquals([made.ok, made.exercise], [true, todaysExercise()]);
+      const today = await json(await get(ann, "/api/challenges/today"));
+      assertEquals([today.exercise, today.attempted], [todaysExercise(), false]);
+      const annList = await json(await get(ann, "/api/challenges"));
+      assertEquals([annList.me, annList.challenges.length, annList.challenges[0].creator_name, annList.challenges[0].leaderboard], [ann.id, 1, "Ann Edge", []]);
+      assertEquals((await json(await get(bob, "/api/challenges"))).challenges.length, 1, "a friend sees it");
+
+      // submissions (the video grader is a later slice, so the rows are written directly) feed both boards and the streak
+      await db.transaction(async (tx) => {
+        await tx.exec("insert into public.challenge_submissions (challenge_id, user_id, reps, notes) values ($1, $2, 12, 'a'), ($1, $3, 20, 'b')", [made.id, ann.id, bob.id]);
+      });
+      const board = await json(await get(ann, "/api/challenges"));
+      assertEquals(board.challenges[0].leaderboard.map((s: { name: string; reps: number }) => [s.name, s.reps]), [["Bob Edge", 20], ["Ann Edge", 12]]);
+      const reps = await json(await get(ann, "/api/leaderboard?scope=friends"));
+      assertEquals(reps.leaderboard.map((r: { name: string; total_reps: number }) => [r.name, r.total_reps]), [["Bob Edge", 20], ["Ann Edge", 12]]);
+      assertEquals(reps.myRank, { rank: 2, total_reps: 12, name: "Ann Edge" });
+      assertEquals((await json(await get(ann, "/api/leaderboard?scope=friends&limit=1"))).leaderboard.length, 1);
+      const global = await json(await get(ann, "/api/leaderboard?scope=global"));
+      assert(global.totalEntries >= 2 && global.myRank !== null);
+      assertEquals((await json(await get(ann, "/api/challenges/today"))).attempted, true);
+      const refused = await post(ann, "/api/challenges", {});
+      assertEquals([refused.status, (await json(refused)).limitReached], [429, true]);
+      const dates = (await json(await get(ann, "/api/activity/dates?tz_offset_minutes=420"))).dates;
+      assertEquals(Object.values(dates), [["challenge"]]);
+
+      // HYROX: a result, a board, an implausible time refused
+      assertEquals((await post(ann, "/api/hyrox/results", { gender: "men", category: "open", format: "singles", total_seconds: 100 })).status, 400);
+      const posted = await json(await post(ann, "/api/hyrox/results", { gender: "men", category: "open", format: "singles", total_seconds: 3700.5 }));
+      assertEquals(posted.ok, true);
+      await post(bob, "/api/hyrox/results", { gender: "men", category: "open", format: "singles", total_seconds: 3600 });
+      const hy = await json(await get(ann, "/api/hyrox/leaderboard?gender=men&category=open&format=singles"));
+      const mine = hy.leaderboard.filter((r: { user_id: string }) => r.user_id === ann.id || r.user_id === bob.id).map((r: { name: string; best_seconds: number }) => [r.name, r.best_seconds]);
+      assertEquals(mine, [["Bob Edge", 3600], ["Ann Edge", 3700.5]]);
+      assertEquals(hy.me.name, "Ann Edge");
+      assertEquals((await get(ann, "/api/hyrox/leaderboard?gender=men&category=open")).status, 400);
+
+      // an AI reply report, twice: one report
+      assertEquals((await json(await post(ann, "/api/ai-report", { reply: "bad advice", feature: "coach", reason: "harmful" }))).ok, true);
+      await post(ann, "/api/ai-report", { reply: "bad advice" });
+      assertEquals(Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.ai_reports where user_id = $1", [ann.id])))!.n), 1);
+
+      // Ann reports Bob: he is blocked, gone from her friends, her boards and his challenges, and she is gone from his (both ways)
+      const rep = await json(await post(ann, "/api/safety/report", { user_id: bob.id, reason: "spam" }));
+      assertEquals(rep, { ok: true, blocked: { id: bob.id } });
+      assertEquals((await json(await get(ann, "/api/friends"))).friends, []);
+      assertEquals((await json(await get(bob, "/api/friends"))).friends, []);
+      assertEquals((await json(await get(ann, "/api/safety/blocks"))).blocked, [{ id: bob.id, name: "Bob Edge" }]);
+      assertEquals((await json(await get(bob, "/api/safety/blocks"))).blocked, [], "being blocked is not visible");
+      assertEquals((await json(await get(ann, "/api/leaderboard?scope=global"))).leaderboard.some((r: { user_id: string }) => r.user_id === bob.id), false);
+      assertEquals((await json(await get(bob, "/api/leaderboard?scope=global"))).leaderboard.some((r: { user_id: string }) => r.user_id === ann.id), false);
+      assertEquals((await json(await get(ann, "/api/challenges"))).challenges[0].leaderboard.map((s: { name: string }) => s.name), ["Ann Edge"]);
+      assertEquals((await json(await get(bob, "/api/challenges"))).challenges.length, 0);
+      assertEquals((await post(bob, "/api/friends/add", { code: annCode })).status, 404, "a blocked person is told exactly what a wrong code is told");
+      const hy2 = await json(await get(ann, "/api/hyrox/leaderboard?gender=men&category=open&format=singles"));
+      assertEquals(hy2.leaderboard.some((r: { user_id: string }) => r.user_id === bob.id), false);
+      assertEquals(Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.content_reports where reporter_id = $1", [ann.id])))!.n), 1);
+      await post(ann, "/api/safety/report", { user_id: bob.id, reason: "spam" });
+      assertEquals(Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.content_reports where reporter_id = $1", [ann.id])))!.n), 1, "one open report per pair");
+
+      // unblocking brings them back (they are not friends any more)
+      assertEquals((await call("/api/safety/block", { method: "DELETE", headers: ann.headers, body: JSON.stringify({ user_id: bob.id }) })).status, 200);
+      assertEquals((await json(await get(ann, "/api/safety/blocks"))).blocked, []);
+      assertEquals((await json(await get(ann, "/api/challenges"))).challenges[0].leaderboard.length, 2);
+
+      // block directly, and blocking yourself or nobody is refused
+      assertEquals((await post(ann, "/api/safety/block", { user_id: ann.id })).status, 400);
+      assertEquals((await post(ann, "/api/safety/block", { user_id: crypto.randomUUID() })).status, 404);
+      assertEquals((await post(ann, "/api/safety/block", { user_id: bob.id })).status, 200);
+    } finally {
+      for (const p of people) {
+        const gone = await fetch(`${url}/auth/v1/admin/users/${p.id}`, { method: "DELETE", headers: admin });
+        assert(gone.ok || gone.status === 404, "a throwaway user was not removed: delete " + p.id + " by hand");
+      }
+    }
+  },
+});

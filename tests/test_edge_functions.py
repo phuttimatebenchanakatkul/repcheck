@@ -328,3 +328,80 @@ def test_the_legacy_login_messages_are_flasks():
     assert re.search(r'MISMATCH = "([^"]+)"', route).group(1) == flask_route.MISMATCH
     for phrase in ("Too many tries. Please wait a few minutes and try again.", "Your old password can't be carried over. Reset it with the link we'll email you."):
         assert phrase in route and phrase in (ROOT / "api" / "routes" / "legacy.py").read_text(encoding="utf-8")
+
+
+def test_the_social_numbers_words_and_routes_are_the_flask_apis():
+    from api import social as flask
+    source = text("_shared", "social.ts")
+
+    def number(name):
+        return eval(re.search(rf"{name} = ([\d* ]+);", source).group(1))                     # noqa: S307 -- a literal like `60 * 60` from our own file
+
+    for name in ("FRIEND_CODE_GUESS_LIMIT", "FRIEND_CODE_GUESS_WINDOW", "MAX_FRIEND_CODE_CHARS", "CHALLENGE_LIMIT", "HYROX_RESULT_LIMIT", "CHALLENGE_SECONDS",
+                 "MAX_AI_REPORT_TEXT", "MAX_OPEN_AI_REPORTS_PER_USER", "HYROX_MAX_SECONDS", "HYROX_LEADERBOARD_ROWS"):
+        assert number(name) == getattr(flask, name), name
+
+    def words(name):
+        return tuple(re.findall(r'"([\w ]+)"', re.search(rf"{name} = \[(.*?)\];", source, re.S).group(1)))
+
+    for name in ("REPORT_REASONS", "AI_REPORT_FEATURES", "AI_REPORT_REASONS", "HYROX_GENDERS", "HYROX_CATEGORIES", "HYROX_FORMATS"):
+        assert words(name) == getattr(flask, name), name
+    floors = {k: int(a) * 60 for k, a in re.findall(r'"([a-z]+\|[a-z]+)": (\d+) \* 60', source)}
+    assert floors == flask.HYROX_MIN_PLAUSIBLE_SECONDS
+    assert re.search(r'CHALLENGE_ROTATION_EPOCH = "([\d-]+)"', source).group(1) == flask.CHALLENGE_ROTATION_EPOCH.isoformat()
+    from api.routes import social as flask_route
+    assert dict(re.findall(r'(\w+): "([^"]+)"', re.search(r"CHALLENGE_EXERCISES: Record<string, string> = \{(.*?)\};", source).group(1))) == flask_route.CHALLENGE_EXERCISES
+    sources = re.findall(r'\["(\w+)", "(\w+)", "(\w+)", (true|false)\]', source)
+    assert [(a, t, c, i == "true") for a, t, c, i in sources] == list(flask.ACTIVITY_SOURCES)
+
+
+def test_the_challenge_exercises_are_the_graders_in_the_graders_order():
+    import rep_form_analyzer
+    from api.routes import social as flask_route
+    assert list(flask_route.CHALLENGE_EXERCISES) == list(rep_form_analyzer.CHALLENGE_EXERCISES)
+
+
+def test_the_social_helpers_answer_in_typescript_exactly_as_in_python(tmp_path):
+    """User ids, friend codes, UTC offsets, HYROX results, the day's exercise and cleaned text: the same answer from both languages over seeded corpora."""
+    import datetime as dt
+    import uuid
+    from api import foods, social
+    rng = random.Random(21)
+    canon = [str(uuid.UUID(int=rng.getrandbits(128))) for _ in range(40)]
+    user_ids = []
+    for c in canon:
+        user_ids += [c, c.upper(), f" {c} ", "{" + c + "}", "urn:uuid:" + c, c.replace("-", ""), c[:-1], c + "0", "g" + c[1:], c.replace("-", " ")]
+    user_ids += [None, 5, [], {}, True, "", "abc", "x" * 36]
+    codes = ["rc-ab12cd", "  RC-AB12CD  ", "", "   ", None, 5, [], {}, True, "éà", "i̇", "straße", "ı", "a" * 40, " RC-1　"]
+    offsets = ["420", "+420", " -300 ", "900", "-900", "840", "841", "x", "", "4.5", None, 420, "1e3", " 420", "420", "--5", "+-5", "0", "-0", "007"]
+    hyrox = []
+    for _ in range(300):
+        hyrox.append({"gender": rng.choice(["men", "women", " men ", "x", None, 5]), "category": rng.choice(["open", "pro", "elite", ""]), "format": rng.choice(["singles", "doubles", "relay"]),
+                      "total_seconds": rng.choice([3600, 3000, 2999.9, 3180, 3179.99, 2820, 3060, 86400, 86400.1, "3600.5", " 3600 ", "1e4", "abc", "", None, True, [], "nan", "inf", "0x10", "1_000", -5, 0])})
+    for _ in range(200):               # and plenty with a combination that is valid, so the time itself is what is judged
+        hyrox.append({"gender": rng.choice(["men", "women"]), "category": rng.choice(["open", "pro"]), "format": rng.choice(["singles", "doubles"]),
+                      "total_seconds": rng.choice([rng.uniform(2700, 4000), 2820, 2999.99, 3000, 3060, 3180, 3179.5, 86400, 86400.5, "3_600.5", " 3700 ", "5e3", "abc", None, True, "inf", "", "0x10"])})
+    days = [(dt.date(2025, 1, 1) + dt.timedelta(days=n)).isoformat() for n in range(0, 800, 3)]
+    texts = [["  a\x00b\x7fc\td  ", 10], ["abcdef", 3], [None, 5], [42, 5], ["\U0001f3cb" * 5, 3], ["　 x 　", 5], ["\x85 y \x1c", 4], ["a" * 50, 20]]
+    answers = _run_edge_parity(tmp_path, {"userIds": user_ids, "codes": codes, "offsets": offsets, "hyrox": hyrox, "days": days, "texts": texts})
+
+    assert answers["userIds"] == [social.parse_user_id(u) for u in user_ids]
+    expected_codes = []
+    for raw in codes:
+        try:
+            expected_codes.append(social.clean_code(raw))
+        except social.Rejected as rejected:
+            expected_codes.append(f"ERR:{rejected.status}:{rejected}")
+    assert answers["codes"] == expected_codes
+    assert answers["offsets"] == [social.offset_minutes(o) for o in offsets]
+    expected_hyrox = []
+    for payload in hyrox:
+        try:
+            expected_hyrox.append(list(social.clean_hyrox_result(payload)))
+        except social.Rejected as rejected:
+            expected_hyrox.append(f"ERR:{rejected.status}:{rejected}")
+    assert answers["hyrox"] == expected_hyrox
+    from api.routes import social as flask_route
+    assert answers["days"] == [social.todays_exercise(flask_route.CHALLENGE_ORDER, dt.date.fromisoformat(d)) for d in days]
+    assert answers["texts"] == [foods.clean_text(raw, limit) for raw, limit in texts]
+    assert sum(1 for a in answers["userIds"] if a) >= 200 and sum(1 for h in expected_hyrox if isinstance(h, list)) >= 30

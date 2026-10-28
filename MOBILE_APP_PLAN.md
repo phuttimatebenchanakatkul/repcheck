@@ -736,7 +736,12 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
 - **Unchecked until deployed:** which request header carries the caller's address on Supabase's edge. The legacy login limits tries per address and per caller, and
   uses the LAST `X-Forwarded-For` entry (the one the proxy added), falling back to `X-Real-IP`. If the caller's address turns out to be somewhere else, only the per-caller
   budget is weakened; the per-address one is not touched.
-- **8d, social:** friends, report and block, the daily challenge and both leaderboards.
+- **8d, social (v0.47.0.0, done, except submitting a clip):** friends by code (with the per-hour guess budget), report and block (both directions), the AI-reply report,
+  the daily challenge (list, create, today), the reps leaderboard, HYROX results and the HYROX leaderboard, and the streak's server-side dates. **Submitting a challenge
+  clip is NOT ported**: it grades a video, so it moves with the video grader in 8g, and the app cannot switch over until it does. 218 Deno tests; the live check now has
+  two real people befriend, challenge, score, report and block each other and checks what each can and cannot see afterwards; and helpers that read text (user ids,
+  friend codes, UTC offsets, HYROX times, the day's exercise) are run through Python and TypeScript over seeded corpora, which found one real difference (Python
+  accepts `3_600` as a number) before it shipped. Timestamps now end in `Z` (`2026-10-28T10:00:00.000Z`) where Flask wrote `+00:00`; the app reads both.
 - **8e, AI text:** the coach / analysis / workout chats, the split generator, the weekly check-in, HYROX analysis, coaching targets (`coaching_engine` ported to TypeScript, with a run against the Python one).
 - **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
 - **8g, lift video:** see "The one hard part" below.

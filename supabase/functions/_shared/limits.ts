@@ -5,7 +5,7 @@
  * expensive call and REFUNDED if the work fails, so a failed Gemini call never burns a person's scarce analysis, and
  * concurrent requests can never exceed the limit.
  */
-import type { Tx } from "./db.ts";
+import type { Db, Tx } from "./db.ts";
 import type { Identity } from "./auth.ts";
 import type { Settings } from "./settings.ts";
 
@@ -133,4 +133,13 @@ export async function trackUsage(tx: Tx, userId: string, event: string): Promise
      on conflict (user_id, event) do update set count = usage_events.count + 1, last_at = now()`,
     [userId, event],
   );
+}
+
+/** Lifetime counter for the admin view, in a transaction of its own. Best-effort: losing a counter must not fail a request that succeeded. */
+export async function track(db: Db, userId: string, event: string): Promise<void> {
+  try {
+    await db.transaction((tx) => trackUsage(tx, userId, "feature:" + event));
+  } catch {
+    console.error("could not count", event);
+  }
 }
