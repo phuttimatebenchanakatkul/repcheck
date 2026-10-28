@@ -2,6 +2,19 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.47.0.0] - 2026-10-28
+
+### Added
+
+Friends, blocking and the leaderboards on the new Supabase server (step 8d of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **On the new server:** adding a friend by code (30 wrong codes an hour, and a blocked person looks exactly like a wrong code), reporting and blocking, reporting an AI reply,
+  the daily challenge list and today's exercise, the reps leaderboard, HYROX results and the HYROX leaderboard, and the streak's dates. Not yet: recording a challenge clip,
+  which needs the video grader.
+- **Proven:** 218 Deno tests; a live run in which two real accounts befriend, challenge, score, report and block each other against the real project (removed afterwards);
+  the helpers that read text give the same answers as the old code over seeded corpora; then deliberate breakages of the new code (every survivor killed by a new test, removed
+  as redundant, or a change with no observable effect). Not deployed: that needs your Supabase login.
+
 ## [0.46.0.0] - 2026-10-28
 
 ### Added
