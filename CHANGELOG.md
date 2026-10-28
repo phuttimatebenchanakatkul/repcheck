@@ -2,6 +2,22 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.45.0.0] - 2026-10-28
+
+### Added
+
+Accounts on the new Supabase server (step 8b of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **Profiles, rename, delete and restore** on the new server: the same rules as before (a name is filtered and bounded, an email account must give one, a Google or
+  Apple account gets its own, deleting starts 30 days of grace that asking again cannot push back, restoring ends it).
+- **The purge of deleted accounts.** After 30 days a person's files are removed through the Storage service first and the sign-in account after, so a file that
+  will not go leaves the person in place for the next try. With no scheduler, any request starts the check, at most once an hour, after the reply has gone.
+- **The same name filter.** Its word list and its table of accent marks are generated from the Python filter, and a test runs ~1,600 names (bad words dressed up with
+  numbers, accents, spacing and stretched letters, odd whitespace, emoji, controls) through both and demands the same answer for every one.
+- **Proven:** 112 Deno tests, a live run on the real project (two throwaway accounts, one purged and the other left alone, both removed afterwards), checks that the
+  numbers and routes match the Flask server's, then deliberate breakages of the new code (every survivor killed by a new test, removed as redundant, or a change with no
+  observable effect). Not deployed: that needs your Supabase login.
+
 ## [0.44.0.0] - 2026-10-28
 
 ### Added

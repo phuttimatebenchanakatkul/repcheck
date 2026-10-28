@@ -7,10 +7,25 @@ import { createHandler } from "../_shared/app.ts";
 import { Verifier } from "../_shared/auth.ts";
 import { connect } from "../_shared/db.ts";
 import { fromEnv } from "../_shared/settings.ts";
+import { AuthAdmin, Storage } from "../_shared/supabaseAdmin.ts";
 import { buildRouter } from "./router.ts";
 
 const settings = fromEnv();
 const dbUrl = Deno.env.get("SUPABASE_DB_URL");
 if (!dbUrl) throw new Error("missing SUPABASE_DB_URL");
 
-Deno.serve(createHandler({ settings, db: connect(dbUrl), verifier: new Verifier(settings) }, buildRouter()));
+const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+if (!serviceKey) throw new Error("missing SUPABASE_SERVICE_ROLE_KEY");
+
+// deno-lint-ignore no-explicit-any
+const runtime = (globalThis as any).EdgeRuntime as { waitUntil(work: Promise<unknown>): void } | undefined;
+
+Deno.serve(createHandler({
+  settings,
+  db: connect(dbUrl),
+  verifier: new Verifier(settings),
+  storage: new Storage(settings.supabaseUrl, serviceKey),
+  authAdmin: new AuthAdmin(settings.supabaseUrl, serviceKey),
+  background: (work) => runtime?.waitUntil(work),
+  sweep: true,
+}, buildRouter()));
