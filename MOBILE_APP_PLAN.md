@@ -757,7 +757,14 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   `supabase/functions/tests/fixtures/*_golden.json`; the TypeScript's own offline tests check them (so a mutation run needs no Python), and a Python test fails
   if a file is stale. **One deliberate fix:** the Python check-in prompt told the model the person weighed "None kg" (it read a key the profile never has);
   this tells it the real weight. 296 Deno tests; the live check has a real photo reviewed by the real model.
-- **8e3, the split generator:** `split_planner` and `workout_library`.
+- **8e3, the split generator (v0.50.0.0, done):** `split_planner` (the plan without the model, the checking of the model's plan, both prompts, the beginner
+  window) and the route `/api/generate-split`, with the exercise library GENERATED from `workout_library.py` (`scripts/gen_edge_workout_data.py`). The picked-split
+  path asks the model for text as before; "Let AI build it" sends the REST form of the same response schema to `gemini-3.5-flash-lite` (the live run proved the API
+  accepts it). A custom split never asks the model but still spends the day's one plan, as before. Proven against ~3,800 Python answers (golden file + side by
+  side): fallback plans over every split, day count, location and goal keyword; every prompt (by hash, with the text of every 40th); ~1,050 model answers broken in
+  assorted ways; the lifter text, with its ties; the route's input cleaning. New helpers `_shared/pyText.ts` (Python's `str()`, `repr()` of a float, `format(x, ".1f")`
+  and `json.dumps`). **Two fixes on the way:** the Python built one prompt list from a set (so the same request gave a differently ordered prompt) and now keeps the
+  order given; and the chat context-size check counted DEL as one character where Python writes six. 334 Deno tests.
 - **8e4, HYROX analysis.**
 - **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
 - **8g, lift video:** see "The one hard part" below.

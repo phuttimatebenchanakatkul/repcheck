@@ -584,7 +584,8 @@ def _build_prompt(split_type, days_per_week, custom_days, goal=None, custom_days
             # names verbatim regardless of location -- they must stay in
             # the "only use names from this list" list too, or the two
             # instructions contradict each other.
-            picked_names = {name for names in custom_days_exercises.values() for name in names}
+            # (a dict, not a set: a set's order changes from run to run, so the same request gave a differently-ordered prompt)
+            picked_names = dict.fromkeys(name for names in custom_days_exercises.values() for name in names)
             allowed_exercises = allowed_exercises + [n for n in picked_names if n not in allowed_exercises]
         location_instruction = (
             f"\nThe user said they usually train at {'home' if location == 'home' else 'the gym'}. "

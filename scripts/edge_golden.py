@@ -9,6 +9,7 @@ A test fails when a file is stale, so the golden answers can never drift from th
     python scripts/edge_golden.py --check    # exit 1 if one is stale
 """
 
+import gzip
 import json
 import random
 import sys
@@ -207,23 +208,257 @@ def build_coaching():
     return out
 
 
-GOLDEN = {"coaching": build_coaching}
+def build_split():
+    """{name: [[input, expected], ...]} for the split generator: the fallback plan, the prompts, the validation of a model's plan, the lifter text, the route's input cleaning.
+    Inputs that hold a dict whose ORDER matters are written with their keys sorted (the file is written with sorted keys), and a picked-exercises map travels as [[label, names], ...]."""
+    import split_planner as sp
+    from api.routes import planning as rp
+    rng = random.Random(46)
+    out = {}
+    all_names = list(sp.WORKOUT_EXERCISES)
+
+    def digest(index, text):
+        """A prompt carries the whole 735-name exercise list, so most are kept as a hash (and a length); every 40th keeps its text, so a failure can show a difference."""
+        import hashlib
+        entry = {"sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(), "chars": len(text)}
+        if index % 40 == 0:
+            entry["text"] = text
+        return entry
+
+    def err(fn, *args):
+        try:
+            return fn(*args)
+        except (ValueError, TypeError, AttributeError):
+            return "ERR"
+
+    phrases = [None, "", "  ", "build muscle", "I'm pregnant", "get faster for my sport", "improve mobility and flexibility", "lift and carry my toddler", "better balance, I'm elderly",
+               "hyrox race", "mobility + faster + balance", "cardio and stamina", "FASTER AND MORE FLEXIBLE", "pregnant, want to stay flexible", "Ünïcödé goal ☃ 💪", 'say "hi" and \\ go', "  padded goal  "]
+    for day_type, keywords in sp._GOAL_KEYWORD_MAP.items():
+        phrases += [f"I want {kw} please" for kw in keywords]
+    split_types = ["ppl", "upper_lower", "full_body", "bro_split", "custom", "weird", ""]
+    custom_pool = ["Chest Day", "Back & Biceps", "Rest-ish", "Mobility", "Push", "legs", "Arm Day", "Core", "Zebra", "Hyrox Day", "Stretch", "Plyo", "Prenatal", "ÜBER", "Full Body A", "Conditioning",
+                   "Brüst-Tag", "胸 Day", "Day 💪", "Shoulders", "Abs", "Carry", "Balance", "Speed"]
+    locations = [None, "home", "gym", "hybrid", "weird", ""]
+
+    def picked_pairs(labels):
+        if rng.random() < .5:
+            return None
+        chosen = rng.sample(labels, rng.randint(0, len(labels)))
+        return [[label, rng.sample(all_names, rng.randint(1, 9))] for label in chosen]
+
+    def case():
+        split = rng.choice(split_types)
+        dpw = rng.randint(1, 7)
+        custom = rng.sample(custom_pool, rng.randint(1, 6)) if split == "custom" or rng.random() < .1 else None
+        labels = custom or list(sp.SPLIT_DAY_TYPES.get(split, ["Full Body"]))
+        if rng.random() < .3:
+            labels = labels + rng.sample(custom_pool, 2)
+        return [split, dpw, custom, rng.choice(phrases), picked_pairs(labels), rng.choice(locations)]
+
+    sweep = [[s, d, None, None, None, loc] for s in ("ppl", "upper_lower", "full_body", "bro_split", "custom", "weird") for d in range(1, 8) for loc in locations]
+    sweep += [["custom", d, ["Chest Day", "Mobility", "Zebra"], None, None, loc] for d in range(1, 8) for loc in locations]
+    sweep += [["ppl", d, None, goal, None, loc] for goal in phrases for d in (2, 5) for loc in (None, "hybrid")]
+    cases = sweep + [case() for _ in range(300)]
+    # a picked-for-every-day case (the whole-plan pregnancy rule is skipped) and a partly picked one
+    cases += [["ppl", 4, None, "pregnant", [["Push", ["Squat"]], ["Pull", ["Pull-Up"]], ["Legs", ["Leg Press"]]], None], ["ppl", 4, None, "pregnant", [["Push", ["Squat"]]], None],
+              ["custom", 3, ["A", "B"], "pregnant", [["A", ["Squat"]], ["B", ["Pull-Up"]]], "home"], ["custom", 3, ["A", "B"], "pregnant", [], "home"]]
+
+    def to_dict(pairs):
+        return None if pairs is None else dict((k, v) for k, v in pairs)
+
+    out["fallback"] = [[c, sp.build_fallback_plan(c[0], c[1], c[2], c[3], to_dict(c[4]), c[5])] for c in cases]
+    prompt_cases = cases[: len(sweep) // 3] + cases[len(sweep):]
+    out["prompts"] = [[c, digest(i, sp._build_prompt(c[0], c[1], c[2], c[3], to_dict(c[4]), c[5]))] for i, c in enumerate(prompt_cases)]
+
+    suggest_cases = []
+    weights = [(None, None), (80.0, 70.0), (70.0, 75.5), (70.0, 70.75), (70.0, 75.25), (70.0, 70.5), (70.0, 70.4), (70.0, 69.5), (70.0, 69.4), (70.0, 64.75), (100.0, 94.75), (60.0, 60.0), (20.0, 500.0), (500.0, 20.0),
+               (72.35, 68.15), (33.3, 31.1), (None, 65.5), (65.5, None), (70.1, 70.65), (80.0, 79.95), (123.456, 100.001)]
+    for dpw in range(1, 8):
+        for goal in (None, "", "get stronger", "I'm pregnant and want mobility", 'tricky "quote"'):
+            for gender in (None, "male", "female"):
+                for loc in (None, "home", "gym", "hybrid"):
+                    suggest_cases.append([dpw, goal, gender, *rng.choice(weights), loc])
+    for dpw in range(1, 8):
+        for gw, cw in weights:
+            suggest_cases.append([dpw, "go", "female", gw, cw, "gym"])
+    out["suggestPrompts"] = [[c, digest(i, sp._build_suggest_prompt(c[0], c[1], c[2], c[3], c[4], c[5]))] for i, c in enumerate(suggest_cases)]
+    out["lifters"] = [[[g, gw, cw], sp._describe_lifter(g, gw, cw)] for g in (None, "male", "female", "other") for gw, cw in weights]
+
+    out["beginner"] = []
+    for dpw in range(1, 8):
+        for goal in (None, "pregnant", "faster and more flexible", "hyrox and balance"):
+            for loc in locations:
+                out["beginner"].append([[sp.BEGINNER_SPLIT_BY_DAYS[dpw], dpw, goal, loc], sp._beginner_fallback(sp.BEGINNER_SPLIT_BY_DAYS[dpw], dpw, goal, loc)])
+                for split in ("ppl", "bro_split"):
+                    out["beginner"].append([[split, dpw, goal, loc], sp._beginner_fallback(split, dpw, goal, loc)])
+
+    # what a model might send back: a plausible plan, then broken in assorted ways
+    def ai_plan(dpw, loc):
+        labels = [rng.choice(["Push", "Pull", "Legs", "Upper", "Lower", "Full Body", "Chest Day", "Mobility", "Athletic"]) for _ in range(dpw)]
+        pool = [n for n in all_names if loc in (None, "weird") or sp.EXERCISE_LOCATIONS.get(n) in sp.LOCATION_ALLOWED.get(loc, {"home", "gym", "both"})]
+        days = [{"label": label, "exercises": rng.sample(pool, rng.randint(2, 9))} for label in labels]
+        slots = [i for i, on in enumerate(sp.DEFAULT_TRAIN_PATTERNS[dpw]) if on]
+        schedule = {d: "Rest" for d in sp.WEEKDAY_ORDER}
+        for n, i in enumerate(slots):
+            schedule[sp.WEEKDAY_ORDER[i]] = labels[n]
+        return {"days": days, "schedule": schedule, "rationale": rng.choice(["Because rest.", "  padded  ", "", None, 5, ["x"], "ünï"])}
+
+    def sorted_dict(d):
+        return dict(sorted(d.items()))
+
+    def break_it(plan, dpw):
+        plan = json.loads(json.dumps(plan))
+        before = json.loads(json.dumps(plan))
+        try:
+            return break_once(plan)
+        except (TypeError, KeyError, IndexError, AttributeError, ValueError):  # an earlier break left nothing to break again
+            return before
+
+    def break_once(plan):
+        kind = rng.randint(0, 22)
+        day = rng.choice(plan["days"])
+        if kind == 1:
+            day["exercises"][0] = "Totally Invented Lift"
+        elif kind == 2:
+            day["exercises"] = day["exercises"][:rng.randint(0, 2)]
+        elif kind == 3:
+            day["label"] = rng.choice(["", "  ", "  Push  ", None, 5, ["Push"], True, "　Legs　"])
+        elif kind == 4:
+            plan["schedule"][rng.choice(sp.WEEKDAY_ORDER)] = rng.choice(["Unknown", " Push ", None, 5, "rest", "Rest "])
+        elif kind == 5:
+            plan["schedule"] = {d: ("Rest" if i % 2 else plan["days"][0]["label"]) for i, d in enumerate(sp.WEEKDAY_ORDER)}
+        elif kind == 6:
+            plan["schedule"] = {d: plan["days"][0]["label"] for d in sp.WEEKDAY_ORDER}
+        elif kind == 7:
+            plan["schedule"].pop(rng.choice(sp.WEEKDAY_ORDER))
+        elif kind == 8:
+            plan["schedule"]["funday"] = "Rest"
+        elif kind == 9:
+            plan["schedule"] = rng.choice([[], "x", None, 5])
+        elif kind == 10:
+            plan["days"] = plan["days"][:-1]
+        elif kind == 11:
+            plan["days"] = rng.choice([None, {}, "x", 5, plan["days"] + plan["days"][:1]])
+        elif kind == 12:
+            plan["days"][0] = rng.choice([None, "x", ["a"], 5])
+        elif kind == 13:
+            plan.pop(rng.choice(["rationale", "schedule", "days"]))
+        elif kind == 14:
+            day["exercises"] = rng.choice(["Squat", "S", "", None, 5, {"Squat": 1, "Bench Press": 2}, sorted_dict({"Pull-Up": 1, "Squat": 2, "x": 3}), {}, True])
+        elif kind == 15:
+            day["exercises"][rng.randrange(len(day["exercises"]))] = rng.choice([["Squat"], {"a": 1}, None, 5, True, 1.5])
+        elif kind == 16:
+            day["exercises"] = day["exercises"] * 3
+        elif kind == 17:
+            day["exercises"] = [n for n in all_names[:40]]
+        elif kind == 18:
+            plan["rationale"] = rng.choice([None, "", "  ", "  fine  ", 0, False, ["a", "b"], {"k": 1}, 2.5, True])
+        elif kind == 19:
+            day.pop("label", None)
+        elif kind == 20:
+            day.pop("exercises", None)
+        elif kind == 21:
+            plan = rng.choice([[], "x", None, 5, {"days": 5}])
+        return plan
+
+    out["validate"] = []
+    for _ in range(900):
+        dpw = rng.randint(1, 7)
+        loc = rng.choice(locations)
+        plan = ai_plan(dpw, loc)
+        for _ in range(rng.choice([0, 0, 1, 1, 2])):
+            plan = break_it(plan, dpw)
+        picked = None
+        if isinstance(plan, dict) and isinstance(plan.get("days"), list) and rng.random() < .3:
+            labels = [d.get("label") for d in plan["days"] if isinstance(d, dict) and isinstance(d.get("label"), str)]
+            if labels:
+                lab = rng.choice(labels)
+                chosen = [d for d in plan["days"] if isinstance(d, dict) and d.get("label") == lab][0]
+                names = [e for e in chosen.get("exercises", []) if isinstance(e, str) and e in sp.VALID_EXERCISES] if isinstance(chosen.get("exercises"), list) else []
+                if names and rng.random() < .6:
+                    picked = [[lab.strip(), names]]
+                else:
+                    picked = [[lab.strip(), rng.sample(all_names, 3)]]
+        opts = rng.choice([None, None, {"min_exercises": 3, "max_exercises": 8}, {"min_exercises": rng.randint(3, 5), "max_exercises": rng.randint(5, 7), "top_up_short_days": True},
+                           {"min_exercises": 5, "max_exercises": 6, "top_up_short_days": True}, {"top_up_short_days": True}])
+        args = [plan, dpw, picked, loc, opts]
+        out["validate"].append([args, err(lambda a: sp._validate_plan(a[0], a[1], to_dict(a[2]), a[3], **(a[4] or {})), args)])
+    # every AI plan that is already fine, to prove the accepting side as well
+    for _ in range(150):
+        dpw = rng.randint(1, 7)
+        loc = rng.choice(locations)
+        lab = ["Push", "Pull", "Legs", "Upper", "Lower", "Chest Day", "Mobility"][:dpw]
+        pool = [n for n in all_names if loc in (None, "weird") or sp.EXERCISE_LOCATIONS.get(n) in sp.LOCATION_ALLOWED.get(loc, {"home", "gym", "both"})]
+        labels = [lab[i % len(lab)] for i in range(dpw)]
+        plan = {"days": [{"label": x, "exercises": rng.sample(pool, rng.randint(3, 10))} for x in labels], "schedule": {d: "Rest" for d in sp.WEEKDAY_ORDER}, "rationale": "ok"}
+        for n, i in enumerate([i for i, on in enumerate(sp.DEFAULT_TRAIN_PATTERNS[dpw]) if on]):
+            plan["schedule"][sp.WEEKDAY_ORDER[i]] = labels[n]
+        args = [plan, dpw, None, loc, rng.choice([None, {"min_exercises": 4, "max_exercises": 5, "top_up_short_days": True}])]
+        out["validate"].append([args, err(lambda a: sp._validate_plan(a[0], a[1], None, a[3], **(a[4] or {})), args)])
+
+    out["streaks"] = []
+    for mask in range(128):
+        schedule = {d: ("X" if mask >> i & 1 else "Rest") for i, d in enumerate(sp.WEEKDAY_ORDER)}
+        out["streaks"].append([schedule, sp.longest_training_streak(schedule)])
+    out["streaks"].append([{}, sp.longest_training_streak({})])
+    out["streaks"].append([{"monday": "X"}, sp.longest_training_streak({"monday": "X"})])
+    out["streaks"].append([{d: "X" for d in sp.WEEKDAY_ORDER}, sp.longest_training_streak({d: "X" for d in sp.WEEKDAY_ORDER})])
+
+    out["extracted"] = []
+    for r in ['{"days": []}', '```json\n{"a": 1}\n```', 'Here:\n```\n{"a": 2}\n```\nbye', "  [1]  ", "nope", "", "```json\n```", "```JSON\n{}\n```", "null", '{"a":', "```\n```\n{}", '{"split_type": "ppl"}']:
+        out["extracted"].append([r, err(lambda t: {"ok": sp._extract_json(t)}, r)])  # json.loads raises ValueError (JSONDecodeError)
+
+    out["floats"] = [[v, rp._optional_positive_float(v)] for v in [None, True, False, 0, 20, 19.99, 20.0, 500, 500.01, "80", "80.5", " 80 ", "abc", "1e2", "1_0", "inf", "nan", [], {}, 33.3, 250, -5, "٣٠", "30", "+30", "3e1", "20_0", 1e308, "1e400"]]
+    long_names = ["x" * 100, "é" * 70, "　a　", "\U0001f4aa" * 61, "  b  "]
+    out["customDays"] = [[v, rp._custom_days(v)] for v in [None, [], "", "abc", {"a": 1}, ["a", "b"], [" a ", "", "  "], [str(i) for i in range(14)], [str(i) for i in range(15)], [1, "a"], long_names, ["x"], 0, False, 5, [None]]]
+    picks = [None, [], "x", {}, {"A": ["Squat", "nope", 5, ["Squat"]]}, {"A": "Squat"}, {"x" * 61: ["Squat"]}, {"\U0001f4aa" * 61: ["Squat"]}, {"A": []}, {"A": ["nope"]},
+             {"A": ["Squat", "Pull-Up"], "B": ["Leg Press"], "C": ["nope"], "D": 5}, {"Brüst-Tag": ["Squat"]}, {"y" * 59 + "é" + "z": ["Squat"]}]
+    out["handPicked"] = [[v, None if (r := rp._hand_picked_exercises(v)) is None else list(r.items())] for v in picks]
+
+    out["constants"] = [[None, {
+        "dayTypePools": sp.DAY_TYPE_POOLS, "wide": sp.DAY_TYPE_WIDE_POOLS, "splitDayTypes": sp.SPLIT_DAY_TYPES, "keywordPool": [list(p) for p in sp._KEYWORD_POOL],
+        "goalKeywords": [[k, list(v)] for k, v in sp._GOAL_KEYWORD_MAP.items()], "patterns": {str(k): v for k, v in sp.DEFAULT_TRAIN_PATTERNS.items()},
+        "locationAllowed": {k: sorted(v) for k, v in sp.LOCATION_ALLOWED.items()}, "beginnerRanges": {str(k): list(sp._beginner_exercise_range(k)) for k in range(1, 8)},
+        "beginnerSplits": {str(k): v for k, v in sp.BEGINNER_SPLIT_BY_DAYS.items()}, "suggestible": list(sp.SUGGESTIBLE_SPLIT_TYPES), "maxGoal": sp.MAX_GOAL_DAY_TYPES,
+        "maxStreak": sp.MAX_ACCEPTABLE_STREAK, "suggestModel": sp.SUGGEST_GEMINI_MODEL, "model": sp.GEMINI_MODEL, "schema": sp.SUGGEST_RESPONSE_SCHEMA, "weekdays": sp.WEEKDAY_ORDER,
+        "beginnerMin": sp.BEGINNER_MIN_EXERCISES, "beginnerMax": sp.BEGINNER_MAX_EXERCISES,
+        "routeLimits": {"customDays": rp.MAX_CUSTOM_DAYS, "goalChars": rp.MAX_GOAL_CHARS, "splitTypes": sorted(rp.SPLIT_TYPES)}}]]
+    return out
+
+
+GOLDEN = {"coaching": build_coaching, "split": build_split}
+# a big file is kept compressed (the split generator's is several MB of prompts and plans); the tests decompress it
+COMPRESSED = {"split"}
 
 
 def render(name):
     return json.dumps(GOLDEN[name](), sort_keys=True, separators=(",", ":"))
 
 
+def path_of(name):
+    return FIXTURES / (f"{name}_golden.json.gz" if name in COMPRESSED else f"{name}_golden.json")
+
+
+def read_back(target, name):
+    if not target.exists():
+        return ""
+    if name in COMPRESSED:
+        return gzip.decompress(target.read_bytes()).decode("utf-8")
+    return target.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+
 if __name__ == "__main__":
     stale = False
     for name in GOLDEN:
-        target = FIXTURES / f"{name}_golden.json"
+        target = path_of(name)
         text = render(name)
         if "--check" in sys.argv:
-            current = target.read_text(encoding="utf-8").replace("\r\n", "\n") if target.exists() else ""
-            stale |= current != text
+            stale |= read_back(target, name) != text
         else:
             FIXTURES.mkdir(parents=True, exist_ok=True)
-            target.write_text(text, encoding="utf-8", newline="\n")
-            print(f"wrote {target.relative_to(ROOT)} ({len(text) // 1024} KB)")
+            if name in COMPRESSED:
+                target.write_bytes(gzip.compress(text.encode("utf-8"), 9, mtime=0))
+            else:
+                target.write_text(text, encoding="utf-8", newline="\n")
+            print(f"wrote {target.relative_to(ROOT)} ({len(text) // 1024} KB of JSON, {target.stat().st_size // 1024} KB on disk)")
     sys.exit(1 if stale else 0)

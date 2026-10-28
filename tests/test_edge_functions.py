@@ -552,3 +552,39 @@ def test_the_coaching_engine_answers_in_typescript_exactly_as_in_python(tmp_path
                          ("extracted", "extracted"), ("rounds", "rounds"), ("ints", "ints")):
         expected = [e for _, e in g[theirs]]
         assert answers[ours] == expected, ours
+
+
+def test_the_generated_workout_data_is_fresh():
+    """workoutData.ts (the exercise library: categories in order, and where each can be done) is written from workout_library.py."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_workout_data.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "run `python scripts/gen_edge_workout_data.py` to regenerate supabase/functions/_shared/workoutData.ts"
+
+
+def test_the_split_route_messages_feature_and_event_are_the_flask_apis():
+    flask_text = (ROOT / "api" / "routes" / "planning.py").read_text(encoding="utf-8")
+    route = text("api", "routes", "planning.ts")
+    messages = re.findall(r'fail\(\s*(?:splitType === "custom" \? )?"([^"]+)"', route) + re.findall(r'" : "([^"]+)", 400', route)
+    assert len(messages) >= 6 and all(m in flask_text for m in messages), [m for m in messages if m not in flask_text]
+    assert 'FEATURE = "split_generation"' in route and "split_generation" in flask_limits.RATE_LIMITS
+    assert "split_ai_suggested" in route and "split_ai_suggested" in flask_text
+    assert "You've built ${RATE_LIMITS[FEATURE][0]} plans today. Please check back in" in route and "plans today. " in flask_text
+    assert int(re.search(r"MAX_LABEL_CHARS = (\d+)", route).group(1)) == 60 and "[:60]" in flask_text
+
+
+def test_the_split_generator_answers_in_typescript_exactly_as_in_python(tmp_path):
+    """The fallback plan, the prompts, the checking of a model's plan, the lifter text, the route's input cleaning: the same answer from both languages over seeded corpora.
+    (The TypeScript's own `deno task test` checks the same cases against the golden file; this runs the two side by side, live.)"""
+    g = _golden().build_split()
+    accepted = sum(1 for _, e in g["validate"] if isinstance(e, dict))
+    assert accepted > 300 and sum(1 for _, e in g["validate"] if e == "ERR") > 300, accepted
+    assert len(g["fallback"]) > 800 and len(g["prompts"]) > 400 and len(g["suggestPrompts"]) > 500
+    assert any(c[0][3] and "pregnan" in c[0][3] for c in g["fallback"]) and any(c[0][5] == "hybrid" for c in g["fallback"])
+    names = [k for k in g if k != "constants"]
+    answers = _run_edge_parity(tmp_path, {"split": {k: [i for i, _ in g[k]] for k in names}})["split"]
+    for k in names:
+        expected = json.loads(json.dumps([e for _, e in g[k]]))
+        if k in ("prompts", "suggestPrompts"):
+            expected = [{"sha256": e["sha256"], "chars": e["chars"]} for e in expected]
+        assert len(answers[k]) == len(expected), k
+        for i, (got, want) in enumerate(zip(answers[k], expected)):
+            assert got == want, (k, i, g[k][i][0])

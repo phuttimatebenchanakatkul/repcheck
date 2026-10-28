@@ -51,7 +51,7 @@ export function pyJsonLength(value: unknown): number {
       const cp = ch.codePointAt(0)!;
       if (ch === '"' || ch === "\\" || ch === "\n" || ch === "\r" || ch === "\t" || ch === "\b" || ch === "\f") n += 2;
       else if (cp < 32) n += 6;
-      else if (cp <= 127) n += 1; // printable ASCII, and DEL, which Python leaves unescaped
+      else if (cp <= 126) n += 1; // printable ASCII; DEL (127) is escaped like any control character
       else n += cp > 0xFFFF ? 12 : 6;
     }
     return n;
