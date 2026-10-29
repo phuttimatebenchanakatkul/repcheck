@@ -33,6 +33,10 @@ export interface GenerateRequest {
   safe?: boolean;
   /** Make the model answer in JSON of this shape (the REST API's schema, type names in upper case: "OBJECT", "STRING"). */
   responseSchema?: Record<string, unknown>;
+  /** Answer in JSON without a schema (the race analysis asks for this). */
+  json?: boolean;
+  /** How adventurous the wording is (the race analysis uses 0.4); the model's own default when omitted. */
+  temperature?: number;
 }
 
 export interface Gemini {
@@ -80,7 +84,11 @@ export class GeminiClient implements Gemini {
       })),
     };
     if (request.system) body.systemInstruction = { parts: [{ text: request.system }] };
-    if (request.responseSchema) body.generationConfig = { responseMimeType: "application/json", responseSchema: request.responseSchema };
+    const config: Record<string, unknown> = {};
+    if (request.temperature !== undefined) config.temperature = request.temperature;
+    if (request.json || request.responseSchema) config.responseMimeType = "application/json";
+    if (request.responseSchema) config.responseSchema = request.responseSchema;
+    if (Object.keys(config).length) body.generationConfig = config;
     const attempts = request.attempts ?? ATTEMPTS;
     if (request.safe) body.safetySettings = CATEGORIES.map((category) => ({ category, threshold: "BLOCK_MEDIUM_AND_ABOVE" }));
     let response: Response | undefined;

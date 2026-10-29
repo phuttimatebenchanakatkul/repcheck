@@ -1,7 +1,9 @@
-/** Planning: the workout-split generator. (The HYROX race analysis joins it in the next slice.) */
+/** Planning: the HYROX race analysis and the workout-split generator. */
 import type { Router } from "../../_shared/app.ts";
 import { getProfile } from "../../_shared/accounts.ts";
+import { pyJsonLength } from "../../_shared/chats.ts";
 import { hasConsent, refusal } from "../../_shared/consent.ts";
+import { analyzeRace } from "../../_shared/hyrox.ts";
 import { fail, json, jsonBody } from "../../_shared/http.ts";
 import { friendlyWait, RATE_LIMITS, release, reserveUse, track } from "../../_shared/limits.ts";
 import { pyStrip } from "../../_shared/nameFilter.ts";
@@ -10,6 +12,9 @@ import { pyStr } from "../../_shared/pyText.ts";
 import { generateSplitPlan, suggestSplitPlan, WORKOUT_EXERCISES } from "../../_shared/splitPlanner.ts";
 
 const FEATURE = "split_generation";
+const HYROX_FEATURE = "hyrox_analysis";
+export const MAX_RACE_SEGMENTS = 40; // a race is 8 runs + 8 stations + transitions
+export const MAX_RACE_CHARS = 20_000;
 export const SPLIT_TYPES = new Set(["ppl", "upper_lower", "full_body", "bro_split", "custom", "ai_suggest"]);
 export const MAX_CUSTOM_DAYS = 14;
 export const MAX_GOAL_CHARS = 300;
@@ -48,6 +53,42 @@ export function handPicked(raw: unknown): Map<string, string[]> | null {
 }
 
 export function register(router: Router): void {
+  router.post("/api/hyrox/analyze", async ({ request, services, identity }) => {
+    const userId = identity.id;
+    const profile = await services.db.transaction((tx) => getProfile(tx, userId));
+    if (!profile) return fail("No profile yet. Create it first.", 404);
+    if (!hasConsent(profile)) return refusal();
+    const payload = await jsonBody(request);
+    const race = pyTruthy(payload.race) ? payload.race : {};
+    if (race === null || typeof race !== "object" || Array.isArray(race)) return fail("Invalid race.", 400);
+    const segments = (race as Record<string, unknown>).segments;
+    if (!Array.isArray(segments) || !segments.length) return fail("Race has no segments to analyze.", 400);
+    if (segments.length > MAX_RACE_SEGMENTS || pyJsonLength(race) > MAX_RACE_CHARS) return fail("Invalid race.", 400);
+
+    const reservation = await reserveUse(services.db, services.settings, identity, HYROX_FEATURE);
+    if (!reservation.allowed) {
+      // the shape the app already understands: a normal message, not an error
+      return json({
+        ok: true,
+        overall: `You've analyzed ${RATE_LIMITS[HYROX_FEATURE][0]} races today. Please check back in ${friendlyWait(reservation.retryAfter)}.`,
+        overall_detail: [],
+        tips: [],
+        limited: true,
+        retry_after_seconds: reservation.retryAfter,
+      });
+    }
+    let result;
+    try {
+      result = await analyzeRace(services.gemini, race as Record<string, unknown>);
+    } catch (e) {
+      await release(services.db, userId, HYROX_FEATURE, reservation);
+      throw e;
+    }
+    if (result.failed) await release(services.db, userId, HYROX_FEATURE, reservation); // the model was unreachable: the neutral tips are not an analysis
+    else await track(services.db, userId, "hyrox_ai_analysis");
+    return json({ ok: true, overall: result.overall, overall_detail: result.overall_detail, tips: result.tips, limited: result.limited, retry_after_seconds: result.retry_after_seconds });
+  });
+
   router.post("/api/generate-split", async ({ request, services, identity }) => {
     const userId = identity.id;
     const payload = await jsonBody(request);

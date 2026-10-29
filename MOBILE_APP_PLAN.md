@@ -765,7 +765,11 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   assorted ways; the lifter text, with its ties; the route's input cleaning. New helpers `_shared/pyText.ts` (Python's `str()`, `repr()` of a float, `format(x, ".1f")`
   and `json.dumps`). **Two fixes on the way:** the Python built one prompt list from a set (so the same request gave a differently ordered prompt) and now keeps the
   order given; and the chat context-size check counted DEL as one character where Python writes six. 334 Deno tests.
-- **8e4, HYROX analysis.**
+- **8e4, HYROX race analysis (v0.51.0.0, done):** `hyrox_coach` ported (the race prompt, the reading of the model's answer into one tip per station in race
+  order, the clock) with `/api/hyrox/analyze`: 8 races per 5 hours per account (the cookie-session budget the Flask module kept is not ported; it never tripped),
+  a neutral answer plus the use given back when the model is unreachable or says nothing, `temperature` 0.4 and JSON mode on the Gemini client. Python's
+  `str.title()` is reproduced (`pyTitle`, its exceptions GENERATED from Python by `scripts/gen_edge_title_data.py`) and checked against every letter Unicode has.
+  Proven against ~700 golden Python answers plus the same side by side; the live run had the real model analyse a race. 353 Deno tests.
 - **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
 - **8g, lift video:** see "The one hard part" below.
 - **8h, cut-over:** in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.

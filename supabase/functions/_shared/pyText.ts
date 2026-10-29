@@ -1,3 +1,5 @@
+import { TITLE_FIRST } from "./titleData.ts";
+
 /** Text the way Python writes it, for the places where the Flask version's output must be reproduced exactly (prompts sent to the model,
  *  numbers printed into them): str() of a JSON value, repr() of a float, format(x, ".1f"), and json.dumps() with its default separators. */
 
@@ -55,6 +57,31 @@ function repr(v: unknown): string {
   if (typeof v === "string") return reprString(v);
   if (Array.isArray(v)) return `[${v.map(repr).join(", ")}]`;
   return `{${Object.entries(v as Record<string, unknown>).map(([k, x]) => `${reprString(k)}: ${repr(x)}`).join(", ")}}`;
+}
+
+const CASED = /^[\p{Lowercase}\p{Uppercase}\p{Lt}]$/u; // what Python calls "cased"
+
+/** str.title(): each run of letters starts with a capital and goes on in lower case ("o'brien" is "O'Brien", "3rd" is "3Rd"). */
+export function pyTitle(s: string): string {
+  let out = "";
+  let run = "";
+  const flush = () => {
+    if (!run) return;
+    const first = [...run][0];
+    // the title-case form of the first letter (a table, where it is not the upper-case one), then the rest of the run lowered as a whole, so a final sigma comes out as one
+    const head = Object.hasOwn(TITLE_FIRST, first) ? TITLE_FIRST[first] : first.toUpperCase();
+    out += head + run.toLowerCase().slice(first.toLowerCase().length);
+    run = "";
+  };
+  for (const ch of s) {
+    if (CASED.test(ch)) run += ch;
+    else {
+      flush();
+      out += ch;
+    }
+  }
+  flush();
+  return out;
 }
 
 /** str() of a JSON value: text as it is, True/False/None, a number, and a list or dict the way Python prints it. (JSON cannot tell 1.0 from 1; this prints 1.) */

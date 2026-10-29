@@ -554,6 +554,46 @@ def test_the_coaching_engine_answers_in_typescript_exactly_as_in_python(tmp_path
         assert answers[ours] == expected, ours
 
 
+def test_the_generated_title_data_is_fresh():
+    """titleData.ts (the letters whose str.title() is not their upper case) is written from Python's own tables."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_title_data.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "run `python scripts/gen_edge_title_data.py` to regenerate supabase/functions/_shared/titleData.ts"
+
+
+def test_the_hyrox_route_messages_feature_limits_and_event_are_the_flask_apis():
+    import hyrox_coach
+    flask_text = (ROOT / "api" / "routes" / "planning.py").read_text(encoding="utf-8")
+    route = text("api", "routes", "planning.ts")
+    messages = re.findall(r'fail\("([^"]+)", 40[04]\)', route)
+    assert len(messages) >= 4 and all(m in flask_text for m in messages), [m for m in messages if m not in flask_text]
+    assert 'HYROX_FEATURE = "hyrox_analysis"' in route and "hyrox_analysis" in flask_limits.RATE_LIMITS
+    assert flask_limits.RATE_LIMITS["hyrox_analysis"] == (8, 5 * 60 * 60) == (hyrox_coach.SESSION_ANALYSIS_LIMIT, hyrox_coach.SESSION_WINDOW_SECONDS)
+    assert "hyrox_ai_analysis" in route and "hyrox_ai_analysis" in flask_text
+    assert int(re.search(r"MAX_RACE_SEGMENTS = (\d+)", route).group(1)) == 40 and re.search(r"MAX_RACE_CHARS = 20_000", route) and "MAX_RACE_CHARS = 20_000" in flask_text
+    assert "Please check back in" in route and "Please check back in" in flask_text and "races today." in route and "races today." in flask_text
+    hyrox = text("_shared", "hyrox.ts")
+    assert float(re.search(r"TEMPERATURE = ([\d.]+)", hyrox).group(1)) == 0.4
+    assert "temperature=0.4" in (ROOT / "hyrox_coach.py").read_text(encoding="utf-8")
+
+
+def test_the_hyrox_analysis_answers_in_typescript_exactly_as_in_python(tmp_path):
+    """The race prompt, the reading of the model's answer, the clock and str.title() over seeded corpora; and str.title() over every letter Unicode has, alone and in company
+    (the final sigma, the digraphs and the Georgian letters are where JavaScript's own capitalising differs).
+    (The TypeScript's own `deno task test` checks the golden cases against the saved Python answers; this runs the two side by side, live.)"""
+    g = _golden().build_hyrox()
+    assert sum(1 for _, e in g["prompts"] if e == "ERR") > 20 and sum(1 for _, e in g["prompts"] if e != "ERR") > 100
+    cases = {k: [i for i, _ in g[k]] for k in ("prompts", "coerced", "bullets", "clocks", "titles")}
+    letters = [chr(c) for c in range(0x110000) if not 0xD800 <= c < 0xE000 and (chr(c).isalpha() or chr(c).title() != chr(c) or chr(c).lower() != chr(c))]
+    assert len(letters) > 100_000
+    sweep = letters + ["a" + c for c in letters] + [c + "\u03a3" for c in letters[::37]] + ["\u0391\u03a3", "\u03a3", "a\u03a3b", "\u03a3\u0391\u03a3", "\u0391\u03a3.", "x\u03a3 y", "\u0391\u03a3\u0301"]
+    cases["titles"] = cases["titles"] + sweep
+    answers = _run_edge_parity(tmp_path, {"hyrox_cases": cases})["hyroxKinds"]
+    for k in ("prompts", "coerced", "bullets", "clocks"):
+        expected = json.loads(json.dumps([e for _, e in g[k]]))
+        assert answers[k] == expected, k
+    assert answers["titles"] == [w.title() for w in cases["titles"]]
+
+
 def test_the_generated_workout_data_is_fresh():
     """workoutData.ts (the exercise library: categories in order, and where each can be done) is written from workout_library.py."""
     result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_workout_data.py"), "--check"], capture_output=True, text=True)
