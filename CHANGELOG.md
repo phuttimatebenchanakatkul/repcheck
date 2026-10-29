@@ -2,6 +2,17 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.53.0.0] - 2026-10-29
+
+### Added
+
+The waitlist and the owner's tools on the new Supabase server (step 8c2 of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step, and the marketing site still posts to the old address.
+
+- **The waitlist** the marketing site posts to: the same two allowed origins, five tries an hour per visitor address, an address that is already on the list answered exactly like a new one, and a source label with control characters dropped.
+- **The owner's routes**, each a 404 to anyone not in `ADMIN_EMAILS` (the review account included): open reports against accounts and against AI replies, reset a reported name, mark a report handled, the waitlist as JSON or as a CSV a spreadsheet cannot run formulas from, delete an address on request, signups for today (Bangkok's day), the week, the month or all time, and one account's detail.
+- **Proven:** 418 Deno tests, including cases whose answers the old Python code gave (the CSV, the signup ranges across Bangkok's midnight, the usage labels), run offline and side by side with the Python; a live run in which a throwaway visitor joined the real waitlist, hit the hourly limit and was removed by a throwaway owner account; then deliberate breakages of the new code (all 87 caught). Not deployed: that needs your Supabase login.
+- **Worth checking after you deploy:** the per-visitor limit counts tries by the address the platform's proxy reports; if Supabase puts it in a header the code does not read, every visitor shares one budget.
+
 ## [0.52.0.0] - 2026-10-29
 
 ### Added

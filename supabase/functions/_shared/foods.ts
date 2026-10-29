@@ -3,7 +3,7 @@
  *  a barcode that races past the duplicate check is caught by the database's unique index and answered as the same 409). */
 import type { Tx } from "./db.ts";
 import { lock, overLimitMessage } from "./rows.ts";
-import { cleanText } from "./rows.ts";
+import { cleanText, isoSql, isoUtc } from "./rows.ts";
 import { pyFloat, pyRound, pyTruthy } from "./pyNumbers.ts";
 import { pyStr } from "./pyText.ts";
 
@@ -179,16 +179,13 @@ export function foodAsScanResult(food: Food) {
 
 // -- custom exercises --------------------------------------------------------------------------------------------------------
 
-/** Python's datetime.isoformat() for a UTC timestamp: microseconds only when there are some, and +00:00. */
-const isoText = (utcText: string): string => `${utcText.endsWith(".000000") ? utcText.slice(0, -7) : utcText}+00:00`;
-
 export async function listExercises(tx: Tx, userId: string): Promise<Exercise[]> {
   const rows = await tx.all<{ id: number; name: string; emoji: string | null; mode: string; created_text: string }>(
-    `select id, name, emoji, mode, to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') as created_text
+    `select id, name, emoji, mode, ${isoSql("created_at")} as created_text
      from public.custom_exercises where user_id = $1 order by created_at desc, id desc`,
     [userId],
   );
-  return rows.map((r) => ({ id: r.id, name: r.name, emoji: r.emoji, mode: r.mode, created_at: isoText(r.created_text) }));
+  return rows.map((r) => ({ id: r.id, name: r.name, emoji: r.emoji, mode: r.mode, created_at: isoUtc(r.created_text) }));
 }
 
 export async function createExercise(tx: Tx, userId: string, payload: Record<string, unknown>): Promise<Exercise> {

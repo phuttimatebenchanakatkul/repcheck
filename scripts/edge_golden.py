@@ -483,7 +483,45 @@ def build_food():
     return edge_golden_food.build()
 
 
-GOLDEN = {"coaching": build_coaching, "split": build_split, "hyrox": build_hyrox, "food": build_food}
+def build_admin():
+    """{name: [[input, expected], ...]} for the owner's side: the waitlist's cleaning and CSV, the signup ranges, the usage labels."""
+    import datetime as dt
+    from api import admin as ad
+    rng = random.Random(49)
+    out = {}
+    out["sources"] = [[v, ad.clean_source(v)] for v in [None, "", "marketing", "x" * 100, "a\x00b\x7fc", 5, "\u00e9" * 70, "\U0001f3cb" * 70, "  pad  ", ["a"], True, "\n\t", "a" * 64, "a" * 65, {"k": 1}]]
+    out["safe"] = [[v, ad.spreadsheet_safe(v)] for v in ["", "=cmd@evil.com", "+1", "-1", "@a", "\tx", "\rx", "a=b", None, 5, "x", " =x", "\u00e9", "'=x", 0, False]]
+    entries = []
+    for _ in range(40):
+        entries.append({"email": rng.choice(["a@b.co", "=cmd@evil.com", '"q"@x.io', "plus+tag@x.io", "-x@y.zz", "@x@y.z"]), "source": rng.choice([None, "", "marketing", '=HYPERLINK("x")', 'say "hi"', "a,b", "line\nbreak", "+1", 5]),
+                        "created_at": rng.choice(["2026-10-29T01:02:03.123456+00:00", "2026-10-28T00:00:00+00:00", "-x"])})
+    out["csv"] = [[entries[:n], ad.waitlist_csv(entries[:n])] for n in (0, 1, 2, 5, 40)]
+    base = dt.datetime(2026, 10, 29, 12, 0, 0, tzinfo=dt.timezone.utc)
+    nows = [base + dt.timedelta(minutes=m) for m in (-720, -1, 0, 1, 299, 300, 301, 600, 1440, 100000)]
+    nows += [dt.datetime(2026, 12, 31, 16, 59, 59, 999000, tzinfo=dt.timezone.utc), dt.datetime(2026, 12, 31, 17, 0, 0, tzinfo=dt.timezone.utc), dt.datetime(2028, 2, 29, 23, 30, tzinfo=dt.timezone.utc),
+             dt.datetime(2026, 3, 1, 0, 0, 0, tzinfo=dt.timezone.utc)]
+    epoch = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+
+    def ms(value):
+        return None if value is None else (value - epoch) // dt.timedelta(milliseconds=1)
+
+    out["cutoffs"] = [[[r, now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"], ms(ad.signup_cutoff(r, now))] for now in nows for r in ("today", "week", "month", "all", "x", "")]
+    events = [{"event": e, "count": rng.randint(1, 99), "last_text": rng.choice(["2026-10-29T01:02:03.123456", "2026-10-28T00:00:00.000000"])}
+              for e in ["page:home", "page:nutrition", "page:unknown_page", "food_scan", "feature:food_scan", "feature:nope", "workout_analysis", "page", "page:", ":x", "a:b:c", "feature:report_user", "", "page:hyrox:more"]]
+
+    def as_python(items):
+        return [{"event": e["event"], "count": e["count"], "last_at": dt.datetime.fromisoformat(e["last_text"] + "+00:00")} for e in items]
+
+    out["usage"] = []
+    for n in (0, 1, 3, 8, len(events)):
+        pages, features = ad.usage_split(as_python(events[:n]))
+        out["usage"].append([events[:n], [pages, features]])
+    out["constants"] = [[None, {"ranges": list(ad.RANGES), "moderated": ad.MODERATED_DISPLAY_NAME, "page_limit": ad.REPORT_PAGE_LIMIT, "waitlist": [ad.WAITLIST_LIMIT, ad.WAITLIST_WINDOW, ad.MAX_SOURCE],
+                                 "origins": sorted(ad.WAITLIST_ORIGINS), "pages": ad.PAGE_LABELS, "features": ad.FEATURE_LABELS}]]
+    return out
+
+
+GOLDEN = {"coaching": build_coaching, "split": build_split, "hyrox": build_hyrox, "food": build_food, "admin": build_admin}
 # a big file is kept compressed (the split generator's is several MB of prompts and plans); the tests decompress it
 COMPRESSED = {"split", "hyrox", "food"}
 

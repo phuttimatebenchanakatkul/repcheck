@@ -652,6 +652,31 @@ def test_the_food_code_answers_in_typescript_exactly_as_in_python(tmp_path):
             assert got == want, (k, i, v[i][0])
 
 
+def test_the_owners_side_answers_in_typescript_exactly_as_in_python(tmp_path):
+    """The waitlist's cleaning and CSV (a cell that starts like a formula is defused), the signup ranges (Bangkok's day) and the usage labels: the same answer from both languages.
+    (The TypeScript's own `deno task test` checks the saved Python answers; this runs the two side by side, live.)"""
+    g = _golden().build_admin()
+    kinds = {k: v for k, v in g.items() if k != "constants"}
+    assert any(e is None for _, e in kinds["cutoffs"]) and any(isinstance(e, int) for _, e in kinds["cutoffs"]) and any(e != i for i, e in kinds["safe"])
+    answers = _run_edge_parity(tmp_path, {"admin_cases": {k: [i for i, _ in v] for k, v in kinds.items()}})["adminKinds"]
+    for k, v in kinds.items():
+        assert answers[k] == json.loads(json.dumps([e for _, e in v])), k
+
+
+def test_the_waitlist_and_admin_routes_messages_and_origins_are_the_flask_apis():
+    from api import admin as flask_admin
+    waitlist, admin_routes, shared = text("api", "routes", "waitlist.ts"), text("api", "routes", "admin.ts"), text("_shared", "admin.ts")
+    flask_waitlist = (ROOT / "api" / "routes" / "waitlist.py").read_text(encoding="utf-8")
+    flask_admin_routes = (ROOT / "api" / "routes" / "admin.py").read_text(encoding="utf-8")
+    for fragment in ('"invalid-email"', '"rate-limited"', "retry_after_seconds", "POST, OPTIONS", "Content-Type", "86400", "Vary"):
+        assert fragment in waitlist and fragment.strip('"') in flask_waitlist, fragment
+    for fragment in ("Report not found.", "Not found.", "repcheck_waitlist.csv", "text/csv; charset=utf-8"):
+        assert fragment in admin_routes and fragment in flask_admin_routes, fragment
+    assert sorted(re.findall(r'"(https://[^"]+)"', re.search(r"WAITLIST_ORIGINS[^=]*= new Set\(\[(.*?)\]\)", shared, re.S).group(1))) == sorted(flask_admin.WAITLIST_ORIGINS)
+    assert [flask_admin.WAITLIST_LIMIT, flask_admin.WAITLIST_WINDOW] == [int(x) for x in re.findall(r"WAITLIST_(?:LIMIT|WINDOW) = (\d+)", shared)]
+    assert "waitlist:" in waitlist and '"waitlist:"' in flask_waitlist.replace("'", '"')
+
+
 def test_the_generated_workout_data_is_fresh():
     """workoutData.ts (the exercise library: categories in order, and where each can be done) is written from workout_library.py."""
     result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_workout_data.py"), "--check"], capture_output=True, text=True)
