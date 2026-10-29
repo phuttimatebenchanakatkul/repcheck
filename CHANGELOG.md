@@ -2,6 +2,23 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.52.0.0] - 2026-10-29
+
+### Added
+
+Food on the new Supabase server (step 8f of moving off Render, first part). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **The meal photo scan**, with the note you type after picking the photo told to the model as more reliable than its own look; one scan a day, given back if the model cannot read the photo.
+- **Barcode lookup by the digits** from the phone's scanner: your own saved food for that barcode first, then Open Food Facts, then FatSecret (the second database is used only when its keys are set), with the same checks for kilojoules entered as calories and impossible amounts, and a barcode nobody knows still a normal "offer to create it".
+- **Online food search**, a person's **own foods** and **own exercises** (500 each, calories worked out from the macros, one food per barcode).
+- **Proven:** 397 Deno tests, including ~3,000 cases whose answers the old Python code gave, run offline and side by side with the Python (every lookup also has to make the same requests in the same order); a live run against the real database, the real Open Food Facts and the real model; then deliberate breakages of the new code (294 of 305 caught; the rest change nothing anyone can observe). Not deployed: that needs your Supabase login.
+- **Not yet moved:** reading a barcode out of a PHOTO of one (the old server used an image library the new one lacks). The app's live barcode scanner is unaffected; the photo path needs a decision (see MOBILE_APP_PLAN.md, 8f2).
+
+### Fixed
+
+- A hand-typed text field that held `true` was read as "true" where the old server read "True"; it now follows Python.
+- One authentication test could fail about once in 4,096 runs by tampering with a signature that already ended the way the test wrote it.
+
 ## [0.51.0.0] - 2026-10-29
 
 ### Added

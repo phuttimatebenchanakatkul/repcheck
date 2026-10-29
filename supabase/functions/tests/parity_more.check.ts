@@ -16,6 +16,7 @@ import { pyInt, pyRound, pyRound2 } from "../_shared/pyNumbers.ts";
 import { cleanCode, cleanHyroxResult, offsetMinutes, parseUserId, Rejected, todaysExercise } from "../_shared/social.ts";
 import { RUNNERS } from "./split_runners.ts";
 import { HYROX_RUNNERS } from "./hyrox_runners.ts";
+import { FOOD_RUNNERS } from "./food_runners.ts";
 
 const input = JSON.parse(Deno.readTextFileSync(Deno.args[0]));
 
@@ -107,7 +108,10 @@ const photoIds = input.photoIds ? input.photoIds.map(([raw]: [unknown]) => pyInt
 const split: Record<string, unknown[]> = {};
 for (const [name, inputs] of Object.entries((input.split ?? {}) as Record<string, unknown[]>)) split[name] = await Promise.all(inputs.map((i) => RUNNERS[name](i)));
 
+const foodKinds: Record<string, unknown[]> = {};
+for (const [name, inputs] of Object.entries((input.food_cases ?? {}) as Record<string, unknown[]>)) foodKinds[name] = await Promise.all(inputs.map((i) => FOOD_RUNNERS[name](i)));
+
 const hyroxKinds: Record<string, unknown[]> = {};
 for (const [name, inputs] of Object.entries((input.hyrox_cases ?? {}) as Record<string, unknown[]>)) hyroxKinds[name] = inputs.map((i) => HYROX_RUNNERS[name](i));
 
-console.log(JSON.stringify({ split, hyroxKinds, hashes, emails, images, userIds, codes, offsets, hyrox, days, texts, sources, requests, analysisPrompts, workoutPrompts, instruction, profiles, targets, distributions, weekly, applied, checkinPrompts, extracted, rounds, ints, photoIds }));
+console.log(JSON.stringify({ split, foodKinds, hyroxKinds, hashes, emails, images, userIds, codes, offsets, hyrox, days, texts, sources, requests, analysisPrompts, workoutPrompts, instruction, profiles, targets, distributions, weekly, applied, checkinPrompts, extracted, rounds, ints, photoIds }));

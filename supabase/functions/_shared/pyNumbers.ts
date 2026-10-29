@@ -18,24 +18,28 @@ export function pyRound(x: number): number {
   return Math.round(x);
 }
 
-/** Python's round(x, 2): correctly rounded from the number's exact value, a tie (only possible for numbers like 0.125, which are
+/** Python's round(x, digits): correctly rounded from the number's exact value, a tie (only possible for numbers like 0.125, which are
  *  exact in binary) going to the even digit. */
-export function pyRound2(x: number): number {
+export function pyRoundDigits(x: number, digits: number): number {
   if (!Number.isFinite(x)) return x;
   const exact = Math.abs(x).toFixed(60); // JavaScript prints the exact decimal expansion of a double when asked for enough digits
   const dot = exact.indexOf(".");
-  const tail = exact.slice(dot + 3); // everything after the second decimal place
-  const kept = exact.slice(0, dot + 3);
+  const tail = exact.slice(dot + 1 + digits); // everything after the last decimal place that is kept
+  const kept = exact.slice(0, dot + 1 + digits);
+  const step = Number(`1e-${digits}`);
+  const bump = () => Number((Number(kept) + step).toFixed(digits));
   const isTie = tail[0] === "5" && /^50*$/.test(tail);
   let n = Number(kept);
   if (isTie) {
-    const lastDigit = Number(kept[kept.length - 1]);
-    if (lastDigit % 2 === 1) n = Number((n + 0.01).toFixed(2)); // odd: round up to the even one
+    if (Number(kept[kept.length - 1]) % 2 === 1) n = bump(); // odd: round up to the even one
   } else if (tail[0] >= "5") {
-    n = Number((n + 0.01).toFixed(2));
+    n = bump();
   }
   return x < 0 ? -n : n;
 }
+
+/** Python's round(x, 2). */
+export const pyRound2 = (x: number): number => pyRoundDigits(x, 2);
 
 /** A JSON value read by Python's float(): a number, a boolean (True is 1.0), or text like " 3600.5 ", "1e3" or "3_600". NaN otherwise. */
 export function pyFloat(value: unknown): number {

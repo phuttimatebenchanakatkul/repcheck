@@ -2,6 +2,7 @@
 import { purgeDue } from "./accounts.ts";
 import { Verifier, requireIdentity, type Identity } from "./auth.ts";
 import type { Db } from "./db.ts";
+import type { FoodLookup } from "./foodLookup.ts";
 import { fail, json, Stop } from "./http.ts";
 import type { Settings } from "./settings.ts";
 import type { Gemini } from "./gemini.ts";
@@ -16,6 +17,8 @@ export interface Services {
   storage: Storage;
   authAdmin: AuthAdmin;
   gemini: Gemini;
+  /** Open Food Facts and FatSecret: nutrition by barcode and by name. */
+  food: FoodLookup;
   /** Keep `work` running after the response has gone (EdgeRuntime.waitUntil); the tests hand in one that collects it. */
   background: (work: Promise<unknown>) => void;
   /** Purge accounts past their grace period on requests, at most hourly. Off in tests, so they can never touch a real account that happens to be due. */

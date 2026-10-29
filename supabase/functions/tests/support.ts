@@ -4,6 +4,7 @@ import type { KeyLike } from "jose";
 
 import { createHandler, Router, type Services } from "../_shared/app.ts";
 import { Verifier } from "../_shared/auth.ts";
+import { FoodLookup } from "../_shared/foodLookup.ts";
 import type { Gemini, GenerateRequest } from "../_shared/gemini.ts";
 import { AuthAdmin, Storage, type Transport } from "../_shared/supabaseAdmin.ts";
 import type { Db, Params, Row, Tx } from "../_shared/db.ts";
@@ -119,7 +120,7 @@ export class FakeGemini implements Gemini {
   }
 }
 
-export function services(db: Db = new FakeDb(), env: Record<string, string> = {}, transport: Transport = fakeTransport().transport, gemini: Gemini = new FakeGemini()): Services & { collected: Promise<unknown>[] } {
+export function services(db: Db = new FakeDb(), env: Record<string, string> = {}, transport: Transport = fakeTransport().transport, gemini: Gemini = new FakeGemini(), food?: FoodLookup): Services & { collected: Promise<unknown>[] } {
   const s = settings(env);
   const collected: Promise<unknown>[] = [];
   return {
@@ -129,14 +130,15 @@ export function services(db: Db = new FakeDb(), env: Record<string, string> = {}
     storage: new Storage(PROJECT, "service-key", transport),
     authAdmin: new AuthAdmin(PROJECT, "service-key", transport),
     gemini,
+    food: food ?? new FoodLookup(() => Promise.reject(new Error("no network in tests")), s.fatsecret),
     background: (work) => void collected.push(work),
     sweep: false,
     collected,
   };
 }
 
-export function app(db: Db = new FakeDb(), env: Record<string, string> = {}, router: Router = buildRouter(), transport?: Transport, gemini?: Gemini) {
-  const handler = createHandler(services(db, env, transport, gemini), router);
+export function app(db: Db = new FakeDb(), env: Record<string, string> = {}, router: Router = buildRouter(), transport?: Transport, gemini?: Gemini, food?: FoodLookup) {
+  const handler = createHandler(services(db, env, transport, gemini, food), router);
   return (path: string, init: RequestInit & { json?: unknown } = {}) => {
     const headers = new Headers(init.headers);
     let body = init.body;
