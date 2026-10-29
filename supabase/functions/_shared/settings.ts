@@ -9,12 +9,21 @@ export interface Settings {
   rateLimitExempt: ReadonlySet<string>;
   /** Lower-cased addresses of the owner(s) who may use the admin routes. ADMIN_EMAILS only: the review account must never be one. */
   adminEmails: ReadonlySet<string>;
+  /** FatSecret's keys, the second barcode source (Thai and other products Open Food Facts lacks); null unless both are set. */
+  fatsecret: { clientId: string; clientSecret: string; region: string } | null;
 }
 
 export class SettingsError extends Error {}
 
 const list = (value: string | undefined): string[] =>
   (value ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+function fatsecret(get: (name: string) => string | undefined): Settings["fatsecret"] {
+  const clientId = (get("FATSECRET_CLIENT_ID") ?? "").trim();
+  const clientSecret = (get("FATSECRET_CLIENT_SECRET") ?? "").trim();
+  if (!clientId || !clientSecret) return null;
+  return { clientId, clientSecret, region: (get("FATSECRET_REGION") ?? "").trim() || "TH" };
+}
 
 /** Settings from `get` (the environment). Fails early with the NAME of what is wrong, never its value. */
 export function fromEnv(get: (name: string) => string | undefined = (n) => Deno.env.get(n)): Settings {
@@ -32,6 +41,7 @@ export function fromEnv(get: (name: string) => string | undefined = (n) => Deno.
     jwtAudience: "authenticated",
     rateLimitExempt: new Set([...list(get("ADMIN_EMAILS")), ...list(get("REVIEW_ACCOUNT_EMAILS"))]),
     adminEmails: new Set(list(get("ADMIN_EMAILS"))),
+    fatsecret: fatsecret(get),
   };
 }
 

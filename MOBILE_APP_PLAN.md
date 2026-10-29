@@ -770,7 +770,18 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   a neutral answer plus the use given back when the model is unreachable or says nothing, `temperature` 0.4 and JSON mode on the Gemini client. Python's
   `str.title()` is reproduced (`pyTitle`, its exceptions GENERATED from Python by `scripts/gen_edge_title_data.py`) and checked against every letter Unicode has.
   Proven against ~700 golden Python answers plus the same side by side; the live run had the real model analyse a race. 353 Deno tests.
-- **8f, food:** custom foods and exercises, food search and barcode lookup (Open Food Facts, FatSecret), AI meal photo.
+- **8f1, food (v0.52.0.0, done):** the AI meal photo (`analyze_food_gemini`), barcode lookup by digits (Open Food Facts, then FatSecret for Thai and other regional
+  products; its keys are the optional `FATSECRET_CLIENT_ID`, `FATSECRET_CLIENT_SECRET`, `FATSECRET_REGION` secrets), online food search, and a person's own foods and
+  exercises (`api/foods.py`: the 500-row ceiling under a lock, calories derived from the macros, barcode digits, the duplicate-barcode 409). The food-photo prompt and
+  the lookup constants are GENERATED from the Python (`scripts/gen_edge_food_data.py`). The lookups are proven against scripted worlds: the answers each database would
+  give go to the Python (with `requests` patched) and to the TypeScript, and the result AND the requests made, in order, must agree (~600 barcode lookups, ~250
+  searches, the FatSecret fallback among them). Also `round(x, n)` for any n (`pyRoundDigits`), the trailing text part of a Gemini turn (the photo's note), and a
+  `Services.food` collaborator. Note for 8h: Open Food Facts answers an unknown barcode with HTTP 200 and `status: 0` (live-checked), so a barcode nobody has stays a
+  normal `not_found`. 397 Deno tests; the live run uses the real database, Open Food Facts and the model.
+- **8f2, a photo of a barcode (decision for James, blocks 8h):** `POST /api/scan-barcode` decodes the barcode out of an uploaded photo with zbar and Pillow, which an
+  Edge Function does not have. The app already reads barcodes live on the phone and sends the digits to `/api/lookup-barcode`; the open question is its "choose a photo
+  of a barcode" path, which posts the image. Options: read it on the phone (`expo-camera`'s `scanFromURLAsync`, then the digits go to lookup-barcode; no server image
+  work at all), or keep a server-side decoder somewhere. Not ported until decided.
 - **8g, lift video:** see "The one hard part" below.
 - **8h, cut-over:** in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
 

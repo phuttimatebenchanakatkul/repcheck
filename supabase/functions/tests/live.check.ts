@@ -8,6 +8,7 @@
 import { assert, assertEquals } from "@std/assert";
 
 import { connect } from "../_shared/db.ts";
+import { FoodLookup } from "../_shared/foodLookup.ts";
 import { GeminiClient } from "../_shared/gemini.ts";
 import { reserve, refund, reserveDailyAttempt, trackUsage } from "../_shared/limits.ts";
 import { setConsent } from "../_shared/consent.ts";
@@ -200,6 +201,7 @@ Deno.test({
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
       gemini: new GeminiClient(env("GEMINI_API_KEY")),
+      food: new FoodLookup((...a) => fetch(...a), null),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -314,6 +316,7 @@ Deno.test({
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
       gemini: new GeminiClient(env("GEMINI_API_KEY")),
+      food: new FoodLookup((...a) => fetch(...a), null),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -454,6 +457,7 @@ Deno.test({
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
       gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      food: new FoodLookup((...a) => fetch(...a), null),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -528,6 +532,7 @@ Deno.test({
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
       gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      food: new FoodLookup((...a) => fetch(...a), null),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -606,6 +611,7 @@ Deno.test({
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
       gemini,
+      food: new FoodLookup((...a) => fetch(...a), null),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -701,6 +707,7 @@ Deno.test({
       storage: new Store(url!, serviceKey!),
       authAdmin: new Auth(url!, serviceKey!),
       gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      food: new FoodLookup((...a) => fetch(...a), null),
       background: () => {},
       sweep: false,
     }, buildRouter());
@@ -739,6 +746,112 @@ Deno.test({
       }
       const used = await db.transaction((tx) => tx.one<{ count: number }>("select count from public.rate_limits where user_id = $1 and feature = 'hyrox_analysis'", [id]));
       assertEquals(Number(used?.count ?? 0), counted ? 1 : 0, "a use is spent only for a real analysis");
+    } finally {
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+    }
+  },
+});
+
+Deno.test({
+  name: "live: custom foods and exercises in the real database, and the real product databases (Open Food Facts) and food-photo model",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      food: new FoodLookup((...a) => fetch(...a), settings.fatsecret),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    try {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const auth = { Authorization: `Bearer ${(await r.json()).access_token}` };
+      const json = { ...auth, "Content-Type": "application/json" };
+      const post = (path: string, body: unknown) => call(path, { method: "POST", headers: json, body: JSON.stringify(body) });
+      const get = (path: string) => call(path, { headers: auth });
+
+      assertEquals((await post("/api/custom-foods", { name: "x" })).status, 404, "no profile yet");
+      await post("/api/profile", { name: "Edge Food" });
+
+      // custom foods: calories derived, barcode digits, extra servings, the duplicate-barcode 409, list order, scoped delete
+      const made = await (await post("/api/custom-foods", { name: "Banana Bread", protein: 5, fat: 10, carbs: 20.5, calories: 1, barcode: "12-34", servingLabel: "1 slice", servingGrams: 60, servings: [{ label: "loaf", grams: 600 }, { label: "", grams: 3 }] })).json();
+      assertEquals(made.ok, true);
+      assertEquals([made.food.calories, made.food.barcode, made.food.servings], [192, "1234", [{ label: "loaf", grams: 600 }]]);
+      const dup = await post("/api/custom-foods", { name: "Again", barcode: "1234" });
+      assertEquals([dup.status, (await dup.json()).error], [409, "You already have a custom food saved for this barcode."]);
+      await post("/api/custom-foods", { name: "Second", protein: 1 });
+      const listed = await (await get("/api/custom-foods")).json();
+      assertEquals(listed.foods.map((f: { name: string }) => f.name), ["Second", "Banana Bread"], "newest first");
+      assertEquals(listed.foods[1].servings, [{ label: "loaf", grams: 600 }]);
+      assertEquals(listed.foods[0].servingLabel, "1 serving");
+      // the person's own food answers a scan of its barcode before any outside lookup
+      const own = await (await post("/api/lookup-barcode", { barcode: "12 34" })).json();
+      assertEquals([own.ok, own.confidence, own.custom_food_id, own.food_name], [true, "custom", made.food.id, "Banana Bread"]);
+      const stranger = await fetch(`${url}/rest/v1/custom_foods?select=id`, { headers: { apikey: env("SUPABASE_ANON_KEY")!, ...auth } });
+      assertEquals(stranger.status, 200);
+      const gone = await call(`/api/custom-foods/${made.food.id}`, { method: "DELETE", headers: auth });
+      assertEquals((await gone.json()).ok, true);
+      assertEquals((await (await get("/api/custom-foods")).json()).foods.length, 1);
+      // someone else's id is silently ignored, not an error
+      assertEquals((await (await call("/api/custom-foods/999999999", { method: "DELETE", headers: auth })).json()).ok, true);
+
+      // custom exercises
+      const ex = await (await post("/api/custom-exercises", { name: "  Dead Hang ", emoji: "\u{1F4AA}", mode: "each" })).json();
+      assertEquals([ex.exercise.name, ex.exercise.emoji, ex.exercise.mode], ["Dead Hang", "\u{1F4AA}", "each"]);
+      assertEquals((await post("/api/custom-exercises", { name: "Plank", mode: "sideways" }).then((x) => x.json())).exercise.mode, "both");
+      const exercises = (await (await get("/api/custom-exercises")).json()).exercises;
+      assertEquals(exercises.map((e: { name: string }) => e.name), ["Plank", "Dead Hang"]);
+      assert(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,6})?\+00:00$/.test(exercises[0].created_at), exercises[0].created_at);
+      assertEquals((await post("/api/custom-exercises", { name: "" })).status, 400);
+      await call(`/api/custom-exercises/${ex.exercise.id}`, { method: "DELETE", headers: auth });
+      assertEquals((await (await get("/api/custom-exercises")).json()).exercises.length, 1);
+
+      // the real product databases
+      const nutella = await (await post("/api/lookup-barcode", { barcode: "3017620422003" })).json();
+      console.log("  (Open Food Facts for 3017620422003:", JSON.stringify(nutella).slice(0, 200), ")");
+      assert(nutella.ok === true || nutella.error, "the product database answered something");
+      const unknown = await post("/api/lookup-barcode", { barcode: "0000000000017" });
+      const unknownBody = await unknown.json();
+      console.log("  (Open Food Facts for an unknown barcode:", unknown.status, JSON.stringify(unknownBody).slice(0, 200), ")");
+      const search = await (await get("/api/search-food-online?q=nutella")).json();
+      console.log("  (search for nutella:", search.ok, Array.isArray(search.results) ? search.results.length + " results" : search.error, ")");
+      assert(search.ok === true || typeof search.error === "string");
+
+      // the food photo, through the real model: consent first
+      const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+      const form = () => {
+        const f = new FormData();
+        f.set("image", new File([png], "meal.png", { type: "image/png" }));
+        return f;
+      };
+      assertEquals((await call("/api/analyze-food", { method: "POST", headers: auth, body: form() })).status, 403);
+      await post("/api/ai-consent", { granted: true });
+      const photo = await call("/api/analyze-food", { method: "POST", headers: auth, body: form() });
+      const photoBody = await photo.json();
+      console.log("  (food photo:", photo.status, JSON.stringify(photoBody).slice(0, 160), ")");
+      assert(photo.status === 200 || photo.status === 502, String(photo.status));
+      if (photo.status === 200) assert(Array.isArray(photoBody.ingredients) && typeof photoBody.calories === "number");
+      const used = await db.transaction((tx) => tx.one<{ count: number }>("select count from public.rate_limits where user_id = $1 and feature = 'food_analysis'", [id]));
+      assertEquals(Number(used?.count ?? 0), photo.status === 200 ? 1 : 0, "a use is spent only for an estimate that came back");
     } finally {
       const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
       assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");

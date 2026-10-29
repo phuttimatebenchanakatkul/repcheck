@@ -52,7 +52,7 @@ Deno.test("a tampered token is refused", async () => {
   const [head, body, sig] = (await token()).split(".");
   const forged = btoa(JSON.stringify({ sub: "11111111-1111-4111-8111-111111111111", role: "authenticated" })).replace(/=+$/, "");
   await refused(`${head}.${forged}.${sig}`);
-  await refused(`${head}.${body}.${sig.slice(0, -2)}AA`);
+  await refused(`${head}.${body}.${sig.slice(0, -2)}${sig.endsWith("AA") ? "BB" : "AA"}`); // (a signature that already ended in AA would not have been tampered with)
 });
 
 Deno.test("alg none is refused", async () => {

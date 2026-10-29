@@ -594,6 +594,64 @@ def test_the_hyrox_analysis_answers_in_typescript_exactly_as_in_python(tmp_path)
     assert answers["titles"] == [w.title() for w in cases["titles"]]
 
 
+def test_the_generated_food_data_is_fresh():
+    """foodData.ts (the food-photo prompt, the plausible-nutrition bounds and the product-database addresses) is written from the Python food modules."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_food_data.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "run `python scripts/gen_edge_food_data.py` to regenerate supabase/functions/_shared/foodData.ts"
+
+
+def test_the_food_routes_messages_features_events_and_limits_are_the_flask_apis():
+    routes = text("api", "routes", "foods.ts")
+    flask_routes = (ROOT / "api" / "routes" / "foods.py").read_text(encoding="utf-8")
+    flask_rules = (ROOT / "api" / "foods.py").read_text(encoding="utf-8")
+    messages = re.findall(r'fail\("([^"]+)", 40\d\)', routes) + re.findall(r'fail\(e\.message', routes) + re.findall(r'fail\(NO_PROFILE', routes)
+    assert len(messages) >= 5
+    for m in re.findall(r'fail\("([^"]+)", (?:40\d|502)\)', routes):
+        assert m in flask_routes, m
+    assert "No profile yet. Create it first." in flask_routes and 'FEATURE = "food_analysis"' in routes and "food_analysis" in flask_limits.RATE_LIMITS
+    assert 'track(services.db, userId, "food_scan")' in routes and "food_scan" in flask_routes
+    assert "You've used your" in routes and "food scans for today \u2014 try again in" in routes and "food scans for today" in flask_routes and "try again in" in flask_routes
+    assert int(re.search(r"MAX_NOTE = (\d+)", routes).group(1)) == 300 and "MAX_NOTE = 300" in flask_routes
+    assert int(re.search(r"MAX_SEARCH = (\d+)", routes).group(1)) == 100 and "MAX_SEARCH = 100" in flask_routes
+    assert int(re.search(r"SEARCH_RESULTS = (\d+)", routes).group(1)) == 12 and "limit=12" in (ROOT / "api" / "ai.py").read_text(encoding="utf-8")
+    assert "FOOD_PHOTO_BODY_LIMIT = MAX_PHOTO_BYTES + 64 * 1024" in routes and "FOOD_PHOTO_BODY_LIMIT = photos.MAX_PHOTO_BYTES + 64 * 1024" in flask_routes
+    foods = text("_shared", "foods.ts")
+    for name in ("FOOD_LIMIT", "EXERCISE_LIMIT", "MAX_NAME", "MAX_EMOJI", "MAX_LABEL", "MAX_BARCODE", "MAX_EXTRA_SERVINGS"):
+        assert re.search(rf"{name} = (\d+)", foods).group(1) == re.search(rf"{name} = (\d+)", flask_rules).group(1), name
+    for message in ("Enter a name for the exercise.", "You already have a custom food saved for this barcode.", "Custom food"):
+        assert message in foods and message in flask_rules, message
+    lookup = text("_shared", "foodLookup.ts")
+    scanner = (ROOT / "barcode_scanner.py").read_text(encoding="utf-8")
+    for fragment in ("RepCheck-App/1.0 (nutrition barcode lookup)", "RepCheck-App/1.0 (nutrition food search)", "Couldn't reach the product database. Please try again.", "No barcode value given.",
+                     "(an implausible amount per 100g) -- try searching for it manually instead.", "(an implausible calorie count) -- try searching for it manually instead.",
+                     "It may not be in the", "Open Food Facts database yet.", "it has no nutrition data on", "page_size", "product_name,brands,serving_size,nutriments", "code,product_name,brands,serving_size,nutriments"):
+        assert fragment in lookup and fragment in scanner, fragment
+    for fragment in ("grant_type", "client_credentials", "basic barcode", '"format"'):
+        assert fragment.strip('"') in lookup and fragment.strip('"') in (ROOT / "fatsecret_lookup.py").read_text(encoding="utf-8"), fragment
+
+
+def test_a_bad_json_answer_from_a_product_database_reads_as_unreachable_in_python_too():
+    """barcode_scanner catches RequestException before ValueError, and requests' own JSONDecodeError is both: the 'unexpected response' message is never reached, which is why the TypeScript has one message for every failure."""
+    import requests
+    assert issubclass(requests.exceptions.JSONDecodeError, requests.RequestException)
+    assert issubclass(requests.exceptions.JSONDecodeError, ValueError)
+
+
+def test_the_food_code_answers_in_typescript_exactly_as_in_python(tmp_path):
+    """The label figures and their checks, the serving-size reading, Open Food Facts and FatSecret against scripted answers (which requests are made, in what order, and what comes out), the photo estimate, and a person's own foods and exercises:
+    the same answer from both languages over seeded corpora. (The TypeScript's own `deno task test` checks the saved Python answers; this runs the two side by side, live.)"""
+    g = _golden().build_food()
+    kinds = {k: g[k] for k in g if k != "constants"}
+    assert sum(1 for _, e in kinds["lookups"] if e[0][0] == "ok") > 100 and any(e[0][0] == "ok" and e[0][1]["data_source"] == "FatSecret" for _, e in kinds["lookups"])
+    assert sum(1 for _, e in kinds["searches"] if e[0][0] == "ok") > 150 and sum(1 for _, e in kinds["photo"] if e[0] == "ok") > 200
+    answers = _run_edge_parity(tmp_path, {"food_cases": {k: [i for i, _ in v] for k, v in kinds.items()}})["foodKinds"]
+    for k, v in kinds.items():
+        expected = json.loads(json.dumps([e for _, e in v]))
+        assert len(answers[k]) == len(expected), k
+        for i, (got, want) in enumerate(zip(answers[k], expected)):
+            assert got == want, (k, i, v[i][0])
+
+
 def test_the_generated_workout_data_is_fresh():
     """workoutData.ts (the exercise library: categories in order, and where each can be done) is written from workout_library.py."""
     result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_workout_data.py"), "--check"], capture_output=True, text=True)

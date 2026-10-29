@@ -18,6 +18,8 @@ export interface Turn {
   text: string;
   /** Pictures sent with the text, inline. */
   images?: readonly Image[];
+  /** More text after the pictures (the food scan's note from the person). */
+  after?: string;
 }
 
 export interface GenerateRequest {
@@ -80,7 +82,7 @@ export class GeminiClient implements Gemini {
     const body: Record<string, unknown> = {
       contents: request.contents.map((t) => ({
         role: t.role,
-        parts: [{ text: t.text }, ...(t.images ?? []).map((i) => ({ inlineData: { mimeType: i.mimeType, data: toBase64(i.data) } }))],
+        parts: [{ text: t.text }, ...(t.images ?? []).map((i) => ({ inlineData: { mimeType: i.mimeType, data: toBase64(i.data) } })), ...(t.after ? [{ text: t.after }] : [])],
       })),
     };
     if (request.system) body.systemInstruction = { parts: [{ text: request.system }] };

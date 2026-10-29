@@ -476,9 +476,16 @@ def build_hyrox():
     return out
 
 
-GOLDEN = {"coaching": build_coaching, "split": build_split, "hyrox": build_hyrox}
+def build_food():
+    """{name: [[input, expected], ...]} for the food code: see edge_golden_food.py."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import edge_golden_food
+    return edge_golden_food.build()
+
+
+GOLDEN = {"coaching": build_coaching, "split": build_split, "hyrox": build_hyrox, "food": build_food}
 # a big file is kept compressed (the split generator's is several MB of prompts and plans); the tests decompress it
-COMPRESSED = {"split", "hyrox"}
+COMPRESSED = {"split", "hyrox", "food"}
 
 
 def render(name):
