@@ -682,3 +682,66 @@ Deno.test({
     });
   },
 });
+
+Deno.test({
+  name: "live: the HYROX race analysis through the real model (or, if Google is busy, the neutral tips and the use given back)",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    try {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const headers = { Authorization: `Bearer ${(await r.json()).access_token}`, "Content-Type": "application/json" };
+      const post = (path: string, body: unknown) => call(path, { method: "POST", headers, body: JSON.stringify(body) });
+      await post("/api/profile", { name: "Edge Hyrox" });
+      const race = {
+        category: "open", format: "singles", gender: "male", total_seconds: 5400,
+        segments: [
+          ...Array.from({ length: 8 }, (_, i) => ({ type: "run", title: `Run ${i + 1}`, seconds: 300 + i * 6 })),
+          ...["skierg", "sledPush", "sledPull", "burpeeBroadJump", "row", "farmersCarry", "lunges", "wallBalls"].map((key, i) => ({ type: "station", key, title: key, seconds: 220 + i * 25 })),
+        ],
+      };
+      assertEquals((await post("/api/hyrox/analyze", { race })).status, 403, "no consent: refused");
+      await post("/api/ai-consent", { granted: true });
+      const out = await (await post("/api/hyrox/analyze", { race })).json();
+      assertEquals([out.ok, out.limited], [true, false]);
+      assertEquals(out.tips.map((t: { key: string }) => t.key), ["skierg", "sledPush", "sledPull", "burpeeBroadJump", "row", "farmersCarry", "lunges", "wallBalls"]);
+      assert(out.tips.every((t: { rating: string }) => ["strong", "solid", "focus"].includes(t.rating)));
+      const counted = Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.usage_events where user_id = $1 and event = 'feature:hyrox_ai_analysis'", [id])))!.n);
+      if (counted) {
+        assert(out.overall.length > 0 || out.tips.some((t: { tip: string }) => t.tip), "an analysis that was counted says something");
+        console.log("  (the model analysed the race:", JSON.stringify(out.overall).slice(0, 120), ")");
+      } else {
+        assertEquals([out.overall, out.tips.every((t: { tip: string }) => !t.tip)], ["", true]);
+        console.log("  (the model was unavailable: the neutral tips came back and the use was given back)");
+      }
+      const used = await db.transaction((tx) => tx.one<{ count: number }>("select count from public.rate_limits where user_id = $1 and feature = 'hyrox_analysis'", [id]));
+      assertEquals(Number(used?.count ?? 0), counted ? 1 : 0, "a use is spent only for a real analysis");
+    } finally {
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+    }
+  },
+});

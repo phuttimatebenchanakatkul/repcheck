@@ -2,6 +2,16 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.51.0.0] - 2026-10-29
+
+### Added
+
+The HYROX race analysis on the new Supabase server (step 8e4 of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step.
+
+- **Analyse a race** from its split times: a one-sentence read of where the time went, the bullets behind it, and a rating and tip for each of the eight stations in race order. Eight races per five hours, as before; past that, the same friendly "check back in" message.
+- **If the model cannot help**, the app gets the neutral tips it always accepted and the use is given back, so a Google hiccup never costs one of the eight.
+- **Proven:** 353 Deno tests, including ~700 cases whose answers the old Python code gave (race prompts with odd names and times, model answers read in many broken shapes, the clock's rounding, Python's capitalising rules over every letter Unicode has), run offline and side by side with the Python; a live run in which the real model analysed a race; then deliberate breakages of the new code (all killed except one change with no observable effect). Not deployed: that needs your Supabase login.
+
 ## [0.50.0.0] - 2026-10-29
 
 ### Added

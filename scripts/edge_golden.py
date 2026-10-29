@@ -426,9 +426,59 @@ def build_split():
     return out
 
 
-GOLDEN = {"coaching": build_coaching, "split": build_split}
+def build_hyrox():
+    """{name: [[input, expected], ...]} for the HYROX race analysis: the prompt, the reading of the model's answer, the clock, str.title()."""
+    import hyrox_coach as hc
+    rng = random.Random(47)
+    out = {}
+
+    def err(fn, *args):
+        try:
+            return fn(*args)
+        except (ValueError, TypeError, AttributeError, OverflowError):
+            return "ERR"
+
+    words = [None, "", "open", "pro", "Pro Doubles", "doubles", "élite", "o'brien", "ǆ", "ß", "ΑΣ", "ΑΣ ΑΣ", "3rd place", "hello-world", "MIXED", "elite 15", "i\u0307", "\u0130", "ﬁne", "x" * 3, 5, True, ["a"], {"k": 1}, "  padded  ", "\U0001f3cb gym"]
+    seconds = [0, 1, 59.5, 60, 61.5, 90.5, 3599.5, 3600.5, 3601.5, 5400.4999, 12.5, 7.5, 100, 4000.25, -5, -0.5, True, False, 1e30, 86399, 2.5, 3.5, 1e15 + 0.5, "x", "90", None, [], {}]
+    titles = [None, "", "SkiErg", "Run 1", "  Sled Push ", "Wall Balls", 7, "é" * 3, "\U0001f3cb"]
+
+    def segment():
+        kind = rng.choice(["run", "station", "station", "other", None])
+        seg = {"type": kind, "key": rng.choice(list(hc.STATION_KEYS) + ["run1", "", None, "  skierg ", 5]), "title": rng.choice(titles), "seconds": rng.choice(seconds)}
+        if rng.random() < .1:
+            seg.pop(rng.choice(["type", "key", "title", "seconds"]))
+        return seg
+
+    races = []
+    for _ in range(300):
+        race = {"category": rng.choice(words), "format": rng.choice(words), "gender": rng.choice(words), "total_seconds": rng.choice(seconds),
+                "segments": [segment() if rng.random() > .08 else rng.choice([None, "x", 5, [], ["a"]]) for _ in range(rng.randint(0, 20))]}
+        if rng.random() < .1:
+            race.pop(rng.choice(["category", "format", "gender", "total_seconds", "segments"]))
+        races.append(race)
+    races += [{"segments": []}, {}, {"segments": None}, {"segments": [{"type": "run", "title": "Run 1", "seconds": 270}] * 8 + [{"type": "station", "key": k, "title": k, "seconds": 200 + i * 7} for i, k in enumerate(hc.STATION_KEYS)],
+                                                 "category": "pro", "format": "doubles", "gender": "female", "total_seconds": 4321}]
+    out["prompts"] = [[r, err(hc._build_prompt, r)] for r in races]
+
+    texts = ['{"overall": "Fix wall balls.", "overall_detail": ["a", "b"], "tips": [{"key": "skierg", "rating": "Strong", "tip": " Pull longer ", "detail": ["x", "", null, 5, "y"]}]}',
+             '{"overall": 5, "overall_detail": "no", "tips": {"key": "row"}}', '{"tips": 5}', '{"tips": true, "overall": "kept"}', '{"overall": "before", "tips": [{"key": "row", "tip": "t"}, 5, null, "x", {"key": "nope"}, {"key": "row", "rating": "bad", "tip": "second"}]}',
+             "not json", "", "null", "[]", "[1, 2]", '"text"', "{}", '{"overall": null, "overall_detail": [1,2,3,4,5,6,7], "tips": []}', '{"overall": "  spaced  ", "overall_detail": ["  a  ", "   ", "b", "c", "d", "e", "f"]}',
+             '{"tips": [{"key": "lunges", "rating": "FOCUS", "tip": "t", "detail": {"a": 1}}, {"key": " wallBalls ", "rating": "  solid ", "tip": ["l"], "detail": [["n"], {"k": 1}, true]}]}',
+             '{"overall": ["a"], "overall_detail": [[1, 2], {"a": 1}, 0, false, "z"]}', '{"tips": "abc", "overall": "o"}', '{"tips": {"a": 1}, "overall": "o"}', '{"tips": 0, "overall": "o"}', '{"tips": 1.5}']
+    for key in hc.STATION_KEYS:
+        texts.append('{"tips": [{"key": "%s", "rating": "strong", "tip": "tip for %s", "detail": ["d1", "d2"]}]}' % (key, key))
+    out["coerced"] = [[t, [list(hc._coerce_result(t)[:2]) + [hc._coerce_result(t)[2]]][0]] for t in texts]
+    out["bullets"] = [[v, hc._coerce_bullets(v)] for v in [None, "x", [], ["a"], ["a", "", " b "], [1, 2, 3, 4, 5, 6, 7, 8], [None, 0, "", "z"], [["q"], {"r": 1}], {"a": 1}, 5, True]]
+    out["clocks"] = [[v, err(hc._clock, v)] for v in seconds + [0.5, 1.5, -1.5, 59.4, 59.5, 59.6, 1e20, 123456789.5, float("1e308")]]
+    out["titles"] = [[w, w.title()] for w in [w for w in words if isinstance(w, str)] + ["a1b", "ab-cd ef_gh", "ΣΑΣ", "ΑΣ.", "ǅ", "ǆx", "ŉ", "ꭰ", "ª", "ⅷ", "Ⓐb", "ǈ", "A\u0345b", "\u1e9e", "ß ß", "ﬃ", "x\u00ady", "\u02b0a"]]
+    out["constants"] = [[None, {"stations": hc.STATION_KEYS, "ratings": sorted(hc.VALID_RATINGS), "bullets": hc.MAX_DETAIL_BULLETS, "model": hc.GEMINI_MODEL, "limit": hc.SESSION_ANALYSIS_LIMIT,
+                                "window": hc.SESSION_WINDOW_SECONDS, "neutral": hc._neutral_tips(), "titles": hc.STATION_TITLES}]]
+    return out
+
+
+GOLDEN = {"coaching": build_coaching, "split": build_split, "hyrox": build_hyrox}
 # a big file is kept compressed (the split generator's is several MB of prompts and plans); the tests decompress it
-COMPRESSED = {"split"}
+COMPRESSED = {"split", "hyrox"}
 
 
 def render(name):
