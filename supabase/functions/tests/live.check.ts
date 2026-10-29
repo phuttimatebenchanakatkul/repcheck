@@ -858,3 +858,96 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: "live: the waitlist and the owner's side against the real database",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY"),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const db = connect(dbUrl!, 2);
+    const adminHeaders = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: adminHeaders, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    // this throwaway account is the owner for the duration of the test
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : name === "ADMIN_EMAILS" ? email : env(name)));
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(undefined),
+      food: new FoodLookup((...a) => fetch(...a), null),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const visitor = `edge-waitlist-${crypto.randomUUID()}@example.invalid`;
+    const key = `waitlist:203.0.113.${Math.floor(Math.random() * 200) + 1}`;
+    try {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const auth = { Authorization: `Bearer ${(await r.json()).access_token}`, "Content-Type": "application/json" };
+      const addr = key.slice("waitlist:".length);
+      const join = (body: unknown) => call("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://repcheck-marketing.onrender.com", "X-Forwarded-For": addr }, body: JSON.stringify(body) });
+
+      // the public door: no token, the marketing origin echoed, an address added once and then known
+      const first = await join({ email: visitor.toUpperCase(), source: "live check" });
+      assertEquals([first.status, await first.json(), first.headers.get("Access-Control-Allow-Origin")], [200, { ok: true, already: false }, "https://repcheck-marketing.onrender.com"]);
+      assertEquals(await (await join({ email: visitor })).json(), { ok: true, already: true });
+      assertEquals((await join({ email: "not an address" })).status, 400);
+      // ...five tries an hour per address: two were taken above (a bad address is refused before it counts), three more are allowed, the sixth is refused
+      assertEquals((await join({ email: visitor })).status, 200);
+      assertEquals((await join({ email: visitor })).status, 200);
+      assertEquals((await join({ email: visitor })).status, 200);
+      const sixth = await join({ email: visitor });
+      const sixthBody = await sixth.json();
+      assertEquals([sixth.status, sixthBody.error], [429, "rate-limited"]);
+      assert(sixthBody.retry_after_seconds > 3000 && sixthBody.retry_after_seconds <= 3600, String(sixthBody.retry_after_seconds));
+
+      // the owner's side: only the owner may look
+      assertEquals((await call("/api/admin/waitlist")).status, 401);
+      const list = await (await call("/api/admin/waitlist", { headers: auth })).json();
+      const mine = list.entries.find((e: { email: string }) => e.email === visitor);
+      assert(mine, "the new address is in the list");
+      assertEquals(mine.source, "live check");
+      assert(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,6})?\+00:00$/.test(mine.created_at), mine.created_at);
+      assertEquals(list.total, list.entries.length);
+      const csv = await call("/api/admin/waitlist?format=csv", { headers: auth });
+      assertEquals(csv.headers.get("Content-Type"), "text/csv; charset=utf-8");
+      assert((await csv.text()).includes(`"${visitor}","live check"`));
+      assertEquals(await (await call("/api/admin/waitlist/delete", { method: "POST", headers: auth, body: JSON.stringify({ email: ` ${visitor.toUpperCase()} ` }) })).json(), { ok: true, removed: true });
+      assertEquals((await (await call("/api/admin/waitlist/delete", { method: "POST", headers: auth, body: JSON.stringify({ email: visitor }) })).json()).removed, false);
+
+      // reports: read-only here (nothing is handled or reset: those would touch real people's reports)
+      const reports = await (await call("/api/admin/reports", { headers: auth })).json();
+      assertEquals([reports.ok, Array.isArray(reports.reports), Array.isArray(reports.ai_reports)], [true, true, true]);
+
+      // people: the list for a range, and this account's own detail (every count query runs against the real tables)
+      await call("/api/profile", { method: "POST", headers: auth, body: JSON.stringify({ name: "Edge Owner" }) });
+      const users = await (await call("/api/admin/users?range=today", { headers: auth })).json();
+      assertEquals([users.ok, users.range], [true, "today"]);
+      assert(users.users.some((u: { id: string; email: string }) => u.id === id && u.email === email), "the new account is in today's list");
+      const detail = await (await call(`/api/admin/users/${id}`, { headers: auth })).json();
+      assertEquals([detail.ok, detail.user.id, detail.user.email, detail.user.ai_consent, detail.user.deleted_at], [true, id, email, false, null]);
+      assertEquals(Object.keys(detail.user.counts), ["foods_logged", "exercises_logged", "weigh_ins", "analyses", "progress_photos", "custom_foods", "challenge_submissions", "hyrox_results", "friends"]);
+      assertEquals([detail.user.latest_weight, detail.user.analyses], [null, []]);
+      assertEquals((await call(`/api/admin/users/${crypto.randomUUID()}`, { headers: auth })).status, 404);
+      const all = await (await call("/api/admin/users?range=all", { headers: auth })).json();
+      assert(all.users.length >= users.users.length);
+    } finally {
+      await db.transaction(async (tx) => {
+        await tx.exec("delete from public.waitlist where email = $1", [visitor]);
+        await tx.exec("delete from public.auth_throttle where key = $1", [key]);
+      });
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: adminHeaders });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+    }
+  },
+});

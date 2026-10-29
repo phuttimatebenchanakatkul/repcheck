@@ -731,8 +731,13 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   Werkzeug itself wrote. 179 Deno tests, and a live test that signs in as a throwaway person with a REAL token (so the project's real keys do the verifying) and
   walks profile, consent, a photo up and back down through its signed link, an imported password moving across and then signing in on Supabase, and deletion
   and restore.
-- **8c2, owner tools (not started):** the waitlist (the marketing site posts to the website's own endpoint today, which goes when the website does, so this one
-  must be ready before then) and the owner-only admin routes. The app does not call either.
+- **8c2, owner tools (v0.53.0.0, done):** the waitlist the marketing site posts to (`POST /api/waitlist` and its CORS preflight: no sign-in, only the two marketing
+  hostnames echoed one at a time, five tries an hour per caller address, an address that is already there looks exactly like a new one) and the owner-only admin routes
+  (`/api/admin/...`: open reports and AI-reply reports, reset a reported name, mark handled, the waitlist as JSON or a CSV with formula-looking cells defused, delete an
+  address, signups by range with Bangkok's calendar day for "today", one account's detail). Every admin route answers 404 to anyone not in `ADMIN_EMAILS`. Times are
+  written as Python's `isoformat()` does (`isoSql`/`isoUtc` in `_shared/rows.ts`, microseconds kept). **For 8h:** the marketing site's `ENDPOINT` in `marketing/app.js`,
+  its CSP `connect-src` and `WAITLIST_ORIGINS` have to move together to the functions address (`CLAUDE.md` says so already), and `marketing/privacy.html` names who
+  receives the address. 418 Deno tests; the live run joins a throwaway visitor, hits the limit, and has a throwaway account act as the owner.
 - **Unchecked until deployed:** which request header carries the caller's address on Supabase's edge. The legacy login limits tries per address and per caller, and
   uses the LAST `X-Forwarded-For` entry (the one the proxy added), falling back to `X-Real-IP`. If the caller's address turns out to be somewhere else, only the per-caller
   budget is weakened; the per-address one is not touched.
