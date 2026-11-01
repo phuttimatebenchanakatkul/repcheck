@@ -136,7 +136,7 @@ Deno.test("hyrox analyze: an answer with only an overall still counts as an anal
 });
 
 Deno.test("hyrox analyze: a failure the analysis cannot handle gives the use back and says so", async () => {
-  const broken: Gemini = { get configured(): boolean { throw new Error("boom"); }, generate: () => Promise.resolve(null) };
+  const broken: Gemini = { get configured(): boolean { throw new Error("boom"); }, generate: () => Promise.resolve(null), upload: () => Promise.reject(new Error("no")), deleteFile: () => Promise.resolve() };
   const db = hyroxDb();
   const warned = console.error;
   console.error = () => {};

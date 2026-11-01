@@ -790,14 +790,40 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   goes with `api/` in 8h. `tests/test_edge_functions.py` now keeps the ledger: every Flask route is either served by the functions or listed in `NOT_PORTED` with
   the reason ("never", or "8g"), and no route the app names may be one that will never be served. If a photo option is ever wanted, read it on the phone
   (`expo-camera`'s `scanFromURLAsync`; check its iOS barcode types first), never on the server.
-- **8g, lift video:** see "The one hard part" below.
-- **8h, cut-over:** waits on 8g (the `8g` entries in `NOT_PORTED` must be gone). In-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
+- **8g1, the lift grader (v0.54.0.0, done):** `POST /api/analyze` and its four history routes (`/api/analyze/history`, `/history/<id>`, `/latest`, `/video/<id>`). James chose on
+  2026-11-01 to give Gemini the whole clip (see "The one hard part"). The app's upload is unchanged (multipart, fields `video` and `exercise`), so no screen changes. The body is
+  read once into a buffer sized by its declared length and the parts are found IN PLACE (`_shared/multipart.ts`; `Request.formData()` copies a body several times and a
+  function has 256 MB), then the clip goes into Gemini's file store (a resumable upload, polled until it is readable, deleted afterwards). `startOffset`/`endOffset` do
+  `trim_video.py`'s job (skip the first 5 s unless that leaves under 3 s, keep at most 60) and the length Gemini measures replaces ffprobe. Everything else is the Python's:
+  the prompt and exercise notes are GENERATED (`scripts/gen_edge_analyze_data.py`), the reading of the scores, the three-try loop inside one 60 s budget, and the words
+  the person is told. The Python `markdown` package is replaced by `_shared/pyMarkdown.ts`: it renders what the model is asked to write (bullet and numbered lists, tight
+  or loose, with bold, italic, code, escapes and line breaks) and nothing else; links, images, headings and nested lists come out as plain text (the app draws only
+  paragraphs, bullets, bold, italic and code from this HTML anyway). Python-Markdown 3.10 itself mis-nests tags when a strong holding an em sits beside more emphasis in one
+  paragraph; the TypeScript renders what the writer meant there. **Deliberate differences:** the upload ceiling is 80 MB, not 300 (the whole upload sits in memory; the
+  app films 720p for at most 65 s, which is tens of MB); the clip kept for replay is the upload as it came (no ffmpeg here to trim it, so the replay includes the first
+  5 s); a missing key says "Form analysis isn't available right now" where the Python said which environment variable was unset. **Proven:** golden file of ~3,100 answers from the
+  Python (2,200 markdown-to-sections cases, 511 model replies for the score reader, the prompt byte for byte for every exercise and 14 clip lengths, the exercise and file-name
+  checks, and `\s`, `\d`, `\w` compared with Python's for every code point); the multipart reader against the platform's own parser on 400 random forms; a LIVE side-by-side
+  on real lifts through the real model (below); 467 Deno tests; and a mutation run (82 of 85 deliberate breakages caught, the other three change nothing observable) that found a
+  real bug before it shipped (a tab in the model's text was widened by the wrong amount). `deno task test:live` now also has a graded lift: throwaway account, the real model and
+  bucket, history, the replay link, the daily limit, and the 21st analysis pruning the first with its clip (it reads `shoulder press.mp4` and `classic.mp4` from the main checkout
+  unless `LIVE_LIFT_CLIP` / `LIVE_NOT_A_LIFT_CLIP` say otherwise). **Side-by-side, real clips** (old pipeline: ffmpeg trim + inline video; new: the whole clip through the file store):
+  shoulder press 6 reps / 6 reps, overall 82 / 75, stretch 85 / 70, squeeze 88 / 88; tricep pushdown 8 / 8 reps, overall 86 / 86, stretch 85 / 78, squeeze 88 / 92; a screen
+  recording of an app is refused by both for the same reason. The old pipeline could not take a clip over ~15 MB at all (the inline request cap); the new one has no such
+  cap. This machine's uplink was too slow to push a 28 MB iPhone clip inside the 45 s the code allows (the old pipeline timed out on it too), so clips above ~16 MB are
+  untested here; Supabase's side of that link is far faster, and `deno task test:live` has a graded-lift run to do from a good connection. **Worth checking after you
+  deploy:** a real iPad/iPhone clip end to end, and that the whole request stays under the platform's wall-clock (150 s free, 400 s paid): the code allows 45 s for the
+  upload and 60 s for the model.
+- **8g2, the challenge clip (next):** `POST /api/challenges/<id>/submit` counts the reps in a 25 s clip (`rep_form_analyzer.py`, with `video_trimmer.py`'s ffmpeg cut): the
+  same shape as 8g1, so it reuses the file store, the offsets and the multipart reader.
+- **8h, cut-over:** waits on 8g2 (the `8g` entries in `NOT_PORTED` must be gone). In-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
 
 **The one hard part.** The form grader (`pipeline.py`, `rep_form_analyzer.py`, `pose_landmarker.py`, `people_detector.py`, `trim_video.py`) trims with
-ffmpeg and counts reps with OpenCV and MediaPipe. An Edge Function has neither. The replacement is to give Gemini the whole clip (uploaded to
-Storage by the app, passed on through Gemini's file upload) and let it grade and count. That trades the deterministic rep count for the model's,
-so it needs a side-by-side run on real lifts before it replaces anything; it is slice 8f for that reason, and 8a-8e do not depend on it. If the
-comparison is bad, the alternative is on-device pose detection in the app (MediaPipe), which is a larger piece of native work.
+ffmpeg and counts reps with OpenCV and MediaPipe. An Edge Function has neither. The replacement (decided by James on 2026-11-01) is to give Gemini the whole clip
+(through its file store) and let it grade and count. In fact the form grader already left the rep count to the model (its prompt says "judge everything visually ... including
+how many reps were performed"); the OpenCV and MediaPipe files (`pose_landmarker.py`, `people_detector.py`) are the website's on-screen skeleton and are not part of the
+grade, so the "trade" is smaller than it first looked. The side-by-side on real lifts (8g1 above) agreed on the rep count both times. If a later comparison turns out
+bad, the alternative is on-device pose detection in the app (MediaPipe), which is a larger piece of native work.
 
 **What only James can do**, once the slices are in: `supabase login`; `supabase secrets set GEMINI_API_KEY=... ADMIN_EMAILS=... REVIEW_ACCOUNT_EMAILS=...`
 (and the FatSecret keys); `supabase functions deploy api --no-verify-jwt --project-ref edktymiqqgqmzaxckfzc`. Supabase supplies `SUPABASE_URL`,

@@ -267,7 +267,7 @@ Deno.test("generate-split ai_suggest: a split type outside the list, or no answe
 });
 
 Deno.test("generate-split: a failure the planner cannot handle gives the use back and says so", async () => {
-  const broken: Gemini = { get configured(): boolean { throw new Error("boom"); }, generate: () => Promise.resolve(null) };
+  const broken: Gemini = { get configured(): boolean { throw new Error("boom"); }, generate: () => Promise.resolve(null), upload: () => Promise.reject(new Error("no")), deleteFile: () => Promise.resolve() };
   const db = splitDb();
   const warned = console.error;
   console.error = () => {};

@@ -951,3 +951,132 @@ Deno.test({
     }
   },
 });
+
+/** The real lift the analyze live check grades, and a clip that is not a lift (both kept at the repo root of the main checkout, untracked). */
+const LIFT_CLIP = env("LIVE_LIFT_CLIP") ?? "D:/RepCheck_Python/shoulder press.mp4";
+const NOT_A_LIFT = env("LIVE_NOT_A_LIFT_CLIP") ?? "D:/RepCheck_Python/classic.mp4";
+function clipExists(path: string): boolean {
+  try {
+    return Deno.statSync(path).isFile;
+  } catch {
+    return false;
+  }
+}
+
+Deno.test({
+  name: "live: a lift is graded by the real model from the whole clip, kept in the real bucket, listed, replayed and pruned (a clip that is not a lift gives the allowance back)",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY") || !env("GEMINI_API_KEY") || !clipExists(LIFT_CLIP),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const storage = new Store(url!, serviceKey!);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage,
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      food: new FoodLookup((...a) => fetch(...a), settings.fatsecret),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    const stored: string[] = [];
+    try {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const auth = { Authorization: `Bearer ${(await r.json()).access_token}` };
+      const json = { ...auth, "Content-Type": "application/json" };
+      const post = (path: string, body: unknown) => call(path, { method: "POST", headers: json, body: JSON.stringify(body) });
+      const get = (path: string) => call(path, { headers: auth });
+      const send = (file: Uint8Array, name: string, exercise: string) => {
+        const f = new FormData();
+        f.set("exercise", exercise);
+        f.set("video", new File([file as unknown as BlobPart], name, { type: "video/mp4" }));
+        return call("/api/analyze", { method: "POST", headers: auth, body: f });
+      };
+      const lift = Deno.readFileSync(LIFT_CLIP);
+      const spentUses = async () => Number((await db.transaction((tx) => tx.one<{ count: number }>("select count from public.rate_limits where user_id = $1 and feature = 'workout_analysis'", [id])))?.count ?? 0);
+      const rows = () => db.transaction((tx) => tx.all<{ id: number; video_filename: string | null }>("select id, video_filename from public.analyze_results where user_id = $1 order by id", [id]));
+
+      assertEquals((await send(lift, "set.mp4", "Shoulder Press")).status, 404, "no profile yet");
+      await post("/api/profile", { name: "Edge Lift" });
+      assertEquals((await send(lift, "set.mp4", "Shoulder Press")).status, 403, "no AI consent yet");
+      await post("/api/ai-consent", { granted: true });
+      assertEquals((await send(lift, "set.gif", "Shoulder Press")).status, 400);
+      assertEquals((await send(lift, "set.mp4", "")).status, 400);
+      assertEquals(await spentUses(), 0, "nothing spent on bad input");
+
+      // a clip that is not a lift: the model says so, the person is told, and the allowance comes back
+      if (clipExists(NOT_A_LIFT)) {
+        const notLift = await send(Deno.readFileSync(NOT_A_LIFT), "app.mp4", "Bicep Curl");
+        const notBody = await notLift.json();
+        console.log("  (not a lift:", notLift.status, notBody.error, ")");
+        assertEquals([notLift.status, notBody.ok], [400, false]);
+        assertEquals(await spentUses(), 0, "a clip that cannot be graded costs no use");
+        assertEquals((await rows()).length, 0);
+      }
+
+      // a real lift, through the real model, the real bucket and the real table
+      const started = performance.now();
+      const graded = await send(lift, "set.mp4", "Shoulder Press");
+      const out = await graded.json();
+      console.log("  (graded in", Math.round((performance.now() - started) / 1000), "s:", graded.status, JSON.stringify({ ...out, sections: out.sections?.length, feedback_text: undefined, video_url: !!out.video_url }), ")");
+      assertEquals(graded.status, 200, JSON.stringify(out));
+      assertEquals([out.ok, out.exercise_label], [true, "Shoulder Press"]);
+      assert(Number.isInteger(out.overall_score) && out.overall_score >= 0 && out.overall_score <= 100);
+      assert(Number.isInteger(out.reps) && out.reps > 0, "the model counted reps");
+      assert(out.sections.length >= 3 && out.sections.every((s: { summary_html: string }) => s.summary_html.startsWith("<p>")), "sections were built from its markdown");
+      assertEquals(await spentUses(), 1);
+      const [row] = await rows();
+      assert(row.video_filename && /^[0-9a-f]{32}\.mp4$/.test(row.video_filename), String(row.video_filename));
+      stored.push(`${id}/${row.video_filename}`);
+      const played = await fetch(out.video_url);
+      assertEquals(played.status, 200);
+      assertEquals((await played.arrayBuffer()).byteLength, lift.length, "the whole upload was kept for replay");
+      assert((await db.transaction((tx) => tx.one<{ count: number }>("select count from public.usage_events where user_id = $1 and event = 'feature:workout_analysis'", [id])))!.count >= 1);
+
+      // listed, opened, latest, a link to the clip
+      const list = await (await get("/api/analyze/history")).json();
+      assertEquals([list.entries.length, list.entries[0].id, list.entries[0].has_video, list.entries[0].reps], [1, out.id, true, out.reps]);
+      const detail = await (await get(`/api/analyze/history/${out.id}`)).json();
+      assertEquals([detail.overall_score, detail.sections.length, detail.created_at_ms], [out.overall_score, out.sections.length, out.created_at_ms]);
+      assertEquals((await (await get("/api/analyze/latest")).json()).id, out.id);
+      const link = await (await get(`/api/analyze/video/${out.id}`)).json();
+      assertEquals([link.ok, link.expires_in, (await fetch(link.url)).status], [true, 300, 200]);
+      assertEquals((await get("/api/analyze/history/999999999")).status, 404);
+
+      // the daily allowance (1) is spent: the next set waits
+      const limited = await send(lift, "set.mp4", "Shoulder Press");
+      assertEquals(limited.status, 429);
+      assert(Number(limited.headers.get("Retry-After")) > 0);
+
+      // pruning: with the allowance out of the way, 21 rows leave 20, and the oldest one's clip goes with it
+      const spare = (await rows())[0];
+      await db.transaction(async (tx) => {
+        for (let i = 0; i < 20; i++) {
+          await tx.exec("insert into public.analyze_results (user_id, exercise_label, overall_score, feedback_text) values ($1, 'Filler', 50, '## Positives\n- x')", [id]);
+        }
+      });
+      const { prune } = await import("../_shared/analyze.ts");
+      assertEquals(await prune(db, storage, id), 1);
+      assertEquals((await rows()).some((x) => x.id === spare.id), false, "the oldest analysis is gone");
+      assertEquals(await storage.download("analyze-videos", `${id}/${row.video_filename}`), null, "and its clip");
+    } finally {
+      await storage.remove("analyze-videos", stored);
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+    }
+  },
+});

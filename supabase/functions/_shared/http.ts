@@ -69,6 +69,50 @@ export async function readFormBounded(request: Request, limit: number): Promise<
   }
 }
 
+/** A request body as one buffer, refused with a 413 past `limit` bytes (by its declared length before any of it is read, and again as it
+ *  streams in). When the length is declared the buffer is made once at that size and filled, so a big upload is held in memory once. */
+export async function readBytesBounded(request: Request, limit: number): Promise<Uint8Array> {
+  const tooLarge = () => new Stop(fail("That request is too large.", 413));
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > limit) throw tooLarge();
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  if (declared > 0) {
+    const buffer = new Uint8Array(declared);
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (total + value.length > declared) {
+        await reader.cancel();
+        throw tooLarge(); // it sent more than it said
+      }
+      buffer.set(value, total);
+      total += value.length;
+    }
+    return total === declared ? buffer : buffer.subarray(0, total);
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > limit) {
+      await reader.cancel();
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const buffer = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    buffer.set(c, at);
+    at += c.length;
+  }
+  return buffer;
+}
+
 /** A JSON body, refused past `limit` bytes before it is read whole (the header can lie, so the text is measured too). */
 export const DEFAULT_MAX_BODY = 1 * 1024 * 1024;
 

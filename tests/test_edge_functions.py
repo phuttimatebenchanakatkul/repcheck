@@ -56,12 +56,7 @@ def test_every_route_the_functions_serve_is_one_flask_serves_with_the_same_metho
 # ones are deleted with api/ and nothing in the app may call them.
 NOT_PORTED = {
     ("POST", "/api/scan-barcode"): "never: the phone reads barcodes itself and sends the digits to /api/lookup-barcode (8f2)",
-    ("POST", "/api/analyze"): "8g: grading a lift video",
-    ("GET", "/api/analyze/latest"): "8g",
-    ("GET", "/api/analyze/history"): "8g",
-    ("GET", "/api/analyze/history/<int:result_id>"): "8g",
-    ("GET", "/api/analyze/video/<int:result_id>"): "8g",
-    ("POST", "/api/challenges/<int:challenge_id>/submit"): "8g: grades the challenge clip",
+    ("POST", "/api/challenges/<int:challenge_id>/submit"): "8g2: grades the challenge clip (the lift grader, 8g1, is ported)",
     ("GET", "/static/<path:filename>"): "never: Flask's own static files, not an API route",
 }
 
@@ -98,7 +93,7 @@ def test_the_app_calls_no_route_that_will_not_be_ported():
         app_routes |= {route_shape(r) for r in re.findall(r"['`\"](/api/[^'`\"?]*)", path.read_text(encoding="utf-8"))}
     assert len(app_routes) > 30, "the pattern no longer finds the app's routes"
     served = {route_shape(route) for _method, route in function_routes()}
-    waiting = {route_shape(route) for (_method, route), why in NOT_PORTED.items() if why.startswith("8g")}
+    waiting = {route_shape(route) for (_method, route), why in NOT_PORTED.items() if why.startswith("8g")}   # "8g", "8g2"
     assert app_routes - served - waiting == set(), "the app calls a route the functions will never serve"
 
 
@@ -750,3 +745,45 @@ def test_the_split_generator_answers_in_typescript_exactly_as_in_python(tmp_path
         assert len(answers[k]) == len(expected), k
         for i, (got, want) in enumerate(zip(answers[k], expected)):
             assert got == want, (k, i, g[k][i][0])
+
+
+# ---- 8g1: the lift grader ------------------------------------------------------------------------------------------------------
+
+
+def test_the_generated_form_grader_data_is_fresh():
+    """_shared/analyzeData.ts is written from analyze_form_gemini.py and trim_video.py by scripts/gen_edge_analyze_data.py."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_analyze_data.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "analyzeData.ts is stale: run `python scripts/gen_edge_analyze_data.py`"
+
+
+def test_the_form_grader_says_what_the_python_pipeline_says():
+    """The words a person reads when a clip cannot be graded, the numbers that bound the work, and the routes' own messages are the Flask ones.
+    (The prompt, the score reading and the markdown are proved byte for byte by the golden file: tests/test_edge_functions.py::test_the_golden_files_are_fresh.)"""
+    form = text("_shared", "analyzeForm.ts")
+    python = (ROOT / "pipeline.py").read_text(encoding="utf-8") + (ROOT / "trim_video.py").read_text(encoding="utf-8") + (ROOT / "analyze_form_gemini.py").read_text(encoding="utf-8")
+    for message in ("We couldn't analyze that video", "Please upload a clear clip of your full set and try again.", "We couldn't score that video. Please try uploading it again.",
+                    "Couldn't read that video. Please upload a clear clip of your full set.", "That clip is too short to analyze.",
+                    "showing your full set.", "That analysis took longer than", "so we stopped waiting. ", "This is usually a busy moment on our end",
+                    "Gemini request failed after retries:", "Gemini didn't return a usable response for this video. Please try again.", "Couldn't process that video. Please try uploading it again."):
+        assert message in form and message in python, message
+    assert "ANALYSIS_BUDGET_SECONDS" in python and 'model: model ?? N.GEMINI_MODEL' in form and "temperature: 0," in form and "thinkingLevel: N.THINKING_LEVEL" in form
+    routes = text("api", "routes", "analyze.ts")
+    flask = (ROOT / "api" / "routes" / "analyze.py").read_text(encoding="utf-8") + (ROOT / "api" / "analyze.py").read_text(encoding="utf-8")
+    for message in re.findall(r'fail\("([^"]+)", 4\d\d\)', routes):
+        assert message in flask or message == "That request is too large.", message
+    for message in ("No profile yet. Create it first.", "Please choose a video file.", "Please choose an exercise.", "That exercise name is too long.", "Unsupported file type", "Not found."):
+        assert message in flask and (message in routes or message in text("_shared", "analyze.ts")), message
+    assert 'FEATURE = "workout_analysis"' in text("_shared", "analyze.ts") and "workout_analysis" in flask_limits.RATE_LIMITS
+    assert '"feature:" + analyze.FEATURE' in routes and 'limits.track_usage(conn, user_id, "feature:" + analyze.FEATURE)' in flask
+    # the one deliberate difference in what is kept: the website kept the clip it had trimmed, there is no ffmpeg here
+    assert "the upload as it came" in text("_shared", "analyze.ts")
+
+
+def test_the_form_grader_keeps_the_websites_shape_of_answer():
+    """/api/analyze answers {ok, id, exercise_label, scores, favored, reps, sections, feedback_text, created_at, created_at_ms, video_url}, as api/analyze.py's result_json does."""
+    flask = (ROOT / "api" / "analyze.py").read_text(encoding="utf-8")
+    ts = text("_shared", "analyze.ts")
+    for key in ("ok", "id", "exercise_label", "overall_score", "stretch_score", "squeeze_score", "favored", "reps", "sections", "feedback_text", "created_at", "created_at_ms", "video_url"):
+        assert f'"{key}"' in flask and re.search(rf"\b{key}\b", ts), key
+    for key in ("exercise_label", "overall_score", "reps", "created_at", "has_video"):
+        assert f'"{key}"' in flask and re.search(rf"\b{key}\b", ts), key
