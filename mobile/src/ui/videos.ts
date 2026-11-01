@@ -7,7 +7,7 @@ export type VideoResult = { kind: 'video'; video: PickedVideo } | { kind: 'cance
 /**
  * The server skips the first 5 seconds of a clip (time to get in position) and grades the next 60 (trim_video.py), so there is nothing
  * to gain by filming longer, and the upload is the slow part: a 65 s limit and a 720p H.264 export keep it in the tens of megabytes
- * (the server refuses more than 300 MB) while leaving a body in frame large enough to read.
+ * (the server refuses more than 80 MB) while leaving a body in frame large enough to read.
  */
 export const MAX_RECORD_SECONDS = 65;
 const OPTIONS: ImagePicker.ImagePickerOptions = {

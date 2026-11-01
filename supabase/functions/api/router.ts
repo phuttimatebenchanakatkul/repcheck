@@ -2,6 +2,7 @@
 import { Router } from "../_shared/app.ts";
 import { register as account } from "./routes/account.ts";
 import { register as admin } from "./routes/admin.ts";
+import { register as analyze } from "./routes/analyze.ts";
 import { register as chat } from "./routes/chat.ts";
 import { register as coaching } from "./routes/coaching.ts";
 import { register as consent } from "./routes/consent.ts";
@@ -15,6 +16,6 @@ import { register as waitlist } from "./routes/waitlist.ts";
 
 export function buildRouter(): Router {
   const router = new Router();
-  for (const register of [health, account, consent, photos, legacy, social, chat, coaching, planning, foods, admin, waitlist]) register(router);
+  for (const register of [health, account, consent, photos, legacy, social, chat, coaching, planning, foods, analyze, admin, waitlist]) register(router);
   return router;
 }

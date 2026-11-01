@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.54.0.0] - 2026-11-01
+
+### Added
+
+Grading a lift on the new Supabase server (step 8g1 of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step, and its upload is unchanged.
+
+- **Grading a set** (`POST /api/analyze`) and its history: the last twenty, one analysis, the latest, and a short-lived link to the clip. The server has no ffmpeg, so as you decided, Gemini is given the **whole clip** and told which stretch counts (it skips the first 5 seconds unless that would leave under 3, and reads at most 60); Gemini's own measure of the clip's length replaces the old length check. The prompt, the exercise notes, the reading of the scores, the three tries inside one 60-second budget and every message the person sees are the website's, copied by script so they cannot drift.
+- **Side by side on real lifts**, old way against new: shoulder press 6 reps and 6 reps (overall 82 and 75), tricep pushdown 8 and 8 (overall 86 and 86); a screen recording of an app was refused by both for the same reason. The old way could not take a clip over about 15 MB at all; the new one has no such cap.
+- **Proven:** 467 Deno tests, including ~3,100 cases whose answers the old Python code gave (2,200 replies turned into the sections a result screen shows, 511 model replies for the score reader, the prompt byte for byte for every exercise and 14 clip lengths) and the upload reader against the platform's own parser on 400 random forms; then deliberate breakages of the new code (82 of 85 caught, the other three change nothing anyone can observe), which found one real bug (a tab in the model's text was widened by the wrong amount) before it shipped. Not deployed: that needs your Supabase login.
+
+### Changed
+
+- **Differences from the website, on purpose:** the biggest video accepted is 80 MB (the website allowed 300; the whole upload is held in memory while it goes to the model, and the app films 720p for at most 65 seconds); the clip kept for replay is the upload as it came, so it includes the first 5 seconds the website trimmed away; links, images, headings and nested lists in the model's text come out as plain text (the app only draws paragraphs, bullets, bold, italic and code).
+- **Worth checking after you deploy:** a real iPhone clip end to end (this machine's connection was too slow to try clips over about 16 MB), and that a long set stays inside the platform's time limit (the code allows 45 seconds to hand the clip to Gemini and 60 for the answer).
+
 ## [0.53.1.0] - 2026-11-01
 
 ### Removed

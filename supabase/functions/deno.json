@@ -6,7 +6,7 @@
   },
   "tasks": {
     "test": "deno test --allow-env=SUPABASE_URL,ADMIN_EMAILS,REVIEW_ACCOUNT_EMAILS --allow-read=tests/fixtures",
-    "test:live": "deno test --allow-env --allow-net --allow-read=../../.env tests/live.check.ts"
+    "test:live": "deno test --allow-env --allow-net --allow-read tests/live.check.ts"
   },
   "compilerOptions": {
     "strict": true

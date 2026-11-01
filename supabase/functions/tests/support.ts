@@ -5,7 +5,7 @@ import type { KeyLike } from "jose";
 import { createHandler, Router, type Services } from "../_shared/app.ts";
 import { Verifier } from "../_shared/auth.ts";
 import { FoodLookup } from "../_shared/foodLookup.ts";
-import type { Gemini, GenerateRequest } from "../_shared/gemini.ts";
+import type { Gemini, GeminiFile, GenerateRequest } from "../_shared/gemini.ts";
 import { AuthAdmin, Storage, type Transport } from "../_shared/supabaseAdmin.ts";
 import type { Db, Params, Row, Tx } from "../_shared/db.ts";
 import { fromEnv, issuer, type Settings } from "../_shared/settings.ts";
@@ -117,6 +117,20 @@ export class FakeGemini implements Gemini {
     this.requests.push(request);
     const out = this.answer(request);
     return out instanceof Error ? Promise.reject(out) : Promise.resolve(out);
+  }
+  /** Clips handed to the file store, and the names removed from it. */
+  uploads: { bytes: number; mimeType: string; timeoutMs: number }[] = [];
+  deleted: string[] = [];
+  /** What the store does with a clip: a file record, or an Error to throw. */
+  fileAnswer: (index: number) => GeminiFile | Error = (index) => ({ name: `files/f${index}`, uri: `https://files.example/f${index}`, mimeType: "video/mp4", durationSeconds: 30 });
+  upload(data: Uint8Array, mimeType: string, timeoutMs: number): Promise<GeminiFile> {
+    this.uploads.push({ bytes: data.length, mimeType, timeoutMs });
+    const out = this.fileAnswer(this.uploads.length);
+    return out instanceof Error ? Promise.reject(out) : Promise.resolve(out);
+  }
+  deleteFile(name: string): Promise<void> {
+    this.deleted.push(name);
+    return Promise.resolve();
   }
 }
 
