@@ -752,9 +752,9 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   busy. The Coach's prompt and the source catalog are GENERATED from the Python (`scripts/gen_edge_chat_data.py`); the analysis and workout prompts, the
   citation parser, and the request checks (message, history, context and its Python-written size) are run through both languages over seeded corpora and
   agree. 252 Deno tests; the live check asks the real model all three chats and checks the sources it cites, then that the fourth message is limited.
-  **The model:** the code defaults to the website's `gemini-3.1-flash-lite`, and the `GEMINI_MODEL` secret overrides it without a redeploy. On 2026-10-28 that
-  model answered every request with HTTP 503 "high demand" (so the website's chat was likely failing too) while `gemini-3.5-flash-lite` answered, slowly (~20 s);
-  which to use is James's call.
+  **The model (decided by James 2026-11-01, v0.55.1.0):** the code defaults to `gemini-3.5-flash-lite` for everything that does not name its own model (the three chats, the meal
+  photo, the race analysis, the picked-split plan); the `GEMINI_MODEL` secret still overrides it without a redeploy. The website's Python keeps `gemini-3.1-flash-lite`, which on
+  2026-10-28 answered every request with HTTP 503 "high demand" (so the website's chat was likely failing too) while `gemini-3.5-flash-lite` answered, slowly (~20 s).
 - **8e2, coaching targets and the weekly check-in (v0.49.0.0, done):** `coaching_engine` ported to TypeScript (its ranges and constants GENERATED from the Python, its
   rounding Python's: a tie goes to the even number), the profile check, the weekly spread and tune, the check-in photo review and the three coaching routes. The
   check-in review uses `gemini-3.5-flash` as before, with one try and a 30 s limit, and any failure leaves the deterministic number (and gives the use back).

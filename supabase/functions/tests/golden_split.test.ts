@@ -66,7 +66,7 @@ Deno.test("golden: the library, the pools, the keywords, the patterns and the li
   assertEquals(MAX_GOAL_DAY_TYPES, c.maxGoal);
   assertEquals(MAX_ACCEPTABLE_STREAK, c.maxStreak);
   assertEquals(SUGGEST_GEMINI_MODEL, c.suggestModel);
-  assertEquals(GEMINI_MODEL, c.model);
+  assertEquals([GEMINI_MODEL, c.model], ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"], "the Edge default moved on purpose (2026-11-01); the website's Python keeps the old one");
   assertEquals(BEGINNER_MIN_EXERCISES, c.beginnerMin);
   assertEquals(BEGINNER_MAX_EXERCISES, c.beginnerMax);
   assertEquals([...WEEKDAY_ORDER], c.weekdays);
