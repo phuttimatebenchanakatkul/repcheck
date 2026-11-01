@@ -1,7 +1,7 @@
 /** Food: the AI photo scan, barcode lookup, online food search, and a person's own foods and exercises.
  *
- *  Not here: POST /api/scan-barcode (a photo of a barcode decoded on the server). The app reads barcodes on the phone and sends the digits to
- *  /api/lookup-barcode; decoding an image needs a native library the Edge runtime does not have. */
+ *  Never here: POST /api/scan-barcode (a photo of a barcode decoded on the server; the website's fallback for browsers with no barcode reader).
+ *  The app reads barcodes on the phone and sends the digits to /api/lookup-barcode, so nothing calls it (decided 2026-11-01, slice 8f2). */
 import type { Router } from "../../_shared/app.ts";
 import { getProfile } from "../../_shared/accounts.ts";
 import { hasConsent, refusal } from "../../_shared/consent.ts";
