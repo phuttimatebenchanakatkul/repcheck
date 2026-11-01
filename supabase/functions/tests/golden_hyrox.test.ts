@@ -27,6 +27,6 @@ Deno.test("golden hyrox: the stations, ratings, limits and neutral tips are the 
   assertEquals([...STATION_KEYS], c.stations);
   assertEquals([...VALID_RATINGS].sort(), c.ratings);
   assertEquals(MAX_DETAIL_BULLETS, c.bullets);
-  assertEquals(GEMINI_MODEL, c.model);
+  assertEquals([GEMINI_MODEL, c.model], ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"], "the Edge default moved on purpose (2026-11-01); the website's Python keeps the old one");
   assertEquals(neutralTips(), c.neutral);
 });

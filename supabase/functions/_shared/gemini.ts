@@ -4,7 +4,10 @@
  * tries up to three times when the model says "busy, try again" (HTTP 429 or 5xx) and throws on anything that is not an answer;
  * callers turn that into their own "unreachable" reply.
  */
-export const GEMINI_MODEL = "gemini-3.1-flash-lite";
+/** The model every request uses unless it names its own: the three chats, the meal photo, the race analysis and the picked-split plan.
+ *  The website's Python still says gemini-3.1-flash-lite; on 2026-10-28 that model answered every request with HTTP 503 "high demand" while this one answered,
+ *  and James chose this one on 2026-11-01. The GEMINI_MODEL secret overrides it without a redeploy. */
+export const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const API = "https://generativelanguage.googleapis.com";
 const ENDPOINT = `${API}/v1beta/models`;
 const TIMEOUT_MS = 60_000;

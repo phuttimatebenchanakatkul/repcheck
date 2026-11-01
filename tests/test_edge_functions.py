@@ -458,7 +458,9 @@ def test_the_chat_numbers_model_and_messages_are_the_flask_apis():
     assert int(re.search(r"HISTORY_TURNS_SENT = (\d+)", source).group(1)) == coach_chat.MAX_HISTORY_TURNS == analyze_chat.MAX_HISTORY_TURNS == workout_chat.MAX_HISTORY_TURNS
     assert int(re.search(r"MAX_FEEDBACK_CHARS = (\d+)", source).group(1)) == analyze_chat.MAX_FEEDBACK_CHARS
     assert int(re.search(r"MAX_SUMMARY_CHARS = ([\d_]+)", source).group(1).replace("_", "")) == workout_chat.MAX_SUMMARY_CHARS
-    assert re.search(r'GEMINI_MODEL = "([^"]+)"', text("_shared", "gemini.ts")).group(1) == coach_chat.GEMINI_MODEL == analyze_chat.GEMINI_MODEL == workout_chat.GEMINI_MODEL
+    # the Edge default moved on purpose (James, 2026-11-01): the website's Python still names the model that answered 503 "high demand" for a day
+    assert re.search(r'GEMINI_MODEL = "([^"]+)"', text("_shared", "gemini.ts")).group(1) == "gemini-3.5-flash-lite"
+    assert coach_chat.GEMINI_MODEL == analyze_chat.GEMINI_MODEL == workout_chat.GEMINI_MODEL == "gemini-3.1-flash-lite"
     for kind, module in (("coach", coach_chat), ("analysis", analyze_chat), ("workout", workout_chat)):
         assert re.search(rf'{kind}: "([^"]+)"', source).group(1) == module._fallback_reply(), kind
     assert "Sorry, I couldn't come up with a reply there — could you try asking that again?" in source

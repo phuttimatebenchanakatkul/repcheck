@@ -2,6 +2,12 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.55.1.0] - 2026-11-01
+
+### Changed
+
+The new Supabase server now uses `gemini-3.5-flash-lite` (your choice) wherever a request does not name its own model: the three AI chats, the meal photo scan, the HYROX race analysis and the picked-split plan. The old default, `gemini-3.1-flash-lite`, answered every request with "high demand" for a whole day in October; this one answered. Nothing the app does changes yet: it still talks to the Render server, which keeps the old model. The `GEMINI_MODEL` secret still overrides the default without a redeploy, and the lift grader (`gemini-3.6-flash`), the weekly check-in photo review and the rep counter (`gemini-3.5-flash`) keep naming their own.
+
 ## [0.55.0.0] - 2026-11-01
 
 ### Added
