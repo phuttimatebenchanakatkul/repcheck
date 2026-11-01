@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.55.0.0] - 2026-11-01
+
+### Added
+
+Counting the reps in a challenge clip on the new Supabase server (step 8g2 of moving off Render). Nothing the app does changes yet: it still talks to the Render server until the last step, and its upload is unchanged. This is the last route the new server was missing, so every route the app uses now exists there.
+
+- **Submitting a challenge attempt** (`POST /api/challenges/<id>/submit`): the model counts the valid reps in the first 25 seconds of the clip, exactly as the website's rep counter does. The instructions for push-ups, sit-ups and pull-ups are copied from the Python by script, so they cannot drift. As on the website: you need a profile, AI consent and a challenge you can see; one attempt per exercise per day (held while the clip is counted, so two at once cannot both reach the model, and given back if nothing was counted); a retake keeps the higher count.
+- **Proven:** 15 Deno tests plus 407 model answers the old Python code read (the LAST `REPS`, `REJECTED` and `NOTES` count, digits of any script); then deliberate breakages of the new code (43 of 43 caught). The three instructions are byte for byte the Python's.
+- **Not yet proven on real footage:** there is no push-up, sit-up or pull-up clip on this machine. On clips of other exercises the old counter and the new one gave the same answer (0 reps, the same reason), and both gave the same "busy" message when the model was overloaded. One real set of each exercise, old against new, is the check left.
+
+### Changed
+
+- The whole count is held to one 75-second budget (the website had none), so a slow model gives the person "busy, try again" instead of a request that hangs; a timeout is treated as busy.
+- Behind the scenes: an error from the model now carries the HTTP status it answered with, so "overloaded" can be told from "bad request".
+
 ## [0.54.0.0] - 2026-11-01
 
 ### Added

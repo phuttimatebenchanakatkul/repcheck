@@ -814,9 +814,20 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   untested here; Supabase's side of that link is far faster, and `deno task test:live` has a graded-lift run to do from a good connection. **Worth checking after you
   deploy:** a real iPad/iPhone clip end to end, and that the whole request stays under the platform's wall-clock (150 s free, 400 s paid): the code allows 45 s for the
   upload and 60 s for the model.
-- **8g2, the challenge clip (next):** `POST /api/challenges/<id>/submit` counts the reps in a 25 s clip (`rep_form_analyzer.py`, with `video_trimmer.py`'s ffmpeg cut): the
-  same shape as 8g1, so it reuses the file store, the offsets and the multipart reader.
-- **8h, cut-over:** waits on 8g2 (the `8g` entries in `NOT_PORTED` must be gone). In-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
+- **8g2, the challenge clip (v0.55.0.0, done):** `POST /api/challenges/<id>/submit` counts the valid reps in the first 25 s of a clip (`rep_form_analyzer.py`, with
+  `video_trimmer.py`'s ffmpeg cut). It reuses 8g1's machinery: the multipart reader, Gemini's file store, `startOffset 0s / endOffset 25s`, 15 frames a second. The route follows
+  Flask step for step (profile, consent, a challenge the caller can see, "already recorded today" BEFORE the clip is read, the upload checks, then the one-attempt-a-day hold across the
+  count, given back if nothing was counted). The three exercises' instructions (`build_prompt`, extracted from the Python with its output proved unchanged by hash) are GENERATED
+  (`scripts/gen_edge_challenge_data.py`); the reading of the answer (the LAST `REPS` / `REJECTED` / `NOTES`), the three tries with 2 s then 4 s pauses after an overloaded answer
+  (429, 500, 503), and the words are the Python's. The model stays `gemini-3.5-flash`, as in Python. **Deliberate differences:** one 75 s budget over the whole count (the website had none;
+  a function has a wall-clock limit, and a timeout is treated as "busy", which the Python would have let crash); a missing key says "The rep counter isn't available right now".
+  **Proven:** 15 Deno tests for the counter and route plus 407 answers from the Python for the reader; a mutation run (43 of 43 caught after two edge tests were added). **Not proven on its
+  real subject:** no push-up, sit-up or pull-up clip exists on this machine (the lifts here are machine and cable work), so the model was only compared on clips that are NOT the asked-for
+  exercise: both the old counter and the new one answered `REPS 0` with the same reason for a cable curl asked as push-ups, and both ended in the same "busy" message when the model was
+  overloaded. A real set of each exercise, old against new, is the one check left; `deno task test:live` has a challenge run to do with a faster connection. `gemini-3.6-flash` was
+  measured faster than `gemini-3.5-flash` for the lift grader, so moving the rep counter to it is a one-line change worth a side-by-side once there are clips.
+- **8h, cut-over:** nothing waits on a port now (`NOT_PORTED` holds only the two "never" routes). Still open, James's calls: which model the chats use, and whether "live in an IDE" meant
+  the legal pages as in-app screens. Then: in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
 
 **The one hard part.** The form grader (`pipeline.py`, `rep_form_analyzer.py`, `pose_landmarker.py`, `people_detector.py`, `trim_video.py`) trims with
 ffmpeg and counts reps with OpenCV and MediaPipe. An Edge Function has neither. The replacement (decided by James on 2026-11-01) is to give Gemini the whole clip

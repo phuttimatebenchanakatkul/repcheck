@@ -1080,3 +1080,79 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: "live: a challenge clip is counted by the real model and saved, one attempt a day, and a clip that cannot be counted gives the attempt back",
+  ignore: !url || !serviceKey || !dbUrl || !env("SUPABASE_ANON_KEY") || !env("GEMINI_API_KEY") || !clipExists(LIFT_CLIP),
+  fn: async () => {
+    const { createHandler } = await import("../_shared/app.ts");
+    const { Verifier } = await import("../_shared/auth.ts");
+    const { fromEnv } = await import("../_shared/settings.ts");
+    const { AuthAdmin: Auth, Storage: Store } = await import("../_shared/supabaseAdmin.ts");
+    const { buildRouter } = await import("../api/router.ts");
+    const settings = fromEnv((name) => (name === "SUPABASE_URL" ? url : env(name)));
+    const db = connect(dbUrl!, 2);
+    const handler = createHandler({
+      settings,
+      db,
+      verifier: new Verifier(settings),
+      storage: new Store(url!, serviceKey!),
+      authAdmin: new Auth(url!, serviceKey!),
+      gemini: new GeminiClient(env("GEMINI_API_KEY"), undefined, undefined, env("GEMINI_MODEL") || undefined),
+      food: new FoodLookup((...a) => fetch(...a), settings.fatsecret),
+      background: () => {},
+      sweep: false,
+    }, buildRouter());
+    const call = (path: string, init: RequestInit = {}) => handler(new Request(`${url}/functions/v1${path}`, init));
+    const admin = { apikey: serviceKey!, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+    const email = `edge-${crypto.randomUUID()}@example.invalid`;
+    const password = crypto.randomUUID() + "Aa1!";
+    const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ email, password, email_confirm: true }) });
+    assertEquals(created.status, 200);
+    const id = (await created.json()).id as string;
+    try {
+      const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: env("SUPABASE_ANON_KEY")!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const auth = { Authorization: `Bearer ${(await r.json()).access_token}` };
+      const json = { ...auth, "Content-Type": "application/json" };
+      const post = (path: string, body: unknown) => call(path, { method: "POST", headers: json, body: JSON.stringify(body) });
+      const send = (challengeId: number, file: Uint8Array, name: string) => {
+        const f = new FormData();
+        f.set("video", new File([file as unknown as BlobPart], name, { type: "video/mp4" }));
+        return call(`/api/challenges/${challengeId}/submit`, { method: "POST", headers: auth, body: f });
+      };
+      const clip = Deno.readFileSync(LIFT_CLIP);
+      const attempts = async () => Number((await db.transaction((tx) => tx.one<{ n: number }>("select count(*) as n from public.rate_limits where user_id = $1 and feature like 'challenge:%'", [id])))?.n ?? 0);
+      const submissions = () => db.transaction((tx) => tx.all<{ reps: number; notes: string }>("select reps, notes from public.challenge_submissions where user_id = $1", [id]));
+
+      await post("/api/profile", { name: "Edge Challenge" });
+      const made = await (await post("/api/challenges", {})).json();
+      assertEquals(made.ok, true);
+      assertEquals((await send(made.id, clip, "attempt.mp4")).status, 403, "no AI consent yet");
+      await post("/api/ai-consent", { granted: true });
+      assertEquals((await send(made.id, clip, "attempt.gif")).status, 400);
+      assertEquals((await send(999999999, clip, "attempt.mp4")).status, 404);
+      assertEquals(await attempts(), 0, "nothing held for bad input");
+
+      // the real model counts reps in a clip (this one is a shoulder press, so the honest count is 0 and the notes say why)
+      const started = performance.now();
+      const counted = await send(made.id, clip, "attempt.mp4");
+      const out = await counted.json();
+      console.log("  (counted in", Math.round((performance.now() - started) / 1000), "s:", counted.status, JSON.stringify(out).slice(0, 220), ")");
+      assert(counted.status === 200 || counted.status === 400, String(counted.status));
+      if (counted.status === 200) {
+        assertEquals([out.ok, out.exercise, out.total], [true, made.exercise, out.reps + out.rejected]);
+        assert(Number.isInteger(out.reps) && out.reps >= 0 && typeof out.notes === "string");
+        assertEquals((await submissions()).length, 1);
+        assertEquals(await attempts(), 1, "the day's attempt stays spent");
+        const again = await send(made.id, clip, "attempt.mp4");
+        assertEquals([again.status, (await again.json()).limitReached], [429, true]);
+      } else {
+        assert(typeof out.error === "string");
+        assertEquals([(await submissions()).length, await attempts()], [0, 0], "a clip that could not be counted gives the attempt back");
+      }
+    } finally {
+      const gone = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+      assert(gone.ok || gone.status === 404, "the throwaway user was not removed: delete " + id + " by hand");
+    }
+  },
+});
