@@ -190,22 +190,24 @@ describe('AI features', () => {
   it('links to what is sent and how it is handled', async () => {
     await open();
     await fireEvent.press(screen.getByRole('link', { name: "What is sent, and how it's handled" }));
-    expect(WebBrowser.openBrowserAsync).toHaveBeenLastCalledWith('https://repcheck-q0m4.onrender.com/privacy#ai');
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/legal/[page]', params: { page: 'privacy', section: 'ai' } });
+    expect(WebBrowser.openBrowserAsync).not.toHaveBeenCalled();
   });
 });
 
 describe('legal pages and log out', () => {
   it.each([
-    ['Contact us', '/support'],
-    ['Privacy Policy', '/privacy'],
-    ['Terms of Service', '/terms'],
-    ['Cookie Policy', '/cookies'],
-    ['Refund Policy', '/refunds'],
-    ['Sources & health information', '/sources'],
-  ])('%s opens %s in the in-app browser', async (name, path) => {
+    ['Contact us', 'support'],
+    ['Privacy Policy', 'privacy'],
+    ['Terms of Service', 'terms'],
+    ['Cookie Policy', 'cookies'],
+    ['Refund Policy', 'refunds'],
+    ['Sources & health information', 'sources'],
+  ])('%s opens the %s page inside the app', async (name, page) => {
     await open();
     await press(name);
-    expect(WebBrowser.openBrowserAsync).toHaveBeenLastCalledWith(`https://repcheck-q0m4.onrender.com${path}`);
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/legal/[page]', params: { page } });
+    expect(WebBrowser.openBrowserAsync).not.toHaveBeenCalled();
   });
 
   it('log out signs out', async () => {

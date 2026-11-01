@@ -1,0 +1,2680 @@
+{
+ "pages": {
+  "cookies": {
+   "blocks": [
+    {
+     "runs": [
+      {
+       "t": "Last updated 12 September 2026"
+      }
+     ],
+     "type": "updated"
+    },
+    {
+     "runs": [
+      {
+       "t": "This page lists every cookie RepCheck sets, everything it stores in your browser, and why. It covers the RepCheck app and the iOS app, which is the same site in a native shell."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Do we ask for cookie consent?"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "No, and here is the reasoning, so you can check it. Under Thailand's PDPA and the EU/UK ePrivacy rules, consent is required for storage that is "
+      },
+      {
+       "i": true,
+       "t": "not"
+      },
+      {
+       "t": " necessary to deliver the service you asked for — chiefly advertising and cross-site tracking. RepCheck sets none of that:"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "t": "There is "
+        },
+        {
+         "b": true,
+         "t": "no advertising"
+        },
+        {
+         "t": " anywhere in the app, and no advertising or marketing cookies."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "t": "There is "
+        },
+        {
+         "b": true,
+         "t": "no third-party analytics"
+        },
+        {
+         "t": " — no Google Analytics, no Meta pixel, no Segment, Mixpanel, Amplitude, Hotjar or similar. Nothing on any page reports your behaviour to another company."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "t": "We do "
+        },
+        {
+         "b": true,
+         "t": "not sell or share"
+        },
+        {
+         "t": " your data, and nothing here is used for profiling or automated decisions about you."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "What is left is the strictly necessary cookies listed below, and some local storage that holds your own training data on your own device. Those are exempt from consent — but you are still entitled to know about them, which is what the rest of this page is for."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Cookies we set"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Both first-party, both strictly necessary, and neither one tracks you across other websites."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "c": true,
+         "t": "session"
+        },
+        {
+         "t": " — signs you in and keeps you signed in. This is the cookie that makes your account yours; without it every page would ask you to log in again. It holds a signed reference to your account, not your password. Set "
+        },
+        {
+         "c": true,
+         "t": "HttpOnly"
+        },
+        {
+         "t": " (so page scripts cannot read it), "
+        },
+        {
+         "c": true,
+         "t": "SameSite=Lax"
+        },
+        {
+         "t": " (so it is not attached when another site quietly makes a request to us in the background; it "
+        },
+        {
+         "i": true,
+         "t": "is"
+        },
+        {
+         "t": " still sent if you click a link to RepCheck from elsewhere, which is what keeps you signed in) and "
+        },
+        {
+         "c": true,
+         "t": "Secure"
+        },
+        {
+         "t": " (so it is only ever sent over HTTPS). Lasts up to "
+        },
+        {
+         "b": true,
+         "t": "3650 days"
+        },
+        {
+         "t": ", and refreshes while you keep using the app. Logging out clears it."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "c": true,
+         "t": "apple_oauth_state"
+        },
+        {
+         "t": " — set only if you tap "
+        },
+        {
+         "i": true,
+         "t": "Continue with Apple"
+        },
+        {
+         "t": ", and only for the length of that sign-in. It carries a one-time random value that lets us confirm the login coming back from Apple is the one you started, which is what stops someone else's sign-in being replayed into your browser. Expires after "
+        },
+        {
+         "b": true,
+         "t": "10 minutes"
+        },
+        {
+         "t": " and is deleted as soon as the sign-in finishes."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Data stored on your device"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Most of what you log lives in your browser's local storage as well as on our servers, so the app still works when your connection drops. This is not a tracking mechanism — it is your training data, on your device, readable only by RepCheck. It includes your workout log, nutrition log, weight log, saved analyses, coaching profile and HYROX history, plus small preferences like your theme, language and units, and how far you got in the app tour."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Clearing your browser's site data for RepCheck, or deleting the iOS app, removes all of it from that device. Doing so does not delete your account — see "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "the Privacy Policy"
+      },
+      {
+       "t": " for that."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Fonts and other page assets"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "The typefaces the app uses (Inter and Noto Sans Thai) are served from our own servers, not from Google's font CDN. That matters more than it sounds: loading them the usual way would make your browser contact Google on every page — including the sign-up page, before you had agreed to anything — and hand over your IP address to do it. They are local instead, so that request never happens."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "A few files are "
+      },
+      {
+       "i": true,
+       "t": "not"
+      },
+      {
+       "t": " ours, and we would rather say so than leave you to find out:"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "t": "When you start a workout analysis or a challenge, the page downloads the pose-detection code from "
+        },
+        {
+         "b": true,
+         "t": "cdn.jsdelivr.net"
+        },
+        {
+         "t": " and the pose model itself from "
+        },
+        {
+         "b": true,
+         "t": "storage.googleapis.com"
+        },
+        {
+         "t": " (Google). Those requests happen only when you begin an analysis, never on an ordinary page load. Your video is not sent to them — the pose detection they power runs on your own device."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "t": "One illustration on the HYROX training-space screen is hosted by "
+        },
+        {
+         "b": true,
+         "t": "images.unsplash.com"
+        },
+        {
+         "t": "."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Downloading a file from any of those reveals your IP address to them, in the ordinary way any download does. Nothing about your training, your account or your content goes with it."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Embedded videos"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Exercise tutorial and HYROX demonstration videos are embedded from YouTube. We use "
+      },
+      {
+       "c": true,
+       "t": "youtube-nocookie.com"
+      },
+      {
+       "t": ", YouTube's privacy-enhanced mode, and the player is only loaded "
+      },
+      {
+       "b": true,
+       "t": "after you open a video"
+      },
+      {
+       "t": " — not on page load. If you never open one, nothing is requested from YouTube and nothing of YouTube's is stored. Once you do, YouTube may store what it needs to play the video, under "
+      },
+      {
+       "link": {
+        "href": "https://policies.google.com/privacy"
+       },
+       "t": "Google's privacy policy"
+      },
+      {
+       "t": ", which we do not control."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "How to refuse or remove them"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Every browser lets you block or delete cookies and site data in its settings. Because the "
+      },
+      {
+       "c": true,
+       "t": "session"
+      },
+      {
+       "t": " cookie is what holds your login, blocking cookies for RepCheck means you will not be able to stay signed in — the app cannot work without it. If you would rather not have an account at all, the honest answer is not to create one."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Changes"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "If we add or remove a cookie, this page changes with it and the date at the top moves."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Contact"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Questions about anything on this page: "
+      },
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "phuttimatebenchanakatkul@gmail.com"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "See also our "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "Privacy Policy"
+      },
+      {
+       "t": ", "
+      },
+      {
+       "link": {
+        "page": "terms"
+       },
+       "t": "Terms of Service"
+      },
+      {
+       "t": " and "
+      },
+      {
+       "link": {
+        "page": "refunds"
+       },
+       "t": "Refund Policy"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    }
+   ]
+  },
+  "privacy": {
+   "blocks": [
+    {
+     "runs": [
+      {
+       "t": "Last updated 9 October 2026"
+      }
+     ],
+     "type": "updated"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is a training app. This page explains what it collects, why, who it is shared with, and how to get rid of it."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Who we are"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is operated by "
+      },
+      {
+       "b": true,
+       "t": "Phuttimate Benchanakatkul"
+      },
+      {
+       "t": ", a sole trader based in "
+      },
+      {
+       "b": true,
+       "t": "Thailand"
+      },
+      {
+       "t": ". That means there is one person responsible for your data, and this is how you reach them:"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Data controller"
+        },
+        {
+         "t": " — Phuttimate Benchanakatkul (a sole trader, not an incorporated company, so there is no company registration number to quote)."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Contact for any privacy question or request"
+        },
+        {
+         "t": " — "
+        },
+        {
+         "link": {
+          "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+         },
+         "t": "phuttimatebenchanakatkul@gmail.com"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "We are not large enough to be required to appoint a formal Data Protection Officer, and we have not appointed one. The address above reaches the person who makes these decisions."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "What we collect"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Account details"
+        },
+        {
+         "t": " — your email address and display name. If you sign in with Google, we receive your email, name and profile picture from Google; we never receive your Google password. If you sign in with Apple, we receive your name and email, or Apple's relay address if you chose "
+        },
+        {
+         "i": true,
+         "t": "Hide My Email"
+        },
+        {
+         "t": "."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Training data"
+        },
+        {
+         "t": " — workouts, sets, reps and weights, body weight, HYROX race times, streaks and challenge results."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Nutrition data"
+        },
+        {
+         "t": " — the meals you log, including photos of food and scanned barcodes."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Lift videos"
+        },
+        {
+         "t": " — the clips you upload for form analysis."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Progress photos"
+        },
+        {
+         "t": " — the check-in photos of your body, if you choose to take them."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Usage data"
+        },
+        {
+         "t": " — which pages you open and which features you use (for example \"food photo scan\" or \"coach message\"), and how often, used to understand what parts of the app are worth building on and to enforce daily limits. These are running counts stored against your account on our own servers; they are not a record of what you wrote or uploaded. There is no third-party analytics in RepCheck: no Google Analytics, no advertising pixel, and nothing that reports your behaviour to another company."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Reports you send"
+        },
+        {
+         "t": " — if you report another user, or report an AI reply, we keep the report (and, for an AI reply, the text of that reply) until we have reviewed it."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "We do not collect your contacts, your location, your device advertising identifier, or health data from Apple Health or any other app."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Health and body data"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Body weight, progress photos and lift videos are health-related and are treated as the most sensitive data in the app. Under Thailand's PDPA this is "
+      },
+      {
+       "i": true,
+       "t": "sensitive personal data"
+      },
+      {
+       "t": ", and under the GDPR it is "
+      },
+      {
+       "i": true,
+       "t": "special category data"
+      },
+      {
+       "t": ". Either way it may only be processed with your "
+      },
+      {
+       "b": true,
+       "t": "explicit consent"
+      },
+      {
+       "t": " — which is what you give when you create an account and choose to upload these things, and which you can withdraw at any time by deleting the content or your account."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Progress photos are private to your account: every route that serves or deletes one checks it belongs to you first. They are never shown to other users, never used in leaderboards and never used for advertising."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Why we are allowed to process it"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Our legal bases, so you can hold us to them:"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "To provide the app you asked for"
+        },
+        {
+         "t": " (performance of our contract with you) — your account, your logs, your analyses. Without this there is no app."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Your explicit consent"
+        },
+        {
+         "t": " — for health and body data, and, separately, for sending your content to our AI provider (Google Gemini) to generate a result. The app asks for the AI consent the first time you use an AI feature, before anything is sent, and you can withdraw it at any time in "
+        },
+        {
+         "b": true,
+         "t": "Settings → AI features"
+        },
+        {
+         "t": "."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Our legitimate interests"
+        },
+        {
+         "t": " — keeping the service secure and working: rate limits, abuse and fraud prevention, and the usage counts described above. We have weighed this against your privacy and kept it to simple counts and security measures."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Legal obligation"
+        },
+        {
+         "t": " — where the law requires us to keep or disclose something."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "We do "
+      },
+      {
+       "b": true,
+       "t": "not"
+      },
+      {
+       "t": " sell your personal data, we do not share it for advertising, and we do not use it for profiling or for automated decisions that have a legal effect on you."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "id": "ai",
+     "runs": [
+      {
+       "t": "AI processing by a third party"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck's AI features work by sending your content to "
+      },
+      {
+       "b": true,
+       "t": "Google's Gemini API"
+      },
+      {
+       "t": ". Nothing is sent until you have agreed: the app asks the first time you use an AI feature, and you can turn it off at any time in "
+      },
+      {
+       "b": true,
+       "t": "Settings → AI features"
+      },
+      {
+       "t": ". With it off, the AI features are unavailable and nothing is sent; the rest of the app keeps working. Only what the feature you are using needs is sent, and only when you use it:"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Food photo scan"
+        },
+        {
+         "t": " — the photo and any note you type, to estimate the food and its calories and macros."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Lift form analysis"
+        },
+        {
+         "t": " — a trimmed clip of your video, plus the exercise you chose, to score your form and count reps. Pose detection for trimming runs on your own device."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Daily challenge"
+        },
+        {
+         "t": " — your challenge video, to count reps."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "AI coach, workout chat and analysis chat"
+        },
+        {
+         "t": " — your messages and the conversation so far; for the workout chat, a summary of your logged sets, weights and reps; for the analysis chat, that analysis's scores and feedback."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Weekly check-in"
+        },
+        {
+         "t": " — your progress photos for that week (if you took them), body weight entries, logged calories, gender and goal, to suggest a calorie adjustment."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "AI workout plan"
+        },
+        {
+         "t": " — the goal you type, your training days, gender, current and goal weight, and where you train."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "HYROX race analysis"
+        },
+        {
+         "t": " — your race segment times."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Google processes this content to return a result to us. We do not sell your data to anyone, and we do not use it for advertising or for building a profile of you."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Who else your data reaches"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "The full list of companies that can touch your data, and why:"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Render"
+        },
+        {
+         "t": " — hosts our servers and database."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Google"
+        },
+        {
+         "t": " — Gemini, for the AI features above (only once you have agreed), and Google Sign-In if you use it."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Apple"
+        },
+        {
+         "t": " — Apple Sign-In if you use it, and App Store distribution."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "FatSecret and Open Food Facts"
+        },
+        {
+         "t": " — looked up by barcode or food name to return nutrition figures. We send the barcode or the search term, not anything that identifies you."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "YouTube"
+        },
+        {
+         "t": " — only if you open an embedded tutorial video. See our "
+        },
+        {
+         "link": {
+          "page": "cookies"
+         },
+         "t": "Cookie Policy"
+        },
+        {
+         "t": "."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "jsDelivr and Google's model storage"
+        },
+        {
+         "t": " — when you start a workout analysis, your browser downloads the pose-detection code and model from "
+        },
+        {
+         "c": true,
+         "t": "cdn.jsdelivr.net"
+        },
+        {
+         "t": " and "
+        },
+        {
+         "c": true,
+         "t": "storage.googleapis.com"
+        },
+        {
+         "t": ". That download reveals your IP address to them. Your video is not sent there; the detection runs on your device."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Unsplash"
+        },
+        {
+         "t": " — one illustration on the HYROX training-space screen is loaded from "
+        },
+        {
+         "c": true,
+         "t": "images.unsplash.com"
+        },
+        {
+         "t": ", which reveals your IP address to them."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Where it goes, and where it is stored"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Your data is stored on our servers, hosted with Render. The providers above are largely based in the "
+      },
+      {
+       "b": true,
+       "t": "United States"
+      },
+      {
+       "t": ", so using RepCheck involves transferring your data outside Thailand and outside the EU and UK. Those transfers rely on your consent and on the contractual terms and standard data protection clauses those providers offer. If you are not comfortable with that, the AI features are the ones to avoid — the rest of the app does not depend on them."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "How long we keep it"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Uploaded lift videos"
+        },
+        {
+         "t": " — the original upload is deleted right after analysis. The scores, feedback and the trimmed clip are kept in your analysis history so you can replay them, for your 20 most recent analyses; older ones are deleted automatically, and you can delete any of them yourself."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Challenge videos"
+        },
+        {
+         "t": " — deleted right after the reps are counted. Only the rep count is kept."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Your account and everything in it"
+        },
+        {
+         "t": " — kept while your account exists, then erased on the schedule below."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Anything you delete yourself"
+        },
+        {
+         "t": " — a log, a photo, a saved analysis — goes when you delete it."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Sign-in state"
+        },
+        {
+         "t": " — see the "
+        },
+        {
+         "link": {
+          "page": "cookies"
+         },
+         "t": "Cookie Policy"
+        },
+        {
+         "t": " for how long the session cookie lasts."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Deleting your account"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "You can delete your account at any time from "
+      },
+      {
+       "b": true,
+       "t": "Settings → Delete account"
+      },
+      {
+       "t": ", inside the app. Deletion is not instant: your account is scheduled for deletion and permanently erased after "
+      },
+      {
+       "b": true,
+       "t": "30 days"
+      },
+      {
+       "t": ". During that window you can log back in and cancel it from the same screen. After the 30 days, your account and everything attached to it — training logs, nutrition logs, progress photos, saved analyses, custom foods and exercises, friends, challenges and race times — are permanently erased and cannot be recovered."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Your rights"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "You can view and correct your account details in Settings, and you can delete individual logs, photos and saved analyses at any time without deleting your whole account."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Beyond what the app lets you do directly, you have the right to ask us to: give you "
+      },
+      {
+       "b": true,
+       "t": "access"
+      },
+      {
+       "t": " to your data or a "
+      },
+      {
+       "b": true,
+       "t": "copy"
+      },
+      {
+       "t": " of it in a portable form; "
+      },
+      {
+       "b": true,
+       "t": "correct"
+      },
+      {
+       "t": " it; "
+      },
+      {
+       "b": true,
+       "t": "erase"
+      },
+      {
+       "t": " it; "
+      },
+      {
+       "b": true,
+       "t": "restrict"
+      },
+      {
+       "t": " or "
+      },
+      {
+       "b": true,
+       "t": "object"
+      },
+      {
+       "t": " to how we use it; and "
+      },
+      {
+       "b": true,
+       "t": "withdraw consent"
+      },
+      {
+       "t": " where we relied on it. These are your rights under Thailand's PDPA, and we extend the equivalent GDPR and UK GDPR rights to users in the EU and the UK."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Email "
+      },
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "phuttimatebenchanakatkul@gmail.com"
+      },
+      {
+       "t": " and we will answer within "
+      },
+      {
+       "b": true,
+       "t": "one month"
+      },
+      {
+       "t": ". Asking costs nothing, and we will not treat you differently for asking."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Complaints"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "If you think we have handled your data badly, please tell us first — it is the fastest way to get it fixed. You also have the right to complain to a regulator without going through us: in Thailand, the "
+      },
+      {
+       "b": true,
+       "t": "Office of the Personal Data Protection Committee (PDPC)"
+      },
+      {
+       "t": "; in the EU or UK, your national data protection authority, which in the UK is the "
+      },
+      {
+       "b": true,
+       "t": "Information Commissioner's Office"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Security"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Passwords are stored hashed, never in plain text. The site is served over HTTPS, the session cookie cannot be read by page scripts, and the login and AI endpoints are rate-limited. No system is perfect: if we discover a breach affecting your personal data, we will notify you and the regulator as the PDPA and GDPR require."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Children"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is not intended for children under 13, and we do not knowingly collect data from them. Because RepCheck handles health data, a young person old enough to use it but still a minor where they live — under 20 in Thailand, or under the age of digital consent in their EU or UK country — needs a parent or guardian's consent first. If you believe a child has given us data, email us and we will delete it."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Changes"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "If this policy changes materially, the updated date at the top of this page changes with it."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Contact"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Questions about your data: "
+      },
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "phuttimatebenchanakatkul@gmail.com"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "See also our "
+      },
+      {
+       "link": {
+        "page": "terms"
+       },
+       "t": "Terms of Service"
+      },
+      {
+       "t": ", "
+      },
+      {
+       "link": {
+        "page": "cookies"
+       },
+       "t": "Cookie Policy"
+      },
+      {
+       "t": " and "
+      },
+      {
+       "link": {
+        "page": "refunds"
+       },
+       "t": "Refund Policy"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    }
+   ]
+  },
+  "refunds": {
+   "blocks": [
+    {
+     "runs": [
+      {
+       "t": "Last updated 12 September 2026"
+      }
+     ],
+     "type": "updated"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is free"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "There is nothing to buy in RepCheck today. There are no subscriptions, no in-app purchases, no one-off unlocks and no paid tiers. We do not ask for a card, and the app contains no payment system of any kind."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "So there is nothing to refund, and this page has no charges to describe. If you are ever asked to pay for RepCheck by anything claiming to be us, it is not us — please "
+      },
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "tell us"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "What the free app costs you"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Some features cost us money to run, so they have daily limits per account rather than a price: form analysis, food photo analysis and coach chat each have a fixed number of uses per day. Hitting a limit is not a prompt to pay — there is no way to pay. It resets."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "If we introduce a paid plan"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "We intend to add an optional paid plan after RepCheck is released on the App Store. The free features you use today are not being taken away to make room for it. When that happens, and "
+      },
+      {
+       "i": true,
+       "t": "before"
+      },
+      {
+       "t": " anyone can be charged:"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "t": "This page will be replaced with full refund and cancellation terms, and the date at the top will change."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "t": "The price, the billing period and what renewal costs will be shown to you on the purchase screen, before you confirm — never after."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "t": "Purchases made through the iOS app would be handled by "
+        },
+        {
+         "b": true,
+         "t": "Apple"
+        },
+        {
+         "t": ", not by us. That means Apple takes the payment and Apple issues the refunds, through "
+        },
+        {
+         "link": {
+          "href": "https://reportaproblem.apple.com"
+         },
+         "t": "reportaproblem.apple.com"
+        },
+        {
+         "t": ". We are not able to refund an Apple purchase directly, and we will say so plainly rather than leaving you to find out."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "t": "You would be able to cancel at any time, keep access until the end of the period you already paid for, and not be charged again."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "t": "Any statutory right you have to cancel or be refunded — under Thailand's consumer protection law, or the EU/UK right of withdrawal for consumers — applies on top of all of the above. Nothing we publish here can take those away, and nothing on this page is intended to."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Contact"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Anything about billing, now or later: "
+      },
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "phuttimatebenchanakatkul@gmail.com"
+      },
+      {
+       "t": ". We answer by email."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "See also our "
+      },
+      {
+       "link": {
+        "page": "terms"
+       },
+       "t": "Terms of Service"
+      },
+      {
+       "t": ", "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "Privacy Policy"
+      },
+      {
+       "t": " and "
+      },
+      {
+       "link": {
+        "page": "cookies"
+       },
+       "t": "Cookie Policy"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    }
+   ]
+  },
+  "sources": {
+   "blocks": [
+    {
+     "runs": [
+      {
+       "t": "RepCheck's AI coach, the workout chat and the Analyze chat answer questions about training, recovery, mobility and nutrition. They are instructed to base their answers on established exercise science, and "
+      },
+      {
+       "b": true,
+       "t": "every answer lists the sources it draws on, with links, directly under the reply"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "This page collects every source those answers can cite, so you can read the evidence for yourself."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Not medical advice"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck gives general fitness information, not medical advice, a diagnosis or treatment. AI answers can be wrong. Talk to a doctor or other qualified health professional before starting a new training or diet programme, especially if you have a medical condition, are pregnant, or are recovering from an injury. Stop exercising and get medical help if you feel chest pain, dizziness, shortness of breath beyond normal effort, or sharp or lasting pain."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Calorie and macro targets"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Your nutrition targets are calculated with a fixed formula, not by the AI: resting energy use from the Katch-McArdle equation (based on your weight and estimated body fat), multiplied by a standard activity factor, with protein set per kilogram of lean body mass in the ranges recommended by the "
+      },
+      {
+       "link": {
+        "href": "https://pubmed.ncbi.nlm.nih.gov/28642676/"
+       },
+       "t": "International Society of Sports Nutrition"
+      },
+      {
+       "t": " and "
+      },
+      {
+       "link": {
+        "href": "https://pubmed.ncbi.nlm.nih.gov/24864135/"
+       },
+       "t": "Helms et al. (2014)"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Physical activity guidelines"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-who_2020",
+       "note": "World Health Organization, 2020",
+       "runs": [
+        {
+         "link": {
+          "href": "https://www.who.int/publications/i/item/9789240015128"
+         },
+         "t": "WHO guidelines on physical activity and sedentary behaviour"
+        }
+       ]
+      },
+      {
+       "id": "source-pag_2018",
+       "note": "U.S. Department of Health and Human Services, 2018",
+       "runs": [
+        {
+         "link": {
+          "href": "https://odphp.health.gov/our-work/nutrition-physical-activity/physical-activity-guidelines/current-guidelines"
+         },
+         "t": "Physical Activity Guidelines for Americans, 2nd edition"
+        }
+       ]
+      },
+      {
+       "id": "source-acsm_2011",
+       "note": "Medicine & Science in Sports & Exercise, 2011",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/21694556/"
+         },
+         "t": "ACSM position stand: Quantity and quality of exercise for developing and maintaining cardiorespiratory, musculoskeletal, and neuromotor fitness in apparently healthy adults"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Strength training and progression"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-acsm_2009",
+       "note": "Medicine & Science in Sports & Exercise, 2009",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/19204579/"
+         },
+         "t": "ACSM position stand: Progression models in resistance training for healthy adults"
+        }
+       ]
+      },
+      {
+       "id": "source-schoenfeld_loading_2021",
+       "note": "Sports, 2021",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/33671664/"
+         },
+         "t": "Loading recommendations for muscle strength, hypertrophy, and local endurance: a re-examination of the repetition continuum"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Building muscle"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-schoenfeld_volume_2017",
+       "note": "Journal of Sports Sciences, 2017",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/27433992/"
+         },
+         "t": "Dose-response relationship between weekly resistance training volume and increases in muscle mass: a systematic review and meta-analysis"
+        }
+       ]
+      },
+      {
+       "id": "source-schoenfeld_frequency_2016",
+       "note": "Sports Medicine, 2016",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/27102172/"
+         },
+         "t": "Effects of resistance training frequency on measures of muscle hypertrophy: a systematic review and meta-analysis"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Rest between sets"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-schoenfeld_rest_2016",
+       "note": "Journal of Strength and Conditioning Research, 2016",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/26605807/"
+         },
+         "t": "Longer interset rest periods enhance muscle strength and hypertrophy in resistance-trained men"
+        }
+       ]
+      },
+      {
+       "id": "source-grgic_rest_2017",
+       "note": "European Journal of Sport Science, 2017",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/28641044/"
+         },
+         "t": "The effects of short versus long inter-set rest intervals in resistance training on measures of muscle hypertrophy: a systematic review"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Protein and nutrition"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-issn_protein_2017",
+       "note": "Journal of the International Society of Sports Nutrition, 2017",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/28642676/"
+         },
+         "t": "International Society of Sports Nutrition position stand: protein and exercise"
+        }
+       ]
+      },
+      {
+       "id": "source-morton_protein_2018",
+       "note": "British Journal of Sports Medicine, 2018",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/28698222/"
+         },
+         "t": "A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Losing fat without losing muscle"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-helms_2014",
+       "note": "Journal of the International Society of Sports Nutrition, 2014",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/24864135/"
+         },
+         "t": "Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation"
+        }
+       ]
+      },
+      {
+       "id": "source-longland_2016",
+       "note": "American Journal of Clinical Nutrition, 2016",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/26817506/"
+         },
+         "t": "Higher compared with lower dietary protein during an energy deficit combined with intense exercise promotes greater lean mass gain and fat mass loss: a randomized trial"
+        }
+       ]
+      },
+      {
+       "id": "source-garthe_2011",
+       "note": "International Journal of Sport Nutrition and Exercise Metabolism, 2011",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/21558571/"
+         },
+         "t": "Effect of two different weight-loss rates on body composition and strength and power-related performance in elite athletes"
+        }
+       ]
+      },
+      {
+       "id": "source-murphy_deficit_2022",
+       "note": "Scandinavian Journal of Medicine & Science in Sports, 2022",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/34623696/"
+         },
+         "t": "Energy deficiency impairs resistance training gains in lean mass but not strength: a meta-analysis and meta-regression"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Recovery and sleep"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-dupuy_recovery_2018",
+       "note": "Frontiers in Physiology, 2018",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/29755363/"
+         },
+         "t": "An evidence-based approach for choosing post-exercise recovery techniques to reduce markers of muscle damage, soreness, fatigue, and inflammation: a systematic review with meta-analysis"
+        }
+       ]
+      },
+      {
+       "id": "source-aasm_sleep_2015",
+       "note": "Sleep, 2015",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/26039963/"
+         },
+         "t": "Recommended amount of sleep for a healthy adult: a joint consensus statement of the American Academy of Sleep Medicine and Sleep Research Society"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Mobility and stretching"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-behm_stretching_2016",
+       "note": "Applied Physiology, Nutrition, and Metabolism, 2016",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/26642915/"
+         },
+         "t": "Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review"
+        }
+       ]
+      },
+      {
+       "id": "source-alizadeh_rom_2023",
+       "note": "Sports Medicine, 2023",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/36622555/"
+         },
+         "t": "Resistance training induces improvements in range of motion: a systematic review and meta-analysis"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Exercise technique"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-schoenfeld_squat_2010",
+       "note": "Journal of Strength and Conditioning Research, 2010",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/20182386/"
+         },
+         "t": "Squatting kinematics and kinetics and their application to exercise performance"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Supplements and hydration"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-issn_creatine_2017",
+       "note": "Journal of the International Society of Sports Nutrition, 2017",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/28615996/"
+         },
+         "t": "International Society of Sports Nutrition position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine"
+        }
+       ]
+      },
+      {
+       "id": "source-issn_caffeine_2021",
+       "note": "Journal of the International Society of Sports Nutrition, 2021",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/33388079/"
+         },
+         "t": "International Society of Sports Nutrition position stand: caffeine and exercise performance"
+        }
+       ]
+      },
+      {
+       "id": "source-acsm_fluid_2007",
+       "note": "Medicine & Science in Sports & Exercise, 2007",
+       "runs": [
+        {
+         "link": {
+          "href": "https://pubmed.ncbi.nlm.nih.gov/17277604/"
+         },
+         "t": "ACSM position stand: Exercise and fluid replacement"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "Pain and injury"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "id": "source-nhs_sports_injuries",
+       "note": "NHS (UK National Health Service)",
+       "runs": [
+        {
+         "link": {
+          "href": "https://www.nhs.uk/conditions/sports-injuries/"
+         },
+         "t": "Sports injuries: symptoms, treatment and when to get medical help"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "id": "credits",
+     "runs": [
+      {
+       "t": "Data and content credits"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "note": "Barcode nutrition data for products Open Food Facts does not have.",
+       "runs": [
+        {
+         "link": {
+          "href": "https://www.fatsecret.com"
+         },
+         "t": "Powered by fatsecret"
+        }
+       ]
+      },
+      {
+       "note": "Barcode and food search data, available under the Open Database License (ODbL).",
+       "runs": [
+        {
+         "link": {
+          "href": "https://world.openfoodfacts.org"
+         },
+         "t": "Open Food Facts"
+        }
+       ]
+      },
+      {
+       "note": "On-device pose detection used to trim lift videos (Apache License 2.0).",
+       "runs": [
+        {
+         "link": {
+          "href": "https://ai.google.dev/edge/mediapipe"
+         },
+         "t": "MediaPipe by Google"
+        }
+       ]
+      },
+      {
+       "note": "Exercise tutorial videos are embedded from, and belong to, their creators on YouTube.",
+       "runs": [
+        {
+         "link": {
+          "href": "https://www.youtube.com"
+         },
+         "t": "YouTube"
+        }
+       ]
+      },
+      {
+       "note": "The photo on the HYROX training-space screen, credited to its photographer there.",
+       "runs": [
+        {
+         "link": {
+          "href": "https://unsplash.com"
+         },
+         "t": "Unsplash"
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "HYROX is a registered trademark of upsolut Sports AG. RepCheck is an independent training app and is not affiliated with, endorsed or sponsored by HYROX."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Questions about a source, or found one that is out of date? "
+      },
+      {
+       "link": {
+        "page": "support"
+       },
+       "t": "Contact us"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    }
+   ]
+  },
+  "support": {
+   "blocks": [
+    {
+     "runs": [
+      {
+       "t": "Need help with RepCheck? Email "
+      },
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "phuttimatebenchanakatkul@gmail.com"
+      },
+      {
+       "t": " and we'll get back to you."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Common questions"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "items": [
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "I can't log in."
+        },
+        {
+         "t": " If you signed up with an email and password and can't remember it, tap "
+        },
+        {
+         "b": true,
+         "t": "Continue with Google"
+        },
+        {
+         "t": " or "
+        },
+        {
+         "b": true,
+         "t": "Continue with Apple"
+        },
+        {
+         "t": " on the login screen using that same email address — it opens your existing account with all your history. Two cases where it won't: if the provider doesn't confirm that address as yours, and if you use Apple's "
+        },
+        {
+         "b": true,
+         "t": "Hide My Email"
+        },
+        {
+         "t": " (the relay address isn't the one your account is under). You'll land in a new empty account rather than an error, so if your training history isn't there, stop and email us instead of signing in again."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "I want to delete my account."
+        },
+        {
+         "t": " Go to Settings → Delete account, inside the app. See our "
+        },
+        {
+         "link": {
+          "page": "privacy"
+         },
+         "t": "Privacy Policy"
+        },
+        {
+         "t": " for details on the deletion window."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "A camera or upload flow isn't working."
+        },
+        {
+         "t": " Email us with your device model and iOS version and we'll look into it."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "I found a bug or have feedback."
+        },
+        {
+         "t": " Email us — screenshots or a short description of what you were doing help a lot."
+        }
+       ]
+      },
+      {
+       "runs": [
+        {
+         "b": true,
+         "t": "Someone's name or behaviour is offensive."
+        },
+        {
+         "t": " Tap the ⋮ next to them on a leaderboard or in your friends list to report or block the account. Reports are reviewed within 24 hours, and reporting blocks them for you straight away. You can email us about anything the in-app report doesn't cover."
+        }
+       ]
+      }
+     ],
+     "type": "ul"
+    },
+    {
+     "runs": [
+      {
+       "t": "See also our "
+      },
+      {
+       "link": {
+        "page": "terms"
+       },
+       "t": "Terms of Service"
+      },
+      {
+       "t": ", "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "Privacy Policy"
+      },
+      {
+       "t": ", "
+      },
+      {
+       "link": {
+        "page": "cookies"
+       },
+       "t": "Cookie Policy"
+      },
+      {
+       "t": " and "
+      },
+      {
+       "link": {
+        "page": "refunds"
+       },
+       "t": "Refund Policy"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    }
+   ]
+  },
+  "terms": {
+   "blocks": [
+    {
+     "runs": [
+      {
+       "t": "Last updated 12 September 2026"
+      }
+     ],
+     "type": "updated"
+    },
+    {
+     "runs": [
+      {
+       "t": "Who you are agreeing with"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is operated by "
+      },
+      {
+       "b": true,
+       "t": "Phuttimate Benchanakatkul"
+      },
+      {
+       "t": ", a sole trader based in "
+      },
+      {
+       "b": true,
+       "t": "Thailand"
+      },
+      {
+       "t": ", reachable at "
+      },
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "phuttimatebenchanakatkul@gmail.com"
+      },
+      {
+       "t": ". \"We\" and \"us\" below mean that person. These terms are the agreement between you and us for your use of RepCheck, on the web and in the iOS app."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Using RepCheck"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is provided as-is for personal training use. You need an account to use it, you are responsible for keeping your login details safe, and you are responsible for what you upload. You must be at least 13 to have an account, and if you are under the age of majority where you live you need a parent or guardian's permission — see the "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "Privacy Policy"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "What it costs"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is free. There is nothing to buy in the app and no payment system in it. Some AI features have daily per-account limits instead of a price. See the "
+      },
+      {
+       "link": {
+        "page": "refunds"
+       },
+       "t": "Refund Policy"
+      },
+      {
+       "t": " for what happens if we ever add a paid plan."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Not medical or professional advice"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck's form analysis, coaching, calorie estimates and training plans are generated automatically, including by AI, and are estimates rather than professional advice. They are not medical advice, not a diagnosis, and not a substitute for a doctor, physiotherapist or qualified coach. Training carries risk of injury. Use your own judgement, and talk to a doctor before starting a new training or nutrition programme — especially if you have an existing condition or injury."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Accuracy"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Calorie and macro estimates from photos, rep counts and form scores are approximations and will sometimes be wrong. Do not rely on them for medical or clinical decisions."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Your content"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "The videos, photos and logs you upload stay yours. You give us permission to process them in order to run the features you asked for — analysing a lift, estimating a meal, generating a plan. That permission is limited to running those features and ends when you delete the content or your account; we do not take a licence to publish, sell or advertise with your content. See the "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "Privacy Policy"
+      },
+      {
+       "t": " for who that processing involves."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Acceptable use"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "Do not upload content that is illegal, that you do not have the right to upload, or that contains other people who have not agreed to it. Do not use a display name intended to harass or impersonate. Do not try to break, overload or work around the app's limits and security. Accounts that break these rules can be suspended."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Reporting other users"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "You can report or block an account from a leaderboard or your friends list. Reports are reviewed within 24 hours. See "
+      },
+      {
+       "link": {
+        "page": "support"
+       },
+       "t": "Support"
+      },
+      {
+       "t": " if something is not covered by the in-app report."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Ending your account"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "You can delete your account at any time from Settings. See the "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "Privacy Policy"
+      },
+      {
+       "t": " for exactly what is erased and when. We may suspend or end an account that breaks these terms, and we will tell you why where we are able to."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Changes to the app and to these terms"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "RepCheck is actively being built, so features change and some may be withdrawn. If we change these terms materially, the date at the top of this page changes with it. If you keep using RepCheck after that, you are accepting the new version; if you would rather not, you can delete your account."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Liability"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "To the extent the law allows, RepCheck is not liable for injury, loss or damage arising from using the app, including from relying on its estimates or generated plans. Nothing in these terms limits liability that cannot be limited by law — including for death or personal injury caused by negligence, for fraud, or any of your rights as a consumer that a term cannot remove."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Governing law"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "t": "These terms are governed by the law of "
+      },
+      {
+       "b": true,
+       "t": "Thailand"
+      },
+      {
+       "t": ", and the Thai courts have jurisdiction. If you are a consumer resident in the EU or UK, this does not deprive you of the protection of your own country's consumer law, or of your right to bring a claim in your local courts."
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "Contact"
+      }
+     ],
+     "type": "h"
+    },
+    {
+     "runs": [
+      {
+       "link": {
+        "href": "mailto:phuttimatebenchanakatkul@gmail.com"
+       },
+       "t": "phuttimatebenchanakatkul@gmail.com"
+      }
+     ],
+     "type": "p"
+    },
+    {
+     "runs": [
+      {
+       "t": "See also our "
+      },
+      {
+       "link": {
+        "page": "privacy"
+       },
+       "t": "Privacy Policy"
+      },
+      {
+       "t": ", "
+      },
+      {
+       "link": {
+        "page": "cookies"
+       },
+       "t": "Cookie Policy"
+      },
+      {
+       "t": " and "
+      },
+      {
+       "link": {
+        "page": "refunds"
+       },
+       "t": "Refund Policy"
+      },
+      {
+       "t": "."
+      }
+     ],
+     "type": "p"
+    }
+   ]
+  }
+ }
+}

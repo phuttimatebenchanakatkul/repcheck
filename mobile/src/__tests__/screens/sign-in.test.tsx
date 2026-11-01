@@ -53,14 +53,16 @@ describe('sign-in screen', () => {
     expect(screen.queryByLabelText(t('app.auth.name'))).toBeNull(); // no name field when logging in
   });
 
-  it('opens the policy pages in the in-app browser', async () => {
+  it('opens the policy pages inside the app (a signed-out person can read them before making an account)', async () => {
+    (WebBrowser.openBrowserAsync as jest.Mock).mockClear();
     await render(<SignIn />);
     await fireEvent.press(screen.getByText(t('app.auth.consent.terms')));
     await fireEvent.press(screen.getByText(t('app.auth.consent.privacy')));
-    expect((WebBrowser.openBrowserAsync as jest.Mock).mock.calls.map((c: string[]) => c[0])).toEqual([
-      'https://repcheck-q0m4.onrender.com/terms',
-      'https://repcheck-q0m4.onrender.com/privacy',
+    expect(mockActions.push.mock.calls.map((c: unknown[]) => c[0])).toEqual([
+      { pathname: '/legal/[page]', params: { page: 'terms' } },
+      { pathname: '/legal/[page]', params: { page: 'privacy' } },
     ]);
+    expect(WebBrowser.openBrowserAsync).not.toHaveBeenCalled();
   });
 
   it('asks for email and password before calling the server', async () => {

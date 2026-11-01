@@ -37,6 +37,7 @@ function Gate() {
     {status === 'ready' ? <SettingsApplier /> : null}
     {status === 'ready' ? <RemindersScheduler /> : null}
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="legal/[page]" />
       <Stack.Protected guard={status === 'signed-out'}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>

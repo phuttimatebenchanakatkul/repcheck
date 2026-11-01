@@ -1,4 +1,3 @@
-import * as WebBrowser from 'expo-web-browser';
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'expo-router';
 import { Alert, Appearance, Pressable, TextInput, View } from 'react-native';
@@ -12,7 +11,7 @@ import { useTranslation } from '@/i18n';
 import { chooseLanguage } from '@/i18n/storage';
 import { ACCOUNT_GRACE_DAYS, colorSchemeOverride, formatDueDate, providerName } from '@/logic/account';
 import { localeFor, type UnitPrefs } from '@/logic/units';
-import { AI_PRIVACY_URL, LEGAL_LINKS, WEBSITE_URL } from '@/links';
+import { AI_PRIVACY, LEGAL_LINKS } from '@/links';
 import { chooseReminders, useRemindersOn } from '@/store/remindersPref';
 import { getSupabase } from '@/supabase/client';
 import { Button, Card, ErrorText, Screen, Text } from '@/ui/components';
@@ -48,7 +47,6 @@ function Line({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-const open = (url: string) => void WebBrowser.openBrowserAsync(url);
 
 /** Your name, and the email it is under (managed by Apple or Google when you signed in with one). */
 function AccountSection() {
@@ -215,6 +213,7 @@ function RemindersSection() {
 function AiSection() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const router = useRouter();
   const { state, refreshProfile } = useAuth();
   const on = state.status === 'ready' && state.profile.ai_consent;
   const [busy, setBusy] = useState(false);
@@ -242,7 +241,7 @@ function AiSection() {
       </Line>
       <Button title={on ? t('settings.ai.turnOff') : t('settings.ai.turnOn')} tone={on ? 'plain' : 'primary'} loading={busy} onPress={() => void toggle()} />
       <ErrorText>{error}</ErrorText>
-      <Pressable accessibilityRole="link" onPress={() => open(AI_PRIVACY_URL)} style={{ minHeight: 44, justifyContent: 'center' }}>
+      <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: '/legal/[page]', params: AI_PRIVACY })} style={{ minHeight: 44, justifyContent: 'center' }}>
         <Text variant="label" style={{ color: colors.link }}>
           {t('settings.ai.privacy')}
         </Text>
@@ -381,6 +380,7 @@ function BlockedSection() {
 /** Settings: account, appearance, language, units, AI features, legal pages, log out and delete account. */
 export default function SettingsScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   return (
     <Screen>
       <OfflineBanner />
@@ -392,7 +392,7 @@ export default function SettingsScreen() {
       <BlockedSection />
       <Section title={t('settings.legal.title')}>
         {LEGAL_LINKS.map((link) => (
-          <Row key={link.key} onPress={() => open(`${WEBSITE_URL}${link.path}`)} label={t(link.label)}>
+          <Row key={link.key} onPress={() => router.push({ pathname: '/legal/[page]', params: { page: link.key } })} label={t(link.label)}>
             <Text variant="rowTitle" style={{ flex: 1 }}>
               {t(link.label)}
             </Text>
