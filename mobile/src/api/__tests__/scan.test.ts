@@ -65,23 +65,9 @@ describe('analyzeFood', () => {
 });
 
 describe('barcodes', () => {
-  it('a photo of a barcode: found', async () => {
-    const upload = jest.fn(async () => ({ ...FOOD, data_source: 'Open Food Facts' }));
-    const outcome = await scanEndpoints(fakeApi({ upload })).scanBarcodePhoto({ uri: 'file:///b.jpg' });
-    expect(outcome).toMatchObject({ kind: 'found', result: { data_source: 'Open Food Facts' } });
-    expect(upload).toHaveBeenCalledWith('/api/scan-barcode', expect.anything());
-    expect(partsOf((upload.mock.calls[0] as unknown[])[1] as FormData).some((p) => p.fieldName === 'live')).toBe(false);
-  });
-
-  it('a live camera frame says so, so routine misses are not logged', async () => {
-    const upload = jest.fn(async () => FOOD);
-    await scanEndpoints(fakeApi({ upload })).scanBarcodePhoto({ uri: 'f' }, true);
-    expect(partsOf((upload.mock.calls[0] as unknown[])[1] as FormData).find((p) => p.fieldName === 'live')?.string).toBe('1');
-  });
-
   it('digits the phone already read: found', async () => {
-    const post = jest.fn(async () => FOOD);
-    expect((await scanEndpoints(fakeApi({ post })).lookupBarcode('8850123456789')).kind).toBe('found');
+    const post = jest.fn(async () => ({ ...FOOD, data_source: 'Open Food Facts' }));
+    expect(await scanEndpoints(fakeApi({ post })).lookupBarcode('8850123456789')).toMatchObject({ kind: 'found', result: { data_source: 'Open Food Facts' } });
     expect(post).toHaveBeenCalledWith('/api/lookup-barcode', { barcode: '8850123456789' });
   });
 
@@ -90,11 +76,11 @@ describe('barcodes', () => {
     expect(await api.lookupBarcode('123')).toEqual({ kind: 'not-found', barcode: '123', message: 'No product found.' });
   });
 
-  it('a failed lookup behind a barcode that WAS read keeps the barcode; an unreadable photo has none', async () => {
+  it('a failed lookup keeps the barcode the server echoed, and has none when it echoed nothing', async () => {
     const lookupFailed = scanEndpoints(fakeApi({ post: async () => { throw new ApiError('Database down.', 502, { ok: false, barcode: '456' }); } }));
     expect(await lookupFailed.lookupBarcode('456')).toEqual({ kind: 'failed', barcode: '456', message: 'Database down.' });
-    const unreadable = scanEndpoints(fakeApi({ upload: async () => { throw new ApiError('No barcode found.', 502); } }));
-    expect(await unreadable.scanBarcodePhoto({ uri: 'x' })).toEqual({ kind: 'failed', barcode: null, message: 'No barcode found.' });
+    const bare = scanEndpoints(fakeApi({ post: async () => { throw new ApiError('Lookup failed.', 502); } }));
+    expect(await bare.lookupBarcode('456')).toEqual({ kind: 'failed', barcode: null, message: 'Lookup failed.' });
   });
 
   it('a "not found" with no barcode to offer is not a not-found (nothing to create a food from)', async () => {
@@ -104,7 +90,7 @@ describe('barcodes', () => {
 
   it('everything else (too large, rate limited, signed out, no signal) is an error for the caller', async () => {
     for (const error of [new ApiError('big', 413), new ApiError('slow', 429, {}, 30), new ApiError('out', 401), new ApiError('offline', 0), new ApiError('boom', 500)]) {
-      await expect(scanEndpoints(fakeApi({ upload: async () => { throw error; } })).scanBarcodePhoto({ uri: 'x' })).rejects.toBe(error);
+      await expect(scanEndpoints(fakeApi({ post: async () => { throw error; } })).lookupBarcode('1')).rejects.toBe(error);
     }
   });
 

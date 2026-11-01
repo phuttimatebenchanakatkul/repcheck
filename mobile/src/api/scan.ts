@@ -1,4 +1,5 @@
-/** The food-scan routes: an AI photo, a barcode (photo or digits), and the online food search. Shapes are api/routes/foods.py's. */
+/** The food-scan routes: an AI photo, a barcode's digits, and the online food search. Shapes are api/routes/foods.py's.
+ *  The phone's own camera reads barcodes, so no photo of one is ever sent: the server's photo decoder (/api/scan-barcode) was not carried over. */
 import { parseScanResult, type ScanResult } from '../logic/scan';
 import { ApiError, type Api } from './client';
 
@@ -41,7 +42,7 @@ function barcodeOutcome(error: unknown): BarcodeOutcome {
   const body = bodyOf(error);
   const barcode = typeof body.barcode === 'string' && body.barcode ? body.barcode : null;
   if (body.not_found === true && barcode) return { kind: 'not-found', barcode, message: error.message };
-  // The server read the barcode but the product database behind it failed (502), or no barcode could be read in the photo (502).
+  // The product database behind the lookup failed (502).
   if (error.status === 502) return { kind: 'failed', barcode, message: error.message };
   throw error;
 }
@@ -51,15 +52,6 @@ export function scanEndpoints(api: Api) {
     /** An AI estimate from a photo of a meal. Throws ApiError: 403 `needsAiConsent` leads to the consent screen, 429 carries `retryAfter`. */
     async analyzeFood(image: PickedImage, note?: string): Promise<ScanResult> {
       return asResult(await api.upload('/api/analyze-food', imageForm(image, { note: note?.trim() }), ANALYZE_TIMEOUT_MS));
-    },
-
-    /** Reads a barcode out of a photo (or a live camera frame: `live` keeps routine misses out of the server's logs) and looks it up. */
-    async scanBarcodePhoto(image: PickedImage, live = false): Promise<BarcodeOutcome> {
-      try {
-        return { kind: 'found', result: asResult(await api.upload('/api/scan-barcode', imageForm(image, { live: live ? '1' : undefined }))) };
-      } catch (error) {
-        return barcodeOutcome(error);
-      }
     },
 
     /** Looks up digits the phone's own scanner already read. */

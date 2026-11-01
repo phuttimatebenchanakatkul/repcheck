@@ -47,20 +47,59 @@ def test_the_limit_messages_are_flasks():
 
 
 def test_every_route_the_functions_serve_is_one_flask_serves_with_the_same_method():
+    ported = function_routes()
+    assert ported, "no routes found: the pattern in this test no longer matches how routes are written"
+    assert ported <= flask_api_routes(), f"not Flask routes: {sorted(ported - flask_api_routes())}"
+
+
+# Every Flask route the functions do not serve, and why. The cut-over (8h) can only happen once the "8g" ones are gone; the "never"
+# ones are deleted with api/ and nothing in the app may call them.
+NOT_PORTED = {
+    ("POST", "/api/scan-barcode"): "never: the phone reads barcodes itself and sends the digits to /api/lookup-barcode (8f2)",
+    ("POST", "/api/analyze"): "8g: grading a lift video",
+    ("GET", "/api/analyze/latest"): "8g",
+    ("GET", "/api/analyze/history"): "8g",
+    ("GET", "/api/analyze/history/<int:result_id>"): "8g",
+    ("GET", "/api/analyze/video/<int:result_id>"): "8g",
+    ("POST", "/api/challenges/<int:challenge_id>/submit"): "8g: grades the challenge clip",
+    ("GET", "/static/<path:filename>"): "never: Flask's own static files, not an API route",
+}
+
+
+def flask_api_routes():
     from api.app import create_app
     from api.settings import Settings
-    flask_routes = set()
     settings = Settings(supabase_url="https://abc.supabase.co", service_key="x", db_url="postgresql://offline")
     app = create_app(settings, db=object(), verifier=object(), storage=object(), auth_admin=object(), analyzer=object(), ai=object(), sweep=False)
-    for rule in app.url_map.iter_rules():
-        for method in rule.methods - {"HEAD", "OPTIONS"}:
-            flask_routes.add((method, rule.rule))
-    ported = []
-    for path in sorted((FUNCTIONS / "api" / "routes").glob("*.ts")):
-        ported += re.findall(r'router\.(get|post|delete)\(\s*"(/api/[^"]+)"', path.read_text(encoding="utf-8"))
-    assert ported, "no routes found: the pattern in this test no longer matches how routes are written"
-    for method, route in ported:
-        assert (method.upper(), route) in flask_routes, f"{method.upper()} {route} is not a Flask route"
+    return {(method, rule.rule) for rule in app.url_map.iter_rules() for method in rule.methods - {"HEAD", "OPTIONS"}}
+
+
+def function_routes():
+    found = set()
+    for path in (FUNCTIONS / "api" / "routes").glob("*.ts"):
+        found |= {(method.upper(), route) for method, route in re.findall(r'router\.(get|post|delete)\(\s*"(/api/[^"]+)"', path.read_text(encoding="utf-8"))}
+    return found
+
+
+def test_every_flask_route_is_ported_or_listed_as_not_ported():
+    assert flask_api_routes() - function_routes() == set(NOT_PORTED), "a Flask route was ported (drop it from NOT_PORTED) or added (port it or list it)"
+
+
+def route_shape(route):
+    """`/api/x/<int:id>/y` and the app's `/api/x/${id}/y` both become `/api/x/*/y`."""
+    return re.sub(r"<[^>]+>|\$\{[^}]+\}", "*", route)
+
+
+def test_the_app_calls_no_route_that_will_not_be_ported():
+    app_routes = set()
+    for path in (ROOT / "mobile" / "src").rglob("*.ts*"):
+        if "__tests__" in path.parts:
+            continue
+        app_routes |= {route_shape(r) for r in re.findall(r"['`\"](/api/[^'`\"?]*)", path.read_text(encoding="utf-8"))}
+    assert len(app_routes) > 30, "the pattern no longer finds the app's routes"
+    served = {route_shape(route) for _method, route in function_routes()}
+    waiting = {route_shape(route) for (_method, route), why in NOT_PORTED.items() if why.startswith("8g")}
+    assert app_routes - served - waiting == set(), "the app calls a route the functions will never serve"
 
 
 def test_the_function_checks_the_token_itself_and_pins_its_dependencies():

@@ -2,6 +2,15 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.53.1.0] - 2026-11-01
+
+### Removed
+
+Reading a barcode out of a photo is not moving to the new Supabase server (step 8f2 of moving off Render). Nothing anyone can do changes: in the app, scanning a barcode is the live camera, which reads the code on the phone and looks up the digits (already on the new server since 0.52.0.0). Sending a photo of a barcode to the server was the website's fallback for browsers that could not read one, and no screen in the app ever used it.
+
+- **The app's unused call** to the photo route is deleted, with its tests. The old route goes away with the Render server at the cut-over; the frozen website keeps its own copy until it is retired.
+- **A ledger of what is left:** a test now lists every old route the new server does not serve and why. Six are the lift-video grader and the challenge clip (step 8g); one is this, marked never. The test fails if a route is ported without being taken off the list, if a new one appears unlisted, or if the app calls a route that will never be served (each checked by breaking it on purpose).
+
 ## [0.53.0.0] - 2026-10-29
 
 ### Added

@@ -783,12 +783,15 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   searches, the FatSecret fallback among them). Also `round(x, n)` for any n (`pyRoundDigits`), the trailing text part of a Gemini turn (the photo's note), and a
   `Services.food` collaborator. Note for 8h: Open Food Facts answers an unknown barcode with HTTP 200 and `status: 0` (live-checked), so a barcode nobody has stays a
   normal `not_found`. 397 Deno tests; the live run uses the real database, Open Food Facts and the model.
-- **8f2, a photo of a barcode (decision for James, blocks 8h):** `POST /api/scan-barcode` decodes the barcode out of an uploaded photo with zbar and Pillow, which an
-  Edge Function does not have. The app already reads barcodes live on the phone and sends the digits to `/api/lookup-barcode`; the open question is its "choose a photo
-  of a barcode" path, which posts the image. Options: read it on the phone (`expo-camera`'s `scanFromURLAsync`, then the digits go to lookup-barcode; no server image
-  work at all), or keep a server-side decoder somewhere. Not ported until decided.
+- **8f2, a photo of a barcode (v0.53.1.0, done: not ported, decided 2026-11-01):** `POST /api/scan-barcode` decoded a barcode out of an uploaded photo with zbar
+  and Pillow, which an Edge Function does not have. It was the WEBSITE's fallback for browsers with no barcode reader. The app never needed it: its barcode mode is
+  the live camera, which reads the digits on the phone and sends them to `/api/lookup-barcode` (its Take/Choose photo buttons are the AI meal photo only), and the
+  client's `scanBarcodePhoto()` had no caller. James chose to drop it rather than add a photo-of-a-barcode option, so the client call is deleted and the Flask route
+  goes with `api/` in 8h. `tests/test_edge_functions.py` now keeps the ledger: every Flask route is either served by the functions or listed in `NOT_PORTED` with
+  the reason ("never", or "8g"), and no route the app names may be one that will never be served. If a photo option is ever wanted, read it on the phone
+  (`expo-camera`'s `scanFromURLAsync`; check its iOS barcode types first), never on the server.
 - **8g, lift video:** see "The one hard part" below.
-- **8h, cut-over:** in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
+- **8h, cut-over:** waits on 8g (the `8g` entries in `NOT_PORTED` must be gone). In-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
 
 **The one hard part.** The form grader (`pipeline.py`, `rep_form_analyzer.py`, `pose_landmarker.py`, `people_detector.py`, `trim_video.py`) trims with
 ffmpeg and counts reps with OpenCV and MediaPipe. An Edge Function has neither. The replacement is to give Gemini the whole clip (uploaded to
