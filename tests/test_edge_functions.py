@@ -52,11 +52,10 @@ def test_every_route_the_functions_serve_is_one_flask_serves_with_the_same_metho
     assert ported <= flask_api_routes(), f"not Flask routes: {sorted(ported - flask_api_routes())}"
 
 
-# Every Flask route the functions do not serve, and why. The cut-over (8h) can only happen once the "8g" ones are gone; the "never"
-# ones are deleted with api/ and nothing in the app may call them.
+# Every Flask route the functions do not serve, and why. Nothing is left waiting on a port (the lift grader, 8g1, and the challenge clip, 8g2, are in);
+# the "never" ones are deleted with api/ at the cut-over (8h) and nothing in the app may call them.
 NOT_PORTED = {
     ("POST", "/api/scan-barcode"): "never: the phone reads barcodes itself and sends the digits to /api/lookup-barcode (8f2)",
-    ("POST", "/api/challenges/<int:challenge_id>/submit"): "8g2: grades the challenge clip (the lift grader, 8g1, is ported)",
     ("GET", "/static/<path:filename>"): "never: Flask's own static files, not an API route",
 }
 
@@ -787,3 +786,33 @@ def test_the_form_grader_keeps_the_websites_shape_of_answer():
         assert f'"{key}"' in flask and re.search(rf"\b{key}\b", ts), key
     for key in ("exercise_label", "overall_score", "reps", "created_at", "has_video"):
         assert f'"{key}"' in flask and re.search(rf"\b{key}\b", ts), key
+
+
+# ---- 8g2: the challenge clip ---------------------------------------------------------------------------------------------------------
+
+
+def test_the_generated_challenge_data_is_fresh():
+    """_shared/challengeData.ts is written from rep_form_analyzer.py and video_trimmer.py by scripts/gen_edge_challenge_data.py."""
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "gen_edge_challenge_data.py"), "--check"], capture_output=True, text=True)
+    assert result.returncode == 0, "challengeData.ts is stale: run `python scripts/gen_edge_challenge_data.py`"
+
+
+def test_the_challenge_counter_says_what_the_python_says():
+    """The words a person reads when a clip cannot be counted, the tries and the pauses, and the route's own messages are the Flask ones.
+    (The instructions and the reading of the answer are proved byte for byte by the golden file.)"""
+    ts = text("_shared", "challengeClip.ts")
+    python = (ROOT / "rep_form_analyzer.py").read_text(encoding="utf-8") + (ROOT / "video_trimmer.py").read_text(encoding="utf-8")
+    for message in ("The rep counter is busy right now (high demand).", "Please wait a moment and record again.", "An error has occurred. Please record again.",
+                    "Couldn't count reps from the video. Please try a clearer recording.", "Unknown challenge exercise: ", "That recording couldn't be processed",
+                    "Please record for at least a few seconds and try again."):
+        assert message in ts and message in python, message
+    assert "const TRANSIENT = new Set([429, 500, 503])" in ts and "return code in (429, 500, 503)" in python
+    assert "2000 * (attempt + 1)" in ts and "time.sleep(2 * (attempt + 1))" in python
+    route = text("api", "routes", "social.ts")
+    flask = (ROOT / "api" / "routes" / "social.py").read_text(encoding="utf-8")
+    for message in re.findall(r'fail\("([^"]+)", 4\d\d\)', route.split("/submit")[1].split("leaderboards")[0]):
+        assert message in flask or message == "That request is too large.", message
+    for message in ("Challenge not found.", "No video uploaded.", "Unsupported video format.", "You've already recorded an attempt for this exercise today — try again tomorrow.", "limitReached"):
+        assert message in flask and message in route, message
+    assert 'track(services.db, userId, "challenge_submission")' in route and 'ai.track(svc, user_id, "challenge_submission")' in flask
+    assert "reserveDailyAttempt" in route and "reserve_daily_attempt" in flask and "releaseDailyAttempt" in route and "release_daily_attempt" in flask

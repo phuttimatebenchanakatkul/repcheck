@@ -528,7 +528,14 @@ def build_analyze():
     return edge_golden_analyze.build()
 
 
-GOLDEN = {"coaching": build_coaching, "split": build_split, "hyrox": build_hyrox, "food": build_food, "admin": build_admin, "analyze": build_analyze}
+def build_challenge():
+    """{name: [[input, expected], ...]} for the challenge-clip rep counter: see edge_golden_challenge.py."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import edge_golden_challenge
+    return edge_golden_challenge.build()
+
+
+GOLDEN = {"coaching": build_coaching, "split": build_split, "hyrox": build_hyrox, "food": build_food, "admin": build_admin, "analyze": build_analyze, "challenge": build_challenge}
 # a big file is kept compressed (the split generator's is several MB of prompts and plans); the tests decompress it
 COMPRESSED = {"split", "hyrox", "food", "analyze"}
 

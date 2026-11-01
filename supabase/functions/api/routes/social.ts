@@ -1,13 +1,21 @@
-/** Friends, blocking and reporting, challenges, the leaderboards, HYROX results and the streak's server-side dates.
- *  (Submitting a challenge clip grades a video, which moves with the video grader.) */
+/** Friends, blocking and reporting, challenges (including submitting a clip, which a model counts the reps of), the leaderboards, HYROX results
+ *  and the streak's server-side dates. */
 import type { Context, Router } from "../../_shared/app.ts";
 import { getProfile } from "../../_shared/accounts.ts";
-import { fail, json, jsonBody } from "../../_shared/http.ts";
-import { track } from "../../_shared/limits.ts";
+import { ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, RECORDED_EXTENSIONS } from "../../_shared/analyze.ts";
+import { countReps, RepCountFailure } from "../../_shared/challengeClip.ts";
+import { hasConsent, refusal } from "../../_shared/consent.ts";
+import { fail, json, jsonBody, readBytesBounded } from "../../_shared/http.ts";
+import { releaseDailyAttempt, reserveDailyAttempt, track } from "../../_shared/limits.ts";
+import { parseMultipart, partNamed } from "../../_shared/multipart.ts";
+import { pathSuffix } from "../../_shared/analyze.ts";
 import { pyStrip } from "../../_shared/nameFilter.ts";
 import * as social from "../../_shared/social.ts";
 
 const NO_PROFILE = "No profile yet. Create it first.";
+// The clip plus the form around it. Stated per request: the app-wide limit is for JSON bodies.
+export const CLIP_BODY_LIMIT = MAX_UPLOAD_BYTES + 1024 * 1024;
+const ALREADY_TODAY = "You've already recorded an attempt for this exercise today — try again tomorrow.";
 
 /** The caller's profile must exist for anything that writes about them; this is the refusal when it does not. */
 async function needProfile({ services, identity }: Context): Promise<Response | null> {
@@ -131,6 +139,52 @@ export function register(router: Router): void {
     const exercise = social.todaysExercise();
     const attempted = await services.db.transaction((tx) => social.hasSubmittedToday(tx, identity.id, exercise));
     return json({ ok: true, exercise, label: social.CHALLENGE_EXERCISES[exercise], attempted });
+  });
+
+  /** A recorded attempt at a challenge: the model counts the valid reps. One attempt per exercise per UTC day. */
+  router.post("/api/challenges/<int:challenge_id>/submit", async ({ request, services, identity, params }) => {
+    const userId = identity.id;
+    const profile = await services.db.transaction((tx) => getProfile(tx, userId));
+    if (!profile) return fail(NO_PROFILE, 404);
+    if (!hasConsent(profile)) return refusal();
+    const gate = await services.db.transaction(async (tx) => {
+      const challenge = await social.visibleChallenge(tx, userId, Number(params.challenge_id));
+      return challenge ? { exercise: challenge.exercise, done: await social.hasSubmittedToday(tx, userId, challenge.exercise) } : null;
+    });
+    if (!gate) return fail("Challenge not found.", 404);
+    const { exercise } = gate;
+    const already = () => json({ ok: false, limitReached: true, error: ALREADY_TODAY }, 429);
+    if (gate.done) return already();
+
+    const body = await readBytesBounded(request, CLIP_BODY_LIMIT); // larger is a 413, never buffered whole
+    const upload = partNamed(parseMultipart(body, request.headers.get("content-type") ?? ""), "video");
+    if (!upload || upload.filename === undefined || !upload.filename) return fail("No video uploaded.", 400);
+    const suffix = pathSuffix(upload.filename).toLowerCase();
+    if (!(ALLOWED_EXTENSIONS as readonly string[]).includes(suffix) && !(RECORDED_EXTENSIONS as readonly string[]).includes(suffix)) return fail("Unsupported video format.", 400);
+    if (upload.data.length > MAX_UPLOAD_BYTES) return fail("That request is too large.", 413);
+
+    // One attempt per exercise per day, held across the minute-long count so two simultaneous submissions cannot both reach the model;
+    // given back if the count does not produce a result.
+    const reservation = await services.db.transaction((tx) => reserveDailyAttempt(tx, userId, exercise));
+    if (!reservation.allowed) return already();
+    const giveBack = async () => {
+      try {
+        await services.db.transaction((tx) => releaseDailyAttempt(tx, userId, exercise, reservation));
+      } catch (e) {
+        console.error("could not give back a challenge attempt:", e instanceof Error ? e.message : e); // a failed refund must not mask the failure that caused it
+      }
+    };
+    let result;
+    try {
+      result = await countReps(services.gemini, upload.data, suffix, exercise);
+      await services.db.transaction((tx) => social.saveSubmission(tx, Number(params.challenge_id), userId, result!.reps, result!.notes));
+    } catch (e) {
+      await giveBack();
+      if (e instanceof RepCountFailure) return fail(e.message, 400);
+      throw e;
+    }
+    await track(services.db, userId, "challenge_submission");
+    return json({ ok: true, exercise, reps: result.reps, rejected: result.rejected, total: result.reps + result.rejected, notes: result.notes });
   });
 
   // -- leaderboards ---------------------------------------------------------------------------------------------------

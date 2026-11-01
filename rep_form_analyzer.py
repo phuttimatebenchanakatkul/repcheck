@@ -177,18 +177,8 @@ def _is_transient(exc):
     return code in (429, 500, 503)
 
 
-def _call_gemini_with_form_check(video_bytes, exercise):
-    try:
-        from google import genai
-        from google.genai import errors, types
-    except ImportError:
-        raise RepCountError("google-genai package not installed. Run: pip install google-genai")
-
-    load_dotenv()
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RepCountError("GEMINI_API_KEY not set in .env")
-
+def build_prompt(exercise):
+    """The instructions the model is given for one challenge exercise (also generated into the Edge Functions: scripts/gen_edge_challenge_data.py)."""
     config = CHALLENGE_EXERCISES[exercise]
     checks = FORM_STANDARDS[exercise]
     checklist_text = "\n".join(f"{i + 1}. {check}" for i, check in enumerate(checks))
@@ -219,6 +209,22 @@ If the video does not show the exercise at all, skip straight to:
 REPS: 0
 REJECTED: 0
 NOTES: <why>"""
+    return prompt
+
+
+def _call_gemini_with_form_check(video_bytes, exercise):
+    try:
+        from google import genai
+        from google.genai import errors, types
+    except ImportError:
+        raise RepCountError("google-genai package not installed. Run: pip install google-genai")
+
+    load_dotenv()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RepCountError("GEMINI_API_KEY not set in .env")
+
+    prompt = build_prompt(exercise)
 
     client = genai.Client(api_key=api_key)
     video_part = types.Part(

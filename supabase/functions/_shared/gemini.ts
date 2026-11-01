@@ -75,7 +75,12 @@ export interface Gemini {
   deleteFile(name: string): Promise<void>;
 }
 
-export class GeminiError extends Error {}
+export class GeminiError extends Error {
+  /** The HTTP status Gemini answered with, when it answered at all (a timeout or a dropped connection has none). */
+  constructor(message: string, readonly status?: number) {
+    super(message);
+  }
+}
 /** Gemini took the clip and then said it cannot read it (not a video, damaged, or a format it does not know). */
 export class GeminiFileRejected extends GeminiError {}
 
@@ -139,7 +144,7 @@ export class GeminiClient implements Gemini {
       await this.sleep(attempt * 1000);
     }
     const answer = response as Response; // the loop always runs at least once and either sets it or throws
-    if (!answer.ok) throw new GeminiError(`Gemini answered ${answer.status}`);
+    if (!answer.ok) throw new GeminiError(`Gemini answered ${answer.status}`, answer.status);
     let data: { candidates?: { content?: { parts?: { text?: unknown; thought?: unknown }[] } }[] };
     try {
       data = await answer.json();
@@ -184,13 +189,13 @@ export class GeminiClient implements Gemini {
       body: JSON.stringify({ file: { display_name: "set" } }),
     }, timeoutMs);
     const target = start.headers.get("x-goog-upload-url");
-    if (!start.ok || !target) throw new GeminiError(`Gemini answered ${start.status} to the upload`);
+    if (!start.ok || !target) throw new GeminiError(`Gemini answered ${start.status} to the upload`, start.status);
     const sent = await this.fileCall(target, {
       method: "POST",
       headers: { "X-Goog-Upload-Offset": "0", "X-Goog-Upload-Command": "upload, finalize" },
       body: data as unknown as BodyInit,
     }, timeoutMs);
-    if (!sent.ok) throw new GeminiError(`Gemini answered ${sent.status} to the upload`);
+    if (!sent.ok) throw new GeminiError(`Gemini answered ${sent.status} to the upload`, sent.status);
     let file = await readFile(sent);
     // A video is processed before it can be read; this takes a few seconds. One poll a second, as many seconds as the caller allows.
     for (let polls = 0; file.state === "PROCESSING" && polls < Math.ceil(timeoutMs / 1000); polls++) {
