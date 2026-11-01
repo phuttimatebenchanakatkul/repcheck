@@ -100,12 +100,14 @@ def test_the_sign_up_consent_notice_is_the_websites_word_for_word():
     assert normalise(ours) == normalise(website)
 
 
-def test_the_policy_links_open_the_websites_public_pages():
+def test_the_sign_up_notice_opens_the_policy_pages_inside_the_app():
+    """A signed-out person can read Terms and Privacy before making an account: the app carries them (mobile/src/legal), no website needed."""
     screen = text(MOBILE / "src" / "app" / "(auth)" / "sign-in.tsx")
-    base = "https://repcheck-q0m4.onrender.com"
-    assert f"'{base}/terms'" in screen and f"'{base}/privacy'" in screen
-    app = text(ROOT / "app.py")
-    assert '"terms"' in app and '"privacy"' in app            # both are in _PUBLIC_ENDPOINTS, so they open without an account
+    assert "params: { page: 'terms' }" in screen and "params: { page: 'privacy' }" in screen
+    assert "onrender.com" not in screen and "openBrowserAsync" not in screen
+    layout = text(MOBILE / "src" / "app" / "_layout.tsx")
+    stack = layout[layout.index("<Stack screenOptions"):]
+    assert stack.index('name="legal/[page]"') < stack.index("<Stack.Protected"), "the legal route sits outside every sign-in guard"
 
 
 # -- the generated types match the live schema --------------------------------------------------------------------------------
@@ -256,16 +258,23 @@ def test_the_deletion_grace_period_the_app_states_is_the_servers():
     assert int(re.search(r"ACCOUNT_GRACE_DAYS = (\d+);", text(MOBILE / "src" / "logic" / "account.ts")).group(1)) == GRACE_DAYS
 
 
-def test_every_page_settings_links_to_opens_without_an_account():
-    """App Review and anyone not signed in must be able to read the policies (App Store Guideline 5.1.1)."""
+def test_every_page_settings_lists_is_a_screen_in_the_app_and_still_public_on_the_website():
+    """Settings opens each policy inside the app. The website's copy must stay public until it is retired: App Store Connect needs a privacy-policy URL Apple can open."""
     links = text(MOBILE / "src" / "links.ts")
-    endpoints = {"/support": "support", "/privacy": "privacy", "/terms": "terms", "/cookies": "cookies", "/refunds": "refunds", "/sources": "health_sources_page"}
+    keys = re.findall(r"\{ key: '(\w+)', label:", links)
+    assert sorted(keys) == ["cookies", "privacy", "refunds", "sources", "support", "terms"]
+    pages = json.loads((MOBILE / "src" / "legal" / "pages.generated.json").read_text(encoding="utf-8"))["pages"]
+    assert sorted(pages) == sorted(keys), "every page Settings lists has its text in the app"
+    endpoints = {"support": "support", "privacy": "privacy", "terms": "terms", "cookies": "cookies", "refunds": "refunds", "sources": "health_sources_page"}
     app = text(ROOT / "app.py")
     public = app[app.index("_PUBLIC_ENDPOINTS"):app.index("@app.before_request")]
-    for path, endpoint in endpoints.items():
-        assert f"path: '{path}'" in links, path
+    for key, endpoint in endpoints.items():
         assert f'"{endpoint}"' in public, f"{endpoint} must be public"
-    assert 'id="ai"' in text(ROOT / "templates" / "privacy.html"), "the AI switch links to #ai on the privacy page"
+    assert 'id="ai"' in text(ROOT / "templates" / "privacy.html"), "the AI switch opens the privacy page at its AI section"
+    ai_ids = [b.get("id") for b in pages["privacy"]["blocks"]]
+    assert "ai" in ai_ids
+    settings = text(MOBILE / "src" / "features" / "settings" / "SettingsScreen.tsx")
+    assert "params: AI_PRIVACY" in settings and "pathname: '/legal/[page]', params: { page: link.key }" in settings
 
 
 def test_the_app_can_delete_withdraw_and_rename_through_the_servers_routes():

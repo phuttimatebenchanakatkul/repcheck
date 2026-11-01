@@ -1,7 +1,6 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Pressable, Text as RNText, View } from 'react-native';
 
@@ -17,9 +16,6 @@ import { Button, ErrorText, Field, Screen, Text } from '@/ui/components';
 import { useTheme } from '@/ui/theme';
 import { space, type } from '@/ui/tokens';
 
-/** The public policy pages: they open for someone with no account yet, which is the point of showing them here. */
-const TERMS_URL = 'https://repcheck-q0m4.onrender.com/terms';
-const PRIVACY_URL = 'https://repcheck-q0m4.onrender.com/privacy';
 const MIN_PASSWORD = 8; // the website's rule
 
 export default function SignIn() {
@@ -154,11 +150,11 @@ export default function SignIn() {
       {/* App Store Guideline 5.1.2(i): disclosed before the account exists, and it covers all three ways in. */}
       <RNText style={[type.caption as object, { color: colors.textSecondary, lineHeight: 17 }]}>
         {t('app.auth.consent.pre')}
-        <RNText accessibilityRole="link" style={link} onPress={() => void WebBrowser.openBrowserAsync(TERMS_URL)}>
+        <RNText accessibilityRole="link" style={link} onPress={() => router.push({ pathname: '/legal/[page]', params: { page: 'terms' } })}>
           {t('app.auth.consent.terms')}
         </RNText>
         {t('app.auth.consent.mid')}
-        <RNText accessibilityRole="link" style={link} onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_URL)}>
+        <RNText accessibilityRole="link" style={link} onPress={() => router.push({ pathname: '/legal/[page]', params: { page: 'privacy' } })}>
           {t('app.auth.consent.privacy')}
         </RNText>
         {t('app.auth.consent.post')}

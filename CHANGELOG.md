@@ -2,6 +2,21 @@
 
 All notable changes to RepCheck are recorded here, newest first.
 
+## [0.56.0.0] - 2026-11-01
+
+### Added
+
+The policy pages now live inside the app (step 8h of moving off Render), as you confirmed "live in an IDE" meant.
+
+- **Six screens in the app**: Terms of Service, Privacy Policy, Sources & health information, Contact us, Cookie Policy and Refund Policy. They are drawn by the app itself, with no web view and no internet needed, and they open for someone who has not signed in (the sign-up notice's Terms and Privacy links go to them) as well as from Settings. The "What is sent, and how it's handled" link under the AI switch opens the Privacy Policy at its AI section. Links between the pages work inside the app; a source's link opens in the browser sheet and the support address in your mail app.
+- **They are the website's pages**, copied by script from the website's own templates (rendered the way production renders them, so the 30-day deletion window and the cookie lifetime are the live numbers). A test fails if the website's text changes and the app's copy is not regenerated. When the website is retired, the copy becomes the original and is edited by hand.
+- **Proven:** 18 new app tests (the pages' content and every link between them, the screen, the route and its refusal of unknown pages, scrolling to a section), the Settings and sign-up tests updated to expect in-app navigation, and 3 Python tests (copy is fresh, quotes the live numbers, lists every source the chats can cite).
+
+### Worth knowing
+
+- The texts still say "the website and the iOS app" (cookies, local storage). That wording was not changed: it is legal text that needs your decision before launch. And App Store Connect still needs a privacy-policy web address Apple can open without the app; once the Render website is gone that should be the marketing site's `privacy.html`.
+- The friend-invite link the app shares still points at the website; it needs its own answer (a universal link) before the website goes.
+
 ## [0.55.1.0] - 2026-11-01
 
 ### Changed

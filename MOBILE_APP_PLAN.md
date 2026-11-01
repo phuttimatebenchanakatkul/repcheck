@@ -826,8 +826,20 @@ the tests (`deno test`, run through `npx deno`) use fakes and need no network.
   exercise: both the old counter and the new one answered `REPS 0` with the same reason for a cable curl asked as push-ups, and both ended in the same "busy" message when the model was
   overloaded. A real set of each exercise, old against new, is the one check left; `deno task test:live` has a challenge run to do with a faster connection. `gemini-3.6-flash` was
   measured faster than `gemini-3.5-flash` for the lift grader, so moving the rep counter to it is a one-line change worth a side-by-side once there are clips.
-- **8h, cut-over:** nothing waits on a port now (`NOT_PORTED` holds only the two "never" routes). Still open, James's calls: which model the chats use, and whether "live in an IDE" meant
-  the legal pages as in-app screens. Then: in-app legal pages, `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask and its Dockerfile deleted, `CLAUDE.md` and this plan rewritten.
+- **8h1, the chat model (v0.55.1.0, done):** James chose `gemini-3.5-flash-lite` (2026-11-01) for the chats; it is the Edge default for everything that names no model of its own (chats, meal
+  photo, race analysis, picked-split plan). See the note under 8e1.
+- **8h2, the legal pages inside the app (v0.56.0.0, done):** James confirmed on 2026-11-01 that "live in an IDE" meant in-app screens. Terms, Privacy, Sources, Support, Cookies and Refunds are now
+  screens (`mobile/src/legal`, route `/legal/[page]`) drawn natively from `pages.generated.json`, with no web view and no network, reachable signed out (the sign-up notice links Terms
+  and Privacy) and signed in (Settings lists all six; the AI switch's "what is sent" link opens Privacy at its AI section). The JSON is GENERATED from the website's own templates
+  (`scripts/gen_mobile_legal.py`: renders each page with the website's app, with production's cookie settings, so the 30-day deletion grace and the cookie lifetime are the live
+  numbers) and a test fails when it is stale. **When the website is retired the JSON becomes the source: edit it by hand and delete the script and `tests/test_mobile_legal.py`.**
+  **Still true after that, and a decision for James:** the texts still describe "the website and the iOS app" (cookies, the browser's local storage); they want a native rewrite before
+  launch, which is legal wording and was deliberately NOT done here. And App Store Connect still needs a hosted privacy-policy URL (Apple opens it without the app): once the Render website
+  goes, that is `marketing/privacy.html`; the in-app copy is for people already in the app. The friend-invite link the app shares still points at the website (`WEBSITE_URL` in
+  `mobile/src/links.ts`), which needs its own answer (a universal link) before the website goes.
+- **8h3, the switch (waits on James's deploy):** `supabase login`, the secrets, `supabase functions deploy api --no-verify-jwt --project-ref edktymiqqgqmzaxckfzc`; then
+  `EXPO_PUBLIC_API_URL` defaults to the functions address, Flask (`api/`, `Dockerfile.api`, `requirements-api.txt`) is deleted, and `CLAUDE.md` and this plan are rewritten. Flipping the
+  app before the function is deployed would break it.
 
 **The one hard part.** The form grader (`pipeline.py`, `rep_form_analyzer.py`, `pose_landmarker.py`, `people_detector.py`, `trim_video.py`) trims with
 ffmpeg and counts reps with OpenCV and MediaPipe. An Edge Function has neither. The replacement (decided by James on 2026-11-01) is to give Gemini the whole clip
